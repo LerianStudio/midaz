@@ -39,7 +39,7 @@ type AssetRateHandler struct {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [Put]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [put]
 func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -135,10 +135,10 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string		true	"Ledger ID"
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
-//	@Param			to				query		[]string	false	"To Asset Codes"	example	"BRL,USD,SGD"
+//	@Param			to				query		[]string	false	"To Asset Codes"
 //	@Param			limit			query		int			false	"Limit"				default(10)
-//	@Param			start_date		query		string		false	"Start Date"		example	"2021-01-01"
-//	@Param			end_date		query		string		false	"End Date"			example	"2021-01-01"
+//	@Param			start_date		query		string		false	"Start Date"
+//	@Param			end_date		query		string		false	"End Date"
 //	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
 //	@Param			cursor			query		string		false	"Cursor"
 //	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate}

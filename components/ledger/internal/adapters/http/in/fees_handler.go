@@ -10,10 +10,11 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
+	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -76,9 +77,13 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 
 	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID)
 	if errCreateFee != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to estimate fee calculation", errCreateFee)
+		handleSpanByErrorClass(span, "Failed to estimate fee calculation", errCreateFee)
 
 		return http.WithError(c, errCreateFee)
+	}
+
+	if feeCalculate == nil {
+		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee"))
 	}
 
 	if feeCalculate.Transaction.Metadata["packageAppliedID"] == nil {

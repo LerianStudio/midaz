@@ -110,4 +110,4 @@ type ValidationWarning struct {
 
 	// Message is a human-readable description of the warning.
 	Message string `json:"message"`
-}
+} // @name ValidationWarning

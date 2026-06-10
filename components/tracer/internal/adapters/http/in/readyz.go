@@ -84,7 +84,7 @@ const (
 //	@Summary		Readiness check (Lerian canonical contract)
 //	@Description	Live dependency probes — never cached. Returns 200 only when every check is up/skipped/n/a; any down or degraded forces 503.
 //	@ID				getReadyz
-//	@Tags			health
+//	@Tags			Health
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	api.ReadyzResponse	"Service is ready"

@@ -328,7 +328,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	}
 
 	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, payload); errUpdate != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update package", errUpdate)
+		handleSpanByErrorClass(span, "Failed to update package", errUpdate)
 
 		return http.WithError(c, errUpdate)
 	}
@@ -383,7 +383,7 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	)
 
 	if err := handler.Service.DeletePackageByID(ctx, id, organizationID); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove package on database", err)
+		handleSpanByErrorClass(span, "Failed to remove package on database", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove Package", libLog.String("package_id", id.String()))
 

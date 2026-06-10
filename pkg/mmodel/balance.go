@@ -118,7 +118,7 @@ type Balance struct {
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	Balance
 
 // BalanceHistory represents a historical balance snapshot without permission flags.
 // Permission flags (AllowSending/AllowReceiving) are not tracked historically.

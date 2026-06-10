@@ -32,6 +32,16 @@ type TransactionHandler struct {
 	// nil reserver means the tracer integration is disabled (the create path
 	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
+	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
+	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
+	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
+	// only sets on FEE routes — never on the transaction route — so the seam
+	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
+	// mode (and in tests that do not exercise the seam).
+	FeesMongoManager feesDBResolver
+	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
+	// static fee connection is correct and resolveFeesTenantContext is a no-op.
+	MultiTenantEnabled bool
 }
 
 // CreateTransactionJSON method that create transaction using JSON

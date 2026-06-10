@@ -26,7 +26,7 @@ type TransactionRouteHandler struct {
 //
 //	@Summary		Create Transaction Route
 //	@Description	Endpoint to create a new Transaction Route.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
@@ -90,7 +90,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //
 //	@Summary		Get Transaction Route by ID
 //	@Description	Endpoint to get a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization			header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
@@ -143,7 +143,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //
 //	@Summary		Update Transaction Route
 //	@Description	Endpoint to update a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization			header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
@@ -206,7 +206,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //
 //	@Summary		Delete Transaction Route by ID
 //	@Description	Endpoint to delete a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization			header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
@@ -264,7 +264,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //
 //	@Summary		Get all Transaction Routes
 //	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
@@ -272,8 +272,8 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"
+//	@Param			end_date		query		string	false	"End Date"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.TransactionRoute}

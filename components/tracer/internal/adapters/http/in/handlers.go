@@ -54,7 +54,7 @@ func SetSelfProbeGate(gate SelfProbeGate) {
 //	@Summary		Health check (liveness probe)
 //	@Description	Returns 503 until startup self-probe completes; 200 "healthy" thereafter.
 //	@ID				getHealth
-//	@Tags			health
+//	@Tags			Health
 //	@Accept			plain
 //	@Produce		plain
 //	@Success		200	{string}	string	"healthy"
@@ -86,7 +86,7 @@ var versionHandler = buildinfo.VersionHandler(os.Getenv("VERSION"))
 //	@Summary		Get service version
 //	@Description	Returns the current version of the service plus build provenance
 //	@ID				getVersion
-//	@Tags			info
+//	@Tags			Info
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	api.VersionResponse	"Version information"

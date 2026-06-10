@@ -31,7 +31,7 @@
                     "text/plain"
                 ],
                 "tags": [
-                    "health"
+                    "Health"
                 ],
                 "summary": "Health check (liveness probe)",
                 "operationId": "getHealth",
@@ -64,7 +64,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "health"
+                    "Health"
                 ],
                 "summary": "Readiness check (Lerian canonical contract)",
                 "operationId": "getReadyz",
@@ -72,13 +72,13 @@
                     "200": {
                         "description": "Service is ready",
                         "schema": {
-                            "$ref": "#/definitions/api.ReadyzResponse"
+                            "$ref": "#/definitions/ReadyzResponse"
                         }
                     },
                     "503": {
                         "description": "Service is not ready",
                         "schema": {
-                            "$ref": "#/definitions/api.ReadyzResponse"
+                            "$ref": "#/definitions/ReadyzResponse"
                         }
                     }
                 }
@@ -99,7 +99,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "List audit events",
                 "operationId": "listAuditEvents",
@@ -285,19 +285,19 @@
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -318,7 +318,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "Get an audit event by ID",
                 "operationId": "getAuditEvent",
@@ -342,25 +342,25 @@
                     "400": {
                         "description": "Invalid event ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Audit event not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -381,7 +381,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "Verify audit event hash chain integrity",
                 "operationId": "verifyAuditEvent",
@@ -405,25 +405,25 @@
                     "400": {
                         "description": "Invalid event ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Event not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -444,7 +444,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "List spending limits",
                 "operationId": "listLimits",
@@ -574,19 +574,19 @@
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -605,7 +605,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Create a new spending limit",
                 "operationId": "createLimit",
@@ -630,25 +630,25 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Limit name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -669,7 +669,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Get a spending limit by ID",
                 "operationId": "getLimit",
@@ -693,25 +693,25 @@
                     "400": {
                         "description": "Invalid limit ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -730,7 +730,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Delete a spending limit",
                 "operationId": "deleteLimit",
@@ -751,25 +751,25 @@
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -788,7 +788,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Partially update an existing spending limit",
                 "operationId": "updateLimit",
@@ -821,31 +821,31 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Limit name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -866,7 +866,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Activate a spending limit",
                 "operationId": "activateLimit",
@@ -890,25 +890,25 @@
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -929,7 +929,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Deactivate a spending limit",
                 "operationId": "deactivateLimit",
@@ -953,25 +953,25 @@
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -992,7 +992,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Transition a limit back to draft",
                 "operationId": "draftLimit",
@@ -1016,25 +1016,25 @@
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1055,7 +1055,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Get usage snapshot for a limit",
                 "operationId": "getLimitUsage",
@@ -1079,25 +1079,25 @@
                     "400": {
                         "description": "Invalid limit ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1118,7 +1118,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Reserve transaction capacity (phase one)",
                 "operationId": "createReservation",
@@ -1143,25 +1143,25 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "413": {
                         "description": "Payload too large (exceeds 100KB)",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1179,7 +1179,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Confirm a transaction's reservations (phase two — commit by transaction)",
                 "operationId": "confirmReservationByTransaction",
@@ -1203,19 +1203,19 @@
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1233,7 +1233,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Release a transaction's reservations (phase two — abort by transaction)",
                 "operationId": "releaseReservationByTransaction",
@@ -1257,19 +1257,19 @@
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1287,7 +1287,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Confirm a reservation (phase two — commit)",
                 "operationId": "confirmReservation",
@@ -1311,19 +1311,19 @@
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1341,7 +1341,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Release a reservation (phase two — abort)",
                 "operationId": "releaseReservation",
@@ -1365,19 +1365,19 @@
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1398,7 +1398,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "List fraud rules",
                 "operationId": "listRules",
@@ -1525,19 +1525,19 @@
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1556,7 +1556,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Create a new fraud rule",
                 "operationId": "createRule",
@@ -1581,25 +1581,25 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Rule name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1620,7 +1620,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Get a fraud rule by ID",
                 "operationId": "getRule",
@@ -1644,25 +1644,25 @@
                     "400": {
                         "description": "Invalid rule ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1681,7 +1681,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Delete a fraud rule",
                 "operationId": "deleteRule",
@@ -1702,25 +1702,25 @@
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1739,7 +1739,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Partially update an existing fraud rule",
                 "operationId": "updateRule",
@@ -1772,31 +1772,31 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Rule name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1817,7 +1817,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Activate a fraud rule",
                 "operationId": "activateRule",
@@ -1841,25 +1841,25 @@
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1880,7 +1880,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Deactivate a fraud rule",
                 "operationId": "deactivateRule",
@@ -1904,25 +1904,25 @@
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1943,7 +1943,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Transition a rule back to draft",
                 "operationId": "draftRule",
@@ -1967,25 +1967,25 @@
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2006,7 +2006,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "List transaction validation records",
                 "operationId": "listValidations",
@@ -2128,19 +2128,19 @@
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2159,7 +2159,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "Validate a transaction",
                 "operationId": "validateTransaction",
@@ -2190,37 +2190,37 @@
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "413": {
                         "description": "Payload too large (exceeds 100KB)",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "503": {
                         "description": "Service unavailable",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "504": {
                         "description": "Gateway timeout",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2241,7 +2241,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "Get a transaction validation record by ID",
                 "operationId": "getValidation",
@@ -2265,25 +2265,25 @@
                     "400": {
                         "description": "Invalid transaction validation ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Transaction validation not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2299,7 +2299,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "info"
+                    "Info"
                 ],
                 "summary": "Get service version",
                 "operationId": "getVersion",
@@ -2307,7 +2307,7 @@
                     "200": {
                         "description": "Version information",
                         "schema": {
-                            "$ref": "#/definitions/api.VersionResponse"
+                            "$ref": "#/definitions/VersionResponse"
                         }
                     }
                 }
@@ -2315,7 +2315,7 @@
         }
     },
     "definitions": {
-        "api.ErrorResponse": {
+        "ErrorResponse": {
             "type": "object",
             "required": [
                 "code",
@@ -2337,7 +2337,7 @@
                 }
             }
         },
-        "api.ReadyzCheck": {
+        "ReadyzCheck": {
             "type": "object",
             "properties": {
                 "error": {
@@ -2364,13 +2364,13 @@
                 }
             }
         },
-        "api.ReadyzResponse": {
+        "ReadyzResponse": {
             "type": "object",
             "properties": {
                 "checks": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/api.ReadyzCheck"
+                        "$ref": "#/definitions/ReadyzCheck"
                     }
                 },
                 "deployment_mode": {
@@ -2395,7 +2395,7 @@
                 }
             }
         },
-        "api.VersionResponse": {
+        "VersionResponse": {
             "type": "object",
             "properties": {
                 "buildTime": {
@@ -3489,5 +3489,35 @@
             "name": "X-API-Key",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "CEL-based validation rules.",
+            "name": "Rules"
+        },
+        {
+            "description": "Spending limits and usage windows.",
+            "name": "Limits"
+        },
+        {
+            "description": "Pre-flight transaction validation decisions.",
+            "name": "Validations"
+        },
+        {
+            "description": "Two-phase balance reservations: hold, then confirm or release.",
+            "name": "Reservations"
+        },
+        {
+            "description": "Hash-chained audit event trail.",
+            "name": "Audit"
+        },
+        {
+            "description": "Liveness and readiness probes.",
+            "name": "Health"
+        },
+        {
+            "description": "Service build and version metadata.",
+            "name": "Info"
+        }
+    ]
 }

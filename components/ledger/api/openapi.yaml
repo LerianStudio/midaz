@@ -18,6 +18,49 @@ info:
 servers:
 - url: http://localhost:3002/
 - url: https://localhost:3002/
+tags:
+- description: Top-level tenant entities that own ledgers and all nested resources.
+  name: Organizations
+- description: "Bookkeeping containers scoping assets, accounts, and transactions."
+  name: Ledgers
+- description: Balance-holding entries that transactions debit and credit.
+  name: Accounts
+- description: Currencies and instruments tracked within a ledger.
+  name: Assets
+- description: Logical groupings of accounts under a holder.
+  name: Portfolios
+- description: Sub-classifications for organizing accounts.
+  name: Segments
+- description: Reusable account classification definitions.
+  name: Account Types
+- description: Double-entry postings that move value between accounts.
+  name: Transactions
+- description: "Per-account available, on-hold, and scale state."
+  name: Balances
+- description: The individual debit and credit legs of a transaction.
+  name: Operations
+- description: Conversion rates between assets.
+  name: Asset Rates
+- description: Templates constraining which accounts an operation leg may touch.
+  name: Operation Routes
+- description: Ordered sets of operation routes describing a transaction shape.
+  name: Transaction Routes
+- description: Index definitions over entity metadata for queryable lookups.
+  name: Metadata Indexes
+- description: Holder identity records (the party behind accounts).
+  name: Holders
+- description: Financial instrument records bound to holders.
+  name: Instruments
+- description: Holder + account creation in a single call.
+  name: Composition
+- description: Fee package definitions applied during transaction processing.
+  name: Packages
+- description: Fee estimation and application for transactions.
+  name: Fees
+- description: Billing package definitions for charge aggregation.
+  name: Billing Packages
+- description: On-demand billing charge calculation.
+  name: Billing Calculate
 paths:
   /v1/organizations:
     get:
@@ -492,7 +535,7 @@ paths:
           description: Internal Server Error
       summary: Get all billing packages
       tags:
-      - BillingPackages
+      - Billing Packages
     post:
       description: Create a BillingPackage with the input payload
       parameters:
@@ -554,7 +597,7 @@ paths:
           description: Internal Server Error
       summary: Create a BillingPackage
       tags:
-      - BillingPackages
+      - Billing Packages
       x-codegen-request-body-name: billingPackage
   /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
@@ -614,7 +657,7 @@ paths:
           description: Internal Server Error
       summary: SoftDelete a BillingPackage by ID
       tags:
-      - BillingPackages
+      - Billing Packages
     get:
       description: Get a billing package by id
       parameters:
@@ -675,7 +718,7 @@ paths:
           description: Internal Server Error
       summary: Get billing package
       tags:
-      - BillingPackages
+      - Billing Packages
     patch:
       description: Update a billing package with the input payload
       parameters:
@@ -749,7 +792,7 @@ paths:
           description: Internal Server Error
       summary: Update a billing package
       tags:
-      - BillingPackages
+      - Billing Packages
       x-codegen-request-body-name: billingPackage
   /v1/organizations/{organization_id}/billing/calculate:
     post:
@@ -819,7 +862,7 @@ paths:
           description: Internal Server Error
       summary: Calculate billing
       tags:
-      - BillingCalculate
+      - Billing Calculate
       x-codegen-request-body-name: billingCalculate
   /v1/organizations/{organization_id}/estimates:
     post:
@@ -3475,7 +3518,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.Balance'
+                $ref: '#/components/schemas/Balance'
           description: Created
         "400":
           content:
@@ -4717,7 +4760,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.Balance'
+                $ref: '#/components/schemas/Balance'
           description: OK
         "401":
           content:
@@ -4790,7 +4833,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.Balance'
+                $ref: '#/components/schemas/Balance'
           description: OK
         "400":
           content:
@@ -5078,7 +5121,7 @@ paths:
           description: Internal server error
       summary: Retrieve all operation routes
       tags:
-      - Operation Route
+      - Operation Routes
     post:
       description: Endpoint to create a new Operation Route.
       parameters:
@@ -5145,7 +5188,7 @@ paths:
           description: Internal server error
       summary: Create Operation Route
       tags:
-      - Operation Route
+      - Operation Routes
       x-codegen-request-body-name: operation-route
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
@@ -5205,7 +5248,7 @@ paths:
           description: Internal server error
       summary: Delete an operation route
       tags:
-      - Operation Route
+      - Operation Routes
     get:
       description: Returns detailed information about an operation route identified
         by its UUID within the specified ledger
@@ -5254,7 +5297,7 @@ paths:
           description: Unauthorized access
       summary: Retrieve a specific operation route
       tags:
-      - Operation Route
+      - Operation Routes
     patch:
       description: "Updates an existing operation route's properties such as title,\
         \ description, and type within the specified ledger"
@@ -5340,7 +5383,7 @@ paths:
           description: Internal server error
       summary: Update an operation route
       tags:
-      - Operation Route
+      - Operation Routes
       x-codegen-request-body-name: operation-route
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
@@ -6542,7 +6585,7 @@ paths:
           description: Internal server error
       summary: Get all Transaction Routes
       tags:
-      - Transaction Route
+      - Transaction Routes
     post:
       description: Endpoint to create a new Transaction Route.
       parameters:
@@ -6609,7 +6652,7 @@ paths:
           description: Internal server error
       summary: Create Transaction Route
       tags:
-      - Transaction Route
+      - Transaction Routes
       x-codegen-request-body-name: transaction-route
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
@@ -6680,7 +6723,7 @@ paths:
           description: Internal server error
       summary: Delete Transaction Route by ID
       tags:
-      - Transaction Route
+      - Transaction Routes
     get:
       description: Endpoint to get a Transaction Route by its ID.
       parameters:
@@ -6752,7 +6795,7 @@ paths:
           description: Internal server error
       summary: Get Transaction Route by ID
       tags:
-      - Transaction Route
+      - Transaction Routes
     patch:
       description: Endpoint to update a Transaction Route by its ID.
       parameters:
@@ -6825,7 +6868,7 @@ paths:
           description: Internal server error
       summary: Update Transaction Route
       tags:
-      - Transaction Route
+      - Transaction Routes
       x-codegen-request-body-name: transaction-route
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
@@ -7582,7 +7625,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request or transaction cannot be reverted
+          description: Invalid request or transaction cannot be cancelled
         "401":
           content:
             application/json:
@@ -7661,7 +7704,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request or transaction cannot be reverted
+          description: Invalid request or transaction cannot be committed
         "401":
           content:
             application/json:
@@ -7982,7 +8025,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                $ref: '#/components/schemas/Package'
           description: Created
         "400":
           content:
@@ -8109,7 +8152,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                $ref: '#/components/schemas/Package'
           description: OK
         "400":
           content:
@@ -8177,7 +8220,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                $ref: '#/components/schemas/Package'
           description: OK
         "400":
           content:
@@ -9083,6 +9126,11 @@ components:
     Balance:
       description: Balance is the struct designed to represent the account balance.
         Contains available and on-hold amounts along with the scale (decimal places).
+      example:
+        overdraftUsed: 130.0
+        onHold: 500.0
+        available: 1500.0
+        version: 2
       properties:
         available:
           description: |-
@@ -9251,7 +9299,7 @@ components:
           type: number
         settings:
           allOf:
-          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          - $ref: '#/components/schemas/BalanceSettings'
           description: |-
             Settings is the per-balance configuration snapshot at the time the
             history row was recorded. Nil for legacy balances.
@@ -9272,6 +9320,43 @@ components:
           example: 1
           minimum: 1
           type: integer
+      type: object
+    BalanceSettings:
+      description: Optional per-balance configuration controlling overdraft behavior
+        and balance scope.
+      properties:
+        allowOverdraft:
+          description: |-
+            AllowOverdraft enables overdraft behavior for the balance. When false,
+            transactions that would drive Available below zero are rejected.
+            example: false
+          example: false
+          type: boolean
+        balanceScope:
+          description: |-
+            BalanceScope identifies how the balance participates in transactions.
+            Allowed values: "transactional" (default), "internal". Empty string is
+            treated as "transactional" for backwards compatibility.
+            example: transactional
+          example: transactional
+          type: string
+        overdraftLimit:
+          description: |-
+            OverdraftLimit is the maximum overdraft amount the balance may carry,
+            expressed as a decimal string (to preserve precision). Ignored when
+            OverdraftLimitEnabled is false.
+            example: 1000.00
+          example: "1000.00"
+          type: string
+        overdraftLimitEnabled:
+          description: |-
+            OverdraftLimitEnabled gates the OverdraftLimit field. When true, a
+            non-empty, strictly positive OverdraftLimit MUST be supplied. When
+            false, OverdraftLimit MUST be absent (overdraft is unlimited if
+            AllowOverdraft is true).
+            example: false
+          example: false
+          type: boolean
       type: object
     BankingDetails:
       type: object
@@ -9540,7 +9625,7 @@ components:
           type: string
         settings:
           allOf:
-          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          - $ref: '#/components/schemas/BalanceSettings'
           description: |-
             Settings is the optional per-balance configuration (overdraft,
             balance scope). When omitted, platform defaults are applied.
@@ -10450,6 +10535,12 @@ components:
       required:
       - operationRoutes
       - title
+      type: object
+    Date:
+      description: "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null"
+      properties:
+        time.Time:
+          type: string
       type: object
     Distribute:
       description: Distribute is the struct designed to represent the distribution
@@ -11905,6 +11996,89 @@ components:
           format: date-time
           type: string
       type: object
+    Package:
+      example:
+        fees:
+          key:
+            calculationModel:
+              applicationRule: maxBetweenTypes
+              calculations:
+              - type: percentage
+                value: "100.00"
+              - type: percentage
+                value: "100.00"
+            referenceAmount: originalAmount
+            creditAccount: conta_receita_taxas_adm
+            routeTo: taxa_crédito
+            isDeductibleFrom: true
+            routeFrom: taxa_débito
+            priority: 1
+            feeLabel: Taxa Administrativa
+        maximumAmount: 2.0
+        description: Pacote de taxas administrativas padrão
+        waivedAccounts:
+        - acc001
+        - acc002
+        feeGroupLabel: Pacote Padrão
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        transactionRoute: debitoted
+        enable: true
+        segmentId: 00000000-0000-0000-0000-000000000000
+        minimumAmount: 100.0
+        id: 00000000-0000-0000-0000-000000000000
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Pacote de taxas administrativas padrão
+          type: string
+        enable:
+          type: boolean
+        feeGroupLabel:
+          example: Pacote Padrão
+          type: string
+        fees:
+          additionalProperties:
+            $ref: '#/components/schemas/Fee'
+          type: object
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        maximumAmount:
+          example: 2.0
+          minimum: 0
+          type: number
+        minimumAmount:
+          example: 100.0
+          minimum: 0
+          type: number
+        segmentId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        transactionRoute:
+          example: debitoted
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        waivedAccounts:
+          example:
+          - acc001
+          - acc002
+          items:
+            type: string
+          type: array
+      type: object
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
@@ -12993,7 +13167,7 @@ components:
           type: boolean
         settings:
           allOf:
-          - $ref: '#/components/schemas/mmodel.BalanceSettings'
+          - $ref: '#/components/schemas/BalanceSettings'
           description: |-
             Settings is the per-balance configuration (overdraft, balance
             scope). When provided, replaces the existing settings in full.
@@ -13286,8 +13460,8 @@ components:
         minimumAmount: "100"
         description: Pacote de taxas administrativas padrão
         waivedAccounts:
-        - "['acc001'"
-        - " 'ac0002']"
+        - acc001
+        - acc002
         feeGroupLabel: Pacote Padrão
       properties:
         description:
@@ -13311,8 +13485,8 @@ components:
           type: string
         waivedAccounts:
           example:
-          - "['acc001'"
-          - " 'ac0002']"
+          - acc001
+          - acc002
           items:
             type: string
           type: array
@@ -13437,89 +13611,6 @@ components:
           example: Charge Settlement
           maxLength: 255
           type: string
-      type: object
-    github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package:
-      example:
-        fees:
-          key:
-            calculationModel:
-              applicationRule: maxBetweenTypes
-              calculations:
-              - type: percentage
-                value: "100.00"
-              - type: percentage
-                value: "100.00"
-            referenceAmount: originalAmount
-            creditAccount: conta_receita_taxas_adm
-            routeTo: taxa_crédito
-            isDeductibleFrom: true
-            routeFrom: taxa_débito
-            priority: 1
-            feeLabel: Taxa Administrativa
-        maximumAmount: 2.0
-        description: Pacote de taxas administrativas padrão
-        waivedAccounts:
-        - "['acc001'"
-        - " 'ac0002']"
-        feeGroupLabel: Pacote Padrão
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        transactionRoute: debitoted
-        enable: true
-        segmentId: 00000000-0000-0000-0000-000000000000
-        minimumAmount: 100.0
-        id: 00000000-0000-0000-0000-000000000000
-        updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        createdAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-        deletedAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-        description:
-          example: Pacote de taxas administrativas padrão
-          type: string
-        enable:
-          type: boolean
-        feeGroupLabel:
-          example: Pacote Padrão
-          type: string
-        fees:
-          additionalProperties:
-            $ref: '#/components/schemas/Fee'
-          type: object
-        id:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        ledgerId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        maximumAmount:
-          example: 2.0
-          minimum: 0
-          type: number
-        minimumAmount:
-          example: 100.0
-          minimum: 0
-          type: number
-        segmentId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        transactionRoute:
-          example: debitoted
-          type: string
-        updatedAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-        waivedAccounts:
-          example:
-          - "['acc001'"
-          - " 'ac0002']"
-          items:
-            type: string
-          type: array
       type: object
     github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget:
       example:
@@ -13813,233 +13904,6 @@ components:
             When true, transactions must specify valid route IDs that exist in the ledger.
             Default: false (permissive - no validation)
           type: boolean
-      type: object
-    mmodel.Balance:
-      description: "Complete balance entity containing all fields including system-generated\
-        \ fields like ID, creation timestamps, and metadata. This is the response\
-        \ format for balance operations. Balances represent the amount of a specific\
-        \ asset held in an account, including available and on-hold amounts."
-      example:
-        settings: "{}"
-        metadata:
-          key: "{}"
-        assetCode: USD
-        onHold: 500.0
-        allowReceiving: true
-        accountType: creditCard
-        available: 1500.0
-        allowSending: true
-        version: 1
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        overdraftUsed: 0.0
-        alias: '@person1'
-        id: 00000000-0000-0000-0000-000000000000
-        key: asset-freeze
-        direction: credit
-        updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        accountId:
-          description: |-
-            Account that holds this balance
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        accountType:
-          description: |-
-            Type of account holding this balance
-            example: creditCard
-            maxLength: 50
-          example: creditCard
-          maxLength: 50
-          type: string
-        alias:
-          description: |-
-            Alias for the account, used for easy identification or tagging
-            example: @person1
-            maxLength: 256
-          example: '@person1'
-          maxLength: 256
-          type: string
-        allowReceiving:
-          description: |-
-            Whether the account can receive funds to this balance
-            example: true
-          example: true
-          type: boolean
-        allowSending:
-          description: |-
-            Whether the account can send funds from this balance
-            example: true
-          example: true
-          type: boolean
-        assetCode:
-          description: |-
-            Asset code identifying the currency or asset type of this balance
-            example: USD
-            minLength: 2
-            maxLength: 10
-          example: USD
-          maxLength: 10
-          minLength: 2
-          type: string
-        available:
-          description: |-
-            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
-            example: 1500
-            minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
-        createdAt:
-          description: |-
-            Timestamp when the balance was created (RFC3339 format)
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        deletedAt:
-          description: |-
-            Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
-            example: null
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        direction:
-          description: |-
-            Direction is the accounting direction of the balance. One of
-            "credit" or "debit". Empty string denotes legacy rows predating the
-            overdraft feature and is treated as "credit" by the engine.
-            example: credit
-          example: credit
-          type: string
-        id:
-          description: |-
-            Unique identifier for the balance (UUID format)
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        key:
-          description: |-
-            Unique key for the balance
-            example: asset-freeze
-            maxLength: 100
-          example: asset-freeze
-          maxLength: 100
-          type: string
-        ledgerId:
-          description: |-
-            Ledger containing the account this balance belongs to
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Custom key-value pairs for extending the balance information
-            example: {"purpose": "Main savings", "category": "Personal"}
-          type: object
-        onHold:
-          description: |-
-            Amount currently on hold and unavailable for transactions
-            example: 500
-            minimum: 0
-          example: 500.0
-          minimum: 0
-          type: number
-        organizationId:
-          description: |-
-            Organization that owns this balance
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        overdraftUsed:
-          description: |-
-            OverdraftUsed is the amount of overdraft currently consumed by this
-            balance. Always non-negative; zero when the balance is in the black.
-            example: 0
-          example: 0.0
-          type: number
-        settings:
-          allOf:
-          - $ref: '#/components/schemas/mmodel.BalanceSettings'
-          description: |-
-            Settings carries optional per-balance configuration (overdraft,
-            balance scope). Nil for legacy balances without custom settings.
-          type: object
-        updatedAt:
-          description: |-
-            Timestamp when the balance was last updated (RFC3339 format)
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        version:
-          description: |-
-            Optimistic concurrency control version
-            example: 1
-            minimum: 1
-          example: 1
-          minimum: 1
-          type: integer
-      type: object
-    mmodel.BalanceSettings:
-      description: Optional per-balance configuration controlling overdraft behavior
-        and balance scope.
-      properties:
-        allowOverdraft:
-          description: |-
-            AllowOverdraft enables overdraft behavior for the balance. When false,
-            transactions that would drive Available below zero are rejected.
-            example: false
-          example: false
-          type: boolean
-        balanceScope:
-          description: |-
-            BalanceScope identifies how the balance participates in transactions.
-            Allowed values: "transactional" (default), "internal". Empty string is
-            treated as "transactional" for backwards compatibility.
-            example: transactional
-          example: transactional
-          type: string
-        overdraftLimit:
-          description: |-
-            OverdraftLimit is the maximum overdraft amount the balance may carry,
-            expressed as a decimal string (to preserve precision). Ignored when
-            OverdraftLimitEnabled is false.
-            example: 1000.00
-          example: "1000.00"
-          type: string
-        overdraftLimitEnabled:
-          description: |-
-            OverdraftLimitEnabled gates the OverdraftLimit field. When true, a
-            non-empty, strictly positive OverdraftLimit MUST be supplied. When
-            false, OverdraftLimit MUST be absent (overdraft is unlimited if
-            AllowOverdraft is true).
-            example: false
-          example: false
-          type: boolean
-      type: object
-    mmodel.Date:
-      description: "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null"
-      properties:
-        time.Time:
-          type: string
       type: object
     mmodel.LedgerSettings:
       example:
@@ -14543,7 +14407,7 @@ components:
       - properties:
           items:
             items:
-              $ref: '#/components/schemas/mmodel.Balance'
+              $ref: '#/components/schemas/Balance'
             type: array
         type: object
       example:
@@ -14552,48 +14416,14 @@ components:
         limit: 0
         page: 6
         items:
-        - settings: "{}"
-          metadata:
-            key: "{}"
-          assetCode: USD
+        - overdraftUsed: 130.0
           onHold: 500.0
-          allowReceiving: true
-          accountType: creditCard
           available: 1500.0
-          allowSending: true
-          version: 1
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          overdraftUsed: 0.0
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          key: asset-freeze
-          direction: credit
-          updatedAt: 2021-01-01T00:00:00Z
-        - settings: "{}"
-          metadata:
-            key: "{}"
-          assetCode: USD
+          version: 2
+        - overdraftUsed: 130.0
           onHold: 500.0
-          allowReceiving: true
-          accountType: creditCard
           available: 1500.0
-          allowSending: true
-          version: 1
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          overdraftUsed: 0.0
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          key: asset-freeze
-          direction: credit
-          updatedAt: 2021-01-01T00:00:00Z
+          version: 2
     _v1_organizations__organization_id__ledgers__ledger_id__accounts__account_id__operations_get_200_response:
       allOf:
       - $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_net_http.Pagination'
@@ -15139,7 +14969,7 @@ components:
       - properties:
           items:
             items:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+              $ref: '#/components/schemas/Package'
             type: array
           limit:
             type: integer
@@ -15172,8 +15002,8 @@ components:
           maximumAmount: 2.0
           description: Pacote de taxas administrativas padrão
           waivedAccounts:
-          - "['acc001'"
-          - " 'ac0002']"
+          - acc001
+          - acc002
           feeGroupLabel: Pacote Padrão
           ledgerId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -15203,8 +15033,8 @@ components:
           maximumAmount: 2.0
           description: Pacote de taxas administrativas padrão
           waivedAccounts:
-          - "['acc001'"
-          - " 'ac0002']"
+          - acc001
+          - acc002
           feeGroupLabel: Pacote Padrão
           ledgerId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z

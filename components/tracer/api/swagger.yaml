@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  api.ErrorResponse:
+  ErrorResponse:
     properties:
       code:
         example: "0053"
@@ -16,7 +16,7 @@ definitions:
     - message
     - title
     type: object
-  api.ReadyzCheck:
+  ReadyzCheck:
     properties:
       error:
         type: string
@@ -36,11 +36,11 @@ definitions:
         example: true
         type: boolean
     type: object
-  api.ReadyzResponse:
+  ReadyzResponse:
     properties:
       checks:
         additionalProperties:
-          $ref: '#/definitions/api.ReadyzCheck'
+          $ref: '#/definitions/ReadyzCheck'
         type: object
       deployment_mode:
         example: saas
@@ -58,7 +58,7 @@ definitions:
         example: 1.2.3
         type: string
     type: object
-  api.VersionResponse:
+  VersionResponse:
     properties:
       buildTime:
         example: "2025-01-01T00:00:00Z"
@@ -916,7 +916,7 @@ paths:
             type: object
       summary: Health check (liveness probe)
       tags:
-      - health
+      - Health
   /readyz:
     get:
       consumes:
@@ -930,14 +930,14 @@ paths:
         "200":
           description: Service is ready
           schema:
-            $ref: '#/definitions/api.ReadyzResponse'
+            $ref: '#/definitions/ReadyzResponse'
         "503":
           description: Service is not ready
           schema:
-            $ref: '#/definitions/api.ReadyzResponse'
+            $ref: '#/definitions/ReadyzResponse'
       summary: Readiness check (Lerian canonical contract)
       tags:
-      - health
+      - Health
   /v1/audit-events:
     get:
       consumes:
@@ -1082,20 +1082,20 @@ paths:
         "400":
           description: Invalid parameters
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: List audit events
       tags:
-      - audit
+      - Audit
   /v1/audit-events/{id}:
     get:
       consumes:
@@ -1120,24 +1120,24 @@ paths:
         "400":
           description: Invalid event ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Audit event not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Get an audit event by ID
       tags:
-      - audit
+      - Audit
   /v1/audit-events/{id}/verify:
     get:
       consumes:
@@ -1162,24 +1162,24 @@ paths:
         "400":
           description: Invalid event ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Event not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Verify audit event hash chain integrity
       tags:
-      - audit
+      - Audit
   /v1/limits:
     get:
       consumes:
@@ -1281,20 +1281,20 @@ paths:
         "400":
           description: Invalid parameters
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: List spending limits
       tags:
-      - limits
+      - Limits
     post:
       consumes:
       - application/json
@@ -1318,24 +1318,24 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "409":
           description: Limit name already exists
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Create a new spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}:
     delete:
       consumes:
@@ -1358,24 +1358,24 @@ paths:
         "400":
           description: Invalid limit ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Delete a spending limit
       tags:
-      - limits
+      - Limits
     get:
       consumes:
       - application/json
@@ -1398,24 +1398,24 @@ paths:
         "400":
           description: Invalid limit ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Get a spending limit by ID
       tags:
-      - limits
+      - Limits
     patch:
       consumes:
       - application/json
@@ -1445,28 +1445,28 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "409":
           description: Limit name already exists
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Partially update an existing spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/activate:
     post:
       consumes:
@@ -1490,24 +1490,24 @@ paths:
         "400":
           description: Invalid limit ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Activate a spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/deactivate:
     post:
       consumes:
@@ -1531,24 +1531,24 @@ paths:
         "400":
           description: Invalid limit ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Deactivate a spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/draft:
     post:
       consumes:
@@ -1573,24 +1573,24 @@ paths:
         "400":
           description: Invalid limit ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Transition a limit back to draft
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/usage:
     get:
       consumes:
@@ -1615,24 +1615,24 @@ paths:
         "400":
           description: Invalid limit ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Limit not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Get usage snapshot for a limit
       tags:
-      - limits
+      - Limits
   /v1/reservations:
     post:
       consumes:
@@ -1658,24 +1658,24 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "413":
           description: Payload too large (exceeds 100KB)
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Reserve transaction capacity (phase one)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/{id}/confirm:
     post:
       description: 'Commits a held reservation: the amount moves from reserved to
@@ -1699,20 +1699,20 @@ paths:
         "400":
           description: Invalid path parameter
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Confirm a reservation (phase two — commit)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/{id}/release:
     post:
       description: Returns a held reservation's capacity on an aborted ledger transaction.
@@ -1735,20 +1735,20 @@ paths:
         "400":
           description: Invalid path parameter
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/transaction/{transaction_id}/confirm:
     post:
       description: Confirms EVERY held reservation a transaction holds, addressed
@@ -1773,20 +1773,20 @@ paths:
         "400":
           description: Invalid path parameter
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/transaction/{transaction_id}/release:
     post:
       description: Releases EVERY held reservation a transaction holds, addressed
@@ -1810,20 +1810,20 @@ paths:
         "400":
           description: Invalid path parameter
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Release a transaction's reservations (phase two — abort by transaction)
       tags:
-      - reservations
+      - Reservations
   /v1/rules:
     get:
       consumes:
@@ -1924,20 +1924,20 @@ paths:
         "400":
           description: Invalid parameters
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: List fraud rules
       tags:
-      - rules
+      - Rules
     post:
       consumes:
       - application/json
@@ -1961,24 +1961,24 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "409":
           description: Rule name already exists
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Create a new fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}:
     delete:
       consumes:
@@ -2001,24 +2001,24 @@ paths:
         "400":
           description: Invalid rule ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Delete a fraud rule
       tags:
-      - rules
+      - Rules
     get:
       consumes:
       - application/json
@@ -2041,24 +2041,24 @@ paths:
         "400":
           description: Invalid rule ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Get a fraud rule by ID
       tags:
-      - rules
+      - Rules
     patch:
       consumes:
       - application/json
@@ -2088,28 +2088,28 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "409":
           description: Rule name already exists
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Partially update an existing fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}/activate:
     post:
       consumes:
@@ -2134,24 +2134,24 @@ paths:
         "400":
           description: Invalid rule ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Activate a fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}/deactivate:
     post:
       consumes:
@@ -2175,24 +2175,24 @@ paths:
         "400":
           description: Invalid rule ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Deactivate a fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}/draft:
     post:
       consumes:
@@ -2217,24 +2217,24 @@ paths:
         "400":
           description: Invalid rule ID or transition
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Rule not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Transition a rule back to draft
       tags:
-      - rules
+      - Rules
   /v1/validations:
     get:
       consumes:
@@ -2329,20 +2329,20 @@ paths:
         "400":
           description: Invalid parameters
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: List transaction validation records
       tags:
-      - validations
+      - Validations
     post:
       consumes:
       - application/json
@@ -2369,32 +2369,32 @@ paths:
         "400":
           description: Invalid input
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "413":
           description: Payload too large (exceeds 100KB)
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "503":
           description: Service unavailable
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "504":
           description: Gateway timeout
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Validate a transaction
       tags:
-      - validations
+      - Validations
   /v1/validations/{id}:
     get:
       consumes:
@@ -2418,24 +2418,24 @@ paths:
         "400":
           description: Invalid transaction validation ID
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "404":
           description: Transaction validation not found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Get a transaction validation record by ID
       tags:
-      - validations
+      - Validations
   /version:
     get:
       consumes:
@@ -2448,10 +2448,10 @@ paths:
         "200":
           description: Version information
           schema:
-            $ref: '#/definitions/api.VersionResponse'
+            $ref: '#/definitions/VersionResponse'
       summary: Get service version
       tags:
-      - info
+      - Info
 schemes:
 - http
 - https
@@ -2462,3 +2462,18 @@ securityDefinitions:
     name: X-API-Key
     type: apiKey
 swagger: "2.0"
+tags:
+- description: CEL-based validation rules.
+  name: Rules
+- description: Spending limits and usage windows.
+  name: Limits
+- description: Pre-flight transaction validation decisions.
+  name: Validations
+- description: 'Two-phase balance reservations: hold, then confirm or release.'
+  name: Reservations
+- description: Hash-chained audit event trail.
+  name: Audit
+- description: Liveness and readiness probes.
+  name: Health
+- description: Service build and version metadata.
+  name: Info

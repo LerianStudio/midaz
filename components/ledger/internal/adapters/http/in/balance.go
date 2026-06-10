@@ -37,8 +37,8 @@ type BalanceHandler struct {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"
+//	@Param			end_date		query		string	false	"End Date"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
@@ -46,7 +46,7 @@ type BalanceHandler struct {
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [get]
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -108,8 +108,8 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"
+//	@Param			end_date		query		string	false	"End Date"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
@@ -118,7 +118,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [get]
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -189,7 +189,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [get]
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -240,7 +240,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete balance with active operations"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [delete]
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -293,7 +293,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [patch]
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -348,7 +348,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances [get]
 func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -402,7 +402,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances [get]
 func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -460,7 +460,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Post]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [post]
 func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -517,7 +517,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found or no data available at date"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history [get]
 func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -602,7 +602,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account not found or no data available at date"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history [get]
 func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

@@ -22,7 +22,7 @@ type Template struct {
 	FileName     string    `json:"fileName" example:"0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl"`
 	CreatedAt    time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt    time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-}
+} // @name Template
 
 // NewTemplate creates a new Template entity with invariant validation.
 // This constructor ensures the Template can never exist in an invalid state.

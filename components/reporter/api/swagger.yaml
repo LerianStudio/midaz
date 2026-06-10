@@ -1,5 +1,40 @@
 basePath: /
 definitions:
+  BlockDefinition:
+    properties:
+      acceptsChildren:
+        type: boolean
+      category:
+        type: string
+      label:
+        type: string
+      properties:
+        items:
+          $ref: '#/definitions/BlockProperty'
+        type: array
+      type:
+        type: string
+    type: object
+  BlockProperty:
+    properties:
+      name:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  BlocksConfigResponse:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/BlockDefinition'
+        type: array
+    type: object
   CreateDeadlineInput:
     description: CreateDeadlineInput is the input payload to create a deadline.
     properties:
@@ -51,7 +86,7 @@ definitions:
         additionalProperties:
           additionalProperties:
             additionalProperties:
-              $ref: '#/definitions/model.FilterCondition'
+              $ref: '#/definitions/FilterCondition'
             type: object
           type: object
         type: object
@@ -81,7 +116,7 @@ definitions:
     type: object
   DataSourceInformation:
     description: DataSourceInformation is the data source information of database
-      connected on plugin
+      connected on reporter
     properties:
       externalName:
         example: onboarding
@@ -93,123 +128,7 @@ definitions:
         example: postgresql
         type: string
     type: object
-  DeliverDeadlineInput:
-    description: DeliverDeadlineInput is the input payload to mark a deadline as delivered
-      or not.
-    properties:
-      delivered:
-        example: true
-        type: boolean
-    required:
-    - delivered
-    type: object
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
-    properties:
-      items: {}
-      limit:
-        example: 10
-        type: integer
-      page:
-        example: 1
-        type: integer
-      total:
-        example: 10
-        type: integer
-    type: object
-  TableDetails:
-    description: TableDetails is the struct of table information
-    properties:
-      fields:
-        example:
-        - '[''id'''
-        - ' ''name'''
-        - ' ''parent_account_id'']'
-        items:
-          type: string
-        type: array
-      name:
-        example: account
-        type: string
-    type: object
-  TemplateResponse:
-    description: TemplateResponse wraps a template with optional validation warnings.
-    properties:
-      createdAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      description:
-        example: Template Financeiro
-        type: string
-      fileName:
-        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      outputFormat:
-        example: HTML
-        type: string
-      updatedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      warnings:
-        items:
-          $ref: '#/definitions/datasource.ValidationWarning'
-        type: array
-    type: object
-  UpdateDeadlineInput:
-    description: UpdateDeadlineInput is the input payload to update a deadline.
-    properties:
-      active:
-        example: false
-        type: boolean
-      color:
-        example: '#00FF00'
-        type: string
-      description:
-        example: Updated description
-        type: string
-      dueDate:
-        example: "2026-06-30T23:59:59Z"
-        type: string
-      frequency:
-        example: annual
-        type: string
-      monthsOfYear:
-        example:
-        - 1
-        - 6
-        items:
-          type: integer
-        type: array
-      name:
-        example: Updated Report Name
-        type: string
-      notifyDaysBefore:
-        example: 10
-        type: integer
-      templateId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      type:
-        example: custom
-        type: string
-    type: object
-  datasource.ValidationWarning:
-    properties:
-      code:
-        description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
-        type: string
-      field:
-        description: Field identifies the affected field or data source reference.
-        type: string
-      message:
-        description: Message is a human-readable description of the warning.
-        type: string
-    type: object
-  deadline.Deadline:
+  Deadline:
     properties:
       active:
         example: true
@@ -264,82 +183,33 @@ definitions:
         example: "2026-01-01T00:00:00Z"
         type: string
     type: object
-  github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
+  DeliverDeadlineInput:
+    description: DeliverDeadlineInput is the input payload to mark a deadline as delivered
+      or not.
     properties:
-      createdAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      description:
-        example: Template Financeiro
-        type: string
-      fileName:
-        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      outputFormat:
-        example: HTML
-        type: string
-      updatedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
+      delivered:
+        example: true
+        type: boolean
+    required:
+    - delivered
     type: object
-  internal_manager_adapters_http_in.errorMetrics:
+  ElifBranch:
     properties:
-      previousPeriodTotal:
-        type: integer
-      total:
-        type: integer
-    type: object
-  internal_manager_adapters_http_in.metricsResponse:
-    properties:
-      dataSources:
-        type: integer
-      errors:
-        $ref: '#/definitions/internal_manager_adapters_http_in.errorMetrics'
-      reports:
-        type: integer
-      templates:
-        type: integer
-    type: object
-  internal_manager_adapters_http_in.notificationItem:
-    properties:
-      color:
-        type: string
-      daysUntilDue:
-        type: integer
-      description:
-        type: string
-      dueDate:
-        type: string
-      frequency:
-        type: string
-      id:
-        type: string
-      monthsOfYear:
+      children:
         items:
-          type: integer
+          $ref: '#/definitions/TemplateBlock'
         type: array
+      condition:
+        type: string
+    type: object
+  FilterChain:
+    properties:
+      args:
+        type: string
       name:
         type: string
-      notifyDaysBefore:
-        type: integer
-      severity:
-        type: string
-      type:
-        type: string
     type: object
-  internal_manager_adapters_http_in.notificationResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/internal_manager_adapters_http_in.notificationItem'
-        type: array
-      total:
-        type: integer
-    type: object
-  model.FilterCondition:
+  FilterCondition:
     properties:
       between:
         description: |-
@@ -397,54 +267,7 @@ definitions:
         items: {}
         type: array
     type: object
-  pkg.HTTPError:
-    properties:
-      code:
-        type: string
-      entityType:
-        type: string
-      err: {}
-      message:
-        type: string
-      title:
-        type: string
-    type: object
-  pongo.BlockDefinition:
-    properties:
-      acceptsChildren:
-        type: boolean
-      category:
-        type: string
-      label:
-        type: string
-      properties:
-        items:
-          $ref: '#/definitions/pongo.BlockProperty'
-        type: array
-      type:
-        type: string
-    type: object
-  pongo.BlockProperty:
-    properties:
-      name:
-        type: string
-      required:
-        type: boolean
-      type:
-        type: string
-      values:
-        items:
-          type: string
-        type: array
-    type: object
-  pongo.BlocksConfigResponse:
-    properties:
-      blocks:
-        items:
-          $ref: '#/definitions/pongo.BlockDefinition'
-        type: array
-    type: object
-  pongo.FilterDefinition:
+  FilterDefinition:
     properties:
       args:
         items:
@@ -457,14 +280,51 @@ definitions:
       name:
         type: string
     type: object
-  pongo.FiltersResponse:
+  FiltersResponse:
     properties:
       filters:
         items:
-          $ref: '#/definitions/pongo.FilterDefinition'
+          $ref: '#/definitions/FilterDefinition'
         type: array
     type: object
-  report.Report:
+  GenerateCodeInput:
+    properties:
+      blocks:
+        items:
+          $ref: '#/definitions/TemplateBlock'
+        type: array
+      format:
+        type: string
+    type: object
+  GenerateCodeResponse:
+    properties:
+      code:
+        type: string
+      mappedFields:
+        additionalProperties:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+        type: object
+    type: object
+  Pagination:
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
+    properties:
+      items: {}
+      limit:
+        example: 10
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 10
+        type: integer
+    type: object
+  Report:
     properties:
       completedAt:
         type: string
@@ -476,7 +336,7 @@ definitions:
         additionalProperties:
           additionalProperties:
             additionalProperties:
-              $ref: '#/definitions/model.FilterCondition'
+              $ref: '#/definitions/FilterCondition'
             type: object
           type: object
         type: object
@@ -487,7 +347,7 @@ definitions:
         additionalProperties: {}
         type: object
       status:
-        example: processing
+        example: Processing
         type: string
       templateDescription:
         example: Cadoc
@@ -501,45 +361,43 @@ definitions:
       updatedAt:
         type: string
     type: object
-  template_builder.ElifBranch:
+  TableDetails:
+    description: TableDetails is the struct of table information
     properties:
-      children:
+      fields:
+        example:
+        - id
+        - name
+        - parent_account_id
         items:
-          $ref: '#/definitions/template_builder.TemplateBlock'
+          type: string
         type: array
-      condition:
-        type: string
-    type: object
-  template_builder.FilterChain:
-    properties:
-      args:
-        type: string
       name:
+        example: account
         type: string
     type: object
-  template_builder.GenerateCodeInput:
+  Template:
     properties:
-      blocks:
-        items:
-          $ref: '#/definitions/template_builder.TemplateBlock'
-        type: array
-      format:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Template Financeiro
+        type: string
+      fileName:
+        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      outputFormat:
+        example: HTML
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
         type: string
     type: object
-  template_builder.GenerateCodeResponse:
-    properties:
-      code:
-        type: string
-      mappedFields:
-        additionalProperties:
-          additionalProperties:
-            items:
-              type: string
-            type: array
-          type: object
-        type: object
-    type: object
-  template_builder.TemplateBlock:
+  TemplateBlock:
     properties:
       assignment:
         type: string
@@ -547,7 +405,7 @@ definitions:
         type: string
       children:
         items:
-          $ref: '#/definitions/template_builder.TemplateBlock'
+          $ref: '#/definitions/TemplateBlock'
         type: array
       collection:
         type: string
@@ -557,11 +415,11 @@ definitions:
         type: string
       elifBranches:
         items:
-          $ref: '#/definitions/template_builder.ElifBranch'
+          $ref: '#/definitions/ElifBranch'
         type: array
       elseChildren:
         items:
-          $ref: '#/definitions/template_builder.TemplateBlock'
+          $ref: '#/definitions/TemplateBlock'
         type: array
       expression:
         type: string
@@ -569,7 +427,7 @@ definitions:
         type: string
       filters:
         items:
-          $ref: '#/definitions/template_builder.FilterChain'
+          $ref: '#/definitions/FilterChain'
         type: array
       format:
         type: string
@@ -593,29 +451,171 @@ definitions:
       variable:
         type: string
     type: object
-  template_builder.ValidateBlocksInput:
+  TemplateResponse:
+    description: TemplateResponse wraps a template with optional validation warnings.
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Template Financeiro
+        type: string
+      fileName:
+        example: 0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      outputFormat:
+        example: HTML
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      warnings:
+        items:
+          $ref: '#/definitions/ValidationWarning'
+        type: array
+    type: object
+  UpdateDeadlineInput:
+    description: UpdateDeadlineInput is the input payload to update a deadline.
+    properties:
+      active:
+        example: false
+        type: boolean
+      color:
+        example: '#00FF00'
+        type: string
+      description:
+        example: Updated description
+        type: string
+      dueDate:
+        example: "2026-06-30T23:59:59Z"
+        type: string
+      frequency:
+        example: annual
+        type: string
+      monthsOfYear:
+        example:
+        - 1
+        - 6
+        items:
+          type: integer
+        type: array
+      name:
+        example: Updated Report Name
+        type: string
+      notifyDaysBefore:
+        example: 10
+        type: integer
+      templateId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      type:
+        example: custom
+        type: string
+    type: object
+  ValidateBlocksInput:
     properties:
       blocks:
         items:
-          $ref: '#/definitions/template_builder.TemplateBlock'
+          $ref: '#/definitions/TemplateBlock'
         type: array
     type: object
-  template_builder.ValidateBlocksResponse:
+  ValidateBlocksResponse:
     properties:
       errors:
         items:
-          $ref: '#/definitions/template_builder.ValidationError'
+          $ref: '#/definitions/ValidationError'
         type: array
       valid:
         type: boolean
     type: object
-  template_builder.ValidationError:
+  ValidationError:
     properties:
       blockId:
         type: string
       field:
         type: string
       message:
+        type: string
+    type: object
+  ValidationWarning:
+    properties:
+      code:
+        description: Code is a machine-readable warning code (e.g., "DATA_SOURCE_UNAVAILABLE").
+        type: string
+      field:
+        description: Field identifies the affected field or data source reference.
+        type: string
+      message:
+        description: Message is a human-readable description of the warning.
+        type: string
+    type: object
+  internal_manager_adapters_http_in.errorMetrics:
+    properties:
+      previousPeriodTotal:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_manager_adapters_http_in.metricsResponse:
+    properties:
+      dataSources:
+        type: integer
+      errors:
+        $ref: '#/definitions/internal_manager_adapters_http_in.errorMetrics'
+      reports:
+        type: integer
+      templates:
+        type: integer
+    type: object
+  internal_manager_adapters_http_in.notificationItem:
+    properties:
+      color:
+        type: string
+      daysUntilDue:
+        type: integer
+      description:
+        type: string
+      dueDate:
+        type: string
+      frequency:
+        type: string
+      id:
+        type: string
+      monthsOfYear:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      notifyDaysBefore:
+        type: integer
+      severity:
+        type: string
+      type:
+        type: string
+    type: object
+  internal_manager_adapters_http_in.notificationResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_manager_adapters_http_in.notificationItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  pkg.HTTPError:
+    properties:
+      code:
+        type: string
+      entityType:
+        type: string
+      err: {}
+      message:
+        type: string
+      title:
         type: string
     type: object
 host: localhost:4005
@@ -637,7 +637,7 @@ info:
 paths:
   /v1/data-sources:
     get:
-      description: Retrieves all data sources connected on plugin with all information
+      description: Retrieves all data sources connected on reporter with all information
         from the database
       produces:
       - application/json
@@ -664,7 +664,7 @@ paths:
       - BearerAuth: []
       summary: Get all data sources connected on reporter
       tags:
-      - Data source
+      - Data Sources
   /v1/data-sources/{dataSourceId}:
     get:
       description: Retrieves a data sources information with data source id passed
@@ -705,7 +705,7 @@ paths:
       - BearerAuth: []
       summary: Get a data sources information
       tags:
-      - Data source
+      - Data Sources
   /v1/deadlines:
     get:
       description: List all the deadlines
@@ -739,7 +739,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/deadline.Deadline'
+                    $ref: '#/definitions/Deadline'
                   type: array
                 limit:
                   type: integer
@@ -786,7 +786,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/deadline.Deadline'
+            $ref: '#/definitions/Deadline'
         "400":
           description: Bad Request
           schema:
@@ -867,7 +867,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/deadline.Deadline'
+            $ref: '#/definitions/Deadline'
         "400":
           description: Bad Request
           schema:
@@ -916,7 +916,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/deadline.Deadline'
+            $ref: '#/definitions/Deadline'
         "400":
           description: Bad Request
           schema:
@@ -1109,7 +1109,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/report.Report'
+                    $ref: '#/definitions/Report'
                   type: array
                 limit:
                   type: integer
@@ -1165,7 +1165,7 @@ paths:
                 processed idempotent request
               type: string
           schema:
-            $ref: '#/definitions/report.Report'
+            $ref: '#/definitions/Report'
         "400":
           description: Bad Request
           schema:
@@ -1208,7 +1208,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/report.Report'
+            $ref: '#/definitions/Report'
         "400":
           description: Bad Request
           schema:
@@ -1310,7 +1310,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
+                    $ref: '#/definitions/Template'
                   type: array
                 limit:
                   type: integer
@@ -1445,7 +1445,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template'
+            $ref: '#/definitions/Template'
         "400":
           description: Bad Request
           schema:
@@ -1535,7 +1535,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/pongo.BlocksConfigResponse'
+            $ref: '#/definitions/BlocksConfigResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1563,7 +1563,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/pongo.FiltersResponse'
+            $ref: '#/definitions/FiltersResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1593,14 +1593,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/template_builder.GenerateCodeInput'
+          $ref: '#/definitions/GenerateCodeInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/template_builder.GenerateCodeResponse'
+            $ref: '#/definitions/GenerateCodeResponse'
         "400":
           description: Bad Request
           schema:
@@ -1635,14 +1635,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/template_builder.ValidateBlocksInput'
+          $ref: '#/definitions/ValidateBlocksInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/template_builder.ValidateBlocksResponse'
+            $ref: '#/definitions/ValidateBlocksResponse'
         "400":
           description: Bad Request
           schema:
@@ -1675,3 +1675,16 @@ securityDefinitions:
     name: Authorization
     type: apiKey
 swagger: "2.0"
+tags:
+- description: Generated report instances and their lifecycle.
+  name: Reports
+- description: Reusable report definitions.
+  name: Templates
+- description: Interactive construction of report templates.
+  name: Template Builder
+- description: Scheduled report due-date tracking.
+  name: Deadlines
+- description: Configured inputs that feed report data.
+  name: Data Sources
+- description: Aggregated reporting metrics.
+  name: Metrics

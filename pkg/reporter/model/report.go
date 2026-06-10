@@ -53,7 +53,7 @@ type FilterCondition struct {
 	// Multiple values treated as AND NOT conditions.
 	// Example: {"nin": ["deleted", "archived"]} excludes these statuses
 	NotIn []any `json:"nin,omitempty"`
-}
+} // @name FilterCondition
 
 // CreateReportInput is a struct designed to encapsulate request create payload data.
 // Public fields are required for JSON binding (json tags) and validation (validate tags).

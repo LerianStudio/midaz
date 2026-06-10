@@ -39,8 +39,8 @@ func NewDataSourceHandler(service *services.UseCase) (*DataSourceHandler, error)
 // GetDataSourceInformation retrieves all data sources connected on reporter.
 //
 //	@Summary		Get all data sources connected on reporter
-//	@Description	Retrieves all data sources connected on plugin with all information from the database
-//	@Tags			Data source
+//	@Description	Retrieves all data sources connected on reporter with all information from the database
+//	@Tags			Data Sources
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		200				{object}	[]model.DataSourceInformation
@@ -72,7 +72,7 @@ func (ds *DataSourceHandler) GetDataSourceInformation(c *fiber.Ctx) error {
 //
 //	@Summary		Get a data sources information
 //	@Description	Retrieves a data sources information with data source id passed
-//	@Tags			Data source
+//	@Tags			Data Sources
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			dataSourceId	path		string	true	"Data source ID"

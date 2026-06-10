@@ -10,7 +10,7 @@ type BlockProperty struct {
 	Type     string   `json:"type"`
 	Values   []string `json:"values,omitempty"`
 	Required bool     `json:"required"`
-}
+} // @name BlockProperty
 
 // BlockDefinition describes a template block type available for the visual builder.
 type BlockDefinition struct {
@@ -19,7 +19,7 @@ type BlockDefinition struct {
 	Category        string          `json:"category"`
 	AcceptsChildren bool            `json:"acceptsChildren"`
 	Properties      []BlockProperty `json:"properties,omitempty"`
-}
+} // @name BlockDefinition
 
 // FilterDefinition describes a Pongo2 filter available for the visual builder.
 type FilterDefinition struct {
@@ -27,17 +27,17 @@ type FilterDefinition struct {
 	Description string   `json:"description"`
 	Args        []string `json:"args"`
 	Example     string   `json:"example"`
-}
+} // @name FilterDefinition
 
 // BlocksConfigResponse is the API response for the blocks-config endpoint.
 type BlocksConfigResponse struct {
 	Blocks []BlockDefinition `json:"blocks"`
-}
+} // @name BlocksConfigResponse
 
 // FiltersResponse is the API response for the filters endpoint.
 type FiltersResponse struct {
 	Filters []FilterDefinition `json:"filters"`
-}
+} // @name FiltersResponse
 
 // GetBlockDefinitions returns all available block definitions for the template builder.
 func GetBlockDefinitions() []BlockDefinition {

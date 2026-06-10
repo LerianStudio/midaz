@@ -53,7 +53,7 @@ type BalanceSettings struct {
 	// OverdraftLimitEnabled is false.
 	// example: 1000.00
 	OverdraftLimit *string `json:"overdraftLimit,omitempty" example:"1000.00"`
-}
+} //	@name	BalanceSettings
 
 // NewDefaultBalanceSettings returns a BalanceSettings initialized with the
 // safe defaults for the overdraft feature:

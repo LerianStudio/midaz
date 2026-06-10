@@ -53,7 +53,7 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 //	@Summary		Get a transaction validation record by ID
 //	@Description	Retrieves a transaction validation record by its unique identifier.
 //	@ID				getValidation
-//	@Tags			validations
+//	@Tags			Validations
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -102,7 +102,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 //	@Summary		List transaction validation records
 //	@Description	Lists transaction validation records with cursor-based pagination and filters.
 //	@ID				listValidations
-//	@Tags			validations
+//	@Tags			Validations
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -240,7 +240,7 @@ func (i *ListTransactionValidationsInput) SetDefaults() {
 	}
 
 	// Only apply sort defaults when not using cursor pagination
-	// Cursor already contains sort configuration from the original request (TRC-0045)
+	// Cursor already contains sort configuration from the original request (ErrCursorWithSortParams)
 	if i.Cursor == "" {
 		if i.SortBy == "" {
 			i.SortBy = "created_at"
@@ -254,23 +254,23 @@ func (i *ListTransactionValidationsInput) SetDefaults() {
 // Validate checks if the input is valid.
 // Validates before defaults are applied to ensure fail-fast behavior.
 func (i *ListTransactionValidationsInput) Validate() error {
-	// Validate pagination limit (TRC-0040, TRC-0041)
+	// Validate pagination limit (ErrPaginationLimitExceeded, ErrPaginationLimitInvalid)
 	if err := ValidatePaginationLimit(i.Limit, model.MaxTransactionValidationFilterLimit); err != nil {
 		return err
 	}
 
-	// Validate cursor consistency (TRC-0045)
+	// Validate cursor consistency (ErrCursorWithSortParams)
 	if err := ValidateCursorConsistency(i.Cursor, i.SortBy, i.SortOrder); err != nil {
 		return err
 	}
 
-	// Validate sortBy whitelist (TRC-0043)
+	// Validate sortBy whitelist (ErrInvalidSortColumn)
 	allowedSortFields := []string{"created_at", "processing_time_ms"}
 	if err := ValidateSortBy(i.SortBy, allowedSortFields); err != nil {
 		return err
 	}
 
-	// Validate sortOrder enum (TRC-0042)
+	// Validate sortOrder enum (ErrInvalidSortOrder)
 	if err := ValidateSortOrder(i.SortOrder); err != nil {
 		return err
 	}

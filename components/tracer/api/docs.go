@@ -33,7 +33,7 @@ const docTemplate = `{
                     "text/plain"
                 ],
                 "tags": [
-                    "health"
+                    "Health"
                 ],
                 "summary": "Health check (liveness probe)",
                 "operationId": "getHealth",
@@ -66,7 +66,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "health"
+                    "Health"
                 ],
                 "summary": "Readiness check (Lerian canonical contract)",
                 "operationId": "getReadyz",
@@ -74,13 +74,13 @@ const docTemplate = `{
                     "200": {
                         "description": "Service is ready",
                         "schema": {
-                            "$ref": "#/definitions/api.ReadyzResponse"
+                            "$ref": "#/definitions/ReadyzResponse"
                         }
                     },
                     "503": {
                         "description": "Service is not ready",
                         "schema": {
-                            "$ref": "#/definitions/api.ReadyzResponse"
+                            "$ref": "#/definitions/ReadyzResponse"
                         }
                     }
                 }
@@ -101,7 +101,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "List audit events",
                 "operationId": "listAuditEvents",
@@ -287,19 +287,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -320,7 +320,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "Get an audit event by ID",
                 "operationId": "getAuditEvent",
@@ -344,25 +344,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid event ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Audit event not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -383,7 +383,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "audit"
+                    "Audit"
                 ],
                 "summary": "Verify audit event hash chain integrity",
                 "operationId": "verifyAuditEvent",
@@ -407,25 +407,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid event ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Event not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -446,7 +446,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "List spending limits",
                 "operationId": "listLimits",
@@ -576,19 +576,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -607,7 +607,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Create a new spending limit",
                 "operationId": "createLimit",
@@ -632,25 +632,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Limit name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -671,7 +671,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Get a spending limit by ID",
                 "operationId": "getLimit",
@@ -695,25 +695,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -732,7 +732,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Delete a spending limit",
                 "operationId": "deleteLimit",
@@ -753,25 +753,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -790,7 +790,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Partially update an existing spending limit",
                 "operationId": "updateLimit",
@@ -823,31 +823,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Limit name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -868,7 +868,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Activate a spending limit",
                 "operationId": "activateLimit",
@@ -892,25 +892,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -931,7 +931,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Deactivate a spending limit",
                 "operationId": "deactivateLimit",
@@ -955,25 +955,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -994,7 +994,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Transition a limit back to draft",
                 "operationId": "draftLimit",
@@ -1018,25 +1018,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1057,7 +1057,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "limits"
+                    "Limits"
                 ],
                 "summary": "Get usage snapshot for a limit",
                 "operationId": "getLimitUsage",
@@ -1081,25 +1081,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid limit ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Limit not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1120,7 +1120,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Reserve transaction capacity (phase one)",
                 "operationId": "createReservation",
@@ -1145,25 +1145,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "413": {
                         "description": "Payload too large (exceeds 100KB)",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1181,7 +1181,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Confirm a transaction's reservations (phase two — commit by transaction)",
                 "operationId": "confirmReservationByTransaction",
@@ -1205,19 +1205,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1235,7 +1235,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Release a transaction's reservations (phase two — abort by transaction)",
                 "operationId": "releaseReservationByTransaction",
@@ -1259,19 +1259,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1289,7 +1289,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Confirm a reservation (phase two — commit)",
                 "operationId": "confirmReservation",
@@ -1313,19 +1313,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1343,7 +1343,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "reservations"
+                    "Reservations"
                 ],
                 "summary": "Release a reservation (phase two — abort)",
                 "operationId": "releaseReservation",
@@ -1367,19 +1367,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid path parameter",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1400,7 +1400,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "List fraud rules",
                 "operationId": "listRules",
@@ -1527,19 +1527,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1558,7 +1558,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Create a new fraud rule",
                 "operationId": "createRule",
@@ -1583,25 +1583,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Rule name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1622,7 +1622,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Get a fraud rule by ID",
                 "operationId": "getRule",
@@ -1646,25 +1646,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid rule ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1683,7 +1683,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Delete a fraud rule",
                 "operationId": "deleteRule",
@@ -1704,25 +1704,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1741,7 +1741,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Partially update an existing fraud rule",
                 "operationId": "updateRule",
@@ -1774,31 +1774,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Rule name already exists",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1819,7 +1819,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Activate a fraud rule",
                 "operationId": "activateRule",
@@ -1843,25 +1843,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1882,7 +1882,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Deactivate a fraud rule",
                 "operationId": "deactivateRule",
@@ -1906,25 +1906,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -1945,7 +1945,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "rules"
+                    "Rules"
                 ],
                 "summary": "Transition a rule back to draft",
                 "operationId": "draftRule",
@@ -1969,25 +1969,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid rule ID or transition",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Rule not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2008,7 +2008,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "List transaction validation records",
                 "operationId": "listValidations",
@@ -2130,19 +2130,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid parameters",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2161,7 +2161,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "Validate a transaction",
                 "operationId": "validateTransaction",
@@ -2192,37 +2192,37 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid input",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "413": {
                         "description": "Payload too large (exceeds 100KB)",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "503": {
                         "description": "Service unavailable",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "504": {
                         "description": "Gateway timeout",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2243,7 +2243,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "validations"
+                    "Validations"
                 ],
                 "summary": "Get a transaction validation record by ID",
                 "operationId": "getValidation",
@@ -2267,25 +2267,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid transaction validation ID",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Transaction validation not found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/ErrorResponse"
                         }
                     }
                 }
@@ -2301,7 +2301,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "info"
+                    "Info"
                 ],
                 "summary": "Get service version",
                 "operationId": "getVersion",
@@ -2309,7 +2309,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Version information",
                         "schema": {
-                            "$ref": "#/definitions/api.VersionResponse"
+                            "$ref": "#/definitions/VersionResponse"
                         }
                     }
                 }
@@ -2317,7 +2317,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.ErrorResponse": {
+        "ErrorResponse": {
             "type": "object",
             "required": [
                 "code",
@@ -2339,7 +2339,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.ReadyzCheck": {
+        "ReadyzCheck": {
             "type": "object",
             "properties": {
                 "error": {
@@ -2366,13 +2366,13 @@ const docTemplate = `{
                 }
             }
         },
-        "api.ReadyzResponse": {
+        "ReadyzResponse": {
             "type": "object",
             "properties": {
                 "checks": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/api.ReadyzCheck"
+                        "$ref": "#/definitions/ReadyzCheck"
                     }
                 },
                 "deployment_mode": {
@@ -2397,7 +2397,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.VersionResponse": {
+        "VersionResponse": {
             "type": "object",
             "properties": {
                 "buildTime": {
@@ -3491,7 +3491,37 @@ const docTemplate = `{
             "name": "X-API-Key",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "CEL-based validation rules.",
+            "name": "Rules"
+        },
+        {
+            "description": "Spending limits and usage windows.",
+            "name": "Limits"
+        },
+        {
+            "description": "Pre-flight transaction validation decisions.",
+            "name": "Validations"
+        },
+        {
+            "description": "Two-phase balance reservations: hold, then confirm or release.",
+            "name": "Reservations"
+        },
+        {
+            "description": "Hash-chained audit event trail.",
+            "name": "Audit"
+        },
+        {
+            "description": "Liveness and readiness probes.",
+            "name": "Health"
+        },
+        {
+            "description": "Service build and version metadata.",
+            "name": "Info"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

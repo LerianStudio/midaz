@@ -15,6 +15,21 @@ info:
 servers:
 - url: http://localhost:4020/
 - url: https://localhost:4020/
+tags:
+- description: CEL-based validation rules.
+  name: Rules
+- description: Spending limits and usage windows.
+  name: Limits
+- description: Pre-flight transaction validation decisions.
+  name: Validations
+- description: "Two-phase balance reservations: hold, then confirm or release."
+  name: Reservations
+- description: Hash-chained audit event trail.
+  name: Audit
+- description: Liveness and readiness probes.
+  name: Health
+- description: Service build and version metadata.
+  name: Info
 paths:
   /health:
     get:
@@ -37,7 +52,7 @@ paths:
           description: self-probe has not completed
       summary: Health check (liveness probe)
       tags:
-      - health
+      - Health
   /readyz:
     get:
       description: Live dependency probes — never cached. Returns 200 only when every
@@ -48,17 +63,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ReadyzResponse'
+                $ref: '#/components/schemas/ReadyzResponse'
           description: Service is ready
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ReadyzResponse'
+                $ref: '#/components/schemas/ReadyzResponse'
           description: Service is not ready
       summary: Readiness check (Lerian canonical contract)
       tags:
-      - health
+      - Health
   /v1/audit-events:
     get:
       description: Lists audit events with filters and cursor-based pagination. SOX/GLBA
@@ -220,25 +235,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid parameters
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: List audit events
       tags:
-      - audit
+      - Audit
   /v1/audit-events/{id}:
     get:
       description: Retrieves a single audit event by its unique identifier. SOX/GLBA
@@ -263,31 +278,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid event ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Audit event not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Get an audit event by ID
       tags:
-      - audit
+      - Audit
   /v1/audit-events/{id}/verify:
     get:
       description: Verifies the integrity of the audit event hash chain up to a specific
@@ -312,31 +327,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid event ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Event not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Verify audit event hash chain integrity
       tags:
-      - audit
+      - Audit
   /v1/limits:
     get:
       description: Lists limits with cursor-based pagination and optional filters.
@@ -450,25 +465,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid parameters
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: List spending limits
       tags:
-      - limits
+      - Limits
     post:
       description: Creates a limit with scopes array. Limits are created in DRAFT
         status.
@@ -491,31 +506,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit name already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Create a new spending limit
       tags:
-      - limits
+      - Limits
       x-codegen-request-body-name: limit
   /v1/limits/{id}:
     delete:
@@ -538,31 +553,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Delete a spending limit
       tags:
-      - limits
+      - Limits
     get:
       description: Retrieves a limit by its unique identifier.
       operationId: getLimit
@@ -585,31 +600,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Get a spending limit by ID
       tags:
-      - limits
+      - Limits
     patch:
       description: "Partially updates a limit. Only provided fields are updated, omitted\
         \ fields remain unchanged."
@@ -640,37 +655,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit name already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Partially update an existing spending limit
       tags:
-      - limits
+      - Limits
       x-codegen-request-body-name: limit
   /v1/limits/{id}/activate:
     post:
@@ -695,31 +710,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Activate a spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/deactivate:
     post:
       description: Deactivates an active limit (ACTIVE → INACTIVE).
@@ -743,31 +758,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Deactivate a spending limit
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/draft:
     post:
       description: Transitions a limit from INACTIVE to DRAFT status. Allows re-editing
@@ -792,31 +807,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Transition a limit back to draft
       tags:
-      - limits
+      - Limits
   /v1/limits/{id}/usage:
     get:
       description: "Retrieves current usage snapshot for a limit, showing aggregated\
@@ -841,31 +856,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid limit ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Limit not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Get usage snapshot for a limit
       tags:
-      - limits
+      - Limits
   /v1/reservations:
     post:
       description: "Holds limit capacity for a ledger transaction without committing\
@@ -890,31 +905,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "413":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Payload too large (exceeds 100KB)
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Reserve transaction capacity (phase one)
       tags:
-      - reservations
+      - Reservations
       x-codegen-request-body-name: request
   /v1/reservations/transaction/{transaction_id}/confirm:
     post:
@@ -942,25 +957,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid path parameter
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/transaction/{transaction_id}/release:
     post:
       description: "Releases EVERY held reservation a transaction holds, addressed\
@@ -986,25 +1001,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid path parameter
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Release a transaction's reservations (phase two — abort by transaction)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/{id}/confirm:
     post:
       description: "Commits a held reservation: the amount moves from reserved to\
@@ -1030,25 +1045,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid path parameter
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Confirm a reservation (phase two — commit)
       tags:
-      - reservations
+      - Reservations
   /v1/reservations/{id}/release:
     post:
       description: Returns a held reservation's capacity on an aborted ledger transaction.
@@ -1073,25 +1088,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid path parameter
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
       tags:
-      - reservations
+      - Reservations
   /v1/rules:
     get:
       description: Lists rules with cursor-based pagination and optional filters.
@@ -1204,25 +1219,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid parameters
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: List fraud rules
       tags:
-      - rules
+      - Rules
     post:
       description: Creates a rule with CEL expression and scopes array. Rules are
         created in DRAFT status.
@@ -1245,31 +1260,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule name already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Create a new fraud rule
       tags:
-      - rules
+      - Rules
       x-codegen-request-body-name: rule
   /v1/rules/{id}:
     delete:
@@ -1292,31 +1307,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid rule ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Delete a fraud rule
       tags:
-      - rules
+      - Rules
     get:
       description: Retrieves a rule by its unique identifier.
       operationId: getRule
@@ -1339,31 +1354,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid rule ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Get a fraud rule by ID
       tags:
-      - rules
+      - Rules
     patch:
       description: "Partially updates a rule. Only provided fields are updated, omitted\
         \ fields remain unchanged."
@@ -1394,37 +1409,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule name already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Partially update an existing fraud rule
       tags:
-      - rules
+      - Rules
       x-codegen-request-body-name: rule
   /v1/rules/{id}/activate:
     post:
@@ -1450,31 +1465,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid rule ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Activate a fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}/deactivate:
     post:
       description: Deactivates a rule (ACTIVE/DRAFT → INACTIVE).
@@ -1498,31 +1513,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid rule ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Deactivate a fraud rule
       tags:
-      - rules
+      - Rules
   /v1/rules/{id}/draft:
     post:
       description: Transitions a rule from INACTIVE to DRAFT status. Allows re-editing
@@ -1547,31 +1562,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid rule ID or transition
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Transition a rule back to draft
       tags:
-      - rules
+      - Rules
   /v1/validations:
     get:
       description: Lists transaction validation records with cursor-based pagination
@@ -1678,25 +1693,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid parameters
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: List transaction validation records
       tags:
-      - validations
+      - Validations
     post:
       description: Validates a transaction against configured rules and limits.
       operationId: validateTransaction
@@ -1724,43 +1739,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid input
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "413":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Payload too large (exceeds 100KB)
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Service unavailable
         "504":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Gateway timeout
       security:
       - ApiKeyAuth: []
       summary: Validate a transaction
       tags:
-      - validations
+      - Validations
       x-codegen-request-body-name: request
   /v1/validations/{id}:
     get:
@@ -1785,31 +1800,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Invalid transaction validation ID
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Transaction validation not found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
       security:
       - ApiKeyAuth: []
       summary: Get a transaction validation record by ID
       tags:
-      - validations
+      - Validations
   /version:
     get:
       description: Returns the current version of the service plus build provenance
@@ -1819,14 +1834,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/api.VersionResponse'
+                $ref: '#/components/schemas/VersionResponse'
           description: Version information
       summary: Get service version
       tags:
-      - info
+      - Info
 components:
   schemas:
-    api.ErrorResponse:
+    ErrorResponse:
       example:
         code: "0053"
         message: Invalid input provided
@@ -1846,7 +1861,7 @@ components:
       - message
       - title
       type: object
-    api.ReadyzCheck:
+    ReadyzCheck:
       example:
         tls: true
         error: error
@@ -1871,7 +1886,7 @@ components:
           example: true
           type: boolean
       type: object
-    api.ReadyzResponse:
+    ReadyzResponse:
       example:
         checks:
           key:
@@ -1886,7 +1901,7 @@ components:
       properties:
         checks:
           additionalProperties:
-            $ref: '#/components/schemas/api.ReadyzCheck'
+            $ref: '#/components/schemas/ReadyzCheck'
           type: object
         deployment_mode:
           example: saas
@@ -1904,7 +1919,7 @@ components:
           example: 1.2.3
           type: string
       type: object
-    api.VersionResponse:
+    VersionResponse:
       example:
         dirty: false
         buildTime: 2025-01-01T00:00:00Z

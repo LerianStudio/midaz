@@ -49,7 +49,7 @@ func NewAuditEventHandler(service AuditEventService) *AuditEventHandler {
 //	@Summary		List audit events
 //	@Description	Lists audit events with filters and cursor-based pagination. SOX/GLBA compliance endpoint.
 //	@ID				listAuditEvents
-//	@Tags			audit
+//	@Tags			Audit
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -141,7 +141,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 //	@Summary		Get an audit event by ID
 //	@Description	Retrieves a single audit event by its unique identifier. SOX/GLBA compliance endpoint.
 //	@ID				getAuditEvent
-//	@Tags			audit
+//	@Tags			Audit
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -189,7 +189,7 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 //	@Summary		Verify audit event hash chain integrity
 //	@Description	Verifies the integrity of the audit event hash chain up to a specific event. Detects tampering attempts. SOX/GLBA compliance endpoint.
 //	@ID				verifyAuditEvent
-//	@Tags			audit
+//	@Tags			Audit
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth

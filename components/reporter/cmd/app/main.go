@@ -20,6 +20,18 @@ import (
 // @title						Midaz Reporter API
 // @version					4.0.0
 // @description				This is a swagger documentation for Reporter. The unified reporter binary serves the REST API (RUN_MODE=api) and/or the RabbitMQ report-generation worker (RUN_MODE=worker); RUN_MODE=all runs both in one process for local development. All REST endpoints documented here serve only when RUN_MODE=api or all (port :4005); the worker (port :4006) exposes health/readyz only.
+// @tag.name					Reports
+// @tag.description				Generated report instances and their lifecycle.
+// @tag.name					Templates
+// @tag.description				Reusable report definitions.
+// @tag.name					Template Builder
+// @tag.description				Interactive construction of report templates.
+// @tag.name					Deadlines
+// @tag.description				Scheduled report due-date tracking.
+// @tag.name					Data Sources
+// @tag.description				Configured inputs that feed report data.
+// @tag.name					Metrics
+// @tag.description				Aggregated reporting metrics.
 // @termsOfService				https://www.elastic.co/licensing/elastic-license
 // @contact.name				Discord community
 // @contact.url				https://discord.gg/DnhqKwkGv3

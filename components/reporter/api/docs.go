@@ -30,12 +30,12 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves all data sources connected on plugin with all information from the database",
+                "description": "Retrieves all data sources connected on reporter with all information from the database",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Data source"
+                    "Data Sources"
                 ],
                 "summary": "Get all data sources connected on reporter",
                 "responses": {
@@ -81,7 +81,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Data source"
+                    "Data Sources"
                 ],
                 "summary": "Get a data sources information",
                 "parameters": [
@@ -189,7 +189,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/deadline.Deadline"
+                                                "$ref": "#/definitions/Deadline"
                                             }
                                         },
                                         "limit": {
@@ -264,7 +264,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/deadline.Deadline"
+                            "$ref": "#/definitions/Deadline"
                         }
                     },
                     "400": {
@@ -448,7 +448,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/deadline.Deadline"
+                            "$ref": "#/definitions/Deadline"
                         }
                     },
                     "400": {
@@ -524,7 +524,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/deadline.Deadline"
+                            "$ref": "#/definitions/Deadline"
                         }
                     },
                     "400": {
@@ -754,7 +754,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/report.Report"
+                                                "$ref": "#/definitions/Report"
                                             }
                                         },
                                         "limit": {
@@ -835,7 +835,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/report.Report"
+                            "$ref": "#/definitions/Report"
                         },
                         "headers": {
                             "X-Idempotency-Replayed": {
@@ -908,7 +908,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/report.Report"
+                            "$ref": "#/definitions/Report"
                         }
                     },
                     "400": {
@@ -1067,7 +1067,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template"
+                                                "$ref": "#/definitions/Template"
                                             }
                                         },
                                         "limit": {
@@ -1208,7 +1208,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/pongo.BlocksConfigResponse"
+                            "$ref": "#/definitions/BlocksConfigResponse"
                         }
                     },
                     "401": {
@@ -1251,7 +1251,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/pongo.FiltersResponse"
+                            "$ref": "#/definitions/FiltersResponse"
                         }
                     },
                     "401": {
@@ -1300,7 +1300,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/template_builder.GenerateCodeInput"
+                            "$ref": "#/definitions/GenerateCodeInput"
                         }
                     }
                 ],
@@ -1308,7 +1308,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/template_builder.GenerateCodeResponse"
+                            "$ref": "#/definitions/GenerateCodeResponse"
                         }
                     },
                     "400": {
@@ -1363,7 +1363,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/template_builder.ValidateBlocksInput"
+                            "$ref": "#/definitions/ValidateBlocksInput"
                         }
                     }
                 ],
@@ -1371,7 +1371,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/template_builder.ValidateBlocksResponse"
+                            "$ref": "#/definitions/ValidateBlocksResponse"
                         }
                     },
                     "400": {
@@ -1432,7 +1432,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template"
+                            "$ref": "#/definitions/Template"
                         }
                     },
                     "400": {
@@ -1609,6 +1609,60 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "BlockDefinition": {
+            "type": "object",
+            "properties": {
+                "acceptsChildren": {
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/BlockProperty"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "BlockProperty": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "BlocksConfigResponse": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/BlockDefinition"
+                    }
+                }
+            }
+        },
         "CreateDeadlineInput": {
             "description": "CreateDeadlineInput is the input payload to create a deadline.",
             "type": "object",
@@ -1683,7 +1737,7 @@ const docTemplate = `{
                         "additionalProperties": {
                             "type": "object",
                             "additionalProperties": {
-                                "$ref": "#/definitions/model.FilterCondition"
+                                "$ref": "#/definitions/FilterCondition"
                             }
                         }
                     }
@@ -1719,7 +1773,7 @@ const docTemplate = `{
             }
         },
         "DataSourceInformation": {
-            "description": "DataSourceInformation is the data source information of database connected on plugin",
+            "description": "DataSourceInformation is the data source information of database connected on reporter",
             "type": "object",
             "properties": {
                 "externalName": {
@@ -1736,165 +1790,7 @@ const docTemplate = `{
                 }
             }
         },
-        "DeliverDeadlineInput": {
-            "description": "DeliverDeadlineInput is the input payload to mark a deadline as delivered or not.",
-            "type": "object",
-            "required": [
-                "delivered"
-            ],
-            "properties": {
-                "delivered": {
-                    "type": "boolean",
-                    "example": true
-                }
-            }
-        },
-        "Pagination": {
-            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-            "type": "object",
-            "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 10
-                }
-            }
-        },
-        "TableDetails": {
-            "description": "TableDetails is the struct of table information",
-            "type": "object",
-            "properties": {
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "['id'",
-                        " 'name'",
-                        " 'parent_account_id']"
-                    ]
-                },
-                "name": {
-                    "type": "string",
-                    "example": "account"
-                }
-            }
-        },
-        "TemplateResponse": {
-            "description": "TemplateResponse wraps a template with optional validation warnings.",
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "Template Financeiro"
-                },
-                "fileName": {
-                    "type": "string",
-                    "example": "0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl"
-                },
-                "id": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "outputFormat": {
-                    "type": "string",
-                    "example": "HTML"
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/datasource.ValidationWarning"
-                    }
-                }
-            }
-        },
-        "UpdateDeadlineInput": {
-            "description": "UpdateDeadlineInput is the input payload to update a deadline.",
-            "type": "object",
-            "properties": {
-                "active": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "color": {
-                    "type": "string",
-                    "example": "#00FF00"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "Updated description"
-                },
-                "dueDate": {
-                    "type": "string",
-                    "example": "2026-06-30T23:59:59Z"
-                },
-                "frequency": {
-                    "type": "string",
-                    "example": "annual"
-                },
-                "monthsOfYear": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    },
-                    "example": [
-                        1,
-                        6
-                    ]
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Updated Report Name"
-                },
-                "notifyDaysBefore": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "templateId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "type": {
-                    "type": "string",
-                    "example": "custom"
-                }
-            }
-        },
-        "datasource.ValidationWarning": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "description": "Code is a machine-readable warning code (e.g., \"DATA_SOURCE_UNAVAILABLE\").",
-                    "type": "string"
-                },
-                "field": {
-                    "description": "Field identifies the affected field or data source reference.",
-                    "type": "string"
-                },
-                "message": {
-                    "description": "Message is a human-readable description of the warning.",
-                    "type": "string"
-                }
-            }
-        },
-        "deadline.Deadline": {
+        "Deadline": {
             "type": "object",
             "properties": {
                 "active": {
@@ -1969,7 +1865,248 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template": {
+        "DeliverDeadlineInput": {
+            "description": "DeliverDeadlineInput is the input payload to mark a deadline as delivered or not.",
+            "type": "object",
+            "required": [
+                "delivered"
+            ],
+            "properties": {
+                "delivered": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "ElifBranch": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TemplateBlock"
+                    }
+                },
+                "condition": {
+                    "type": "string"
+                }
+            }
+        },
+        "FilterChain": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "FilterCondition": {
+            "type": "object",
+            "properties": {
+                "between": {
+                    "description": "Between specifies a range condition with exactly two values [min, max].\nMatches records where min \u003c= field \u003c= max\nExample: {\"between\": [100, 1000]} matches records where 100 \u003c= field \u003c= 1000",
+                    "type": "array",
+                    "items": {}
+                },
+                "eq": {
+                    "description": "Equals specifies exact value matches. Multiple values treated as OR conditions.\nExample: {\"eq\": [\"active\", \"pending\"]} matches records where field equals \"active\" OR \"pending\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "gt": {
+                    "description": "GreaterThan specifies values that must be greater than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gt\": [100]} matches records where field \u003e 100",
+                    "type": "array",
+                    "items": {}
+                },
+                "gte": {
+                    "description": "GreaterOrEqual specifies values that must be greater than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gte\": [\"2025-06-01\"]} matches records where field \u003e= \"2025-06-01\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "in": {
+                    "description": "In specifies a list of values where the field must match any one of them.\nMultiple values treated as OR conditions.\nExample: {\"in\": [\"active\", \"pending\", \"suspended\"]} matches any of these statuses",
+                    "type": "array",
+                    "items": {}
+                },
+                "lt": {
+                    "description": "LessThan specifies values that must be less than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lt\": [1000]} matches records where field \u003c 1000",
+                    "type": "array",
+                    "items": {}
+                },
+                "lte": {
+                    "description": "LessOrEqual specifies values that must be less than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lte\": [\"2025-06-30\"]} matches records where field \u003c= \"2025-06-30\"",
+                    "type": "array",
+                    "items": {}
+                },
+                "nin": {
+                    "description": "NotIn specifies a list of values where the field must NOT match any of them.\nMultiple values treated as AND NOT conditions.\nExample: {\"nin\": [\"deleted\", \"archived\"]} excludes these statuses",
+                    "type": "array",
+                    "items": {}
+                }
+            }
+        },
+        "FilterDefinition": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "FiltersResponse": {
+            "type": "object",
+            "properties": {
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FilterDefinition"
+                    }
+                }
+            }
+        },
+        "GenerateCodeInput": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TemplateBlock"
+                    }
+                },
+                "format": {
+                    "type": "string"
+                }
+            }
+        },
+        "GenerateCodeResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "mappedFields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "Pagination": {
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 10
+                }
+            }
+        },
+        "Report": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/FilterCondition"
+                            }
+                        }
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Processing"
+                },
+                "templateDescription": {
+                    "type": "string",
+                    "example": "Cadoc"
+                },
+                "templateId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "templateOutputFormat": {
+                    "type": "string",
+                    "example": "xml"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "TableDetails": {
+            "description": "TableDetails is the struct of table information",
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "id",
+                        "name",
+                        "parent_account_id"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "example": "account"
+                }
+            }
+        },
+        "Template": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1995,6 +2132,231 @@ const docTemplate = `{
                 "updatedAt": {
                     "type": "string",
                     "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "TemplateBlock": {
+            "type": "object",
+            "properties": {
+                "assignment": {
+                    "type": "string"
+                },
+                "blockId": {
+                    "type": "string"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TemplateBlock"
+                    }
+                },
+                "collection": {
+                    "type": "string"
+                },
+                "condition": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "elifBranches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ElifBranch"
+                    }
+                },
+                "elseChildren": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TemplateBlock"
+                    }
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FilterChain"
+                    }
+                },
+                "format": {
+                    "type": "string"
+                },
+                "function": {
+                    "type": "string"
+                },
+                "inline": {
+                    "type": "boolean"
+                },
+                "iterator": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "tagArgs": {
+                    "type": "string"
+                },
+                "tagName": {
+                    "type": "string"
+                },
+                "trimWhitespace": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "variable": {
+                    "type": "string"
+                }
+            }
+        },
+        "TemplateResponse": {
+            "description": "TemplateResponse wraps a template with optional validation warnings.",
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Template Financeiro"
+                },
+                "fileName": {
+                    "type": "string",
+                    "example": "0196159b-4f26-7300-b3d9-f4f68a7c85f3_1744119295.tpl"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "outputFormat": {
+                    "type": "string",
+                    "example": "HTML"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ValidationWarning"
+                    }
+                }
+            }
+        },
+        "UpdateDeadlineInput": {
+            "description": "UpdateDeadlineInput is the input payload to update a deadline.",
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "color": {
+                    "type": "string",
+                    "example": "#00FF00"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Updated description"
+                },
+                "dueDate": {
+                    "type": "string",
+                    "example": "2026-06-30T23:59:59Z"
+                },
+                "frequency": {
+                    "type": "string",
+                    "example": "annual"
+                },
+                "monthsOfYear": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        6
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Updated Report Name"
+                },
+                "notifyDaysBefore": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "templateId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "custom"
+                }
+            }
+        },
+        "ValidateBlocksInput": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TemplateBlock"
+                    }
+                }
+            }
+        },
+        "ValidateBlocksResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ValidationError"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ValidationError": {
+            "type": "object",
+            "properties": {
+                "blockId": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "ValidationWarning": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Code is a machine-readable warning code (e.g., \"DATA_SOURCE_UNAVAILABLE\").",
+                    "type": "string"
+                },
+                "field": {
+                    "description": "Field identifies the affected field or data source reference.",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "Message is a human-readable description of the warning.",
+                    "type": "string"
                 }
             }
         },
@@ -2081,51 +2443,6 @@ const docTemplate = `{
                 }
             }
         },
-        "model.FilterCondition": {
-            "type": "object",
-            "properties": {
-                "between": {
-                    "description": "Between specifies a range condition with exactly two values [min, max].\nMatches records where min \u003c= field \u003c= max\nExample: {\"between\": [100, 1000]} matches records where 100 \u003c= field \u003c= 1000",
-                    "type": "array",
-                    "items": {}
-                },
-                "eq": {
-                    "description": "Equals specifies exact value matches. Multiple values treated as OR conditions.\nExample: {\"eq\": [\"active\", \"pending\"]} matches records where field equals \"active\" OR \"pending\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "gt": {
-                    "description": "GreaterThan specifies values that must be greater than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gt\": [100]} matches records where field \u003e 100",
-                    "type": "array",
-                    "items": {}
-                },
-                "gte": {
-                    "description": "GreaterOrEqual specifies values that must be greater than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"gte\": [\"2025-06-01\"]} matches records where field \u003e= \"2025-06-01\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "in": {
-                    "description": "In specifies a list of values where the field must match any one of them.\nMultiple values treated as OR conditions.\nExample: {\"in\": [\"active\", \"pending\", \"suspended\"]} matches any of these statuses",
-                    "type": "array",
-                    "items": {}
-                },
-                "lt": {
-                    "description": "LessThan specifies values that must be less than the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lt\": [1000]} matches records where field \u003c 1000",
-                    "type": "array",
-                    "items": {}
-                },
-                "lte": {
-                    "description": "LessOrEqual specifies values that must be less than or equal to the provided value.\nShould contain exactly one value for comparison.\nExample: {\"lte\": [\"2025-06-30\"]} matches records where field \u003c= \"2025-06-30\"",
-                    "type": "array",
-                    "items": {}
-                },
-                "nin": {
-                    "description": "NotIn specifies a list of values where the field must NOT match any of them.\nMultiple values treated as AND NOT conditions.\nExample: {\"nin\": [\"deleted\", \"archived\"]} excludes these statuses",
-                    "type": "array",
-                    "items": {}
-                }
-            }
-        },
         "pkg.HTTPError": {
             "type": "object",
             "properties": {
@@ -2143,323 +2460,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "pongo.BlockDefinition": {
-            "type": "object",
-            "properties": {
-                "acceptsChildren": {
-                    "type": "boolean"
-                },
-                "category": {
-                    "type": "string"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pongo.BlockProperty"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "pongo.BlockProperty": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "required": {
-                    "type": "boolean"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "pongo.BlocksConfigResponse": {
-            "type": "object",
-            "properties": {
-                "blocks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pongo.BlockDefinition"
-                    }
-                }
-            }
-        },
-        "pongo.FilterDefinition": {
-            "type": "object",
-            "properties": {
-                "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "example": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "pongo.FiltersResponse": {
-            "type": "object",
-            "properties": {
-                "filters": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pongo.FilterDefinition"
-                    }
-                }
-            }
-        },
-        "report.Report": {
-            "type": "object",
-            "properties": {
-                "completedAt": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "type": "string"
-                },
-                "filters": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "$ref": "#/definitions/model.FilterCondition"
-                            }
-                        }
-                    }
-                },
-                "id": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "status": {
-                    "type": "string",
-                    "example": "processing"
-                },
-                "templateDescription": {
-                    "type": "string",
-                    "example": "Cadoc"
-                },
-                "templateId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "templateOutputFormat": {
-                    "type": "string",
-                    "example": "xml"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "template_builder.ElifBranch": {
-            "type": "object",
-            "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.TemplateBlock"
-                    }
-                },
-                "condition": {
-                    "type": "string"
-                }
-            }
-        },
-        "template_builder.FilterChain": {
-            "type": "object",
-            "properties": {
-                "args": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "template_builder.GenerateCodeInput": {
-            "type": "object",
-            "properties": {
-                "blocks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.TemplateBlock"
-                    }
-                },
-                "format": {
-                    "type": "string"
-                }
-            }
-        },
-        "template_builder.GenerateCodeResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "mappedFields": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "template_builder.TemplateBlock": {
-            "type": "object",
-            "properties": {
-                "assignment": {
-                    "type": "string"
-                },
-                "blockId": {
-                    "type": "string"
-                },
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.TemplateBlock"
-                    }
-                },
-                "collection": {
-                    "type": "string"
-                },
-                "condition": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "elifBranches": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.ElifBranch"
-                    }
-                },
-                "elseChildren": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.TemplateBlock"
-                    }
-                },
-                "expression": {
-                    "type": "string"
-                },
-                "field": {
-                    "type": "string"
-                },
-                "filters": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.FilterChain"
-                    }
-                },
-                "format": {
-                    "type": "string"
-                },
-                "function": {
-                    "type": "string"
-                },
-                "inline": {
-                    "type": "boolean"
-                },
-                "iterator": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "tagArgs": {
-                    "type": "string"
-                },
-                "tagName": {
-                    "type": "string"
-                },
-                "trimWhitespace": {
-                    "type": "boolean"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "variable": {
-                    "type": "string"
-                }
-            }
-        },
-        "template_builder.ValidateBlocksInput": {
-            "type": "object",
-            "properties": {
-                "blocks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.TemplateBlock"
-                    }
-                }
-            }
-        },
-        "template_builder.ValidateBlocksResponse": {
-            "type": "object",
-            "properties": {
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/template_builder.ValidationError"
-                    }
-                },
-                "valid": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "template_builder.ValidationError": {
-            "type": "object",
-            "properties": {
-                "blockId": {
-                    "type": "string"
-                },
-                "field": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                }
-            }
         }
     },
     "securityDefinitions": {
@@ -2469,7 +2469,33 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Generated report instances and their lifecycle.",
+            "name": "Reports"
+        },
+        {
+            "description": "Reusable report definitions.",
+            "name": "Templates"
+        },
+        {
+            "description": "Interactive construction of report templates.",
+            "name": "Template Builder"
+        },
+        {
+            "description": "Scheduled report due-date tracking.",
+            "name": "Deadlines"
+        },
+        {
+            "description": "Configured inputs that feed report data.",
+            "name": "Data Sources"
+        },
+        {
+            "description": "Aggregated reporting metrics.",
+            "name": "Metrics"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

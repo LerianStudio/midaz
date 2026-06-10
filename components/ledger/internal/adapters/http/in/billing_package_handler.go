@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -43,7 +42,7 @@ type BillingPackageHandler struct {
 //
 //	@Summary		Create a BillingPackage
 //	@Description	Create a BillingPackage with the input payload
-//	@Tags			BillingPackages
+//	@Tags			Billing Packages
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
@@ -87,13 +86,13 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 
 	result, errCreate := handler.Service.CreateBillingPackage(ctx, payload)
 	if errCreate != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create billing package", errCreate)
+		handleSpanByErrorClass(span, "Failed to create billing package", errCreate)
 
 		return http.WithError(c, errCreate)
 	}
 
 	if result == nil {
-		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
+		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingPackage"))
 	}
 
 	return commonsHttp.Respond(c, fiber.StatusCreated, result)
@@ -103,7 +102,7 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 //
 //	@Summary		Get all billing packages
 //	@Description	List all billing packages
-//	@Tags			BillingPackages
+//	@Tags			Billing Packages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
@@ -179,7 +178,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 
 	results, total, errGet := handler.Service.GetAllBillingPackages(ctx, organizationID.String(), ledgerIDParam, billingType, limit, page)
 	if errGet != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all billing packages", errGet)
+		handleSpanByErrorClass(span, "Failed to retrieve all billing packages", errGet)
 
 		return http.WithError(c, errGet)
 	}
@@ -199,7 +198,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 //
 //	@Summary		Get billing package
 //	@Description	Get a billing package by id
-//	@Tags			BillingPackages
+//	@Tags			Billing Packages
 //	@Produce		json
 //	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
@@ -237,7 +236,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 
 	result, errGet := handler.Service.GetBillingPackageByID(ctx, id.String(), organizationID.String())
 	if errGet != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve billing package", errGet)
+		handleSpanByErrorClass(span, "Failed to retrieve billing package", errGet)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve BillingPackage", libLog.String("billing_package_id", id.String()))
 
@@ -251,7 +250,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 //
 //	@Summary		Update a billing package
 //	@Description	Update a billing package with the input payload
-//	@Tags			BillingPackages
+//	@Tags			Billing Packages
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
@@ -314,7 +313,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 
 	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id.String(), organizationID.String(), updates)
 	if errUpdate != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update billing package", errUpdate)
+		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
 		return http.WithError(c, errUpdate)
 	}
@@ -326,7 +325,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 //
 //	@Summary		SoftDelete a BillingPackage by ID
 //	@Description	SoftDelete a BillingPackage with the input ID
-//	@Tags			BillingPackages
+//	@Tags			Billing Packages
 //	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
 //	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"BillingPackage ID"
@@ -362,7 +361,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	)
 
 	if errDelete := handler.Service.DeleteBillingPackage(ctx, id.String(), organizationID.String()); errDelete != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete billing package", errDelete)
+		handleSpanByErrorClass(span, "Failed to delete billing package", errDelete)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove BillingPackage", libLog.String("billing_package_id", id.String()))
 

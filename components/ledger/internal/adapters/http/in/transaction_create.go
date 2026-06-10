@@ -1064,8 +1064,11 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// GetParsedLedgerSettings so the single validate reassignment below happens
 	// upstream of PropagateRouteValidation: that mutator then decorates the
 	// post-fee validate, and every downstream consumer reads the same pointer.
+	// applyFees resolves the tenant's fee DB internally, only once it has decided
+	// fees actually apply (reverts/annotations short-circuit before that), so the
+	// MT tenant resolution rides inside the same gate as the fee computation.
 	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to apply fees", err)
+		handleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)

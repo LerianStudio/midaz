@@ -66,7 +66,7 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 //	@Summary		Reserve transaction capacity (phase one)
 //	@Description	Holds limit capacity for a ledger transaction without committing it. Returns one reservation id per counter-backed limit, or denied=true when a limit would be exceeded.
 //	@ID				createReservation
-//	@Tags			reservations
+//	@Tags			Reservations
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -152,7 +152,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 //	@Summary		Confirm a reservation (phase two — commit)
 //	@Description	Commits a held reservation: the amount moves from reserved to current usage. Idempotent — a retry against an already-terminal reservation returns 200.
 //	@ID				confirmReservation
-//	@Tags			reservations
+//	@Tags			Reservations
 //	@Produce		json
 //	@Security		ApiKeyAuth
 //	@Param			id			path		string	true	"Reservation ID (UUID)"	Format(uuid)
@@ -170,7 +170,7 @@ func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 //	@Summary		Release a reservation (phase two — abort)
 //	@Description	Returns a held reservation's capacity on an aborted ledger transaction. Idempotent — a retry against an already-terminal reservation returns 200.
 //	@ID				releaseReservation
-//	@Tags			reservations
+//	@Tags			Reservations
 //	@Produce		json
 //	@Security		ApiKeyAuth
 //	@Param			id			path		string	true	"Reservation ID (UUID)"	Format(uuid)
@@ -188,7 +188,7 @@ func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 //	@Summary		Confirm a transaction's reservations (phase two — commit by transaction)
 //	@Description	Confirms EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /commit drives this with only the transaction id. Idempotent — flipped=0 (no reservations, or all already terminal) returns 200.
 //	@ID				confirmReservationByTransaction
-//	@Tags			reservations
+//	@Tags			Reservations
 //	@Produce		json
 //	@Security		ApiKeyAuth
 //	@Param			transaction_id	path		string	true	"Transaction ID (UUID)"	Format(uuid)
@@ -206,7 +206,7 @@ func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 //	@Summary		Release a transaction's reservations (phase two — abort by transaction)
 //	@Description	Releases EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /cancel drives this with only the transaction id. Idempotent — flipped=0 returns 200.
 //	@ID				releaseReservationByTransaction
-//	@Tags			reservations
+//	@Tags			Reservations
 //	@Produce		json
 //	@Security		ApiKeyAuth
 //	@Param			transaction_id	path		string	true	"Transaction ID (UUID)"	Format(uuid)

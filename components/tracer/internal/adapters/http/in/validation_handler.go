@@ -63,7 +63,7 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 //	@Summary		Validate a transaction
 //	@Description	Validates a transaction against configured rules and limits.
 //	@ID				validateTransaction
-//	@Tags			validations
+//	@Tags			Validations
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth

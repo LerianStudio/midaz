@@ -57,7 +57,7 @@ func NewLimitHandler(service LimitService) *LimitHandler {
 //	@Summary		Create a new spending limit
 //	@Description	Creates a limit with scopes array. Limits are created in DRAFT status.
 //	@ID				createLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -111,7 +111,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 //	@Summary		Get a spending limit by ID
 //	@Description	Retrieves a limit by its unique identifier.
 //	@ID				getLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -160,7 +160,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 //	@Summary		List spending limits
 //	@Description	Lists limits with cursor-based pagination and optional filters.
 //	@ID				listLimits
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -235,7 +235,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 //	@Summary		Partially update an existing spending limit
 //	@Description	Partially updates a limit. Only provided fields are updated, omitted fields remain unchanged.
 //	@ID				updateLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -324,7 +324,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 //	@Summary		Activate a spending limit
 //	@Description	Activates an inactive limit (INACTIVE → ACTIVE).
 //	@ID				activateLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -371,7 +371,7 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 //	@Summary		Deactivate a spending limit
 //	@Description	Deactivates an active limit (ACTIVE → INACTIVE).
 //	@ID				deactivateLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -418,7 +418,7 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 //	@Summary		Transition a limit back to draft
 //	@Description	Transitions a limit from INACTIVE to DRAFT status. Allows re-editing a previously deactivated limit.
 //	@ID				draftLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -465,7 +465,7 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 //	@Summary		Delete a spending limit
 //	@Description	Soft-deletes a limit (transitions to DELETED status). Only DRAFT and INACTIVE limits can be deleted. ACTIVE limits must be deactivated first.
 //	@ID				deleteLimit
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -511,7 +511,7 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 //	@Summary		Get usage snapshot for a limit
 //	@Description	Retrieves current usage snapshot for a limit, showing aggregated usage, utilization percentage, and reset time.
 //	@ID				getLimitUsage
-//	@Tags			limits
+//	@Tags			Limits
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth

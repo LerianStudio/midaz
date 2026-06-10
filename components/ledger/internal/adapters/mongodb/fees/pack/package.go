@@ -82,13 +82,13 @@ type Package struct {
 	TransactionRoute *string              `json:"transactionRoute" example:"debitoted"`
 	MinimumAmount    decimal.Decimal      `json:"minimumAmount" example:"100" minimum:"0"`
 	MaximumAmount    decimal.Decimal      `json:"maximumAmount" example:"2" minimum:"0"`
-	WaivedAccounts   *[]string            `json:"waivedAccounts" example:"['acc001', 'ac0002']"`
+	WaivedAccounts   *[]string            `json:"waivedAccounts" example:"acc001,acc002"`
 	Fees             map[string]model.Fee `json:"fees"`
 	Enable           *bool                `json:"enable"`
 	CreatedAt        time.Time            `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt        time.Time            `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt        *time.Time           `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-}
+} //	@name	Package
 
 // NewPackage creates a new Package with validation of required fields.
 // Use this constructor when creating a new package from user input.

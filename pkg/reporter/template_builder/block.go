@@ -27,46 +27,46 @@ type TemplateBlock struct {
 	Expression     string          `json:"expression,omitempty"`
 	TagName        string          `json:"tagName,omitempty"`
 	TagArgs        string          `json:"tagArgs,omitempty"`
-}
+} // @name TemplateBlock
 
 // ElifBranch represents a single elif branch with its condition and children.
 type ElifBranch struct {
 	Condition string          `json:"condition"`
 	Children  []TemplateBlock `json:"children"`
-}
+} // @name ElifBranch
 
 // FilterChain represents a single filter with optional arguments in the filter pipeline.
 type FilterChain struct {
 	Name string `json:"name"`
 	Args string `json:"args,omitempty"`
-}
+} // @name FilterChain
 
 // ValidationError represents a single validation error for a specific block.
 type ValidationError struct {
 	BlockID string `json:"blockId"`
 	Field   string `json:"field"`
 	Message string `json:"message"`
-}
+} // @name ValidationError
 
 // ValidateBlocksInput is the request payload for the validate endpoint.
 type ValidateBlocksInput struct {
 	Blocks []TemplateBlock `json:"blocks"`
-}
+} // @name ValidateBlocksInput
 
 // ValidateBlocksResponse is the response payload for the validate endpoint.
 type ValidateBlocksResponse struct {
 	Valid  bool              `json:"valid"`
 	Errors []ValidationError `json:"errors,omitempty"`
-}
+} // @name ValidateBlocksResponse
 
 // GenerateCodeInput is the request payload for the generate-code endpoint.
 type GenerateCodeInput struct {
 	Blocks []TemplateBlock `json:"blocks"`
 	Format string          `json:"format"`
-}
+} // @name GenerateCodeInput
 
 // GenerateCodeResponse is the response payload for the generate-code endpoint.
 type GenerateCodeResponse struct {
 	Code         string                         `json:"code"`
 	MappedFields map[string]map[string][]string `json:"mappedFields"`
-}
+} // @name GenerateCodeResponse

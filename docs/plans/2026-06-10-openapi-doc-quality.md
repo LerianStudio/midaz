@@ -17,7 +17,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | `make generate-docs` runs clean on a fresh tree, reproduces all three specs, general-info at parity, two CI guardrails green | 1.1, 1.2, 1.3 | Detailed |
-| 2 | Specs carry no leaked dotted schema names, consistent Title-Case-plural tags with group descriptions, lowercase router methods, and no wrong/stale runtime-visible text | 2.1, 2.2, 2.3 | Epic-level |
+| 2 | Specs carry clean schema names (annotated set), consistent Title-Case tags with group descriptions, lowercase router methods, and no wrong/malformed runtime-visible text | 2.1, 2.2, 2.3 | Detailed |
 | 3 | Ledger spec documents authentication correctly: authenticated operations require `BearerAuth`, no dangling scheme, no duplicated `Authorization` param | 3.1 | Epic-level |
 | 4 | Every endpoint across all three components declares the full, correct error-code set with descriptive response strings; folded-in CRM+fees surface matches the native bar | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Every wire-facing schema is fully described (no raw domain entities, no persistence structs, no unexported types, no opaque maps on the public surface) | 5.1, 5.2, 5.3, 5.4 | Epic-level |
@@ -168,41 +168,127 @@
 
 ---
 
-## Phase 2 — Mechanical wire sweeps (no decisions, low blast radius)
+## Phase 2 — Mechanical wire sweeps (low blast radius)
 
-**Milestone:** The three regenerated specs carry clean schema names (no `github_com_LerianStudio_...` / package-dotted definitions), a single Title-Case-plural tag taxonomy with `@tag` group descriptions, lowercase `@Router` methods, and no factually-wrong or stale runtime-visible text.
+**Milestone:** The three regenerated specs carry clean schema names for the annotated set (the zero-annotation set stays for Phase 4/5), a single Title-Case tag taxonomy with `@tag` group descriptions, lowercase `@Router` methods, and no factually-wrong or malformed runtime-visible text. `make check-docs` stays green; all binaries build.
 
-### Epic 2.1: `@name` sweep to eliminate leaked schema names
+**Scope correction from Phase-2 elaboration (against the committed tree):**
+- The dotted-name set splits in two. **In scope here:** structs that ALREADY carry swag annotations and only lack `// @name`. **Deferred to Phase 5 (full annotation, not just a name):** the entire tracer `pkg/model.*` set (→5.1, 21 names), the `feeshared_model.*` billing family (→5.2, 11 names: `AccountTarget`, `BillingCalculate{Request,Response,Summary}`, `BillingCalculationResult`, `BillingPackage`, `BillingPackageUpdate`, `DiscountTier`, `EventFilter`, `PricingTier`), and the reporter `internal_manager_adapters_http_in.*` unexported types (→5.3: `errorMetrics`, `metricsResponse`, `notificationItem`, `notificationResponse`). 2.1 must SKIP these and record them as deferred — adding a bare `@name` to a zero-annotation struct would collide with the Phase 5 work.
+- **L13 and L5 are NOT mechanical** and are scoped down (see Epic 2.3). L13's `TRC-` literal appears in 33 files (tests, `rule_repository.go`, `limit_validation.go`, …) — distinguishing a stale comment from a live error string needs per-site reading, so Phase 2 touches ONLY confirmed stale comments in the two audit-named annotation files and flags the rest. L5's `app.request.alias_id` span-attribute rename is an observability surface and is EXCLUDED from Phase 2 (separate, acknowledged change).
 
-**Goal:** Every wire-facing struct that already carries `swagger:model`/field annotations but lacks `@name` gets a clean `// @name <Type>`, removing the dotted names from all three specs. (Structs with *zero* annotations are out of scope here — they are annotated wholesale in Phase 5.)
-**Scope:** `pkg/mmodel/*` (esp. `balance.go`, the `*Settings` family), `components/ledger/pkg/feeshared/model/*` (the already-annotated `fees.go` set), `pkg/reporter/model/*` and `pkg/reporter/mongodb/*` (`report.Report`, `template.Template`, `deadline.Deadline`).
-**Dependencies:** Phase 1 (regeneration must be clean to verify the name reduction)
-**Done when:** `grep -c 'github_com_LerianStudio\|"[a-z_]*\.[A-Z]' ` over each `components/<c>/api/swagger.json` `definitions` block drops to zero for the annotated set; `make check-docs` stays green. M13, L12.
-**Status:** Pending
+### Epic 2.1: `@name` sweep to clean leaked schema names (annotated set only)
 
-### Epic 2.2: Normalize tag taxonomy and router-method case
-
-**Goal:** All `@Tags` are Title-Case-plural and consistent across components; `@tag.name`/`@tag.description` group blocks exist in every component's general-info; all `@Router` HTTP methods are lowercase.
-**Scope:** all handler files in `components/{ledger,tracer,reporter}/internal/.../http/in/`, plus the three `cmd/app/main.go` for the `@tag` group blocks.
+**Goal:** Every wire-facing struct that already carries swag annotations but lacks `// @name` gets a clean name, so its spec definition stops emitting a package-dotted/`github_com_...` key.
+**Scope:** `pkg/mmodel/*`, `pkg/net/http`, `components/ledger/internal/adapters/mongodb/fees/pack`, `pkg/reporter/*` and reporter `template_builder`/`pongo`/`datasource`/`report`/`deadline`/`template` packages, tracer `api` package.
 **Dependencies:** Phase 1
-**Done when:** tracer's 7 lowercase tags, reporter's `Data source`, ledger's singular route tags (`Operation Route`/`Transaction Route`), and the CamelCase fee tags (`BillingPackages`/`BillingCalculate`) are all Title-Case-plural; `@tag.*` descriptions render in all three Swagger UIs (tracer's two-phase reservations lifecycle is described); no capitalized `[Get]`/`[Put]`/`[Post]` remain in `@Router`. M6, M8, L1.
+**Done when:** the dotted-name count in each `components/<c>/api/swagger.json` drops to exactly the deferred set named above (ledger: only the 11 feeshared billing names remain; tracer: only the 21 pkg/model names remain; reporter: only the 4 unexported names remain); `make check-docs` green; builds pass.
 **Status:** Pending
 
-### Epic 2.3: Fix wrong, stale, and malformed runtime-visible text
+#### Task 2.1.1: Name the ledger + shared `mmodel` annotated structs
 
-**Goal:** Every factually-incorrect or stale doc string that misleads a spec reader is corrected.
-**Scope:** ledger `transaction_state_handlers.go`, `balance.go`, `operation.go`; reporter `mongodb/report/report.go`, `data-source.go`, `data-source-information.go`; ledger `mongodb/fees/pack/package.go`; reporter `pkg/reporter/model/data-source-information.go`; tracer `transaction_validation_handler.go`, `rule_validation.go`; ledger `instrument.go` (comment/log side of the alias→instrument drift).
+- [ ] Done
+
+**Context:** `components/ledger/api/swagger.json` carries 18 dotted definition names. Of these, the annotated-but-unnamed set is: `mmodel.Balance`, `mmodel.BalanceSettings`, `mmodel.LedgerSettings`, `mmodel.TracerSettings`, `mmodel.AccountingValidation`, `mmodel.Date` (all in `pkg/mmodel/*`), `github_com_..._pkg_net_http.Pagination` (`pkg/net/http`), and `..._mongodb_fees_pack.Package` (`components/ledger/internal/adapters/mongodb/fees/pack`). Reference: `mmodel.Balance` (`pkg/mmodel/balance.go:19-23`) has full `swagger:model`+field annotations but is missing `// @name Balance`, while sibling `Account` (`pkg/mmodel/account.go:277`) emits cleanly because it has the directive.
+
+**Implementation vision:** For each dotted name above, open its struct, CONFIRM it carries swag annotations (`swagger:model` and/or field-level `example`/`description` tags — they all do, that's why they have rich definitions), then add a `// @name <CleanName>` line as the last line of the struct's doc comment (matching the `account.go:277` placement). Clean names: `Balance`, `BalanceSettings`, `LedgerSettings`, `TracerSettings`, `AccountingValidation`, `Date`, `Pagination`, `Package`. **Do NOT touch** the 11 `feeshared_model.*` billing structs — verify each is zero-annotation (only json/bson tags) and leave it for Phase 5.2. If any supposed target turns out to be zero-annotation, skip it and report it as deferred instead.
+
+**Files:**
+- Modify: `pkg/mmodel/balance.go`, `pkg/mmodel/ledger.go` (or wherever `LedgerSettings`/`TracerSettings`/`BalanceSettings`/`AccountingValidation`/`Date` are defined — grep `type BalanceSettings`, etc.)
+- Modify: `pkg/net/http/*.go` (the `Pagination` struct)
+- Modify: `components/ledger/internal/adapters/mongodb/fees/pack/*.go` (the `Package` struct)
+
+**Verification:** `cd components/ledger && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml` then `jq -r '.definitions|keys[]' api/swagger.json | grep -E '\.|github_com'` lists ONLY the 11 `feeshared_model.*` billing names (the deferred set) — `mmodel.*`, `Pagination`, and `Package` are gone, replaced by clean keys.
+
+**Done when:** the 8 named structs emit clean definition keys; the 11 billing names remain (deferred); ledger builds.
+
+#### Task 2.1.2: Name the reporter + tracer-`api` annotated structs
+
+- [ ] Done
+
+**Context:** `reporter/api/swagger.json` has 23 dotted names; the annotated-but-unnamed set is `report.Report`, `deadline.Deadline`, `..._mongodb_template.Template`, `datasource.ValidationWarning`, `model.FilterCondition`, the `pongo.*` family (5), and the `template_builder.*` family (8). The 4 `internal_manager_adapters_http_in.*` unexported types are DEFERRED to Phase 5.3 (they need exporting, not just naming). `tracer/api/swagger.json` has 40 dotted names, of which only the `api.*` wrappers (`api.ErrorResponse`, `api.ReadyzCheck`, `api.ReadyzResponse`, `api.VersionResponse`) are annotated-but-unnamed; the 21 `pkg/model.*` names and `pkg.HTTPError` patterns are handled elsewhere (`pkg/model` → Phase 5.1).
+
+**Implementation vision:** Add `// @name <CleanName>` to each annotated reporter struct (`Report`, `Deadline`, `Template`, `ValidationWarning`, `FilterCondition`, the `pongo` block/filter response types, the `template_builder` request/response types) and to the four tracer `api` wrapper structs (`ErrorResponse`, `ReadyzCheck`, `ReadyzResponse`, `VersionResponse`). For each, first confirm swag annotations exist; if a struct is zero-annotation, skip and report deferred. Do NOT export or rename the reporter `internal_manager_adapters_http_in.*` types — that is Phase 5.3.
+
+**Files:**
+- Modify: reporter structs under `pkg/reporter/mongodb/{report,deadline,template}`, `pkg/reporter/model` (`FilterCondition`, `ValidationWarning` — grep to confirm packages), and the `pongo`/`template_builder` packages (grep `type GenerateCodeResponse`, etc.)
+- Modify: tracer `components/tracer/api/*.go` (the `api.*` wrapper structs)
+
+**Verification:** regenerate both specs; `jq -r '.definitions|keys[]' reporter/api/swagger.json | grep -E '\.|github_com'` lists only the 4 `internal_manager_adapters_http_in.*` names; tracer's `api.*` wrappers emit clean. Both components build.
+
+**Done when:** reporter + tracer-`api` annotated structs emit clean keys; the deferred sets remain; builds pass.
+
+### Epic 2.2: Normalize tag taxonomy, add `@tag` groups, lowercase router methods
+
+**Goal:** One consistent Title-Case tag taxonomy across all three components, `@tag.name`/`@tag.description` group blocks in every general-info header, and lowercase `@Router` HTTP methods.
+**Scope:** handler files in `components/{ledger,tracer,reporter}/internal/.../http/in/`, the three `cmd/app/main.go`.
 **Dependencies:** Phase 1
-**Done when:**
-- Commit/Cancel `@Failure 400` strings no longer say "reverted" (M2);
-- reporter status example is `Processing` not `processing` (M11);
-- malformed `example\t"..."` query-param tokens render real examples or fold into descriptions (L2);
-- single-quote array-literal examples use swag's array form and the `ac0002` typo is fixed (L3);
-- reporter "plugin" wording → "reporter" (L10);
-- stale `TRC-####` references in tracer comments updated to the numeric registry (L13);
-- ledger alias→instrument comment/log drift reconciled (L5 — **decision gate:** the `app.request.alias_id` span attribute is an observability surface; renaming it is logged as a separate, explicitly-acknowledged change, not folded in silently).
-M2, M11, L2, L3, L5, L10, L13.
+**Done when:** the tag renames below are applied; every component's `main.go` carries `@tag.name`+`@tag.description` for each of its tags; zero capitalized `@Router` methods remain; `make check-docs` green.
 **Status:** Pending
+
+#### Task 2.2.1: Apply the locked tag renames + lowercase `@Router` methods
+
+- [ ] Done
+
+**Context:** Full `@Tags` inventory (verified): ledger has `Operation Route` (5), `Transaction Route` (5), `BillingPackages` (5), `BillingCalculate` (1) breaking the Title-Case-with-spaces convention its siblings (`Account Types`, `Asset Rates`, `Metadata Indexes`) follow; tracer's 7 tags are ALL lowercase (`audit`, `health`, `info`, `limits`, `reservations`, `rules`, `validations`); reporter has `Data source` (2) breaking its own Title-Case (`Data Sources` would match `Templates`/`Reports`). Separately, 13 `@Router` lines use a capitalized HTTP method (`[Put]`, `[Get]`, `[Delete]`, `[Post]`), all in ledger handlers (e.g. `assetrate.go:42 [Put]`, `balance.go:49,121,192,243`).
+
+**Implementation vision — locked rename map** (apply by editing `@Tags` lines in the handler files; swag tag = the literal string):
+- ledger: `Operation Route` → `Operation Routes`; `Transaction Route` → `Transaction Routes`; `BillingPackages` → `Billing Packages`; `BillingCalculate` → `Billing Calculate`.
+- tracer: `audit` → `Audit`; `health` → `Health`; `info` → `Info`; `limits` → `Limits`; `reservations` → `Reservations`; `rules` → `Rules`; `validations` → `Validations`.
+- reporter: `Data source` → `Data Sources`.
+- Leave already-conforming tags untouched (`Accounts`, `Templates`, `Reports`, `Deadlines`, `Metrics`, `Template Builder`, `Account Types`, etc.).
+- `@Router` methods: lowercase the bracketed method on all 13 capitalized lines (`[Put]`→`[put]`, `[Get]`→`[get]`, `[Delete]`→`[delete]`, `[Post]`→`[post]`). swag is case-insensitive so the spec is unchanged, but normalize for consistency + a future grep guard.
+
+**Files:** ledger/tracer/reporter handler files under `internal/.../http/in/` (grep `@Tags` and `@Router` to locate; the renames are find-replace on exact tag strings).
+
+**Verification:** `for c in ledger tracer reporter; do grep -rh '@Tags' components/$c --include='*.go' | sort -u; done` shows only Title-Case tags, no lowercase, no singular `Route`, no CamelCase billing; `grep -rn '@Router' components --include='*.go' | grep -E '\[(Get|Post|Put|Patch|Delete)\]'` returns nothing; regenerate, `make check-docs` green.
+
+**Done when:** tag taxonomy is uniform Title-Case and router methods are lowercase across all three.
+
+#### Task 2.2.2: Add `@tag.name`/`@tag.description` group blocks to each general-info header
+
+- [ ] Done
+
+**Context:** No component declares `@tag.*` group metadata (M8), so Swagger UI shows bare tag folders with no description. Tracer is worst — its `Reservations` group is a non-obvious two-phase hold/confirm/release lifecycle. The tag set per component is now the normalized set from Task 2.2.1.
+
+**Implementation vision:** In each `components/<c>/cmd/app/main.go` general-info block, after the `@securityDefinitions`/description lines, add one `@tag.name <Tag>` + `@tag.description <one-line>` pair per tag the component uses (matching the tab-aligned comment style). Descriptions are short and behavioral. For tracer's `Reservations`, the description must name the two-phase lifecycle ("Two-phase balance reservations: hold, then confirm or release."). For ledger, describe each native + folded-in group; for reporter, each of its groups. **Dependency:** Task 2.2.1 must land first so the `@tag.name` values match the renamed tags exactly (a `@tag.name` that doesn't match any operation tag is dead metadata).
+
+**Files:** Modify: `components/ledger/cmd/app/main.go`, `components/tracer/cmd/app/main.go`, `components/reporter/cmd/app/main.go`.
+
+**Verification:** regenerate; `jq '.tags' components/<c>/api/swagger.json` lists every operation tag with a non-empty description; `make check-docs` green. (Parity check is unaffected — `@tag` blocks are per-component content, not parity fields.)
+
+**Done when:** all three Swagger UIs render grouped, described tag navigation; every `@tag.name` matches a live tag.
+
+### Epic 2.3: Fix wrong and malformed runtime-visible text (safe subset)
+
+**Goal:** Every factually-incorrect or malformed doc string that misleads a spec reader is corrected — limited to genuinely safe, doc-only edits.
+**Scope:** ledger `transaction_state_handlers.go`, the 8 files with malformed `example` tokens, `mongodb/fees/pack/package.go`, `feeshared/model/update_package_input.go`; reporter `mongodb/report/report.go`, `data-source.go`, `data-source-information.go`, `pkg/reporter/model/data-source-information.go`; tracer `transaction_validation_handler.go`, `rule_validation.go` (comment sites only).
+**Dependencies:** Phase 1
+**Done when:** all sub-items below are corrected and regeneration is clean.
+**Status:** Pending
+
+#### Task 2.3.1: Correct wrong/malformed examples and stale wording (safe set)
+
+- [ ] Done
+
+**Context & exact targets:**
+- **M2:** `transaction_state_handlers.go:41` (Commit) and `:97` (Cancel) both carry `@Failure 400 ... "Invalid request or transaction cannot be reverted"` — copied from Revert at `:153`. (Line `:226` is a Revert span message, correct, leave it.)
+- **M11:** `components/reporter/internal/.../mongodb/report/report.go:26` tags `example:"processing"` but the persisted constant is `Processing` (capitalized) — `GetAllReports` `@Param` enum at `report.go:235` uses the capitalized form.
+- **L2 (15 sites):** malformed `example\t"value"` query-param tokens (swag needs `example(value)` syntax; the current form renders `example=None`). Exact lines: `operation_route.go:353-354`, `assetrate.go:138,140-141`, `operation.go:36-37`, `transaction_query_handlers.go:26-27`, `transaction_route.go:275-276`, `balance.go:40-41,111-112`. Fix to `example(...)` form OR fold the value into the param description (as `balance.go:513` already does for a date hint) — pick whichever swag renders cleanly; verify the rendered example is non-null.
+- **L3 (3 sites):** single-quote array-literal examples: `mongodb/fees/pack/package.go:85` and `feeshared/model/update_package_input.go:32` both `example:"['acc001', 'ac0002']"` (single quotes + `ac0002` typo → fix to `acc002`); `pkg/reporter/model/data-source-information.go:37` `example:"['id', 'name', 'parent_account_id']"`. Use swag's valid array-example form for `[]string`.
+- **L10:** reporter "plugin" wording in `data-source.go:42` and `data-source-information.go:7,11,18` → "reporter".
+- **L13 (narrowed):** ONLY inspect `transaction_validation_handler.go` and `rule_validation.go` for `TRC-` references that are stale COMMENTS (not live error strings, not test assertions). Update only confirmed stale comments to the numeric registry. REPORT every other `TRC-` site found (tests, `rule_repository.go`, `limit_validation.go`, `audit_event_validation.go`) as out-of-scope-needs-review — do NOT edit them.
+
+**Implementation vision:** Pure text edits. For L2, prefer `example(2021-01-01)` form; if a param already conveys the format in its description, dropping the broken token is acceptable. For L3, emit a valid swag array example (double-quoted JSON-style or swag's accepted form) and fix the `ac0002`→`acc002` typo. Each edit must leave the file compiling (they're struct tags / comment annotations).
+
+**EXCLUDED from this task (acknowledged, not silently dropped):**
+- **L5** — the `app.request.alias_id` span-attribute rename and "Failed to create alias" log strings in `instrument.go`. This is an observability surface; renaming spans/log keys can break dashboards/alerts. Flagged for a separate, explicitly-approved change.
+- The broad `TRC-` usage outside the two named files (tests + repository code).
+
+**Files:** the files listed in the targets above.
+
+**Verification:** regenerate all three specs; `make check-docs` green; spot-check via jq that a previously-broken example now renders (e.g. `jq '.paths."/v1/...".get.parameters[]|select(.name=="start_date").example'` is non-null); `grep -rn "example	\"" components pkg --include='*.go'` returns nothing; `grep -rn "\['" components pkg --include='*.go'` (in example tags) returns nothing; `grep -rn "plugin" components/reporter/.../data-source*.go` returns nothing; builds pass.
+
+**Done when:** the safe set is corrected, the excluded items are reported, and regeneration is clean.
 
 ---
 

@@ -55,7 +55,7 @@ type Deadline struct {
 	DeliveredAt      *time.Time `json:"deliveredAt,omitempty" example:"2026-03-15T10:00:00Z"`
 	CreatedAt        time.Time  `json:"createdAt" example:"2026-01-01T00:00:00Z"`
 	UpdatedAt        time.Time  `json:"updatedAt" example:"2026-01-01T00:00:00Z"`
-}
+} // @name Deadline
 
 // ValidFrequencies defines the set of allowed frequency values for a deadline.
 var ValidFrequencies = map[string]bool{

@@ -683,7 +683,7 @@ definitions:
         type: number
       settings:
         allOf:
-        - $ref: '#/definitions/mmodel.BalanceSettings'
+        - $ref: '#/definitions/BalanceSettings'
         description: |-
           Settings is the per-balance configuration snapshot at the time the
           history row was recorded. Nil for legacy balances.
@@ -703,6 +703,43 @@ definitions:
         example: 1
         minimum: 1
         type: integer
+    type: object
+  BalanceSettings:
+    description: Optional per-balance configuration controlling overdraft behavior
+      and balance scope.
+    properties:
+      allowOverdraft:
+        description: |-
+          AllowOverdraft enables overdraft behavior for the balance. When false,
+          transactions that would drive Available below zero are rejected.
+          example: false
+        example: false
+        type: boolean
+      balanceScope:
+        description: |-
+          BalanceScope identifies how the balance participates in transactions.
+          Allowed values: "transactional" (default), "internal". Empty string is
+          treated as "transactional" for backwards compatibility.
+          example: transactional
+        example: transactional
+        type: string
+      overdraftLimit:
+        description: |-
+          OverdraftLimit is the maximum overdraft amount the balance may carry,
+          expressed as a decimal string (to preserve precision). Ignored when
+          OverdraftLimitEnabled is false.
+          example: 1000.00
+        example: "1000.00"
+        type: string
+      overdraftLimitEnabled:
+        description: |-
+          OverdraftLimitEnabled gates the OverdraftLimit field. When true, a
+          non-empty, strictly positive OverdraftLimit MUST be supplied. When
+          false, OverdraftLimit MUST be absent (overdraft is unlimited if
+          AllowOverdraft is true).
+          example: false
+        example: false
+        type: boolean
     type: object
   BankingDetails:
     type: object
@@ -927,7 +964,7 @@ definitions:
         type: string
       settings:
         allOf:
-        - $ref: '#/definitions/mmodel.BalanceSettings'
+        - $ref: '#/definitions/BalanceSettings'
         description: |-
           Settings is the optional per-balance configuration (overdraft,
           balance scope). When omitted, platform defaults are applied.
@@ -1646,6 +1683,12 @@ definitions:
     required:
     - operationRoutes
     - title
+    type: object
+  Date:
+    description: Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
+    properties:
+      time.Time:
+        type: string
     type: object
   Distribute:
     description: Distribute is the struct designed to represent the distribution fields
@@ -2499,6 +2542,57 @@ definitions:
         format: date-time
         type: string
     type: object
+  Package:
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Pacote de taxas administrativas padrão
+        type: string
+      enable:
+        type: boolean
+      feeGroupLabel:
+        example: Pacote Padrão
+        type: string
+      fees:
+        additionalProperties:
+          $ref: '#/definitions/Fee'
+        type: object
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      maximumAmount:
+        example: 2
+        minimum: 0
+        type: number
+      minimumAmount:
+        example: 100
+        minimum: 0
+        type: number
+      segmentId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      transactionRoute:
+        example: debitoted
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      waivedAccounts:
+        example:
+        - acc001
+        - acc002
+        items:
+          type: string
+        type: array
+    type: object
   Pagination:
     description: Pagination is the struct designed to store the pagination data of
       an entity list.
@@ -3160,7 +3254,7 @@ definitions:
         type: boolean
       settings:
         allOf:
-        - $ref: '#/definitions/mmodel.BalanceSettings'
+        - $ref: '#/definitions/BalanceSettings'
         description: |-
           Settings is the per-balance configuration (overdraft, balance
           scope). When provided, replaces the existing settings in full.
@@ -3381,8 +3475,8 @@ definitions:
         type: string
       waivedAccounts:
         example:
-        - '[''acc001'''
-        - ' ''ac0002'']'
+        - acc001
+        - acc002
         items:
           type: string
         type: array
@@ -3478,57 +3572,6 @@ definitions:
         example: Charge Settlement
         maxLength: 255
         type: string
-    type: object
-  github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package:
-    properties:
-      createdAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      deletedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      description:
-        example: Pacote de taxas administrativas padrão
-        type: string
-      enable:
-        type: boolean
-      feeGroupLabel:
-        example: Pacote Padrão
-        type: string
-      fees:
-        additionalProperties:
-          $ref: '#/definitions/Fee'
-        type: object
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      ledgerId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      maximumAmount:
-        example: 2
-        minimum: 0
-        type: number
-      minimumAmount:
-        example: 100
-        minimum: 0
-        type: number
-      segmentId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      transactionRoute:
-        example: debitoted
-        type: string
-      updatedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      waivedAccounts:
-        example:
-        - '[''acc001'''
-        - ' ''ac0002'']'
-        items:
-          type: string
-        type: array
     type: object
   github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.AccountTarget:
     properties:
@@ -3723,209 +3766,6 @@ definitions:
           When true, transactions must specify valid route IDs that exist in the ledger.
           Default: false (permissive - no validation)
         type: boolean
-    type: object
-  mmodel.Balance:
-    description: Complete balance entity containing all fields including system-generated
-      fields like ID, creation timestamps, and metadata. This is the response format
-      for balance operations. Balances represent the amount of a specific asset held
-      in an account, including available and on-hold amounts.
-    properties:
-      accountId:
-        description: |-
-          Account that holds this balance
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      accountType:
-        description: |-
-          Type of account holding this balance
-          example: creditCard
-          maxLength: 50
-        example: creditCard
-        maxLength: 50
-        type: string
-      alias:
-        description: |-
-          Alias for the account, used for easy identification or tagging
-          example: @person1
-          maxLength: 256
-        example: '@person1'
-        maxLength: 256
-        type: string
-      allowReceiving:
-        description: |-
-          Whether the account can receive funds to this balance
-          example: true
-        example: true
-        type: boolean
-      allowSending:
-        description: |-
-          Whether the account can send funds from this balance
-          example: true
-        example: true
-        type: boolean
-      assetCode:
-        description: |-
-          Asset code identifying the currency or asset type of this balance
-          example: USD
-          minLength: 2
-          maxLength: 10
-        example: USD
-        maxLength: 10
-        minLength: 2
-        type: string
-      available:
-        description: |-
-          Amount available for transactions (in the smallest unit of the asset, e.g. cents)
-          example: 1500
-          minimum: 0
-        example: 1500
-        minimum: 0
-        type: number
-      createdAt:
-        description: |-
-          Timestamp when the balance was created (RFC3339 format)
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      deletedAt:
-        description: |-
-          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
-          example: null
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      direction:
-        description: |-
-          Direction is the accounting direction of the balance. One of
-          "credit" or "debit". Empty string denotes legacy rows predating the
-          overdraft feature and is treated as "credit" by the engine.
-          example: credit
-        example: credit
-        type: string
-      id:
-        description: |-
-          Unique identifier for the balance (UUID format)
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      key:
-        description: |-
-          Unique key for the balance
-          example: asset-freeze
-          maxLength: 100
-        example: asset-freeze
-        maxLength: 100
-        type: string
-      ledgerId:
-        description: |-
-          Ledger containing the account this balance belongs to
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      metadata:
-        additionalProperties: {}
-        description: |-
-          Custom key-value pairs for extending the balance information
-          example: {"purpose": "Main savings", "category": "Personal"}
-        type: object
-      onHold:
-        description: |-
-          Amount currently on hold and unavailable for transactions
-          example: 500
-          minimum: 0
-        example: 500
-        minimum: 0
-        type: number
-      organizationId:
-        description: |-
-          Organization that owns this balance
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-        format: uuid
-        type: string
-      overdraftUsed:
-        description: |-
-          OverdraftUsed is the amount of overdraft currently consumed by this
-          balance. Always non-negative; zero when the balance is in the black.
-          example: 0
-        example: 0
-        type: number
-      settings:
-        allOf:
-        - $ref: '#/definitions/mmodel.BalanceSettings'
-        description: |-
-          Settings carries optional per-balance configuration (overdraft,
-          balance scope). Nil for legacy balances without custom settings.
-      updatedAt:
-        description: |-
-          Timestamp when the balance was last updated (RFC3339 format)
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-        example: "2021-01-01T00:00:00Z"
-        format: date-time
-        type: string
-      version:
-        description: |-
-          Optimistic concurrency control version
-          example: 1
-          minimum: 1
-        example: 1
-        minimum: 1
-        type: integer
-    type: object
-  mmodel.BalanceSettings:
-    description: Optional per-balance configuration controlling overdraft behavior
-      and balance scope.
-    properties:
-      allowOverdraft:
-        description: |-
-          AllowOverdraft enables overdraft behavior for the balance. When false,
-          transactions that would drive Available below zero are rejected.
-          example: false
-        example: false
-        type: boolean
-      balanceScope:
-        description: |-
-          BalanceScope identifies how the balance participates in transactions.
-          Allowed values: "transactional" (default), "internal". Empty string is
-          treated as "transactional" for backwards compatibility.
-          example: transactional
-        example: transactional
-        type: string
-      overdraftLimit:
-        description: |-
-          OverdraftLimit is the maximum overdraft amount the balance may carry,
-          expressed as a decimal string (to preserve precision). Ignored when
-          OverdraftLimitEnabled is false.
-          example: 1000.00
-        example: "1000.00"
-        type: string
-      overdraftLimitEnabled:
-        description: |-
-          OverdraftLimitEnabled gates the OverdraftLimit field. When true, a
-          non-empty, strictly positive OverdraftLimit MUST be supplied. When
-          false, OverdraftLimit MUST be absent (overdraft is unlimited if
-          AllowOverdraft is true).
-          example: false
-        example: false
-        type: boolean
-    type: object
-  mmodel.Date:
-    description: Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
-    properties:
-      time.Time:
-        type: string
     type: object
   mmodel.LedgerSettings:
     properties:
@@ -4340,7 +4180,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Get all billing packages
       tags:
-      - BillingPackages
+      - Billing Packages
     post:
       consumes:
       - application/json
@@ -4391,7 +4231,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Create a BillingPackage
       tags:
-      - BillingPackages
+      - Billing Packages
   /v1/organizations/{organization_id}/billing-packages/{id}:
     delete:
       description: SoftDelete a BillingPackage with the input ID
@@ -4436,7 +4276,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: SoftDelete a BillingPackage by ID
       tags:
-      - BillingPackages
+      - Billing Packages
     get:
       description: Get a billing package by id
       parameters:
@@ -4484,7 +4324,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Get billing package
       tags:
-      - BillingPackages
+      - Billing Packages
     patch:
       consumes:
       - application/json
@@ -4544,7 +4384,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Update a billing package
       tags:
-      - BillingPackages
+      - Billing Packages
   /v1/organizations/{organization_id}/billing/calculate:
     post:
       consumes:
@@ -4600,7 +4440,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Calculate billing
       tags:
-      - BillingCalculate
+      - Billing Calculate
   /v1/organizations/{organization_id}/estimates:
     post:
       consumes:
@@ -6435,7 +6275,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/mmodel.Balance'
+                    $ref: '#/definitions/Balance'
                   type: array
               type: object
         "400":
@@ -6502,7 +6342,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/mmodel.Balance'
+            $ref: '#/definitions/Balance'
         "400":
           description: Invalid input, validation errors
           schema:
@@ -6856,7 +6696,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/mmodel.Balance'
+                    $ref: '#/definitions/Balance'
                   type: array
               type: object
         "401":
@@ -6973,7 +6813,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/mmodel.Balance'
+                    $ref: '#/definitions/Balance'
                   type: array
               type: object
         "401":
@@ -7696,7 +7536,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/mmodel.Balance'
+                    $ref: '#/definitions/Balance'
                   type: array
               type: object
         "400":
@@ -7807,7 +7647,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/mmodel.Balance'
+            $ref: '#/definitions/Balance'
         "401":
           description: Unauthorized access
           schema:
@@ -7868,7 +7708,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/mmodel.Balance'
+            $ref: '#/definitions/Balance'
         "400":
           description: Invalid input, validation errors
           schema:
@@ -8104,7 +7944,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Retrieve all operation routes
       tags:
-      - Operation Route
+      - Operation Routes
     post:
       consumes:
       - application/json
@@ -8160,7 +8000,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Create Operation Route
       tags:
-      - Operation Route
+      - Operation Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       description: Deletes an existing operation route identified by its UUID within
@@ -8209,7 +8049,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Delete an operation route
       tags:
-      - Operation Route
+      - Operation Routes
     get:
       description: Returns detailed information about an operation route identified
         by its UUID within the specified ledger
@@ -8251,7 +8091,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Retrieve a specific operation route
       tags:
-      - Operation Route
+      - Operation Routes
     patch:
       consumes:
       - application/json
@@ -8321,7 +8161,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Update an operation route
       tags:
-      - Operation Route
+      - Operation Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       description: Returns a paginated list of portfolios within the specified ledger,
@@ -9308,7 +9148,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Get all Transaction Routes
       tags:
-      - Transaction Route
+      - Transaction Routes
     post:
       consumes:
       - application/json
@@ -9364,7 +9204,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Create Transaction Route
       tags:
-      - Transaction Route
+      - Transaction Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       consumes:
@@ -9422,7 +9262,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Delete Transaction Route by ID
       tags:
-      - Transaction Route
+      - Transaction Routes
     get:
       consumes:
       - application/json
@@ -9481,7 +9321,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Get Transaction Route by ID
       tags:
-      - Transaction Route
+      - Transaction Routes
     patch:
       consumes:
       - application/json
@@ -9542,7 +9382,7 @@ paths:
             $ref: '#/definitions/Error'
       summary: Update Transaction Route
       tags:
-      - Transaction Route
+      - Transaction Routes
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
@@ -9784,7 +9624,7 @@ paths:
           schema:
             $ref: '#/definitions/Transaction'
         "400":
-          description: Invalid request or transaction cannot be reverted
+          description: Invalid request or transaction cannot be cancelled
           schema:
             $ref: '#/definitions/Error'
         "401":
@@ -9848,7 +9688,7 @@ paths:
           schema:
             $ref: '#/definitions/Transaction'
         "400":
-          description: Invalid request or transaction cannot be reverted
+          description: Invalid request or transaction cannot be committed
           schema:
             $ref: '#/definitions/Error'
         "401":
@@ -10485,7 +10325,7 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+                    $ref: '#/definitions/Package'
                   type: array
                 limit:
                   type: integer
@@ -10544,7 +10384,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/Package'
         "400":
           description: Bad Request
           schema:
@@ -10641,7 +10481,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/Package'
         "400":
           description: Bad Request
           schema:
@@ -10697,7 +10537,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package'
+            $ref: '#/definitions/Package'
         "400":
           description: Bad Request
           schema:
@@ -10956,3 +10796,46 @@ securityDefinitions:
     name: Authorization
     type: apiKey
 swagger: "2.0"
+tags:
+- description: Top-level tenant entities that own ledgers and all nested resources.
+  name: Organizations
+- description: Bookkeeping containers scoping assets, accounts, and transactions.
+  name: Ledgers
+- description: Balance-holding entries that transactions debit and credit.
+  name: Accounts
+- description: Currencies and instruments tracked within a ledger.
+  name: Assets
+- description: Logical groupings of accounts under a holder.
+  name: Portfolios
+- description: Sub-classifications for organizing accounts.
+  name: Segments
+- description: Reusable account classification definitions.
+  name: Account Types
+- description: Double-entry postings that move value between accounts.
+  name: Transactions
+- description: Per-account available, on-hold, and scale state.
+  name: Balances
+- description: The individual debit and credit legs of a transaction.
+  name: Operations
+- description: Conversion rates between assets.
+  name: Asset Rates
+- description: Templates constraining which accounts an operation leg may touch.
+  name: Operation Routes
+- description: Ordered sets of operation routes describing a transaction shape.
+  name: Transaction Routes
+- description: Index definitions over entity metadata for queryable lookups.
+  name: Metadata Indexes
+- description: Holder identity records (the party behind accounts).
+  name: Holders
+- description: Financial instrument records bound to holders.
+  name: Instruments
+- description: Holder + account creation in a single call.
+  name: Composition
+- description: Fee package definitions applied during transaction processing.
+  name: Packages
+- description: Fee estimation and application for transactions.
+  name: Fees
+- description: Billing package definitions for charge aggregation.
+  name: Billing Packages
+- description: On-demand billing charge calculation.
+  name: Billing Calculate

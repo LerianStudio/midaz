@@ -38,13 +38,13 @@ import (
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be committed"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Transaction not found"
 //	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -94,13 +94,13 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be cancelled"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Transaction not found"
 //	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [Post]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [post]
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

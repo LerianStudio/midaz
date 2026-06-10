@@ -38,7 +38,7 @@ type BillingCalculateHandler struct {
 //
 //	@Summary		Calculate billing
 //	@Description	Calculate billing for a given organization, ledger, and period
-//	@Tags			BillingCalculate
+//	@Tags			Billing Calculate
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
@@ -87,13 +87,13 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 
 	result, errCalc := handler.Service.Calculate(ctx, *payload)
 	if errCalc != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to calculate billing", errCalc)
+		handleSpanByErrorClass(span, "Failed to calculate billing", errCalc)
 
 		return http.WithError(c, errCalc)
 	}
 
 	if result == nil {
-		return http.WithError(c, fmt.Errorf("service returned nil result without error"))
+		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
 	}
 
 	return commonsHttp.Respond(c, fiber.StatusOK, result)
@@ -106,21 +106,11 @@ func validateBillingCalculateRequest(req *model.BillingCalculateRequest) error {
 	}
 
 	if req.LedgerID == "" {
-		return feeerrors.ValidationError{
-			EntityType: "BillingCalculation",
-			Code:       feeconstant.ErrInvalidRequestBody.Error(),
-			Title:      "Invalid Request Body",
-			Message:    "The request body contains an invalid value: ledgerId is required. Please check the documentation and try again.",
-		}
+		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
 	}
 
 	if _, err := uuid.Parse(req.LedgerID); err != nil {
-		return feeerrors.ValidationError{
-			EntityType: "BillingCalculation",
-			Code:       feeconstant.ErrInvalidRequestBody.Error(),
-			Title:      "Invalid Request Body",
-			Message:    "The request body contains an invalid value: ledgerId must be a valid UUID. Please check the documentation and try again.",
-		}
+		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
 	}
 
 	if err := validateBillingPeriod(req.Period); err != nil {

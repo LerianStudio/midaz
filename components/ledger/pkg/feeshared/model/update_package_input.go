@@ -29,7 +29,7 @@ type UpdatePackageInput struct {
 	Description    string         `json:"description" example:"Pacote de taxas administrativas padrão"`
 	MinAmount      *string        `json:"minimumAmount" example:"100" minimum:"0"`
 	MaxAmount      *string        `json:"maximumAmount" example:"1000" minimum:"0"`
-	WaivedAccounts *[]string      `json:"waivedAccounts" example:"['acc001', 'ac0002']"`
+	WaivedAccounts *[]string      `json:"waivedAccounts" example:"acc001,acc002"`
 	Fee            map[string]Fee `json:"fees"`
 	EnablePackage  *bool          `json:"enable,omitempty" example:"true"`
 } //	@name	UpdatePackageInput

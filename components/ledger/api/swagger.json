@@ -501,7 +501,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "BillingPackages"
+                    "Billing Packages"
                 ],
                 "summary": "Get all billing packages",
                 "parameters": [
@@ -611,7 +611,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "BillingPackages"
+                    "Billing Packages"
                 ],
                 "summary": "Create a BillingPackage",
                 "parameters": [
@@ -685,7 +685,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "BillingPackages"
+                    "Billing Packages"
                 ],
                 "summary": "Get billing package",
                 "parameters": [
@@ -752,7 +752,7 @@
             "delete": {
                 "description": "SoftDelete a BillingPackage with the input ID",
                 "tags": [
-                    "BillingPackages"
+                    "Billing Packages"
                 ],
                 "summary": "SoftDelete a BillingPackage by ID",
                 "parameters": [
@@ -822,7 +822,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "BillingPackages"
+                    "Billing Packages"
                 ],
                 "summary": "Update a billing package",
                 "parameters": [
@@ -912,7 +912,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "BillingCalculate"
+                    "Billing Calculate"
                 ],
                 "summary": "Calculate billing",
                 "parameters": [
@@ -3483,7 +3483,7 @@
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -3656,7 +3656,7 @@
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -4108,7 +4108,7 @@
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -4208,7 +4208,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "400": {
@@ -5545,7 +5545,7 @@
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -5629,7 +5629,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "401": {
@@ -5798,7 +5798,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "400": {
@@ -6018,7 +6018,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Retrieve all operation routes",
                 "parameters": [
@@ -6147,7 +6147,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Create Operation Route",
                 "parameters": [
@@ -6228,7 +6228,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Retrieve a specific operation route",
                 "parameters": [
@@ -6287,7 +6287,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Delete an operation route",
                 "parameters": [
@@ -6358,7 +6358,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Update an operation route",
                 "parameters": [
@@ -7749,7 +7749,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Get all Transaction Routes",
                 "parameters": [
@@ -7872,7 +7872,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Create Transaction Route",
                 "parameters": [
@@ -7956,7 +7956,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Get Transaction Route by ID",
                 "parameters": [
@@ -8042,7 +8042,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Delete Transaction Route by ID",
                 "parameters": [
@@ -8125,7 +8125,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Update Transaction Route",
                 "parameters": [
@@ -9119,7 +9119,7 @@
                         }
                     },
                     "400": {
-                        "description": "Invalid request or transaction cannot be reverted",
+                        "description": "Invalid request or transaction cannot be cancelled",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9213,7 +9213,7 @@
                         }
                     },
                     "400": {
-                        "description": "Invalid request or transaction cannot be reverted",
+                        "description": "Invalid request or transaction cannot be committed",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9532,7 +9532,7 @@
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                                                "$ref": "#/definitions/Package"
                                             }
                                         },
                                         "limit": {
@@ -9621,7 +9621,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
@@ -9699,7 +9699,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
@@ -9845,7 +9845,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package"
+                            "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
@@ -10777,7 +10777,7 @@
                     "description": "Settings is the per-balance configuration snapshot at the time the\nhistory row was recorded. Nil for legacy balances.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
                 },
@@ -10792,6 +10792,32 @@
                     "type": "integer",
                     "minimum": 1,
                     "example": 1
+                }
+            }
+        },
+        "BalanceSettings": {
+            "description": "Optional per-balance configuration controlling overdraft behavior and balance scope.",
+            "type": "object",
+            "properties": {
+                "allowOverdraft": {
+                    "description": "AllowOverdraft enables overdraft behavior for the balance. When false,\ntransactions that would drive Available below zero are rejected.\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
+                "balanceScope": {
+                    "description": "BalanceScope identifies how the balance participates in transactions.\nAllowed values: \"transactional\" (default), \"internal\". Empty string is\ntreated as \"transactional\" for backwards compatibility.\nexample: transactional",
+                    "type": "string",
+                    "example": "transactional"
+                },
+                "overdraftLimit": {
+                    "description": "OverdraftLimit is the maximum overdraft amount the balance may carry,\nexpressed as a decimal string (to preserve precision). Ignored when\nOverdraftLimitEnabled is false.\nexample: 1000.00",
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "overdraftLimitEnabled": {
+                    "description": "OverdraftLimitEnabled gates the OverdraftLimit field. When true, a\nnon-empty, strictly positive OverdraftLimit MUST be supplied. When\nfalse, OverdraftLimit MUST be absent (overdraft is unlimited if\nAllowOverdraft is true).\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
@@ -11007,7 +11033,7 @@
                     "description": "Settings is the optional per-balance configuration (overdraft,\nbalance scope). When omitted, platform defaults are applied.\nrequired: false",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
                 }
@@ -11744,6 +11770,15 @@
                     "type": "string",
                     "maxLength": 255,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "Date": {
+            "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
+            "type": "object",
+            "properties": {
+                "time.Time": {
+                    "type": "string"
                 }
             }
         },
@@ -12668,6 +12703,76 @@
                 }
             }
         },
+        "Package": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maximumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "minimumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 100
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "debitoted"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "acc001",
+                        "acc002"
+                    ]
+                }
+            }
+        },
         "Pagination": {
             "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
@@ -13393,7 +13498,7 @@
                     "description": "Settings is the per-balance configuration (overdraft, balance\nscope). When provided, replaces the existing settings in full.\nDirection is intentionally absent: it is immutable after creation.\nrequired: false",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
                 }
@@ -13653,8 +13758,8 @@
                         "type": "string"
                     },
                     "example": [
-                        "['acc001'",
-                        " 'ac0002']"
+                        "acc001",
+                        "acc002"
                     ]
                 }
             }
@@ -13760,76 +13865,6 @@
                     "type": "string",
                     "maxLength": 255,
                     "example": "Charge Settlement"
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_v4_components_ledger_internal_adapters_mongodb_fees_pack.Package": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "Pacote de taxas administrativas padrão"
-                },
-                "enable": {
-                    "type": "boolean"
-                },
-                "feeGroupLabel": {
-                    "type": "string",
-                    "example": "Pacote Padrão"
-                },
-                "fees": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/Fee"
-                    }
-                },
-                "id": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "ledgerId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "maximumAmount": {
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 2
-                },
-                "minimumAmount": {
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 100
-                },
-                "segmentId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "transactionRoute": {
-                    "type": "string",
-                    "example": "debitoted"
-                },
-                "updatedAt": {
-                    "type": "string",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "waivedAccounts": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "['acc001'",
-                        " 'ac0002']"
-                    ]
                 }
             }
         },
@@ -14111,165 +14146,6 @@
                 }
             }
         },
-        "mmodel.Balance": {
-            "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
-            "type": "object",
-            "properties": {
-                "accountId": {
-                    "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "accountType": {
-                    "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
-                    "type": "string",
-                    "maxLength": 50,
-                    "example": "creditCard"
-                },
-                "alias": {
-                    "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
-                    "type": "string",
-                    "maxLength": 256,
-                    "example": "@person1"
-                },
-                "allowReceiving": {
-                    "description": "Whether the account can receive funds to this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "description": "Whether the account can send funds from this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "assetCode": {
-                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
-                    "type": "string",
-                    "maxLength": 10,
-                    "minLength": 2,
-                    "example": "USD"
-                },
-                "available": {
-                    "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
-                },
-                "createdAt": {
-                    "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "direction": {
-                    "description": "Direction is the accounting direction of the balance. One of\n\"credit\" or \"debit\". Empty string denotes legacy rows predating the\noverdraft feature and is treated as \"credit\" by the engine.\nexample: credit",
-                    "type": "string",
-                    "example": "credit"
-                },
-                "id": {
-                    "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "key": {
-                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "asset-freeze"
-                },
-                "ledgerId": {
-                    "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "metadata": {
-                    "description": "Custom key-value pairs for extending the balance information\nexample: {\"purpose\": \"Main savings\", \"category\": \"Personal\"}",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "onHold": {
-                    "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
-                },
-                "organizationId": {
-                    "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "overdraftUsed": {
-                    "description": "OverdraftUsed is the amount of overdraft currently consumed by this\nbalance. Always non-negative; zero when the balance is in the black.\nexample: 0",
-                    "type": "number",
-                    "example": 0
-                },
-                "settings": {
-                    "description": "Settings carries optional per-balance configuration (overdraft,\nbalance scope). Nil for legacy balances without custom settings.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
-                        }
-                    ]
-                },
-                "updatedAt": {
-                    "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "version": {
-                    "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 1
-                }
-            }
-        },
-        "mmodel.BalanceSettings": {
-            "description": "Optional per-balance configuration controlling overdraft behavior and balance scope.",
-            "type": "object",
-            "properties": {
-                "allowOverdraft": {
-                    "description": "AllowOverdraft enables overdraft behavior for the balance. When false,\ntransactions that would drive Available below zero are rejected.\nexample: false",
-                    "type": "boolean",
-                    "example": false
-                },
-                "balanceScope": {
-                    "description": "BalanceScope identifies how the balance participates in transactions.\nAllowed values: \"transactional\" (default), \"internal\". Empty string is\ntreated as \"transactional\" for backwards compatibility.\nexample: transactional",
-                    "type": "string",
-                    "example": "transactional"
-                },
-                "overdraftLimit": {
-                    "description": "OverdraftLimit is the maximum overdraft amount the balance may carry,\nexpressed as a decimal string (to preserve precision). Ignored when\nOverdraftLimitEnabled is false.\nexample: 1000.00",
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "overdraftLimitEnabled": {
-                    "description": "OverdraftLimitEnabled gates the OverdraftLimit field. When true, a\nnon-empty, strictly positive OverdraftLimit MUST be supplied. When\nfalse, OverdraftLimit MUST be absent (overdraft is unlimited if\nAllowOverdraft is true).\nexample: false",
-                    "type": "boolean",
-                    "example": false
-                }
-            }
-        },
-        "mmodel.Date": {
-            "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
-            "type": "object",
-            "properties": {
-                "time.Time": {
-                    "type": "string"
-                }
-            }
-        },
         "mmodel.LedgerSettings": {
             "type": "object",
             "properties": {
@@ -14316,5 +14192,91 @@
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Top-level tenant entities that own ledgers and all nested resources.",
+            "name": "Organizations"
+        },
+        {
+            "description": "Bookkeeping containers scoping assets, accounts, and transactions.",
+            "name": "Ledgers"
+        },
+        {
+            "description": "Balance-holding entries that transactions debit and credit.",
+            "name": "Accounts"
+        },
+        {
+            "description": "Currencies and instruments tracked within a ledger.",
+            "name": "Assets"
+        },
+        {
+            "description": "Logical groupings of accounts under a holder.",
+            "name": "Portfolios"
+        },
+        {
+            "description": "Sub-classifications for organizing accounts.",
+            "name": "Segments"
+        },
+        {
+            "description": "Reusable account classification definitions.",
+            "name": "Account Types"
+        },
+        {
+            "description": "Double-entry postings that move value between accounts.",
+            "name": "Transactions"
+        },
+        {
+            "description": "Per-account available, on-hold, and scale state.",
+            "name": "Balances"
+        },
+        {
+            "description": "The individual debit and credit legs of a transaction.",
+            "name": "Operations"
+        },
+        {
+            "description": "Conversion rates between assets.",
+            "name": "Asset Rates"
+        },
+        {
+            "description": "Templates constraining which accounts an operation leg may touch.",
+            "name": "Operation Routes"
+        },
+        {
+            "description": "Ordered sets of operation routes describing a transaction shape.",
+            "name": "Transaction Routes"
+        },
+        {
+            "description": "Index definitions over entity metadata for queryable lookups.",
+            "name": "Metadata Indexes"
+        },
+        {
+            "description": "Holder identity records (the party behind accounts).",
+            "name": "Holders"
+        },
+        {
+            "description": "Financial instrument records bound to holders.",
+            "name": "Instruments"
+        },
+        {
+            "description": "Holder + account creation in a single call.",
+            "name": "Composition"
+        },
+        {
+            "description": "Fee package definitions applied during transaction processing.",
+            "name": "Packages"
+        },
+        {
+            "description": "Fee estimation and application for transactions.",
+            "name": "Fees"
+        },
+        {
+            "description": "Billing package definitions for charge aggregation.",
+            "name": "Billing Packages"
+        },
+        {
+            "description": "On-demand billing charge calculation.",
+            "name": "Billing Calculate"
+        }
+    ]
 }

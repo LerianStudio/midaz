@@ -23,13 +23,13 @@ type Report struct {
 	TemplateOutputFormat string                                                 `json:"templateOutputFormat,omitempty" example:"xml"`
 	TemplateDescription  string                                                 `json:"templateDescription,omitempty" example:"Cadoc"`
 	Filters              map[string]map[string]map[string]model.FilterCondition `json:"filters"`
-	Status               string                                                 `json:"status" example:"processing"`
+	Status               string                                                 `json:"status" example:"Processing"`
 	Metadata             map[string]any                                         `json:"metadata"`
 	CompletedAt          *time.Time                                             `json:"completedAt"`
 	CreatedAt            time.Time                                              `json:"createdAt"`
 	UpdatedAt            time.Time                                              `json:"updatedAt"`
 	DeletedAt            *time.Time                                             `json:"deletedAt"`
-}
+} // @name Report
 
 // NewReport creates a new Report entity with invariant validation.
 // This constructor ensures the Report can never exist in an invalid state.

@@ -55,7 +55,7 @@ func NewHandler(service RuleService) *Handler {
 //	@Summary		Create a new fraud rule
 //	@Description	Creates a rule with CEL expression and scopes array. Rules are created in DRAFT status.
 //	@ID				createRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -108,7 +108,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 //	@Summary		Partially update an existing fraud rule
 //	@Description	Partially updates a rule. Only provided fields are updated, omitted fields remain unchanged.
 //	@ID				updateRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -177,7 +177,7 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 //	@Summary		Get a fraud rule by ID
 //	@Description	Retrieves a rule by its unique identifier.
 //	@ID				getRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -225,7 +225,7 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 //	@Summary		List fraud rules
 //	@Description	Lists rules with cursor-based pagination and optional filters. Supports filtering by scope fields to find rules applicable to specific contexts. Global rules (empty scopes) are always included in scope-filtered results.
 //	@ID				listRules
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -299,7 +299,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 //	@Summary		Activate a fraud rule
 //	@Description	Activates a rule (DRAFT/INACTIVE → ACTIVE). Validates CEL expression before activation.
 //	@ID				activateRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -345,7 +345,7 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 //	@Summary		Deactivate a fraud rule
 //	@Description	Deactivates a rule (ACTIVE/DRAFT → INACTIVE).
 //	@ID				deactivateRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -391,7 +391,7 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 //	@Summary		Transition a rule back to draft
 //	@Description	Transitions a rule from INACTIVE to DRAFT status. Allows re-editing a previously deactivated rule.
 //	@ID				draftRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
@@ -437,7 +437,7 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 //	@Summary		Delete a fraud rule
 //	@Description	Soft-deletes a rule (transitions to DELETED status). Only DRAFT and INACTIVE rules can be deleted. ACTIVE rules must be deactivated first.
 //	@ID				deleteRule
-//	@Tags			rules
+//	@Tags			Rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth

@@ -194,28 +194,28 @@ type ListRulesInput struct {
 // Validate validates the ListRulesInput struct.
 // Validates before defaults are applied to ensure fail-fast behavior.
 func (l *ListRulesInput) Validate() error {
-	// Validate pagination limit (TRC-0040, TRC-0041)
+	// Validate pagination limit (ErrPaginationLimitExceeded, ErrPaginationLimitInvalid)
 	if err := ValidatePaginationLimit(l.Limit, 100); err != nil {
 		return err
 	}
 
-	// Validate cursor consistency (TRC-0045)
+	// Validate cursor consistency (ErrCursorWithSortParams)
 	if err := ValidateCursorConsistency(l.Cursor, l.SortBy, l.SortOrder); err != nil {
 		return err
 	}
 
-	// Validate sortBy whitelist (TRC-0043)
+	// Validate sortBy whitelist (ErrInvalidSortColumn)
 	allowedSortFields := []string{"created_at", "updated_at", "name", "status"}
 	if err := ValidateSortBy(l.SortBy, allowedSortFields); err != nil {
 		return err
 	}
 
-	// Validate sortOrder enum (TRC-0042)
+	// Validate sortOrder enum (ErrInvalidSortOrder)
 	if err := ValidateSortOrder(l.SortOrder); err != nil {
 		return err
 	}
 
-	// Validate status filter (TRC-0006 for invalid values)
+	// Validate status filter (ErrInvalidQueryParameter for invalid values)
 	if l.Status != nil {
 		if !l.Status.IsValid() {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
@@ -226,12 +226,12 @@ func (l *ListRulesInput) Validate() error {
 		}
 	}
 
-	// Validate action filter (TRC-0006 for invalid values)
+	// Validate action filter (ErrInvalidQueryParameter for invalid values)
 	if l.Action != nil && !l.Action.IsValid() {
 		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 	}
 
-	// Validate scope filter fields (TRC-0006 for invalid values)
+	// Validate scope filter fields (ErrInvalidQueryParameter for invalid values)
 	if err := l.validateScopeFields(); err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func (l *ListRulesInput) validateScopeFields() error {
 
 // SetDefaults sets default values for pagination if not provided.
 // Note: SortBy and SortOrder defaults are only applied when cursor is not present,
-// because cursor already contains sort configuration (TRC-0045).
+// because cursor already contains sort configuration (ErrCursorWithSortParams).
 func (l *ListRulesInput) SetDefaults() {
 	if l.Limit == nil {
 		defaultLimit := trcConstant.DefaultPaginationLimit
@@ -291,7 +291,7 @@ func (l *ListRulesInput) SetDefaults() {
 	}
 
 	// Only apply sort defaults when not using cursor pagination
-	// Cursor already contains sort configuration from the original request (TRC-0045)
+	// Cursor already contains sort configuration from the original request (ErrCursorWithSortParams)
 	if l.Cursor == "" {
 		if l.SortBy == "" {
 			l.SortBy = "created_at"
@@ -484,7 +484,7 @@ func mapMaxFieldToError(fieldName string) error {
 	}
 }
 
-// formatScopeFieldErrorWithCode formats a scope field validation error with TRC-0111.
+// formatScopeFieldErrorWithCode formats a scope field validation error with ErrRuleInvalidScope.
 func formatScopeFieldErrorWithCode(fieldError validator.FieldError) error {
 	return pkg.ValidateBusinessError(constant.ErrRuleInvalidScope, constant.EntityRule)
 }
