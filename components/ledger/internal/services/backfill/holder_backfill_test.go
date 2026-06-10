@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	libHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -74,7 +75,7 @@ func TestBuildMaterialiseQuery_Invariants(t *testing.T) {
 	// id is bound as its canonical string form.
 	require.Len(t, args, 3, "set value + org id + external literal")
 	assert.Equal(t, selfHolderID, args[0], "self-holder id is the SET value")
-	assert.Contains(t, args, "external", "external type literal is bound")
+	assert.Contains(t, args, constant.ExternalAccountType, "external type literal is bound")
 	assert.Contains(t, args, orgID.String(), "organization id is bound as its string form")
 }
 

@@ -247,7 +247,7 @@ func buildMaterialiseQuery(organizationID, selfHolderID uuid.UUID) (string, []an
 		Set("holder_id", selfHolderID).
 		Where(squirrel.Eq{"organization_id": organizationID, "holder_id": nil}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.Expr("lower(type) <> ?", "external")).
+		Where(squirrel.Expr("lower(type) <> ?", constant.ExternalAccountType)).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 }

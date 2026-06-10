@@ -19,6 +19,13 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+// activeTenantLister enumerates the active tenants for a service. It is the seam
+// over *tmclient.Client used by the multi-tenant loop, so the loop can be tested
+// without a live Tenant Manager HTTP client.
+type activeTenantLister interface {
+	GetActiveTenantsByService(ctx context.Context, service string) ([]*tmclient.TenantSummary, error)
+}
+
 // HolderBackfillRunner is the composed entrypoint for the cross-store self-holder
 // backfill. It owns the dependencies the runner needs and the multi-tenant
 // iteration: single-tenant runs against the ambient connections; multi-tenant
@@ -34,7 +41,13 @@ type HolderBackfillRunner struct {
 	onbPG *onboardingPostgresComponents
 	crm   *crmComponents
 
-	tenantClient *tmclient.Client
+	tenantClient activeTenantLister
+
+	// runForTenantFn is the per-tenant step the multi-tenant loop invokes. It is a
+	// field (defaulting to runForTenant) only so the loop's orchestration — one
+	// invocation per tenant and abort-on-first-failure — can be unit-tested without
+	// real per-tenant PG + Mongo managers.
+	runForTenantFn func(ctx context.Context, tenantID string) error
 }
 
 // InitHolderBackfill composes the backfill runner from environment configuration,
@@ -112,6 +125,8 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 		crm:                crm,
 	}
 
+	r.runForTenantFn = r.runForTenant
+
 	if cfg.MultiTenantEnabled {
 		r.tenantClient = tenantClient
 	}
@@ -126,6 +141,13 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 // a fault, and the runner is idempotent so a re-run after the fix is a no-op.
 func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 	if !r.multiTenantEnabled {
+		pgDB, err := r.onbPG.connection.Resolver(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to resolve onboarding PG connection: %w", err)
+		}
+
+		ctx = tmcore.ContextWithPG(ctx, pgDB, constant.ModuleOnboarding)
+
 		result, err := r.runner.RunTenant(ctx)
 		if err != nil {
 			return err
@@ -144,8 +166,15 @@ func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to list active tenants: %w", err)
 	}
 
-	for _, tenant := range tenants {
-		if err := r.runForTenant(ctx, tenant.ID); err != nil {
+	for i, tenant := range tenants {
+		if tenant == nil {
+			r.logger.Log(ctx, libLog.LevelWarn, "Skipping nil tenant entry in active tenants list",
+				libLog.Int("index", i))
+
+			continue
+		}
+
+		if err := r.runForTenantFn(ctx, tenant.ID); err != nil {
 			return fmt.Errorf("backfill failed for tenant %s: %w", tenant.ID, err)
 		}
 	}

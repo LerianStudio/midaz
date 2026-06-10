@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 
-	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -17,12 +16,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// holderByIDReader is the narrow seam over the CRM holder service's
+// GetHolderByID. It is satisfied by *crmservices.UseCase and lets Exists's
+// not-found discrimination be tested without a Mongo-backed service.
+type holderByIDReader interface {
+	GetHolderByID(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.Holder, error)
+}
+
 // holderReaderAdapter satisfies command.HolderReader over the CRM holder
 // service, hiding the repository's misleadingly-named collection parameter and
 // passing the organization ID through correctly. It lets the command package
 // assert holder existence without importing components/crm (dependency-inward).
 type holderReaderAdapter struct {
-	service *crmservices.UseCase
+	service holderByIDReader
 }
 
 // Exists reports whether a holder with id exists within the organization. A
