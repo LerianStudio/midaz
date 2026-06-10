@@ -6,7 +6,7 @@ BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
 # Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
-GOLANGCI_LINT_VERSION := v2.4.0
+GOLANGCI_LINT_VERSION := v2.12.2
 
 # Ensure build/output directories exist
 $(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
@@ -312,7 +312,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2; \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
