@@ -32,6 +32,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -57,7 +58,6 @@ type RedisQueueConsumer struct {
 	multiTenantEnabled bool
 	tenantCache        *tenantcache.TenantCache
 	pgManager          *tmpostgres.Manager
-	serviceName        string
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
@@ -89,20 +89,17 @@ func (r *RedisQueueConsumer) WithMetricsFactory(factory *metrics.MetricsFactory)
 // to be considered ready (isMultiTenantReady). The consumer reads tenant IDs from the shared
 // TenantCache (populated by the TenantEventListener) and uses pgManager to resolve per-tenant
 // PostgreSQL connections.
-// serviceName is the service identifier for logging purposes.
 func NewRedisQueueConsumerMultiTenant(
 	logger libLog.Logger,
 	handler in.TransactionHandler,
 	multiTenantEnabled bool,
 	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
-	serviceName string,
 ) *RedisQueueConsumer {
 	c := NewRedisQueueConsumer(logger, handler)
 	c.multiTenantEnabled = multiTenantEnabled
 	c.tenantCache = cache
 	c.pgManager = pgManager
-	c.serviceName = serviceName
 
 	return c
 }
@@ -293,10 +290,10 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelDebug, "Read messages from queue", libLog.Int("message_count", len(messages)))
 
-	// Emit queue-depth and oldest-age gauges once per cycle (best-effort,
-	// nil-factory safe). Computed from the records already in hand so no extra
-	// Redis round-trip is needed.
-	r.emitQueueGauges(ctx, messages)
+	// Emit the queue-depth gauge once per cycle (best-effort, nil-factory safe).
+	// Computed from the records already in hand so no extra Redis round-trip is
+	// needed. Depth is reported even on an empty cycle.
+	r.emitDepthGauge(ctx, int64(len(messages)))
 
 	if len(messages) == 0 {
 		return
@@ -307,6 +304,12 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	totalMessagesLessThanOneHour := 0
+
+	// oldestTTL tracks the earliest record TTL across successfully-parsed
+	// records, computed in the SAME pass that dispatches processing so each
+	// record is unmarshalled exactly once per cycle. Records that fail to parse
+	// are routed to quarantine and excluded from the age computation.
+	var oldestTTL time.Time
 
 Outer:
 	for key, message := range messages {
@@ -335,6 +338,10 @@ Outer:
 			continue
 		}
 
+		if oldestTTL.IsZero() || transaction.TTL.Before(oldestTTL) {
+			oldestTTL = transaction.TTL
+		}
+
 		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
 			totalMessagesLessThanOneHour++
 			continue
@@ -359,6 +366,11 @@ Outer:
 	}
 
 	wg.Wait()
+
+	// Emit the oldest-age gauge from the TTL tracked during the dispatch pass.
+	// Deterministic: derived from the pre-fan-out parse, not from the concurrent
+	// workers (which would be racy).
+	r.emitOldestAgeGauge(ctx, oldestTTL)
 
 	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", totalMessagesLessThanOneHour))
 	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", len(messages)-totalMessagesLessThanOneHour))
@@ -577,6 +589,13 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 			return
 		}
+
+		// Operations were rebuilt without Lua's authoritative after-balances, so
+		// overdraft transactions may carry naive before-amount audit arithmetic
+		// (divergence tracked under T-006.1 / T-009). Mark this path so the
+		// divergence is observable/queryable rather than silent.
+		msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
+		r.emitReplayRecomputedBalancesAfterMetric(msgCtxWithSpan, logger)
 	}
 
 	tran.Source = m.Validate.Sources
@@ -734,15 +753,13 @@ func parsePoisonKeyIDs(key string) (organizationID, ledgerID, transactionID uuid
 	return found[0], found[1], found[2], true
 }
 
-// emitQueueGauges sets the backup-queue depth and oldest-age gauges from the
-// records already read this cycle. Best-effort: a nil factory or a metric emit
-// error never affects processing (emit errors logged at Debug per T11).
-func (r *RedisQueueConsumer) emitQueueGauges(ctx context.Context, messages map[string]string) {
+// emitDepthGauge sets the backup-queue depth gauge from the record count read
+// this cycle. Best-effort: a nil factory or a metric emit error never affects
+// processing (emit errors logged at Debug per T11).
+func (r *RedisQueueConsumer) emitDepthGauge(ctx context.Context, depth int64) {
 	if r.metricsFactory == nil {
 		return
 	}
-
-	depth := int64(len(messages))
 
 	depthGauge, err := r.metricsFactory.Gauge(utils.RedisBackupQueueDepth)
 	if err != nil {
@@ -750,23 +767,14 @@ func (r *RedisQueueConsumer) emitQueueGauges(ctx context.Context, messages map[s
 	} else if setErr := depthGauge.Set(ctx, depth); setErr != nil {
 		r.Logger.Log(ctx, libLog.LevelDebug, "Failed to set backup queue depth gauge", libLog.Err(setErr))
 	}
+}
 
-	// Oldest age: now - oldest record TTL, derived from the parsed records.
-	// Records that fail to parse are ignored for the age computation.
-	var oldestTTL time.Time
-
-	for _, message := range messages {
-		var tx mmodel.TransactionRedisQueue
-		if err := json.Unmarshal([]byte(message), &tx); err != nil {
-			continue
-		}
-
-		if oldestTTL.IsZero() || tx.TTL.Before(oldestTTL) {
-			oldestTTL = tx.TTL
-		}
-	}
-
-	if oldestTTL.IsZero() {
+// emitOldestAgeGauge sets the backup-queue oldest-age gauge from the earliest
+// record TTL tracked during the dispatch pass. A zero oldestTTL (no records
+// parsed) is a no-op. Best-effort: a nil factory or emit error never affects
+// processing (emit errors logged at Debug per T11).
+func (r *RedisQueueConsumer) emitOldestAgeGauge(ctx context.Context, oldestTTL time.Time) {
+	if r.metricsFactory == nil || oldestTTL.IsZero() {
 		return
 	}
 
@@ -803,5 +811,26 @@ func (r *RedisQueueConsumer) emitQuarantineMetric(ctx context.Context, logger li
 
 	if addErr := counter.AddOne(ctx); addErr != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Failed to emit backup quarantine counter", libLog.Err(addErr))
+	}
+}
+
+// emitReplayRecomputedBalancesAfterMetric increments the counter that tracks
+// backup-replay records rebuilt without Lua's authoritative after-balances.
+// Best-effort: a nil factory or emit error never affects processing (emit errors
+// at Debug per T11).
+func (r *RedisQueueConsumer) emitReplayRecomputedBalancesAfterMetric(ctx context.Context, logger libLog.Logger) {
+	if r.metricsFactory == nil {
+		return
+	}
+
+	counter, err := r.metricsFactory.Counter(utils.RedisBackupReplayRecomputedBalancesAfterTotal)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to create replay recomputed-balances-after counter", libLog.Err(err))
+
+		return
+	}
+
+	if addErr := counter.AddOne(ctx); addErr != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit replay recomputed-balances-after counter", libLog.Err(addErr))
 	}
 }

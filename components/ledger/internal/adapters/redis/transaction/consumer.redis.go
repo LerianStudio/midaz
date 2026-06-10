@@ -36,6 +36,16 @@ var balanceAtomicOperationLua string
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
 
+// balanceAtomicScript and claimBalanceSyncScript are built once at package init.
+// redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
+// per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
+// GetBalanceSyncKeysLegacy) avoids re-hashing on every invocation. *redis.Script
+// is safe for concurrent use.
+var (
+	balanceAtomicScript    = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript = redis.NewScript(claimBalanceSyncKeysLua)
+)
+
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
@@ -110,9 +120,6 @@ type RedisRepository interface {
 	// the parallel attempts hash. Called after a record is successfully replayed or
 	// after it has been durably quarantined, to keep the attempts hash bounded.
 	ClearBackupAttempt(ctx context.Context, key string) error
-	// CountBackupQueue returns the number of records currently in the backup queue
-	// (HLEN). Used by the consumer to emit the queue-depth gauge each cycle.
-	CountBackupQueue(ctx context.Context) (int64, error)
 	// GetBalanceSyncKeys claims due balance keys from the ZSET schedule using a Lua script.
 	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
 	// Returns the claimed keys with their scores for conditional removal later.
@@ -822,9 +829,7 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, r
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
 	defer span.End()
 
-	script := redis.NewScript(balanceAtomicOperationLua)
-
-	result, err := script.Run(ctx, rds, keys, finalArgs...).Result()
+	result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
 
@@ -1232,39 +1237,6 @@ func (rr *RedisConsumerRepository) ClearBackupAttempt(ctx context.Context, key s
 	return nil
 }
 
-// CountBackupQueue returns the number of records currently in the backup queue (HLEN).
-func (rr *RedisConsumerRepository) CountBackupQueue(ctx context.Context) (int64, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.count_backup_queue")
-	defer span.End()
-
-	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace backup queue key", err)
-
-		return 0, err
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
-
-		return 0, err
-	}
-
-	count, err := rds.HLen(ctx, prefixedQueue).Result()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to count backup queue", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to count backup queue", libLog.Err(err))
-
-		return 0, err
-	}
-
-	return count, nil
-}
-
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.
 func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -1279,9 +1251,6 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 		return nil, err
 	}
-
-	// Use the claim_balance_sync_keys.lua script to claim the balance sync keys.
-	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
@@ -1304,7 +1273,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	// If a worker crashes after claiming, keys become re-claimable after this TTL expires.
 	const claimTTLSeconds int64 = 600 // 10 minutes
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua", libLog.Err(err))
@@ -1344,8 +1313,6 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 		return nil, err
 	}
 
-	script := redis.NewScript(claimBalanceSyncKeysLua)
-
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKeyLegacy)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace legacy schedule key", err)
@@ -1364,7 +1331,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 
 	const claimTTLSeconds int64 = 600
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua (legacy)", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)", libLog.Err(err))

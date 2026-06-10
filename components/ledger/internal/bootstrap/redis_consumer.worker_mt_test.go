@@ -116,7 +116,7 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 	cache := tenantcache.NewTenantCache()
 
-	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, cache, pgMgr, "transaction")
+	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, cache, pgMgr)
 
 	require.NotNil(t, consumer, "consumer should not be nil")
 	assert.True(t, consumer.multiTenantEnabled,
@@ -125,8 +125,6 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 		"tenantCache should be the same instance")
 	assert.Same(t, pgMgr, consumer.pgManager,
 		"pgManager should be the same instance")
-	assert.Equal(t, "transaction", consumer.serviceName,
-		"serviceName should be set correctly")
 }
 
 // TestRedisQueueConsumer_IsMultiTenantReady exercises the isMultiTenantReady()
@@ -266,7 +264,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 
 			consumer := NewRedisQueueConsumerMultiTenant(
 				logger, handler,
-				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager, "transaction",
+				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager,
 			)
 
 			require.NotNil(t, consumer, "constructor must return non-nil")

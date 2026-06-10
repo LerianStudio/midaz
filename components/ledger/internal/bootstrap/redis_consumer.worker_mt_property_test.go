@@ -82,7 +82,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 			mgr = pgMgr
 		}
 
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr)
 
 		// Property: constructor never returns nil.
 		if consumer == nil {
@@ -185,7 +185,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		}
 
 		// Property: NewRedisQueueConsumerMultiTenant must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager)
 		if consumer == nil {
 			return false
 		}

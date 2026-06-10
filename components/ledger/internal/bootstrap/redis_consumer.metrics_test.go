@@ -6,13 +6,11 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
@@ -35,32 +33,28 @@ func TestEmitQueueGauges_NilFactory(t *testing.T) {
 	consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{})
 
 	require.NotPanics(t, func() {
-		consumer.emitQueueGauges(context.Background(), map[string]string{"k": "{}"})
+		consumer.emitDepthGauge(context.Background(), 1)
+		consumer.emitOldestAgeGauge(context.Background(), time.Now().Add(-time.Hour))
 	})
 }
 
 // TestEmitQueueGauges_WithFactory verifies the depth and oldest-age gauges emit
-// without error when a real factory is wired, including with an empty queue.
+// without error when a real factory is wired, including the empty/zero edges.
 func TestEmitQueueGauges_WithFactory(t *testing.T) {
 	t.Parallel()
 
 	consumer := NewRedisQueueConsumer(newTestLogger(), in.TransactionHandler{}).
 		WithMetricsFactory(newTestMetricsFactory(t))
 
-	old := mmodel.TransactionRedisQueue{TTL: time.Now().Add(-2 * time.Hour)}
-
-	raw, err := json.Marshal(old)
-	require.NoError(t, err)
-
-	payload := string(raw)
-
 	require.NotPanics(t, func() {
-		// Non-empty queue: exercises both depth and oldest-age paths.
-		consumer.emitQueueGauges(context.Background(), map[string]string{"key": payload})
-		// Empty queue: depth=0, oldest-age path short-circuits.
-		consumer.emitQueueGauges(context.Background(), map[string]string{})
-		// Unparseable record: depth still emits, oldest-age skipped.
-		consumer.emitQueueGauges(context.Background(), map[string]string{"key": "not-json"})
+		// Non-empty queue: depth gauge emits.
+		consumer.emitDepthGauge(context.Background(), 1)
+		// Empty queue: depth=0 still emits.
+		consumer.emitDepthGauge(context.Background(), 0)
+		// Oldest age from a known TTL.
+		consumer.emitOldestAgeGauge(context.Background(), time.Now().Add(-2*time.Hour))
+		// Zero TTL: oldest-age path short-circuits.
+		consumer.emitOldestAgeGauge(context.Background(), time.Time{})
 	})
 }
 

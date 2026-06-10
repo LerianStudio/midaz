@@ -72,21 +72,6 @@ func (mr *MockRedisRepositoryMockRecorder) ClearBackupAttempt(ctx, key any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ClearBackupAttempt), ctx, key)
 }
 
-// CountBackupQueue mocks base method.
-func (m *MockRedisRepository) CountBackupQueue(ctx context.Context) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountBackupQueue", ctx)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountBackupQueue indicates an expected call of CountBackupQueue.
-func (mr *MockRedisRepositoryMockRecorder) CountBackupQueue(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBackupQueue", reflect.TypeOf((*MockRedisRepository)(nil).CountBackupQueue), ctx)
-}
-
 // Del mocks base method.
 func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()

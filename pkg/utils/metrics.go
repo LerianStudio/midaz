@@ -132,6 +132,16 @@ var (
 		Description: "Total poison backup records moved to the Postgres quarantine table.",
 	}
 
+	// RedisBackupReplayRecomputedBalancesAfterTotal counts backup-replay records
+	// whose operation audit rows were rebuilt without Lua's authoritative
+	// after-balances, so overdraft transactions may carry naive before-amount
+	// arithmetic (audit divergence tracked under T-006.1 / T-009).
+	RedisBackupReplayRecomputedBalancesAfterTotal = metrics.Metric{
+		Name:        "redis_backup_replay_recomputed_balances_after_total",
+		Unit:        "1",
+		Description: "Total backup-replay records whose after-balances were recomputed rather than replayed from Lua, risking overdraft audit divergence.",
+	}
+
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.
 	// Values: 0 = closed (healthy), 1 = open (unhealthy), 2 = half-open (recovering)
 	CircuitBreakerState = metrics.Metric{
