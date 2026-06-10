@@ -71,6 +71,7 @@ func TestNewAccountCreated_MapsMinimalAccount(t *testing.T) {
 	assert.Nil(t, payload.SegmentID)
 	assert.Nil(t, payload.ParentAccountID)
 	assert.Nil(t, payload.EntityID)
+	assert.Nil(t, payload.HolderID)
 	assert.Nil(t, payload.Alias)
 	assert.Nil(t, payload.Blocked)
 
@@ -93,6 +94,7 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 	segmentID := "01J7K8FN5W8R0R2S7Q1V4H6J02"
 	parentID := "01J7K8FN5W8R0R2S7Q1V4H6J03"
 	entityID := "EXT-ACC-12345"
+	holderID := "01J7K8FN5W8R0R2S7Q1V4H6J04"
 	statusDesc := "Active treasury account"
 	blocked := false
 
@@ -102,6 +104,7 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 	acc.SegmentID = &segmentID
 	acc.ParentAccountID = &parentID
 	acc.EntityID = &entityID
+	acc.HolderID = &holderID
 	acc.Status.Description = &statusDesc
 	acc.Blocked = &blocked
 
@@ -121,6 +124,9 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 
 	require.NotNil(t, payload.EntityID)
 	assert.Equal(t, entityID, *payload.EntityID)
+
+	require.NotNil(t, payload.HolderID)
+	assert.Equal(t, holderID, *payload.HolderID)
 
 	require.NotNil(t, payload.Status.Description)
 	assert.Equal(t, statusDesc, *payload.Status.Description)
@@ -158,8 +164,7 @@ func TestAccountCreatedPayload_ToEmitRequest_AssemblesStreamingEvent(t *testing.
 
 // TestAccountCreatedPayload_JSONShape locks the wire JSON layout against
 // accidental field-name drift. Breaking this test is a wire-contract
-// change; downstream consumers and the e2e mirror struct must be
-// updated in the same PR.
+// change; downstream consumers must be updated in the same PR.
 func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 	payload := events.NewAccountCreated(minimalAccount())
 
@@ -194,6 +199,6 @@ func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 	assert.False(t, hasDesc, "status.description must omitempty when nil")
 
 	// Sanity: no field count surprises. Pin the count so additive drift
-	// is caught here as well as in the strict e2e unmarshal.
+	// is caught here.
 	assert.Lenf(t, generic, 16, "expected 16 top-level fields, got %d (drift?)", len(generic))
 }
