@@ -41,6 +41,18 @@ The `code`, `title`, and `message` of every arm are unchanged — only the typed
 
 **Totals:** 23 codes 400→422, 1 code 400→409, 2 reverse fixes →400. **26 rows.**
 
+## Error-platform follow-up reclassifications (E5, E9)
+
+A later error-platform sweep found three more arms whose typed struct disagreed with the E3 binding class their own title/message describe. These ride the same D2 breaking-change window: a server-fault dependency outage was wrongly served as a client error, and a server-side configuration fault was served as a client bad-request. Locked in `mainline_error_contract_test.go` alongside the 26 above.
+
+| code | old status | new status | title | rationale (tied to D2) |
+|---|---|---|---|---|
+| 0228 | 500 | 503 | Service dependency unavailable | title/message state a dependency is *temporarily unavailable, try again later* — a transient outage is `ServiceUnavailableError` (503), not a generic 500 (E5). |
+| 0231 | 400 | 500 | Segment context unavailable | message admits *this is an internal configuration issue* — a server-side fault must not be reported as the client's bad request; reclassed to `FailedPreconditionError` (which `WithError` routes to 500) (E5). |
+| 0178 | 422 | 503 | Transaction Reservation Unavailable Error | raised in `transaction_reservation_anchor.go` when the usage-limit dependency is unreachable and failPosture=closed; *temporarily unavailable… Please retry shortly* is a retryable 503, whereas 422 is conventionally non-retryable. The sibling 0177 (genuine usage-limit *denial*) correctly stays 422. 0178 is new in v4, so no prior shipped contract breaks (E9). |
+
+**Note on 0231:** `FailedPreconditionError` resolves to HTTP 500 in `pkg/net/http.WithError` (there is no dedicated 4xx mapping for it). The semantic intent is "server-side precondition not met"; 500 is the correct client-visible status, not 422/400. No 503 here because the fault is a static misconfiguration, not a transient outage clients should retry against.
+
 ## Deployment caveat — transaction DLQ topology (Epic 4.2)
 
 Task 4.2.1 adds dead-letter arguments to the existing `transaction.transaction_balance_operation.queue` (`x-dead-letter-exchange: transaction.dlx`, `x-dead-letter-routing-key: transaction.dlq.key`) plus the `transaction.dlx` exchange, the `transaction.dlq` queue, and their binding.

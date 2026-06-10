@@ -221,9 +221,9 @@ func TestReserveTransaction_FailClosed_Rejects(t *testing.T) {
 	require.Equal(t, reservationReject, out.Kind, "fail-closed must reject when the tracer is unavailable")
 	require.Error(t, out.Err)
 
-	var unprocessable pkg.UnprocessableOperationError
-	require.ErrorAs(t, out.Err, &unprocessable)
-	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unprocessable.Code)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, out.Err, &unavailable)
+	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
 }
 
 func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {

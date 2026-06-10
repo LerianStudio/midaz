@@ -18,6 +18,11 @@ import (
 // Typed platform errors are resolved via errors.As so a wrapped error is still
 // classified to its proper status. Business errors remain returned unwrapped by
 // convention (E2); this is defensive hardening, not a license to wrap them.
+//
+// Resolution is order-dependent: the first matching arm in declaration order
+// wins, and because every platform error type has an Unwrap, errors.As walks the
+// whole chain. Nesting one platform error inside another sibling class therefore
+// makes the OUTERMOST class drive the status — do not nest platform errors.
 func WithError(c *fiber.Ctx, err error) error {
 	var notFoundErr pkg.EntityNotFoundError
 	if errors.As(err, &notFoundErr) {
@@ -95,11 +100,6 @@ func WithError(c *fiber.Ctx, err error) error {
 	var failedPreconditionErr pkg.FailedPreconditionError
 	if errors.As(err, &failedPreconditionErr) {
 		return InternalServerError(c, failedPreconditionErr.Code, failedPreconditionErr.Title, failedPreconditionErr.Message)
-	}
-
-	var httpErr pkg.HTTPError
-	if errors.As(err, &httpErr) {
-		return InternalServerError(c, httpErr.Code, httpErr.Title, httpErr.Message)
 	}
 
 	var unavailableErr pkg.ServiceUnavailableError

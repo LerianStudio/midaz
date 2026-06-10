@@ -387,11 +387,21 @@ func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPat
 
 	switch nestedKey {
 	case "mode":
-		if _, ok := allowedTracerModes[value.(string)]; !ok {
+		str, ok := value.(string)
+		if !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "off, advisory, enforce")
+		}
+
+		if _, ok := allowedTracerModes[str]; !ok {
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "off, advisory, enforce")
 		}
 	case "failPosture":
-		if _, ok := allowedTracerFailPostures[value.(string)]; !ok {
+		str, ok := value.(string)
+		if !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
+		}
+
+		if _, ok := allowedTracerFailPostures[str]; !ok {
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
 		}
 	}

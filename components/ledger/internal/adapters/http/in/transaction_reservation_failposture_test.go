@@ -123,9 +123,9 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	require.Equal(t, reservationReject, out.Kind)
 
-	var unprocessable pkg.UnprocessableOperationError
-	require.ErrorAs(t, out.Err, &unprocessable)
-	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unprocessable.Code)
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, out.Err, &unavailable)
+	assert.Equal(t, constant.ErrTransactionReservationUnavailable.Error(), unavailable.Code)
 
 	assert.False(t, spanHasSkippedMarker(ended()),
 		"fail-closed rejects; it must NOT record the SKIPPED marker")

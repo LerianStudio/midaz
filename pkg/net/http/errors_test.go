@@ -84,12 +84,6 @@ func TestWithError_TypedArms_WrappedAndUnwrapped(t *testing.T) {
 			expectedCode: http.StatusInternalServerError,
 			expectedBody: `"code":"0094"`,
 		},
-		{
-			name:         "HTTPError -> 500 with own code",
-			err:          pkg.HTTPError{Code: "0093", Title: "HTTP Error", Message: "downstream failed"},
-			expectedCode: http.StatusInternalServerError,
-			expectedBody: `"code":"0093"`,
-		},
 	}
 
 	for _, tt := range tests {
@@ -127,6 +121,85 @@ func TestWithError_TypedArms_WrappedAndUnwrapped(t *testing.T) {
 					assert.Contains(t, string(body), tt.expectedBody)
 				})
 			}
+		})
+	}
+}
+
+// TestWithError_DeclarationOrderWins locks the order-dependence contract of
+// WithError: the first matching arm in declaration order wins, and because the
+// platform wrapper types (EntityNotFoundError, ValidationError, EntityConflictError)
+// declare Unwrap, errors.As walks the chain. When a platform error is nested
+// inside a sibling wrapper class, the OUTERMOST class must drive the returned
+// status. This is a dormant hazard (production returns platform errors unwrapped),
+// so this test exists to catch a future change that silently reorders the arms or
+// starts nesting platform errors.
+func TestWithError_DeclarationOrderWins(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			// Validation(400) is declared before Conflict's sibling Unprocessable(422):
+			// outer ValidationError wins even though it wraps a 422 class.
+			name: "ValidationError wrapping UnprocessableOperationError -> 400 (outer wins)",
+			err: pkg.ValidationError{
+				Code:    "0099",
+				Title:   "Outer Validation",
+				Message: "outer",
+				Err:     pkg.UnprocessableOperationError{Code: "0018", Title: "Inner", Message: "inner"},
+			},
+			expectedCode: http.StatusBadRequest,
+			expectedBody: `"code":"0099"`,
+		},
+		{
+			// EntityNotFound(404) is declared first of all arms: it wins over a wrapped
+			// ValidationError(400).
+			name: "EntityNotFoundError wrapping ValidationError -> 404 (outer wins)",
+			err: pkg.EntityNotFoundError{
+				Code:    "0007",
+				Title:   "Outer NotFound",
+				Message: "outer",
+				Err:     pkg.ValidationError{Code: "0099", Title: "Inner", Message: "inner"},
+			},
+			expectedCode: http.StatusNotFound,
+			expectedBody: `"code":"0007"`,
+		},
+		{
+			// EntityConflict(409) is declared before Validation(400): outer conflict wins.
+			name: "EntityConflictError wrapping ValidationError -> 409 (outer wins)",
+			err: pkg.EntityConflictError{
+				Code:    "0001",
+				Title:   "Outer Conflict",
+				Message: "outer",
+				Err:     pkg.ValidationError{Code: "0099", Title: "Inner", Message: "inner"},
+			},
+			expectedCode: http.StatusConflict,
+			expectedBody: `"code":"0001"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := fiber.New()
+			app.Get("/test", func(c *fiber.Ctx) error {
+				return WithError(c, tt.err)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.expectedCode, resp.StatusCode)
+
+			body, _ := io.ReadAll(resp.Body)
+			assert.Contains(t, string(body), tt.expectedBody)
 		})
 	}
 }

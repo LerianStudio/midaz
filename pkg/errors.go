@@ -510,7 +510,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Denied Error",
 			Message:    "The transaction could not be completed because it would exceed a configured usage limit. Please reduce the amount or wait for the limit window to reset and try again.",
 		},
-		constant.ErrTransactionReservationUnavailable: UnprocessableOperationError{
+		constant.ErrTransactionReservationUnavailable: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionReservationUnavailable.Error(),
 			Title:      "Transaction Reservation Unavailable Error",
@@ -1778,7 +1778,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid count mode",
 			Message:    "The count mode is invalid. Valid modes are 'perRoute' and 'perAccount'.",
 		},
-		constant.ErrMidazQueryFailed: InternalServerError{
+		constant.ErrMidazQueryFailed: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrMidazQueryFailed.Error(),
 			Title:      "Service dependency unavailable",
@@ -1796,7 +1796,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid fee amount",
 			Message:    "The fee amount is invalid. It must be a positive value greater than zero.",
 		},
-		constant.ErrMissingSegmentContext: ValidationError{
+		constant.ErrMissingSegmentContext: FailedPreconditionError{
 			EntityType: entityType,
 			Code:       constant.ErrMissingSegmentContext.Error(),
 			Title:      "Segment context unavailable",

@@ -228,6 +228,63 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 
 	require.Len(t, tests, 26, "the reclassification table is 26 codes (23 move-422 + 1 move-409 + 2 reverse fixes)")
 
+	runErrorContractCases(t, tests)
+}
+
+// TestMainlineErrorContract_DependencyFaultCodes locks the three error-platform
+// follow-up reclassifications (E5, E9, docs/plans/2026-06-07-v4-error-status-migration-notes.md
+// "Error-platform follow-up reclassifications"): codes whose typed struct
+// disagreed with the server-fault vs client-error class their own message describes.
+//   - 0228 500 -> 503 (InternalServerError -> ServiceUnavailableError)
+//   - 0231 400 -> 500 (ValidationError -> FailedPreconditionError, routed to 500)
+//   - 0178 422 -> 503 (UnprocessableOperationError -> ServiceUnavailableError)
+//
+// A silent re-type of any of these arms in pkg/errors.go's errorMap breaks this lock.
+func TestMainlineErrorContract_DependencyFaultCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+	}{
+		{
+			name:           "0228 midaz query failed is 503 (dependency unavailable)",
+			err:            pkg.ValidateBusinessError(constant.ErrMidazQueryFailed, constant.EntityTransaction),
+			expectedStatus: fiber.StatusServiceUnavailable,
+			expectedCode:   "0228",
+			expectedTitle:  "Service dependency unavailable",
+		},
+		{
+			name:           "0231 missing segment context is 500 (server config fault)",
+			err:            pkg.ValidateBusinessError(constant.ErrMissingSegmentContext, ""),
+			expectedStatus: fiber.StatusInternalServerError,
+			expectedCode:   "0231",
+			expectedTitle:  "Segment context unavailable",
+		},
+		{
+			name:           "0178 transaction reservation unavailable is 503 (retryable outage)",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionReservationUnavailable, constant.EntityTransaction),
+			expectedStatus: fiber.StatusServiceUnavailable,
+			expectedCode:   "0178",
+			expectedTitle:  "Transaction Reservation Unavailable Error",
+		},
+	}
+
+	require.Len(t, tests, 3, "the dependency-fault reclassification set is 3 codes (E5 0228, E5 0231, E9 0178)")
+
+	runErrorContractCases(t, tests)
+}
+
+func runErrorContractCases(t *testing.T, tests []struct {
+	name           string
+	err            error
+	expectedStatus int
+	expectedCode   string
+	expectedTitle  string
+}) {
+	t.Helper()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			capturedErr := tt.err
