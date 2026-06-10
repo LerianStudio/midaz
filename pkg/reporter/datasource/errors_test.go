@@ -32,22 +32,6 @@ func TestErrDataSourceUnavailable_ImplementsError(t *testing.T) {
 	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
 }
 
-func TestErrSchemaValidationFailed_ImplementsError(t *testing.T) {
-	t.Parallel()
-
-	var err error = ErrSchemaValidationFailed
-	assert.NotNil(t, err, "ErrSchemaValidationFailed should be defined")
-	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
-}
-
-func TestErrExtractionJobFailed_ImplementsError(t *testing.T) {
-	t.Parallel()
-
-	var err error = ErrExtractionJobFailed
-	assert.NotNil(t, err, "ErrExtractionJobFailed should be defined")
-	assert.NotEmpty(t, err.Error(), "error sentinel should carry a canonical code")
-}
-
 func TestErrorIntegrationWithDomainErrors(t *testing.T) {
 	t.Parallel()
 
@@ -68,18 +52,6 @@ func TestErrorIntegrationWithDomainErrors(t *testing.T) {
 			sentinel:     ErrDataSourceUnavailable,
 			expectedType: "ServiceUnavailableError",
 			description:  "should be mappable to pkg.ValidationError for D7 warning pattern",
-		},
-		{
-			name:         "SchemaValidationFailed maps to UnprocessableOperationError",
-			sentinel:     ErrSchemaValidationFailed,
-			expectedType: "UnprocessableOperationError",
-			description:  "should be mappable to pkg.UnprocessableOperationError (semantic 422)",
-		},
-		{
-			name:         "ExtractionJobFailed maps to InternalServerError",
-			sentinel:     ErrExtractionJobFailed,
-			expectedType: "InternalServerError",
-			description:  "should be mappable to pkg.InternalServerError for Fetcher failures",
 		},
 	}
 

@@ -6,9 +6,9 @@ package datasource
 
 import "github.com/LerianStudio/midaz/v4/pkg/constant"
 
-// Error sentinels for datasource operations. Each sentinel wraps a constant
-// from pkg/constant with a TPL-XXXX code, enabling integration with
-// pkg.ValidateBusinessError for consistent HTTP error mapping.
+// Error sentinels for datasource operations. Each sentinel re-exports a numeric
+// constant from pkg/constant so datasource code can errors.Is against it while
+// pkg.ValidateBusinessError maps the same constant to a typed HTTP error.
 var (
 	// ErrDataSourceNotFound indicates the requested data source ID does not exist
 	// in the registered datasource registry. Maps to EntityNotFoundError via
@@ -20,16 +20,6 @@ var (
 	// rather than a hard failure, allowing partial results. Maps to ValidationError
 	// via ValidateBusinessError.
 	ErrDataSourceUnavailable = constant.ErrDataSourceUnavailable
-
-	// ErrSchemaValidationFailed indicates that schema validation against a data
-	// source failed (e.g., requested fields do not exist in the schema). Maps to
-	// ValidationError via ValidateBusinessError.
-	ErrSchemaValidationFailed = constant.ErrSchemaValidationFailed
-
-	// ErrExtractionJobFailed indicates that a Fetcher extraction job failed during
-	// execution. This covers network errors, timeouts, and Fetcher-side failures.
-	// Maps to InternalServerError via ValidateBusinessError.
-	ErrExtractionJobFailed = constant.ErrExtractionJobFailed
 )
 
 // Warning code constants for ValidationWarning.Code values.

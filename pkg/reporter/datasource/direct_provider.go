@@ -79,6 +79,16 @@ func NewMultiTenantDirectProvider(
 	healthChecker *pkg.HealthChecker,
 	logger log.Logger,
 ) *DirectProvider {
+	// Fail closed at construction: a nil manager would survive here and nil-deref
+	// on the first per-tenant schema read (the db==nil guards catch a nil RETURNED
+	// connection, not a nil manager). Multi-tenant mode must never fall open to a
+	// shared pool, so a missing manager is a bootstrap programmer error — die
+	// before serving rather than risk a cross-tenant read. Panic is the sanctioned
+	// fail-closed init-guard exception (E12-c).
+	if pg == nil || mongo == nil {
+		panic("NewMultiTenantDirectProvider: both tenant managers are required (multi-tenant mode cannot fail open to a shared pool)")
+	}
+
 	return &DirectProvider{
 		safeDatasources: safeDatasources,
 		healthChecker:   healthChecker,
@@ -289,7 +299,10 @@ func (dp *DirectProvider) ValidateSchema(ctx context.Context, dataSourceID strin
 	if !ok {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Data source not found for validation", ErrDataSourceNotFound)
 
-		return nil, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID)
+		// Match GetDataSourceSchema's not-found shape: wrap ErrDataSourceNotFound
+		// alongside the business error so callers can errors.Is the sentinel and
+		// WithError still classifies the business error to its HTTP status.
+		return nil, fmt.Errorf("%w: %w", ErrDataSourceNotFound, pkgErr.ValidateBusinessError(constant.ErrMissingDataSource, "", dataSourceID))
 	}
 
 	// Multi-tenant mode resolves the per-tenant connection inside the schema
@@ -408,11 +421,17 @@ func (dp *DirectProvider) validatePostgresSchema(
 			matchedKey = legacyName
 		}
 
+		// An empty requested-field list means "table must exist, no fields to
+		// check": mark it matched before the early-continue so it is not
+		// mis-collected as a MissingTable. This mirrors the MongoDB validator,
+		// which accepts an empty-field table as present.
+		if matchedKey != "" {
+			matchedTables[matchedKey] = true
+		}
+
 		if len(requestedFields) == 0 {
 			continue
 		}
-
-		matchedTables[matchedKey] = true
 
 		// Validate fields using existing helper
 		var countIfTableExist int32
@@ -472,8 +491,6 @@ func (dp *DirectProvider) validateMongoDBSchema(
 		collectionLookup[cs.CollectionName] = cs
 	}
 
-	matchedTables := make(map[string]bool)
-
 	for tableKey, requestedFields := range tableFields {
 		if len(requestedFields) == 0 {
 			continue
@@ -497,8 +514,6 @@ func (dp *DirectProvider) validateMongoDBSchema(
 
 			continue
 		}
-
-		matchedTables[tableKey] = true
 
 		var countIfTableExist int32
 

@@ -16,7 +16,7 @@ import (
 
 	libCommonsMongo "go.mongodb.org/mongo-driver/v2/mongo"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/multitenant"
 )
 
 // SQLQuerier is the minimal read surface a PostgreSQL connection must expose for
@@ -209,15 +209,13 @@ func (r *multiTenantResolver) ResolveMongo(ctx context.Context, tenantID, _ stri
 }
 
 // requireTenant validates that a tenant ID is present and well-formed before any
-// multi-tenant resolution. It reuses the lib-commons tenant-id shape check so
-// the reporter's notion of a valid tenant matches the rest of midaz.
+// multi-tenant resolution, reusing the shared reporter predicate so the engine's
+// notion of a valid tenant matches the datasource schema source and the rest of
+// midaz. The boolean predicate is shared; the engine keeps its own *EngineError
+// (CategoryValidation) error type.
 func requireTenant(tenantID string) error {
-	if tenantID == "" {
-		return NewEngineValidationError("tenant id is required for multi-tenant resolution")
-	}
-
-	if !tmcore.IsValidTenantID(tenantID) {
-		return NewEngineValidationError("tenant id is invalid")
+	if err := multitenant.ValidateTenantID(tenantID); err != nil {
+		return NewEngineValidationError(err.Error())
 	}
 
 	return nil

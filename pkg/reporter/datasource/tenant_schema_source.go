@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/multitenant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -92,12 +93,8 @@ func newTenantSchemaSource(pg TenantPostgresManager, mongo TenantMongoManager, l
 // caller can never read across tenants or fall back to a shared pool.
 func resolveTenant(ctx context.Context) (string, error) {
 	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" {
-		return "", fmt.Errorf("tenant id is required for multi-tenant schema discovery")
-	}
-
-	if !tmcore.IsValidTenantID(tenantID) {
-		return "", fmt.Errorf("tenant id is invalid for multi-tenant schema discovery")
+	if err := multitenant.ValidateTenantID(tenantID); err != nil {
+		return "", fmt.Errorf("multi-tenant schema discovery: %w", err)
 	}
 
 	return tenantID, nil

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	pg "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
@@ -133,4 +134,83 @@ func TestDirectProvider_ValidateSchema_EmptyFields(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, result)
+}
+
+// TestDirectProvider_ValidateSchema_EmptyFieldTable_PGMongoParity locks D1: a
+// table key mapped to an EMPTY field slice must be treated identically by the
+// PostgreSQL and MongoDB validators. The agreed semantics is "the table exists,
+// there are no fields to validate" → Valid, in BOTH backends. Before the fix the
+// PG validator rejected (MissingTables) while Mongo accepted, a silent
+// cross-backend divergence.
+func TestDirectProvider_ValidateSchema_EmptyFieldTable_PGMongoParity(t *testing.T) {
+	const table = "existing_table"
+
+	tableFields := map[string][]string{table: {}}
+
+	// --- PostgreSQL: existing_table is present in the schema, no fields requested.
+	pgCtrl := gomock.NewController(t)
+	mockPGRepo := pg.NewMockRepository(pgCtrl)
+	mockPGRepo.EXPECT().
+		GetDatabaseSchema(gomock.Any(), []string{"public"}).
+		Return([]pg.TableSchema{
+			{
+				SchemaName: "public",
+				TableName:  table,
+				Columns: []pg.ColumnInformation{
+					{Name: "id", DataType: "uuid"},
+				},
+			},
+		}, nil)
+
+	pgDS := map[string]pkg.DataSource{
+		"pg_main": {
+			DatabaseType:       pkg.PostgreSQLType,
+			Initialized:        true,
+			Status:             libConstants.DataSourceStatusAvailable,
+			PostgresRepository: mockPGRepo,
+			Schemas:            []string{"public"},
+		},
+	}
+	pgProvider := NewDirectProvider(newTestSafeDataSources(t, pgDS), nil, nil)
+
+	pgResult, pgErr := pgProvider.ValidateSchema(context.Background(), "pg_main", tableFields)
+	require.NoError(t, pgErr)
+	require.NotNil(t, pgResult)
+	assert.Empty(t, pgResult.MissingTables, "empty-field table must not be reported as missing under PostgreSQL")
+
+	// --- MongoDB: existing_table is present as a collection, no fields requested.
+	mongoCtrl := gomock.NewController(t)
+	mockMongoRepo := mongodb.NewMockRepository(mongoCtrl)
+	mockMongoRepo.EXPECT().
+		GetDatabaseSchema(gomock.Any()).
+		Return([]mongodb.CollectionSchema{
+			{
+				CollectionName: table,
+				Fields: []mongodb.FieldInformation{
+					{Name: "_id", DataType: "objectId"},
+				},
+			},
+		}, nil)
+
+	mongoDS := map[string]pkg.DataSource{
+		"mongo_main": {
+			DatabaseType:      pkg.MongoDBType,
+			Initialized:       true,
+			Status:            libConstants.DataSourceStatusAvailable,
+			MongoDBRepository: mockMongoRepo,
+			MongoDBName:       "main_db",
+		},
+	}
+	mongoProvider := NewDirectProvider(newTestSafeDataSources(t, mongoDS), nil, nil)
+
+	mongoResult, mongoErr := mongoProvider.ValidateSchema(context.Background(), "mongo_main", tableFields)
+	require.NoError(t, mongoErr)
+	require.NotNil(t, mongoResult)
+	assert.Empty(t, mongoResult.MissingTables, "empty-field table must not be reported as missing under MongoDB")
+
+	// The load-bearing parity assertion: both backends reach the SAME verdict.
+	assert.Equal(t, mongoResult.Valid, pgResult.Valid,
+		"PostgreSQL and MongoDB validators must agree on an empty-field table; got PG=%v Mongo=%v",
+		pgResult.Valid, mongoResult.Valid)
+	assert.True(t, pgResult.Valid, "empty-field table semantics: table exists, nothing to validate → Valid")
 }

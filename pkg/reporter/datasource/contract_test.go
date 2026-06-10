@@ -86,6 +86,22 @@ func TestContract_GetDataSourceSchema_UnknownID(t *testing.T) {
 		"DirectProvider must wrap ErrDataSourceNotFound, got: %v", err)
 }
 
+// --- Contract: ValidateSchema unknown ID wraps the same sentinel (D5) -------
+
+// TestContract_ValidateSchema_UnknownID locks D5: ValidateSchema's not-found
+// error must wrap ErrDataSourceNotFound exactly like GetDataSourceSchema does,
+// so callers can errors.Is the sentinel regardless of which method they call.
+func TestContract_ValidateSchema_UnknownID(t *testing.T) {
+	dp := newContractDirectProvider(t)
+
+	result, err := dp.ValidateSchema(context.Background(), "non-existent-id", map[string][]string{"users": {"id"}})
+
+	require.Error(t, err, "ValidateSchema must error for unknown datasource ID")
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, ErrDataSourceNotFound),
+		"ValidateSchema must wrap ErrDataSourceNotFound, got: %v", err)
+}
+
 // ---------------------------------------------------------------------------
 // Contract test helpers — minimal wiring, no real DB/HTTP.
 // ---------------------------------------------------------------------------

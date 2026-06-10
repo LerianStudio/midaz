@@ -14,6 +14,7 @@ import (
 	pg "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	"github.com/LerianStudio/lib-observability/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -287,4 +288,49 @@ func TestDirectProvider_MT_NonCRMOrgScoped_UsesOrgPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "mongo_org", src.mongoDSID)
 	assert.Equal(t, "org-9", src.mongoOrgID)
+}
+
+// --- D9: NewMultiTenantDirectProvider fails closed on a nil manager ----------
+
+// stubTenantPGManager / stubTenantMongoManager are non-nil managers used to
+// drive the constructor's happy path; their methods are never called in these
+// construction-time tests.
+type stubTenantPGManager struct{ TenantPostgresManager }
+
+type stubTenantMongoManager struct{ TenantMongoManager }
+
+// TestNewMultiTenantDirectProvider_NilManagerPanics locks D9: a nil tenant
+// manager is a bootstrap programmer error that must die at construction, never
+// survive to nil-deref on the first per-tenant schema read (which would risk a
+// fail-open path). Panic is the sanctioned fail-closed init-guard exception.
+func TestNewMultiTenantDirectProvider_NilManagerPanics(t *testing.T) {
+	sds := newTestSafeDataSources(t, nil)
+	pgOK := &stubTenantPGManager{}
+	mongoOK := &stubTenantMongoManager{}
+
+	tests := []struct {
+		name  string
+		pg    TenantPostgresManager
+		mongo TenantMongoManager
+	}{
+		{name: "nil postgres manager", pg: nil, mongo: mongoOK},
+		{name: "nil mongo manager", pg: pgOK, mongo: nil},
+		{name: "both nil", pg: nil, mongo: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Panics(t, func() {
+				NewMultiTenantDirectProvider(sds, tt.pg, tt.mongo, nil, &log.NopLogger{})
+			}, "a nil tenant manager must panic at construction (fail closed)")
+		})
+	}
+
+	// Both managers present: construction must succeed and return a usable MT
+	// provider (the tenantSchema seam is wired).
+	assert.NotPanics(t, func() {
+		p := NewMultiTenantDirectProvider(sds, pgOK, mongoOK, nil, &log.NopLogger{})
+		require.NotNil(t, p)
+		assert.NotNil(t, p.tenantSchema, "MT provider must carry a tenant schema source")
+	})
 }
