@@ -42,15 +42,16 @@ type BillingCalculateHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
+//	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
+//	@Param			organization_id		path		string							true	"Organization ID in UUID format"
 //	@Param			billingCalculate	body		model.BillingCalculateRequest	true	"Billing Calculation Input"
-//	@Success		200					{object}	model.BillingCalculateResponse
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		401					{object}	mmodel.Error
-//	@Failure		403					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		422					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		200					{object}	model.BillingCalculateResponse	"Billing calculation completed successfully"
+//	@Failure		400					{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error					"Organization or ledger not found"
+//	@Failure		422					{object}	mmodel.Error					"Business validation failed (e.g. invalid billing period or package type)"
+//	@Failure		500					{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/billing/calculate [post]
 func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()

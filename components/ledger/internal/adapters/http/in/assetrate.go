@@ -24,20 +24,21 @@ type AssetRateHandler struct {
 // CreateOrUpdateAssetRate creates or updates an asset rate.
 //
 //	@Summary		Create or Update an AssetRate
-//	@Description	Create or Update an AssetRate with the input details
+//	@Description	Creates or updates the conversion factor (rate) between two asset codes for a ledger.
 //	@Tags			Asset Rates
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Success		201				{object}	assetrate.AssetRate	"Successfully created or updated asset rate"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Duplicate asset pair"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [put]
 func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
@@ -80,11 +81,11 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			external_id		path		string	true	"External ID"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			external_id		path		string	true	"External ID in UUID format"
+//	@Success		200				{object}	assetrate.AssetRate	"Successfully retrieved asset rate"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset rate not found"
@@ -130,18 +131,18 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string		false	"Request ID"
-//	@Param			organization_id	path		string		true	"Organization ID"
-//	@Param			ledger_id		path		string		true	"Ledger ID"
+//	@Param			X-Request-Id	header		string		false	"Request ID for tracing"
+//	@Param			organization_id	path		string		true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string		true	"Ledger ID in UUID format"
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
-//	@Param			to				query		[]string	false	"To Asset Codes"
-//	@Param			limit			query		int			false	"Limit"				default(10)
-//	@Param			start_date		query		string		false	"Start Date"
-//	@Param			end_date		query		string		false	"End Date"
-//	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
-//	@Param			cursor			query		string		false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate}
+//	@Param			to				query		[]string	false	"Filter by destination asset codes"
+//	@Param			limit			query		int			false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string		false	"Filter asset rates created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string		false	"Filter asset rates created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string		false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string		false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate}	"Successfully retrieved asset rates list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

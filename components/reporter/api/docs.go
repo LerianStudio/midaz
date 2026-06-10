@@ -285,6 +285,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "409": {
+                        "description": "Duplicate deadline (same name/type/due date/frequency)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. due date in the past)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -475,6 +487,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. due date in the past)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -547,6 +565,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. deadline already delivered or in invalid state)",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -868,8 +892,26 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "409": {
+                        "description": "Duplicate request in flight (idempotency key conflict)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. schema validation failed)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Data source or service unavailable",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -1013,8 +1055,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. report not finished yet)",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "503": {
+                        "description": "Storage service unavailable",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -1176,6 +1230,18 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate request in flight",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. template schema validation failed)",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -1594,6 +1660,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. template schema validation failed)",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }

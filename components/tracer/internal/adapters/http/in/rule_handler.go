@@ -64,6 +64,7 @@ func NewHandler(service RuleService) *Handler {
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		409			{object}	api.ErrorResponse	"Rule name already exists"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. expression cost limit exceeded)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules [post]
 func (h *Handler) CreateRule(c *fiber.Ctx) error {
@@ -119,6 +120,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
 //	@Failure		409			{object}	api.ErrorResponse	"Rule name already exists"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. expression cost limit exceeded or expression not modifiable)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id} [patch]
 func (h *Handler) UpdateRule(c *fiber.Ctx) error {
@@ -308,6 +310,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition or expression cost exceeded)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/activate [post]
 func (h *Handler) ActivateRule(c *fiber.Ctx) error {
@@ -354,6 +357,7 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/deactivate [post]
 func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
@@ -400,6 +404,7 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/draft [post]
 func (h *Handler) DraftRule(c *fiber.Ctx) error {
@@ -446,6 +451,7 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition — active rules must be deactivated first)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id} [delete]
 func (h *Handler) DeleteRule(c *fiber.Ctx) error {

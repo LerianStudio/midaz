@@ -427,7 +427,7 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-PENDING status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-PENDING status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -529,7 +529,7 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-APPROVED status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-APPROVED status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -604,7 +604,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for already reverted transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for already reverted transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -692,7 +692,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for transaction that is already a revert")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for transaction that is already a revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -1668,7 +1668,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for locked transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for locked transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -2705,7 +2705,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "transaction not PENDING returns 422",
+			name: "transaction not PENDING returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2758,7 +2758,7 @@ func TestCancelTransaction(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -2830,7 +2830,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "lock already acquired by another process returns 422",
+			name: "lock already acquired by another process returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2877,7 +2877,7 @@ func TestCancelTransaction(t *testing.T) {
 					Return(false, nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

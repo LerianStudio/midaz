@@ -52,6 +52,8 @@ func NewDeadlineHandler(service *services.UseCase) (*DeadlineHandler, error) {
 //	@Failure		400			{object}	pkg.HTTPError
 //	@Failure		401			{object}	pkg.HTTPError
 //	@Failure		403			{object}	pkg.HTTPError
+//	@Failure		409			{object}	pkg.HTTPError	"Duplicate deadline (same name/type/due date/frequency)"
+//	@Failure		422			{object}	pkg.HTTPError	"Business rule violation (e.g. due date in the past)"
 //	@Failure		500			{object}	pkg.HTTPError
 //	@Router			/v1/deadlines [post]
 func (dh *DeadlineHandler) CreateDeadline(p any, c *fiber.Ctx) error {
@@ -160,6 +162,7 @@ func (dh *DeadlineHandler) GetAllDeadlines(c *fiber.Ctx) error {
 //	@Failure		401			{object}	pkg.HTTPError
 //	@Failure		403			{object}	pkg.HTTPError
 //	@Failure		404			{object}	pkg.HTTPError
+//	@Failure		422			{object}	pkg.HTTPError	"Business rule violation (e.g. due date in the past)"
 //	@Failure		500			{object}	pkg.HTTPError
 //	@Router			/v1/deadlines/{id} [patch]
 func (dh *DeadlineHandler) UpdateDeadlineByID(p any, c *fiber.Ctx) error {
@@ -261,6 +264,7 @@ func (dh *DeadlineHandler) DeleteDeadlineByID(c *fiber.Ctx) error {
 //	@Failure		401			{object}	pkg.HTTPError
 //	@Failure		403			{object}	pkg.HTTPError
 //	@Failure		404			{object}	pkg.HTTPError
+//	@Failure		422			{object}	pkg.HTTPError	"Business rule violation (e.g. deadline already delivered or in invalid state)"
 //	@Failure		500			{object}	pkg.HTTPError
 //	@Router			/v1/deadlines/{id}/deliver [patch]
 func (dh *DeadlineHandler) DeliverDeadline(p any, c *fiber.Ctx) error {

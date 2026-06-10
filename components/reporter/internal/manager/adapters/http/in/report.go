@@ -60,7 +60,10 @@ func NewReportHandler(service *services.UseCase) (*ReportHandler, error) {
 //	@Failure		401				{object}	pkg.HTTPError
 //	@Failure		403				{object}	pkg.HTTPError
 //	@Failure		404				{object}	pkg.HTTPError
+//	@Failure		409				{object}	pkg.HTTPError	"Duplicate request in flight (idempotency key conflict)"
+//	@Failure		422				{object}	pkg.HTTPError	"Business rule violation (e.g. schema validation failed)"
 //	@Failure		500				{object}	pkg.HTTPError
+//	@Failure		503				{object}	pkg.HTTPError	"Data source or service unavailable"
 //	@Router			/v1/reports [post]
 func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -133,7 +136,9 @@ func (rh *ReportHandler) CreateReport(p any, c *fiber.Ctx) error {
 //	@Failure		401				{object}	pkg.HTTPError
 //	@Failure		403				{object}	pkg.HTTPError
 //	@Failure		404				{object}	pkg.HTTPError
+//	@Failure		422				{object}	pkg.HTTPError	"Business rule violation (e.g. report not finished yet)"
 //	@Failure		500				{object}	pkg.HTTPError
+//	@Failure		503				{object}	pkg.HTTPError	"Storage service unavailable"
 //	@Router			/v1/reports/{id}/download [get]
 func (rh *ReportHandler) GetDownloadReport(c *fiber.Ctx) error {
 	ctx := c.UserContext()

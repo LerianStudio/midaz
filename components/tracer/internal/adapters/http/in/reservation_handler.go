@@ -76,6 +76,7 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		413			{object}	api.ErrorResponse	"Payload too large (exceeds 100KB)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations [post]
 func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -159,7 +160,9 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 //	@Success		200			{object}	ReservationActionResponse	"Reservation confirmed"
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid path parameter"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
+//	@Failure		404			{object}	api.ErrorResponse	"Reservation not found"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/{id}/confirm [post]
 func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 	return h.terminate(c, "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
@@ -177,7 +180,9 @@ func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 //	@Success		200			{object}	ReservationActionResponse	"Reservation released"
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid path parameter"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
+//	@Failure		404			{object}	api.ErrorResponse	"Reservation not found"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/{id}/release [post]
 func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 	return h.terminate(c, "handler.reservations.release", string(model.StatusReleased), h.service.Release)
@@ -196,6 +201,7 @@ func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 //	@Failure		400				{object}	api.ErrorResponse	"Invalid path parameter"
 //	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
+//	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/transaction/{transaction_id}/confirm [post]
 func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 	return h.terminateByTransaction(c, "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
@@ -214,6 +220,7 @@ func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 //	@Failure		400				{object}	api.ErrorResponse	"Invalid path parameter"
 //	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
+//	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/transaction/{transaction_id}/release [post]
 func (h *ReservationHandler) ReleaseByTransaction(c *fiber.Ctx) error {
 	return h.terminateByTransaction(c, "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)

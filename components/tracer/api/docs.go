@@ -1165,6 +1165,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
+                    },
+                    "503": {
+                        "description": "Service unavailable (context cancelled)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
                     }
                 }
             }
@@ -1216,6 +1222,12 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service unavailable (context cancelled)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -1273,6 +1285,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
+                    },
+                    "503": {
+                        "description": "Service unavailable (context cancelled)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
                     }
                 }
             }
@@ -1322,8 +1340,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "404": {
+                        "description": "Reservation not found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service unavailable (context cancelled)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -1376,8 +1406,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "404": {
+                        "description": "Reservation not found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service unavailable (context cancelled)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -1598,6 +1640,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. expression cost limit exceeded)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1719,6 +1767,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. invalid status transition — active rules must be deactivated first)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1795,6 +1849,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. expression cost limit exceeded or expression not modifiable)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1854,6 +1914,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Rule not found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. invalid status transition or expression cost exceeded)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -1921,6 +1987,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. invalid status transition)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1980,6 +2052,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Rule not found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Business rule violation (e.g. invalid status transition)",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }
@@ -2207,6 +2285,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorResponse"
                         }
                     },
+                    "422": {
+                        "description": "Business rule violation (e.g. amount exceeds safe precision)",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -2215,12 +2299,6 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
-                        }
-                    },
-                    "504": {
-                        "description": "Gateway timeout",
                         "schema": {
                             "$ref": "#/definitions/ErrorResponse"
                         }

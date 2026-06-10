@@ -287,7 +287,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Asset cannot be deleted due to existing dependencies"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: asset has balances that still hold funds"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [delete]
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {

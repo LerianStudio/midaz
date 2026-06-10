@@ -356,23 +356,45 @@
 **Scope:** `components/ledger/internal/adapters/http/in/{transaction.go,transaction_state_handlers.go,balance.go,operation.go,assetrate.go}`.
 **Dependencies:** Phase 3 (same files)
 **Done when:** the four transaction-create modes carry mode-distinct `@Description` (what inflow/outflow/annotation actually mean, not the shared "Create a Transaction with the input payload"); `@Success` lines carry description strings; path params say "in UUID format"; transaction-create declares `404` and uses a qualified response type. M1, L4.
-**Status:** Pending
+**Status:** Detailed
+
+> Elaborated 2026-06-10 against the codebase after `4fa66e515 fix(errors)!`. Exact per-endpoint drafted annotations live in `docs/openapi/PHASE4-FINDINGS.md` (scratch, deleted after spec verification). Reference bar: `organization.go`. The agents found pre-existing **correctness** defects beyond the audit's completeness gaps — flagged in the findings doc's correction table and surfaced at the commit checkpoint.
+
+#### Task 4.1.1 (workflow group 4.1a): transaction.go + transaction_state_handlers.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.1a. Mode-distinct `@Description` for JSON/annotation/inflow/outflow/DSL; creates declare 404/409/422/503. Correctness: DSL `@Success 200→201` + `@Deprecated true`; remove spurious `@Failure 409` on Commit/Cancel/Revert, ensure their real 422; verify `createRevertTransaction` status before setting Revert `@Success`. **Verify:** `grep '@Failure.*409' transaction_state_handlers.go` empty; build green.
+
+#### Task 4.1.2 (workflow group 4.1b): balance.go + operation.go + assetrate.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.1b. Correctness: assetrate `@Success 200→201` + add 409; DeleteBalanceByID `409`→`422`; UpdateBalance/CreateAdditionalBalance add 422. Behavioral query params, "in UUID format", X-Request-Id throughout. **Verify:** build green.
 
 ### Epic 4.2: Lift the folded-in CRM + fees surface to the native bar
 
 **Goal:** All 25 folded-in endpoints carry response-description strings and the full authenticated error-code vocabulary; the related-party sub-resource is coherent; list params are behavioral.
-**Scope:** `components/ledger/internal/adapters/http/in/{holder.go,instrument.go,*composition*,fees_package_handler.go,billing_package_handler.go,*billing_calculate*}`.
+**Scope:** `components/ledger/internal/adapters/http/in/{holder.go,instrument.go,holder_accounts.go,composition.go,fees_package_handler.go,fees_handler.go,billing_package_handler.go,billing_calculate_handler.go}`.
 **Dependencies:** Phase 3 (same files), Epic 4.1 (establishes the lifted pattern)
 **Done when:** every `@Success`/`@Failure` on the folded-in surface has a description string (H3); CRM endpoints declare `401/403` and `409` on uniqueness-bearing creates, `422` where business validation fires (H4); related-party create/list is either annotated (if HTTP-exposed) or DELETE carries an `@Description` explaining the asymmetry (M9); terse one-word list params become behavioral with enum hints (M14). H3, H4, M9, M14.
-**Status:** Pending
+**Status:** Detailed
+
+#### Task 4.2.1 (workflow group 4.2a): holder.go + instrument.go + holder_accounts.go + composition.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.2a. Add 401/403, X-Request-Id, "in UUID format", desc strings everywhere. 409 on CreateHolder/CreateInstrument/CreateHolderAccount (uniqueness). **M9**: annotate `DeleteRelatedParty` with the asymmetry `@Description`; do NOT add create/list (no routes). Note `ErrHolderHasInstruments`→400 (not 422). **Verify:** build green.
+
+#### Task 4.2.2 (workflow group 4.2b): fees_package_handler.go + fees_handler.go + billing_package_handler.go + billing_calculate_handler.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.2b. Desc strings + behavioral params + "in UUID format" + X-Request-Id. Correctness: CreatePackage/UpdatePackageByID add 422; EstimateFeeCalculation **remove 409** + add 422; CreateBillingPackage `409`→`422`; UpdateBillingPackage **remove 409**. **Verify:** build green.
 
 ### Epic 4.3: Add business-error and not-found codes to tracer and reporter writes
 
 **Goal:** Write endpoints routing through `ValidateBusinessError` document `422`; tracer Confirm/Release document `404`.
-**Scope:** tracer `validation_handler.go`, `rule_handler.go`, `reservation_handler.go`; reporter `report.go`, `template.go`, `deadline.go`, `download-report.go`.
+**Scope:** tracer `validation_handler.go`, `rule_handler.go`, `reservation_handler.go`; reporter `report.go`, `template.go`, `deadline.go`.
 **Dependencies:** Phase 1
 **Done when:** every endpoint whose handler calls `ValidateBusinessError` declares `@Failure 422`; tracer Confirm/Release single-id endpoints declare `@Failure 404`; parse-failure 400 and business 422 are no longer conflated. M3.
-**Status:** Pending
+**Status:** Detailed
+
+> Agent verification refined the audit: tracer Confirm/Release need **404 (+503)**, NOT 422 — already-terminal reservations are idempotent no-ops (service returns nil, HTTP 200), so `ErrReservationAlreadyTerminal` is never surfaced. download-report.go dropped from scope (no separate handler; covered by report.go's GetDownloadReport).
+
+#### Task 4.3.1 (workflow group 4.3a): tracer validation_handler.go + rule_handler.go + reservation_handler.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.3a (body type `api.ErrorResponse`). Validate: +422, **remove phantom 504**. 6 rule lifecycle ops: +422. Reserve: +503. Confirm/Release: +404+503 (M3). ConfirmByTransaction/ReleaseByTransaction: +503. **Verify:** `go build ./components/tracer/...` green.
+
+#### Task 4.3.2 (workflow group 4.3b): reporter report.go + template.go + deadline.go
+- [ ] Done — apply `PHASE4-FINDINGS.md` § GROUP 4.3b (body type `pkg.HTTPError`/file alias). CreateReport: +409+422+503; GetDownloadReport: +422+503; CreateTemplate: +409+422; UpdateTemplateByID: +422; CreateDeadline: +409+422; UpdateDeadlineByID/DeliverDeadline: +422. **Verify:** `go build ./components/reporter/...` green.
 
 ---
 

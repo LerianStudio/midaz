@@ -30,12 +30,16 @@ type HolderHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
+//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
+//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
-//	@Success		201					{object}	mmodel.Holder
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		201					{object}	mmodel.Holder				"Successfully created holder"
+//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error				"Organization not found"
+//	@Failure		409					{object}	mmodel.Error				"Conflict: the document is already associated with another holder in this organization"
+//	@Failure		500					{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders [post]
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -77,13 +81,16 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Param			id					path		string	true	"The unique identifier of the Holder."
-//	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"
-//	@Success		200					{object}	mmodel.Holder
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
+//	@Param			id					path		string	true	"Holder ID in UUID format"
+//	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"	Enums(true,false)
+//	@Success		200					{object}	mmodel.Holder	"Successfully retrieved holder"
+//	@Failure		400					{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error	"Holder not found"
+//	@Failure		500					{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{id} [get]
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -130,13 +137,16 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
-//	@Param			id					path		string						true	"The unique identifier of the Holder."
+//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
+//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
+//	@Param			id					path		string						true	"Holder ID in UUID format"
 //	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
-//	@Success		200					{object}	mmodel.Holder
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		200					{object}	mmodel.Holder				"Successfully updated holder"
+//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error				"Holder not found"
+//	@Failure		500					{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{id} [patch]
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -193,13 +203,16 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 //	@Description	Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Holders
 //	@Security		BearerAuth
-//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
-//	@Param			id					path	string	true	"The unique identifier of the Holder."
-//	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
-//	@Success		204
-//	@Failure		400	{object}	mmodel.Error
-//	@Failure		404	{object}	mmodel.Error
-//	@Failure		500	{object}	mmodel.Error
+//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
+//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
+//	@Param			id					path	string	true	"Holder ID in UUID format"
+//	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."	Enums(true,false)
+//	@Success		204	"Holder successfully deleted"
+//	@Failure		400	{object}	mmodel.Error	"Invalid input or holder has associated instruments that must be removed first"
+//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404	{object}	mmodel.Error	"Holder not found"
+//	@Failure		500	{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{id} [delete]
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -245,18 +258,21 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Tags			Holders
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Param			metadata			query		string	false	"Metadata"
-//	@Param			limit				query		int		false	"Limit"			default(10)
-//	@Param			page				query		int		false	"Page"			default(1)
-//	@Param			sort_order			query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			include_deleted		query		string	false	"Return includes logically deleted holders."
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
+//	@Param			metadata			query		string	false	"JSON string to filter holders by metadata fields"
+//	@Param			limit				query		int		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page				query		int		false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			sort_order			query		string	false	"Sort direction for results based on creation date"	Enums(asc,desc)
+//	@Param			include_deleted		query		string	false	"Return includes logically deleted holders"	Enums(true,false)
 //	@Param			external_id			query		string	false	"Filter holders by externalID"
 //	@Param			document			query		string	false	"Filter holders by document"
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder}
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder}	"Successfully retrieved holders list"
+//	@Failure		400					{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error	"Organization not found"
+//	@Failure		500					{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders [get]
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()

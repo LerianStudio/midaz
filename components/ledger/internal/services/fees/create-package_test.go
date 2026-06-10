@@ -204,7 +204,7 @@ func TestCreatePackage(t *testing.T) {
 					Return(packListTest2, nil)
 			},
 			expectErr:      true,
-			errContains:    "0199",
+			errContains:    "overlap with the amount range",
 			expectedResult: nil,
 		},
 		{

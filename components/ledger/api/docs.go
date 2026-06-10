@@ -508,41 +508,51 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID (optional — omit to list all packages for the organization)",
+                        "description": "Filter by ledger ID in UUID format (optional — omit to list all packages for the organization)",
                         "name": "ledgerId",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "volume",
+                            "maintenance"
+                        ],
                         "type": "string",
-                        "description": "Filter by billing package type (volume or maintenance)",
+                        "description": "Filter by billing package type",
                         "name": "type",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Number of items per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number",
                         "name": "page",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved billing packages list",
                         "schema": {
                             "allOf": [
                                 {
@@ -572,25 +582,25 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid query parameters",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -617,7 +627,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
@@ -634,37 +650,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created billing package",
                         "schema": {
                             "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "Conflict: a billing package already exists for this organization, ledger, and transaction route",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -690,14 +706,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "BillingPackage ID",
+                        "description": "BillingPackage ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -705,37 +727,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved billing package",
                         "schema": {
                             "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Billing package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -756,14 +778,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "BillingPackage ID",
+                        "description": "BillingPackage ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -771,34 +799,34 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Billing package successfully deleted"
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Billing package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -825,14 +853,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "BillingPackage ID",
+                        "description": "BillingPackage ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -849,43 +883,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated billing package",
                         "schema": {
                             "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingPackage"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
+                        "description": "Billing package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -914,7 +942,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
@@ -931,43 +965,43 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Billing calculation completed successfully",
                         "schema": {
                             "$ref": "#/definitions/github_com_LerianStudio_midaz_v4_components_ledger_pkg_feeshared_model.BillingCalculateResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization or ledger not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity",
+                        "description": "Business validation failed (e.g. invalid billing period or package type)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -982,7 +1016,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a fee estimate calculation with input payload",
+                "description": "Performs a dry-run fee estimate for the given payload and returns the fees that would be applied, without creating or persisting any resource.",
                 "consumes": [
                     "application/json"
                 ],
@@ -996,7 +1030,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
@@ -1013,43 +1053,43 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully estimated fee",
                         "schema": {
                             "$ref": "#/definitions/FeeEstimateResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization or package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
-                    "409": {
-                        "description": "Conflict",
+                    "422": {
+                        "description": "Business validation failed (e.g. invalid fee calculation configuration)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1075,28 +1115,37 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter holders by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
@@ -1106,13 +1155,17 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
-                        "description": "Return includes logically deleted holders.",
+                        "description": "Return includes logically deleted holders",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -1131,7 +1184,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved holders list",
                         "schema": {
                             "allOf": [
                                 {
@@ -1152,19 +1205,31 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1191,7 +1256,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
@@ -1208,25 +1279,43 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created holder",
                         "schema": {
                             "$ref": "#/definitions/HolderResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: the document is already associated with another holder in this organization",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1255,14 +1344,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "holder_id",
                         "in": "path",
                         "required": true
@@ -1279,25 +1374,43 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created instrument",
                         "schema": {
                             "$ref": "#/definitions/InstrumentResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization or holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: the account ID is already associated with another instrument",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1323,53 +1436,75 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "holder_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Instrument account.",
+                        "description": "Instrument ID in UUID format",
                         "name": "instrument_id",
                         "in": "path",
                         "required": true
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
-                        "description": "Returns the instrument even if it was logically deleted.",
+                        "description": "Returns the instrument even if it was logically deleted",
                         "name": "include_deleted",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved instrument",
                         "schema": {
                             "$ref": "#/definitions/InstrumentResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Instrument not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1390,26 +1525,36 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "holder_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Instrument account.",
+                        "description": "Instrument ID in UUID format",
                         "name": "instrument_id",
                         "in": "path",
                         "required": true
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
                         "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
                         "name": "hard_delete",
@@ -1418,22 +1563,34 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Instrument successfully deleted"
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Instrument not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1460,21 +1617,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "holder_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Instrument account.",
+                        "description": "Instrument ID in UUID format",
                         "name": "instrument_id",
                         "in": "path",
                         "required": true
@@ -1491,25 +1654,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated instrument",
                         "schema": {
                             "$ref": "#/definitions/InstrumentResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Instrument not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1524,7 +1699,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.",
+                "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party. Related parties are created inline via the instrument body (CreateInstrumentInput.RelatedParties) and retrieved via GetInstrumentByID; only deletion is exposed as a distinct sub-resource route.",
                 "tags": [
                     "Instruments"
                 ],
@@ -1532,28 +1707,34 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "holder_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Instrument account.",
+                        "description": "Instrument ID in UUID format",
                         "name": "instrument_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Related Party.",
+                        "description": "Related Party ID in UUID format",
                         "name": "related_party_id",
                         "in": "path",
                         "required": true
@@ -1561,22 +1742,34 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Related party successfully deleted"
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Related party not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1602,19 +1795,29 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
                         "description": "Returns the holder even if it was logically deleted",
                         "name": "include_deleted",
@@ -1623,25 +1826,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved holder",
                         "schema": {
                             "$ref": "#/definitions/HolderResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Holder not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1662,19 +1877,29 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
                         "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
                         "name": "hard_delete",
@@ -1683,22 +1908,34 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Holder successfully deleted"
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input or holder has associated instruments that must be removed first",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Holder not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1725,14 +1962,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1749,25 +1992,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated holder",
                         "schema": {
                             "$ref": "#/definitions/HolderResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Holder not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1793,29 +2048,38 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Holder ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
@@ -1825,14 +2089,14 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved accounts list for the holder",
                         "schema": {
                             "allOf": [
                                 {
@@ -1853,19 +2117,31 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Holder not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -1891,34 +2167,43 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder.",
+                        "description": "Filter instruments by holder ID in UUID format",
                         "name": "holder_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter instruments by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
@@ -1928,13 +2213,17 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
                         "type": "string",
-                        "description": "Return includes logically deleted instruments.",
+                        "description": "Return includes logically deleted instruments",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -1987,6 +2276,11 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "PRIMARY_HOLDER",
+                            "LEGAL_REPRESENTATIVE",
+                            "RESPONSIBLE_PARTY"
+                        ],
                         "type": "string",
                         "description": "Filter instrument by related party role",
                         "name": "related_party_role",
@@ -1995,7 +2289,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved instruments list",
                         "schema": {
                             "allOf": [
                                 {
@@ -2016,19 +2310,31 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3405,20 +3711,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -3433,7 +3739,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balances for alias",
                         "schema": {
                             "allOf": [
                                 {
@@ -3576,20 +3882,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -3604,7 +3910,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved external balances",
                         "schema": {
                             "allOf": [
                                 {
@@ -3977,7 +4283,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all balances by account id",
+                "description": "Returns a cursor-paginated list of all balances for a specific account, optionally filtered by date range and sort order.",
                 "produces": [
                     "application/json"
                 ],
@@ -3988,27 +4294,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -4016,19 +4322,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter balances created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter balances created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -4038,20 +4344,20 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account balances list",
                         "schema": {
                             "allOf": [
                                 {
@@ -4123,27 +4429,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -4160,7 +4466,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created additional balance",
                         "schema": {
                             "$ref": "#/definitions/Balance"
                         }
@@ -4184,7 +4490,13 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Balance not found",
+                        "description": "Account, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Additional balances not permitted for external account type",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -4216,27 +4528,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -4251,7 +4563,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account balances at specified date",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -4299,7 +4611,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all Operations with the input ID",
+                "description": "Returns a cursor-paginated list of operations for an account. Operations are the individual debit/credit entries that make up transactions; filterable by date range, direction, and operation route.",
                 "produces": [
                     "application/json"
                 ],
@@ -4310,27 +4622,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -4338,19 +4650,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter operations created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter operations created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -4360,19 +4672,23 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "DEBIT",
+                            "CREDIT"
+                        ],
                         "type": "string",
-                        "description": "DEBIT, CREDIT",
+                        "description": "Filter by operation type",
                         "name": "type",
                         "in": "query"
                     },
@@ -4402,7 +4718,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved operations list",
                         "schema": {
                             "allOf": [
                                 {
@@ -4473,34 +4789,34 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Operation ID",
+                        "description": "Operation ID in UUID format",
                         "name": "operation_id",
                         "in": "path",
                         "required": true
@@ -4508,7 +4824,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved operation",
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
@@ -4547,7 +4863,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create or Update an AssetRate with the input details",
+                "description": "Creates or updates the conversion factor (rate) between two asset codes for a ledger.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4561,20 +4877,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -4590,8 +4906,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created or updated asset rate",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
                         }
@@ -4616,6 +4932,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate asset pair",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -4647,20 +4969,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -4678,26 +5000,26 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "To Asset Codes",
+                        "description": "Filter by destination asset codes",
                         "name": "to",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter asset rates created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter asset rates created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -4707,20 +5029,20 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved asset rates list",
                         "schema": {
                             "allOf": [
                                 {
@@ -4791,27 +5113,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "External ID",
+                        "description": "External ID in UUID format",
                         "name": "external_id",
                         "in": "path",
                         "required": true
@@ -4819,7 +5141,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved asset rate",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
                         }
@@ -5286,7 +5608,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict: Asset cannot be deleted due to existing dependencies",
+                        "description": "Conflict: asset has balances that still hold funds",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -5407,7 +5729,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all balances",
+                "description": "Returns a cursor-paginated list of all balances within a ledger, optionally filtered by date range and sort order.",
                 "produces": [
                     "application/json"
                 ],
@@ -5418,20 +5740,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -5439,19 +5761,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter balances created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter balances created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -5461,20 +5783,20 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balances list",
                         "schema": {
                             "allOf": [
                                 {
@@ -5539,27 +5861,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -5567,7 +5889,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balance",
                         "schema": {
                             "$ref": "#/definitions/Balance"
                         }
@@ -5615,27 +5937,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -5664,7 +5986,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict: Cannot delete balance with active operations",
+                        "description": "Conflict: balance still holds funds or has in-flight transactions",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -5697,27 +6019,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -5734,7 +6056,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated balance",
                         "schema": {
                             "$ref": "#/definitions/Balance"
                         }
@@ -5759,6 +6081,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Balance not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Cannot update internal balance or overdraft limit below current usage",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -5790,27 +6118,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -5825,7 +6153,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balance at specified date",
                         "schema": {
                             "$ref": "#/definitions/BalanceHistory"
                         }
@@ -5884,21 +6212,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Ledger the account is opened in.",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Holder that will own the account.",
+                        "description": "Holder ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -5915,31 +6249,49 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully opened holder account",
                         "schema": {
                             "$ref": "#/definitions/HolderAccountResponse"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization, ledger, or holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: account alias already in use",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity",
+                        "description": "Business validation failed (e.g. invalid account configuration)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8246,7 +8598,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a Transaction Annotation with the input payload",
+                "description": "Creates an annotation-only transaction that records a memo/audit entry. The transaction is persisted with status NOTED and applies no balance changes; source and destination accounts are recorded for reference only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8260,26 +8612,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Transaction input; source and destination accounts are recorded but no balance changes are applied",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -8290,7 +8642,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created annotation transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8313,14 +8665,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8335,7 +8705,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a Transaction with the input DSL file",
+                "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -8346,38 +8716,39 @@ const docTemplate = `{
                     "Transactions"
                 ],
                 "summary": "Create a Transaction using DSL",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "file",
-                        "description": "Transaction DSL file",
+                        "description": "Transaction DSL file (Gold .casl format)",
                         "name": "transaction",
                         "in": "formData",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created transaction from DSL",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8400,14 +8771,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8422,7 +8811,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a Transaction with the input payload",
+                "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8436,26 +8825,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Inflow transaction input specifying only destination accounts; source is resolved automatically",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -8466,7 +8855,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created inflow transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8489,14 +8878,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or destination account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8511,7 +8918,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a Transaction with the input payload",
+                "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8525,26 +8932,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Full transaction input with explicit source and destination accounts",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -8555,7 +8962,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8578,14 +8985,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8706,7 +9131,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a Transaction with the input payload",
+                "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8720,26 +9145,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Outflow transaction input specifying only source accounts; destination is resolved automatically",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -8750,7 +9175,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created outflow transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8773,14 +9198,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or source account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds or account ineligible",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -8795,7 +9238,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get a Transaction with the input ID",
+                "description": "Retrieves a transaction by UUID, including its operations. Reads cache-first and falls back to the database.",
                 "produces": [
                     "application/json"
                 ],
@@ -8806,27 +9249,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -8834,7 +9277,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved transaction with operations",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8877,7 +9320,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update a Transaction with the input payload",
+                "description": "Updates mutable transaction fields (description, metadata). Amounts, accounts, and status are immutable.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8891,27 +9334,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -8928,7 +9371,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -8973,7 +9416,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cancel a previously created pre transaction",
+                "description": "Transitions a PENDING transaction to CANCELED, reversing held reservations. Only PENDING transactions can be cancelled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8987,27 +9430,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -9015,7 +9458,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully cancelled transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -9045,7 +9488,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction is not in a state that allows this action",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. same account in sources and destinations)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9066,7 +9515,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Commit a previously created transaction",
+                "description": "Transitions a PENDING transaction to APPROVED, releasing held balances. Only PENDING transactions can be committed.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9080,27 +9529,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -9108,7 +9557,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully committed transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -9138,7 +9587,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction is not in a state that allows this action",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. same account in sources and destinations)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9159,7 +9614,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update an Operation with the input payload",
+                "description": "Updates the mutable metadata of an operation. Amounts, accounts, direction, and type are immutable.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9173,34 +9628,34 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Operation ID",
+                        "description": "Operation ID in UUID format",
                         "name": "operation_id",
                         "in": "path",
                         "required": true
@@ -9217,7 +9672,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated operation",
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
@@ -9262,7 +9717,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Revert a Transaction with Transaction ID only",
+                "description": "Creates a mirror reversal transaction inverting all operations of the original. Only APPROVED, not-already-reverted transactions with all routes bidirectional can be reverted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9276,35 +9731,35 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully reverted transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -9334,13 +9789,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction already reverted, is itself a revert, or not in a revertable state",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Business validation failed (e.g. transaction cannot be reverted or route is not bidirectional)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9372,53 +9827,63 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Segment ID",
+                        "description": "Filter by segment ID (UUID format)",
                         "name": "segmentId",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Filter by ledger ID (UUID format)",
                         "name": "ledgerId",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Transaction Route",
+                        "description": "Filter by transaction route",
                         "name": "transactionRoute",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            true,
+                            false
+                        ],
                         "type": "boolean",
-                        "description": "Enable flag",
+                        "description": "Filter by enabled flag",
                         "name": "enable",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Number of items per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number",
                         "name": "page",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved packages list",
                         "schema": {
                             "allOf": [
                                 {
@@ -9448,31 +9913,31 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid query parameters",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9499,7 +9964,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
@@ -9516,43 +9987,49 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created package",
                         "schema": {
                             "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Organization not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "Conflict: package amount range overlaps an existing package",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. minimumAmount greater than maximumAmount)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9578,14 +10055,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Package ID",
+                        "description": "Package ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -9593,37 +10076,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved package",
                         "schema": {
                             "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9644,14 +10127,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Package ID",
+                        "description": "Package ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -9659,34 +10148,34 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Package successfully deleted"
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Package not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9713,14 +10202,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "The unique identifier of the Organization.",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Package ID",
+                        "description": "Package ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -9737,37 +10232,49 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated package",
                         "schema": {
                             "$ref": "#/definitions/Package"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "Forbidden access",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: package amount range overlaps an existing package",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. minimumAmount greater than maximumAmount)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }

@@ -60,6 +60,8 @@ func NewTemplateHandler(service *services.UseCase) (*TemplateHandler, error) {
 //	@Failure		400				{object}	pkgErr.HTTPError
 //	@Failure		401				{object}	pkgErr.HTTPError
 //	@Failure		403				{object}	pkgErr.HTTPError
+//	@Failure		409				{object}	pkgErr.HTTPError	"Duplicate request in flight"
+//	@Failure		422				{object}	pkgErr.HTTPError	"Business rule violation (e.g. template schema validation failed)"
 //	@Failure		500				{object}	pkgErr.HTTPError
 //	@Router			/v1/templates [post]
 func (th *TemplateHandler) CreateTemplate(c *fiber.Ctx) error {
@@ -279,6 +281,7 @@ func (th *TemplateHandler) GetAllTemplates(c *fiber.Ctx) error {
 //	@Failure		401				{object}	pkgErr.HTTPError
 //	@Failure		403				{object}	pkgErr.HTTPError
 //	@Failure		404				{object}	pkgErr.HTTPError
+//	@Failure		422				{object}	pkgErr.HTTPError	"Business rule violation (e.g. template schema validation failed)"
 //	@Failure		500				{object}	pkgErr.HTTPError
 //	@Router			/v1/templates/{id} [patch]
 func (th *TemplateHandler) UpdateTemplateByID(c *fiber.Ctx) error {

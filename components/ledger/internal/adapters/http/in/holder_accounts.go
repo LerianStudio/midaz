@@ -42,15 +42,18 @@ type HolderAccountsHandler struct {
 //	@Tags			Holders
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Param			id					path		string	true	"The unique identifier of the Holder."
-//	@Param			limit				query		int		false	"Limit"			default(10)
-//	@Param			page				query		int		false	"Page"			default(1)
-//	@Param			sort_order			query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Account}
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
+//	@Param			id					path		string	true	"Holder ID in UUID format"
+//	@Param			limit				query		int		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page				query		int		false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			sort_order			query		string	false	"Sort direction for results based on creation date"	Enums(asc,desc)
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list for the holder"
+//	@Failure		400					{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error	"Holder not found"
+//	@Failure		500					{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{id}/accounts [get]
 func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 	ctx := c.UserContext()

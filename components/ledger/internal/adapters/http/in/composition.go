@@ -34,15 +34,19 @@ type CompositionHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
-//	@Param			ledger_id			path		string							true	"The unique identifier of the Ledger the account is opened in."
-//	@Param			id					path		string							true	"The unique identifier of the Holder that will own the account."
+//	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
+//	@Param			organization_id		path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id			path		string							true	"Ledger ID in UUID format"
+//	@Param			id					path		string							true	"Holder ID in UUID format"
 //	@Param			composition			body		mmodel.CreateHolderAccountInput	true	"Composite account (and optional instrument) details"
-//	@Success		201					{object}	mmodel.HolderAccountResponse
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		422					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		201					{object}	mmodel.HolderAccountResponse	"Successfully opened holder account"
+//	@Failure		400					{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error					"Organization, ledger, or holder not found"
+//	@Failure		409					{object}	mmodel.Error					"Conflict: account alias already in use"
+//	@Failure		422					{object}	mmodel.Error					"Business validation failed (e.g. invalid account configuration)"
+//	@Failure		500					{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts [post]
 func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()

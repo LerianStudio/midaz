@@ -29,19 +29,19 @@ type BalanceHandler struct {
 // GetAllBalances retrieves all balances.
 //
 //	@Summary		Get all balances
-//	@Description	Get all balances
+//	@Description	Returns a cursor-paginated list of all balances within a ledger, optionally filtered by date range and sort order.
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"
-//	@Param			end_date		query		string	false	"End Date"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string	false	"Filter balances created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter balances created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved balances list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -99,20 +99,20 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 // GetAllBalancesByAccountID retrieves all balances.
 //
 //	@Summary		Get all balances by account id
-//	@Description	Get all balances by account id
+//	@Description	Returns a cursor-paginated list of all balances for a specific account, optionally filtered by date range and sort order.
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"
-//	@Param			end_date		query		string	false	"End Date"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string	false	"Filter balances created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter balances created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved account balances list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -180,11 +180,11 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			balance_id		path		string	true	"Balance ID"
-//	@Success		200				{object}	mmodel.Balance
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string	true	"Balance ID in UUID format"
+//	@Success		200				{object}	mmodel.Balance	"Successfully retrieved balance"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -230,15 +230,15 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID"
-//	@Param			organization_id	path		string			true	"Organization ID"
-//	@Param			ledger_id		path		string			true	"Ledger ID"
-//	@Param			balance_id		path		string			true	"Balance ID"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string			true	"Balance ID in UUID format"
 //	@Success		204				"Balance successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete balance with active operations"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: balance still holds funds or has in-flight transactions"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [delete]
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
@@ -282,16 +282,17 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			balance_id		path		string					true	"Balance ID"
+//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
+//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string					true	"Balance ID in UUID format"
 //	@Param			balance			body		mmodel.UpdateBalance	true	"Balance Input"
-//	@Success		200				{object}	mmodel.Balance
+//	@Success		200				{object}	mmodel.Balance	"Successfully updated balance"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		422				{object}	mmodel.Error	"Cannot update internal balance or overdraft limit below current usage"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [patch]
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
@@ -339,11 +340,11 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved balances for alias"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -393,11 +394,11 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved external balances"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -449,16 +450,17 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			account_id		path		string							true	"Account ID"
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string							true	"Account ID in UUID format"
 //	@Param			balance			body		mmodel.CreateAdditionalBalance	true	"Balance Input"
-//	@Success		201				{object}	mmodel.Balance
+//	@Success		201				{object}	mmodel.Balance	"Successfully created additional balance"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
+//	@Failure		422				{object}	mmodel.Error	"Additional balances not permitted for external account type"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [post]
 func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
@@ -506,12 +508,12 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			balance_id		path		string	true	"Balance ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string	true	"Balance ID in UUID format"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	mmodel.BalanceHistory
+//	@Success		200				{object}	mmodel.BalanceHistory	"Successfully retrieved balance at specified date"
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -591,12 +593,12 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	[]mmodel.BalanceHistory
+//	@Success		200				{object}	[]mmodel.BalanceHistory	"Successfully retrieved account balances at specified date"
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

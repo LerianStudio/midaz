@@ -28,22 +28,23 @@ import (
 // CommitTransaction method that commit transaction created before
 //
 //	@Summary		Commit a Transaction
-//	@Description	Commit a previously created transaction
+//	@Description	Transitions a PENDING transaction to APPROVED, releasing held balances. Only PENDING transactions can be committed.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be committed"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string						true	"Transaction ID in UUID format"
+//	@Success		201				{object}	transaction.Transaction		"Successfully committed transaction"
+//	@Failure		400				{object}	mmodel.Error				"Invalid request or transaction cannot be committed"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: transaction is not in a state that allows this action"
+//	@Failure		422				{object}	mmodel.Error				"Business validation failed (e.g. same account in sources and destinations)"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -84,22 +85,23 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 // CancelTransaction method that cancel pre transaction created before
 //
 //	@Summary		Cancel a pre transaction
-//	@Description	Cancel a previously created pre transaction
+//	@Description	Transitions a PENDING transaction to CANCELED, reversing held reservations. Only PENDING transactions can be cancelled.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be cancelled"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string						true	"Transaction ID in UUID format"
+//	@Success		201				{object}	transaction.Transaction		"Successfully cancelled transaction"
+//	@Failure		400				{object}	mmodel.Error				"Invalid request or transaction cannot be cancelled"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: transaction is not in a state that allows this action"
+//	@Failure		422				{object}	mmodel.Error				"Business validation failed (e.g. same account in sources and destinations)"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [post]
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -140,23 +142,23 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 // RevertTransaction method that revert transaction created before
 //
 //	@Summary		Revert a Transaction
-//	@Description	Revert a Transaction with Transaction ID only
+//	@Description	Creates a mirror reversal transaction inverting all operations of the original. Only APPROVED, not-already-reverted transactions with all routes bidirectional can be reverted.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string						true	"Transaction ID in UUID format"
+//	@Success		201				{object}	transaction.Transaction		"Successfully reverted transaction"
+//	@Failure		400				{object}	mmodel.Error				"Invalid request or transaction cannot be reverted"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: transaction already reverted, is itself a revert, or not in a revertable state"
+//	@Failure		422				{object}	mmodel.Error				"Business validation failed (e.g. transaction cannot be reverted or route is not bidirectional)"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -268,22 +270,22 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 // UpdateTransaction method that patch transaction created before
 //
 //	@Summary		Update a Transaction
-//	@Description	Update a Transaction with the input payload
+//	@Description	Updates mutable transaction fields (description, metadata). Amounts, accounts, and status are immutable.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			transaction_id	path		string					true	"Transaction ID"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string								true	"Transaction ID in UUID format"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Success		200				{object}	transaction.Transaction				"Successfully updated transaction"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()

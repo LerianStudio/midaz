@@ -73,9 +73,9 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		413			{object}	api.ErrorResponse	"Payload too large (exceeds 100KB)"
+//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. amount exceeds safe precision)"
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Failure		503			{object}	api.ErrorResponse	"Service unavailable"
-//	@Failure		504			{object}	api.ErrorResponse	"Gateway timeout"
 //	@Router			/v1/validations [post]
 func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	ctx := c.UserContext()

@@ -480,7 +480,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Segment Name Error",
 			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
-		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
+		constant.ErrBalanceRemainingDeletion: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceRemainingDeletion.Error(),
 			Title:      "Balance Remaining Deletion Error",
@@ -954,13 +954,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Race condition detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
-		constant.ErrTransactionIDHasAlreadyParentTransaction: UnprocessableOperationError{
+		constant.ErrTransactionIDHasAlreadyParentTransaction: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDHasAlreadyParentTransaction.Error(),
 			Title:      "Transaction Revert already exist",
 			Message:    "Transaction revert already exists. Please try again.",
 		},
-		constant.ErrTransactionIDIsAlreadyARevert: UnprocessableOperationError{
+		constant.ErrTransactionIDIsAlreadyARevert: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
 			Title:      "Transaction is already a reversal",
@@ -978,7 +978,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't use the same account in sources and destinations",
 		},
-		constant.ErrBalancesCantBeDeleted: UnprocessableOperationError{
+		constant.ErrBalancesCantBeDeleted: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrBalancesCantBeDeleted.Error(),
 			Title:      "Balance cannot be deleted",
@@ -1008,7 +1008,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Pending Transaction",
 			Message:    "External accounts cannot be used for pending transactions in source operations. Please check the accounts and try again.",
 		},
-		constant.ErrCommitTransactionNotPending: UnprocessableOperationError{
+		constant.ErrCommitTransactionNotPending: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrCommitTransactionNotPending.Error(),
 			Title:      "Invalid Transaction Status",
@@ -1604,7 +1604,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Package filtering error",
 			Message:    "Failed to filter a single package by transactionRoute, segmentID, and maximum/minimum amount. Either no package was found or multiple packages matched the criteria.",
 		},
-		constant.ErrPackageRange: UnprocessableOperationError{
+		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrPackageRange.Error(),
 			Title:      "Package amount range overlap",
@@ -1724,7 +1724,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid pricing tier",
 			Message:    formatPricingTierError(args),
 		},
-		constant.ErrBillingRouteOverlap: UnprocessableOperationError{
+		constant.ErrBillingRouteOverlap: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrBillingRouteOverlap.Error(),
 			Title:      "Billing route overlap",

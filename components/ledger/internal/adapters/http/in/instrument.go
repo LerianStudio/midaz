@@ -32,13 +32,17 @@ type InstrumentHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
-//	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
+//	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
+//	@Param			organization_id		path		string							true	"Organization ID in UUID format"
+//	@Param			holder_id			path		string							true	"Holder ID in UUID format"
 //	@Param			instrument				body		mmodel.CreateInstrumentInput	true	"Instrument Input"
-//	@Success		201					{object}	mmodel.Instrument
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		201					{object}	mmodel.Instrument				"Successfully created instrument"
+//	@Failure		400					{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error					"Organization or holder not found"
+//	@Failure		409					{object}	mmodel.Error					"Conflict: the account ID is already associated with another instrument"
+//	@Failure		500					{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments [post]
 func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -86,14 +90,17 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 //	@Tags			Instruments
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
-//	@Param			instrument_id		path		string	true	"The unique identifier of the Instrument account."
-//	@Param			include_deleted		query		string	false	"Returns the instrument even if it was logically deleted."
-//	@Success		200					{object}	mmodel.Instrument
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
+//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
+//	@Param			holder_id			path		string	true	"Holder ID in UUID format"
+//	@Param			instrument_id		path		string	true	"Instrument ID in UUID format"
+//	@Param			include_deleted		query		string	false	"Returns the instrument even if it was logically deleted"	Enums(true,false)
+//	@Success		200					{object}	mmodel.Instrument	"Successfully retrieved instrument"
+//	@Failure		400					{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error	"Instrument not found"
+//	@Failure		500					{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [get]
 func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -146,14 +153,17 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
-//	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
-//	@Param			instrument_id		path		string					true	"The unique identifier of the Instrument account."
+//	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
+//	@Param			organization_id		path		string							true	"Organization ID in UUID format"
+//	@Param			holder_id			path		string							true	"Holder ID in UUID format"
+//	@Param			instrument_id		path		string							true	"Instrument ID in UUID format"
 //	@Param			instrument				body		mmodel.UpdateInstrumentInput	true	"Instrument Input"
-//	@Success		200					{object}	mmodel.Instrument
-//	@Failure		400					{object}	mmodel.Error
-//	@Failure		404					{object}	mmodel.Error
-//	@Failure		500					{object}	mmodel.Error
+//	@Success		200					{object}	mmodel.Instrument				"Successfully updated instrument"
+//	@Failure		400					{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401					{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404					{object}	mmodel.Error					"Instrument not found"
+//	@Failure		500					{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [patch]
 func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -216,14 +226,17 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 //	@Description	Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Instruments
 //	@Security		BearerAuth
-//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
-//	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
-//	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
-//	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."
-//	@Success		204
-//	@Failure		400	{object}	mmodel.Error
-//	@Failure		404	{object}	mmodel.Error
-//	@Failure		500	{object}	mmodel.Error
+//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
+//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
+//	@Param			holder_id			path	string	true	"Holder ID in UUID format"
+//	@Param			instrument_id		path	string	true	"Instrument ID in UUID format"
+//	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."	Enums(true,false)
+//	@Success		204	"Instrument successfully deleted"
+//	@Failure		400	{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404	{object}	mmodel.Error	"Instrument not found"
+//	@Failure		500	{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} [delete]
 func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -275,13 +288,14 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Tags			Instruments
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			organization_id			path		string	true	"The unique identifier of the Organization."
-//	@Param			holder_id				query		string	false	"The unique identifier of the Holder."
-//	@Param			metadata				query		string	false	"Metadata"
-//	@Param			limit					query		int		false	"Limit"			default(10)
-//	@Param			page					query		int		false	"Page"			default(1)
-//	@Param			sort_order				query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			include_deleted			query		string	false	"Return includes logically deleted instruments."
+//	@Param			X-Request-Id			header		string	false	"Request ID for tracing"
+//	@Param			organization_id			path		string	true	"Organization ID in UUID format"
+//	@Param			holder_id				query		string	false	"Filter instruments by holder ID in UUID format"
+//	@Param			metadata				query		string	false	"JSON string to filter instruments by metadata fields"
+//	@Param			limit					query		int		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
+//	@Param			page					query		int		false	"Page number for pagination"					default(1)	minimum(1)
+//	@Param			sort_order				query		string	false	"Sort direction for results based on creation date"	Enums(asc,desc)
+//	@Param			include_deleted			query		string	false	"Return includes logically deleted instruments"	Enums(true,false)
 //	@Param			account_id				query		string	false	"Filter instrument by accountID"
 //	@Param			ledger_id				query		string	false	"Filter instrument by ledgerID"
 //	@Param			document				query		string	false	"Filter instrument by document"
@@ -290,11 +304,13 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Param			banking_details_iban					query		string	false	"Filter instrument by banking details iban"
 //	@Param			regulatory_fields_participant_document	query		string	false	"Filter instrument by regulatory fields participant document"
 //	@Param			related_party_document					query		string	false	"Filter instrument by related party document"
-//	@Param			related_party_role						query		string	false	"Filter instrument by related party role"
-//	@Success		200										{object}	http.Pagination{items=[]mmodel.Instrument}
-//	@Failure		400						{object}	mmodel.Error
-//	@Failure		404						{object}	mmodel.Error
-//	@Failure		500						{object}	mmodel.Error
+//	@Param			related_party_role						query		string	false	"Filter instrument by related party role"	Enums(PRIMARY_HOLDER,LEGAL_REPRESENTATIVE,RESPONSIBLE_PARTY)
+//	@Success		200										{object}	http.Pagination{items=[]mmodel.Instrument}	"Successfully retrieved instruments list"
+//	@Failure		400						{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401						{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403						{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404						{object}	mmodel.Error	"Organization not found"
+//	@Failure		500						{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/instruments [get]
 func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -363,17 +379,20 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 // DeleteRelatedParty removes a related party from an instrument
 //
 //	@Summary		Delete a Related Party
-//	@Description	Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.
+//	@Description	Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party. Related parties are created inline via the instrument body (CreateInstrumentInput.RelatedParties) and retrieved via GetInstrumentByID; only deletion is exposed as a distinct sub-resource route.
 //	@Tags			Instruments
 //	@Security		BearerAuth
-//	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
-//	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
-//	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
-//	@Param			related_party_id	path	string	true	"The unique identifier of the Related Party."
-//	@Success		204
-//	@Failure		400	{object}	mmodel.Error
-//	@Failure		404	{object}	mmodel.Error
-//	@Failure		500	{object}	mmodel.Error
+//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
+//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
+//	@Param			holder_id			path	string	true	"Holder ID in UUID format"
+//	@Param			instrument_id		path	string	true	"Instrument ID in UUID format"
+//	@Param			related_party_id	path	string	true	"Related Party ID in UUID format"
+//	@Success		204	"Related party successfully deleted"
+//	@Failure		400	{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404	{object}	mmodel.Error	"Related party not found"
+//	@Failure		500	{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id} [delete]
 func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx := c.UserContext()

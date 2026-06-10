@@ -47,21 +47,24 @@ type TransactionHandler struct {
 // CreateTransactionJSON method that create transaction using JSON
 //
 //	@Summary		Create a Transaction using JSON
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Full transaction input with explicit source and destination accounts"
+//	@Success		201				{object}	Transaction							"Successfully created transaction"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error						"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error						"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Failure		503				{object}	mmodel.Error						"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -85,21 +88,24 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 // CreateTransactionAnnotation method that create transaction using JSON
 //
 //	@Summary		Create a Transaction Annotation using JSON
-//	@Description	Create a Transaction Annotation with the input payload
+//	@Description	Creates an annotation-only transaction that records a memo/audit entry. The transaction is persisted with status NOTED and applies no balance changes; source and destination accounts are recorded for reference only.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction input; source and destination accounts are recorded but no balance changes are applied"
+//	@Success		201				{object}	Transaction							"Successfully created annotation transaction"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error						"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error						"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Failure		503				{object}	mmodel.Error						"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation [post]
 func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -123,21 +129,24 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 // CreateTransactionInflow method that creates a transaction without specifying a source
 //
 //	@Summary		Create a Transaction without passing from source
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string										false	"Request ID for tracing"
+//	@Param			organization_id	path		string										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string										true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Inflow transaction input specifying only destination accounts; source is resolved automatically"
+//	@Success		201				{object}	Transaction									"Successfully created inflow transaction"
+//	@Failure		400				{object}	mmodel.Error								"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error								"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error								"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error								"Organization, ledger, or destination account not found"
+//	@Failure		409				{object}	mmodel.Error								"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error								"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error								"Internal server error"
+//	@Failure		503				{object}	mmodel.Error								"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -161,21 +170,24 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
 //
 //	@Summary		Create a Transaction without passing to distribution
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string										false	"Request ID for tracing"
+//	@Param			organization_id	path		string										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string										true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Outflow transaction input specifying only source accounts; destination is resolved automatically"
+//	@Success		201				{object}	Transaction									"Successfully created outflow transaction"
+//	@Failure		400				{object}	mmodel.Error								"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error								"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error								"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error								"Organization, ledger, or source account not found"
+//	@Failure		409				{object}	mmodel.Error								"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error								"Unprocessable entity: insufficient funds or account ineligible"
+//	@Failure		500				{object}	mmodel.Error								"Internal server error"
+//	@Failure		503				{object}	mmodel.Error								"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -199,21 +211,25 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 // CreateTransactionDSL method that create transaction using DSL
 //
 //	@Summary		Create a Transaction using DSL
-//	@Description	Create a Transaction with the input DSL file
+//	@Description	Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.
+//	@Deprecated		true
 //	@Tags			Transactions
 //	@Accept			mpfd
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction		formData	file	true	"Transaction DSL file"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction		formData	file						true	"Transaction DSL file (Gold .casl format)"
+//	@Success		201				{object}	Transaction					"Successfully created transaction from DSL"
+//	@Failure		400				{object}	mmodel.Error				"Invalid DSL file format or validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error				"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error				"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
+//	@Failure		503				{object}	mmodel.Error				"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -282,20 +298,20 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 // GetTransaction method that get transaction created before
 //
 //	@Summary		Get a Transaction by ID
-//	@Description	Get a Transaction with the input ID
+//	@Description	Retrieves a transaction by UUID, including its operations. Reads cache-first and falls back to the database.
 //	@Tags			Transactions
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string						true	"Transaction ID in UUID format"
+//	@Success		200				{object}	Transaction					"Successfully retrieved transaction with operations"
+//	@Failure		400				{object}	mmodel.Error				"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()

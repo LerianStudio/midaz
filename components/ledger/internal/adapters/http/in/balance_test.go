@@ -687,7 +687,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 		},
 		{
-			name: "balance with non-zero funds returns 422 unprocessable entity",
+			name: "balance with non-zero funds returns 409 conflict",
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				// Test both Available and OnHold scenarios in subtests
 				// Balance found with non-zero amounts (cannot be deleted)
@@ -703,7 +703,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 					Times(1)
 				// Delete should NOT be called
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

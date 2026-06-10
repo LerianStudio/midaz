@@ -925,6 +925,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Service unavailable (context cancelled)
       security:
       - ApiKeyAuth: []
       summary: Reserve transaction capacity (phase one)
@@ -971,6 +977,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Service unavailable (context cancelled)
       security:
       - ApiKeyAuth: []
       summary: Confirm a transaction's reservations (phase two — commit by transaction)
@@ -1015,6 +1027,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Service unavailable (context cancelled)
       security:
       - ApiKeyAuth: []
       summary: Release a transaction's reservations (phase two — abort by transaction)
@@ -1053,12 +1071,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Reservation not found
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Service unavailable (context cancelled)
       security:
       - ApiKeyAuth: []
       summary: Confirm a reservation (phase two — commit)
@@ -1096,12 +1126,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Reservation not found
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Internal server error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Service unavailable (context cancelled)
       security:
       - ApiKeyAuth: []
       summary: Release a reservation (phase two — abort)
@@ -1274,6 +1316,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule name already exists
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. expression cost limit exceeded)
         "500":
           content:
             application/json:
@@ -1321,6 +1369,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. invalid status transition — active
+            rules must be deactivated first)
         "500":
           content:
             application/json:
@@ -1429,6 +1484,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule name already exists
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. expression cost limit exceeded
+            or expression not modifiable)
         "500":
           content:
             application/json:
@@ -1479,6 +1541,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. invalid status transition or
+            expression cost exceeded)
         "500":
           content:
             application/json:
@@ -1527,6 +1596,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. invalid status transition)
         "500":
           content:
             application/json:
@@ -1576,6 +1651,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Rule not found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. invalid status transition)
         "500":
           content:
             application/json:
@@ -1753,6 +1834,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Payload too large (exceeds 100KB)
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Business rule violation (e.g. amount exceeds safe precision)
         "500":
           content:
             application/json:
@@ -1765,12 +1852,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Service unavailable
-        "504":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Gateway timeout
       security:
       - ApiKeyAuth: []
       summary: Validate a transaction
