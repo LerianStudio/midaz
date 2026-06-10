@@ -41,7 +41,7 @@ type HolderAccountsHandler struct {
 //	@Description	Lists the accounts owned by a holder, identified by the holder's ownership link.
 //	@Tags			Holders
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"The unique identifier of the Holder."
 //	@Param			limit				query		int		false	"Limit"			default(10)

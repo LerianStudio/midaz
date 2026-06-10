@@ -48,7 +48,7 @@ type PackageHandler struct {
 //	@Tags			Packages
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			pack				body		model.CreatePackageInput	true	"Package Input"
 //	@Success		201					{object}	pack.Package
@@ -135,7 +135,7 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 //	@Description	List all the packages
 //	@Tags			Packages
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			segmentId			query		string	false	"Segment ID"
 //	@Param			ledgerId			query		string	false	"Ledger ID"
@@ -210,7 +210,7 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 //	@Description	Get a package by id
 //	@Tags			Packages
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"Package ID"
 //	@Success		200					{object}	pack.Package
@@ -263,7 +263,7 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 //	@Tags			Packages
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			id					path		string						true	"Package ID"
 //	@Param			package				body		model.UpdatePackageInput	true	"Update Package Input"
@@ -348,7 +348,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 //	@Summary		SoftDelete a Package by ID
 //	@Description	SoftDelete a Package with the input ID
 //	@Tags			Packages
-//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"Package ID"
 //	@Success		204

@@ -33,7 +33,7 @@ type CompositionHandler struct {
 //	@Tags			Composition
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
 //	@Param			ledger_id			path		string							true	"The unique identifier of the Ledger the account is opened in."
 //	@Param			id					path		string							true	"The unique identifier of the Holder that will own the account."

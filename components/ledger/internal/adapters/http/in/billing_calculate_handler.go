@@ -41,7 +41,7 @@ type BillingCalculateHandler struct {
 //	@Tags			Billing Calculate
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
 //	@Param			billingCalculate	body		model.BillingCalculateRequest	true	"Billing Calculation Input"
 //	@Success		200					{object}	model.BillingCalculateResponse

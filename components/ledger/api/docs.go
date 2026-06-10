@@ -25,6 +25,11 @@ const docTemplate = `{
     "paths": {
         "/v1/organizations": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -34,12 +39,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all organizations",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -167,6 +166,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
                 "consumes": [
                     "application/json"
@@ -179,12 +183,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -237,18 +235,17 @@ const docTemplate = `{
         },
         "/v1/organizations/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of organizations as a header without a response body",
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "Count total organizations",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -289,6 +286,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an organization identified by its UUID",
                 "produces": [
                     "application/json"
@@ -298,12 +300,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -352,18 +348,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "Delete an organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -415,6 +410,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
@@ -427,12 +427,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an existing organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -498,6 +492,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/billing-packages": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "List all billing packages",
                 "produces": [
                     "application/json"
@@ -507,12 +506,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all billing packages",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -605,6 +598,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a BillingPackage with the input payload",
                 "consumes": [
                     "application/json"
@@ -617,12 +615,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a BillingPackage",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -682,6 +674,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/billing-packages/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a billing package by id",
                 "produces": [
                     "application/json"
@@ -691,12 +688,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get billing package",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -752,18 +743,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "SoftDelete a BillingPackage with the input ID",
                 "tags": [
                     "Billing Packages"
                 ],
                 "summary": "SoftDelete a BillingPackage by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -816,6 +806,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a billing package with the input payload",
                 "consumes": [
                     "application/json"
@@ -828,12 +823,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a billing package",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -906,6 +895,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/billing/calculate": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Calculate billing for a given organization, ledger, and period",
                 "consumes": [
                     "application/json"
@@ -918,12 +912,6 @@ const docTemplate = `{
                 ],
                 "summary": "Calculate billing",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -989,6 +977,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/estimates": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a fee estimate calculation with input payload",
                 "consumes": [
                     "application/json"
@@ -1001,12 +994,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a fee estimate calculation",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1072,6 +1059,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
                 "produces": [
                     "application/json"
@@ -1081,12 +1073,6 @@ const docTemplate = `{
                 ],
                 "summary": "List Holders",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1186,6 +1172,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new holder with the provided details.",
                 "consumes": [
                     "application/json"
@@ -1198,12 +1189,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1251,6 +1236,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders/{holder_id}/instruments": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Enables a creation of an instrument account, which represents an account in the ledger. The instrument account is linked to specific business information, making it easier to manage and abstract account data within the system.",
                 "consumes": [
                     "application/json"
@@ -1263,12 +1253,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create an Instrument Account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1323,6 +1307,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves detailed information about a specific instrument using its unique identifier.",
                 "produces": [
                     "application/json"
@@ -1332,12 +1321,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve Instrument details",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1394,18 +1377,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
                 "tags": [
                     "Instruments"
                 ],
                 "summary": "Delete an Instrument",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1459,6 +1441,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update details of an instrument.",
                 "consumes": [
                     "application/json"
@@ -1471,12 +1458,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an Instrument",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1538,18 +1519,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.",
                 "tags": [
                     "Instruments"
                 ],
                 "summary": "Delete a Related Party",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1606,6 +1586,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves detailed information about a specific holder using its unique identifier.",
                 "produces": [
                     "application/json"
@@ -1615,12 +1600,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve Holder details",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1670,18 +1649,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
                 "tags": [
                     "Holders"
                 ],
                 "summary": "Delete a Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1728,6 +1706,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update details of a holder.",
                 "consumes": [
                     "application/json"
@@ -1740,12 +1723,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1800,6 +1777,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/holders/{id}/accounts": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Lists the accounts owned by a holder, identified by the holder's ownership link.",
                 "produces": [
                     "application/json"
@@ -1809,12 +1791,6 @@ const docTemplate = `{
                 ],
                 "summary": "List Accounts by Holder",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -1899,6 +1875,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/instruments": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "List all Instruments with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
                 "produces": [
                     "application/json"
@@ -1908,12 +1889,6 @@ const docTemplate = `{
                 ],
                 "summary": "List Instruments",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -2063,6 +2038,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -2072,12 +2052,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all ledgers",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2205,6 +2179,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
                 "consumes": [
                     "application/json"
@@ -2217,12 +2196,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2288,18 +2261,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of ledgers for a specific organization as a header without a response body",
                 "tags": [
                     "Ledgers"
                 ],
                 "summary": "Count total ledgers",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2347,6 +2319,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a ledger identified by its UUID within the specified organization",
                 "produces": [
                     "application/json"
@@ -2356,12 +2333,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2417,18 +2388,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Ledgers"
                 ],
                 "summary": "Delete a ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2487,6 +2457,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
@@ -2499,12 +2474,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an existing ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2577,6 +2546,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata",
                 "produces": [
                     "application/json"
@@ -2586,12 +2560,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all account types",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2716,6 +2684,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Account Type.",
                 "consumes": [
                     "application/json"
@@ -2728,12 +2701,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Account Type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2806,6 +2773,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account type identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -2815,12 +2787,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific account type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2883,6 +2849,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes an existing account type identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -2892,12 +2863,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete an account type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2951,6 +2916,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to update an existing Account Type.",
                 "consumes": [
                     "application/json"
@@ -2963,12 +2933,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update Account Type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3048,6 +3012,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -3057,12 +3026,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all accounts",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3253,6 +3216,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
                 "consumes": [
                     "application/json"
@@ -3265,12 +3233,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3349,6 +3311,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its alias within the specified ledger",
                 "produces": [
                     "application/json"
@@ -3358,12 +3325,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve an account by alias",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3428,6 +3389,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get Balances with alias",
                 "produces": [
                     "application/json"
@@ -3437,12 +3403,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Balances using Alias",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -3522,6 +3482,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its external code within the specified ledger",
                 "produces": [
                     "application/json"
@@ -3531,12 +3496,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve an account by external code",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3601,6 +3560,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get External balances with code",
                 "produces": [
                     "application/json"
@@ -3610,12 +3574,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get External balances using code",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -3695,18 +3653,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of accounts for the specified organization, ledger, and optional portfolio",
                 "tags": [
                     "Accounts"
                 ],
                 "summary": "Count accounts",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3761,6 +3718,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -3770,12 +3732,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3838,18 +3794,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an account from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Accounts"
                 ],
                 "summary": "Delete an account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3915,6 +3870,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -3927,12 +3887,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4018,6 +3972,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all balances by account id",
                 "produces": [
                     "application/json"
@@ -4027,12 +3986,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all balances by account id",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4151,6 +4104,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create an Additional Balance with the input payload",
                 "consumes": [
                     "application/json"
@@ -4163,12 +4121,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Additional Balance",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4248,6 +4200,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
@@ -4257,12 +4214,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Account Balances history at date",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4343,6 +4294,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all Operations with the input ID",
                 "produces": [
                     "application/json"
@@ -4352,12 +4308,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Operations by account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4507,6 +4457,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an Operation with the input ID",
                 "produces": [
                     "application/json"
@@ -4516,12 +4471,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Operation",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4593,6 +4542,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create or Update an AssetRate with the input details",
                 "consumes": [
                     "application/json"
@@ -4605,12 +4559,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create or Update an AssetRate",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4683,6 +4631,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an AssetRate by the Asset Code with the input details",
                 "produces": [
                     "application/json"
@@ -4692,12 +4645,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get an AssetRate by the Asset Code",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4828,6 +4775,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an AssetRate by External ID with the input details",
                 "produces": [
                     "application/json"
@@ -4837,12 +4789,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get an AssetRate by External ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -4907,6 +4853,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -4916,12 +4867,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all assets",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5043,6 +4988,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
                 "consumes": [
                     "application/json"
@@ -5055,12 +5005,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5139,18 +5083,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of assets for a specific ledger in an organization as a header without a response body",
                 "tags": [
                     "Assets"
                 ],
                 "summary": "Count total assets",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5205,6 +5148,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an asset identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -5214,12 +5162,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5282,18 +5224,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Assets"
                 ],
                 "summary": "Delete an asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5359,6 +5300,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -5371,12 +5317,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5462,6 +5402,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all balances",
                 "produces": [
                     "application/json"
@@ -5471,12 +5416,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all balances",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -5584,6 +5523,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a Balance with the input ID",
                 "produces": [
                     "application/json"
@@ -5593,12 +5537,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Balance by id",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -5661,6 +5599,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a Balance with the input ID",
                 "produces": [
                     "application/json"
@@ -5670,12 +5613,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete Balance by account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -5741,6 +5678,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a Balance with the input payload",
                 "consumes": [
                     "application/json"
@@ -5753,12 +5695,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update Balance",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -5838,6 +5774,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
@@ -5847,12 +5788,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Balance history at date",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -5930,6 +5865,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Opens an account owned by the holder identified in the path and, when banking/regulatory/related-party fields are present, an instrument linked to the new account. The account is created first; if it commits but the instrument write fails the account remains persisted and a typed instrumentError block is returned (no rollback). The holder is always taken from the path, never the body.",
                 "consumes": [
                     "application/json"
@@ -5942,12 +5882,6 @@ const docTemplate = `{
                 ],
                 "summary": "Open a holder-owned account (with optional instrument)",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -6015,6 +5949,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
                 "produces": [
                     "application/json"
@@ -6024,12 +5963,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve all operation routes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6141,6 +6074,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Operation Route.",
                 "consumes": [
                     "application/json"
@@ -6153,12 +6091,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Operation Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6225,6 +6157,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -6234,12 +6171,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6284,6 +6215,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -6293,12 +6229,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete an operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6352,6 +6282,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -6364,12 +6299,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6455,6 +6384,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -6464,12 +6398,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all portfolios",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6603,6 +6531,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
                 "consumes": [
                     "application/json"
@@ -6615,12 +6548,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6699,18 +6626,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of portfolios for a specific organization and ledger as a header without a response body",
                 "tags": [
                     "Portfolios"
                 ],
                 "summary": "Count total portfolios",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6771,6 +6697,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a portfolio identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -6780,12 +6711,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6848,18 +6773,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Portfolios"
                 ],
                 "summary": "Delete a portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6925,6 +6849,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -6937,12 +6866,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7028,6 +6951,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -7037,12 +6965,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all segments",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7164,6 +7086,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
                 "consumes": [
                     "application/json"
@@ -7176,12 +7103,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7260,18 +7181,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of segments for the specified organization and ledger",
                 "tags": [
                     "Segments"
                 ],
                 "summary": "Count segments",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7326,6 +7246,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a segment identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -7335,12 +7260,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7403,18 +7322,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Segments"
                 ],
                 "summary": "Delete a segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7480,6 +7398,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -7492,12 +7415,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7583,6 +7500,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
                 "produces": [
                     "application/json"
@@ -7592,12 +7514,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get ledger settings",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7653,6 +7569,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean).",
                 "consumes": [
                     "application/json"
@@ -7665,12 +7586,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update ledger settings",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7743,6 +7658,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to get all Transaction Routes with optional metadata filtering.",
                 "consumes": [
                     "application/json"
@@ -7755,12 +7675,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Transaction Routes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7866,6 +7780,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Transaction Route.",
                 "consumes": [
                     "application/json"
@@ -7878,12 +7797,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Transaction Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -7950,6 +7863,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to get a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -7962,12 +7880,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get Transaction Route by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -8036,6 +7948,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to delete a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -8048,12 +7965,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete Transaction Route by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -8119,6 +8030,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to update a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -8131,12 +8047,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update Transaction Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -8210,6 +8120,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all Transactions with the input metadata or without metadata",
                 "produces": [
                     "application/json"
@@ -8219,12 +8134,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Transactions",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8332,6 +8241,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Transaction Annotation with the input payload",
                 "consumes": [
                     "application/json"
@@ -8344,12 +8258,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Transaction Annotation using JSON",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8422,6 +8330,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Transaction with the input DSL file",
                 "consumes": [
                     "multipart/form-data"
@@ -8434,12 +8347,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Transaction using DSL",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8510,6 +8417,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Transaction with the input payload",
                 "consumes": [
                     "application/json"
@@ -8522,12 +8434,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Transaction without passing from source",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8600,6 +8506,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Transaction with the input payload",
                 "consumes": [
                     "application/json"
@@ -8612,12 +8523,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Transaction using JSON",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8690,18 +8595,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Count transactions matching optional filters (route, status, date range)",
                 "tags": [
                     "Transactions"
                 ],
                 "summary": "Count Transactions by Filters",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8797,6 +8701,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Transaction with the input payload",
                 "consumes": [
                     "application/json"
@@ -8809,12 +8718,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Transaction without passing to distribution",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8887,6 +8790,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a Transaction with the input ID",
                 "produces": [
                     "application/json"
@@ -8896,12 +8804,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get a Transaction by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8970,6 +8872,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a Transaction with the input payload",
                 "consumes": [
                     "application/json"
@@ -8982,12 +8889,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a Transaction",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9067,6 +8968,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Cancel a previously created pre transaction",
                 "consumes": [
                     "application/json"
@@ -9079,12 +8985,6 @@ const docTemplate = `{
                 ],
                 "summary": "Cancel a pre transaction",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9161,6 +9061,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Commit a previously created transaction",
                 "consumes": [
                     "application/json"
@@ -9173,12 +9078,6 @@ const docTemplate = `{
                 ],
                 "summary": "Commit a Transaction",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9255,6 +9154,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update an Operation with the input payload",
                 "consumes": [
                     "application/json"
@@ -9267,12 +9171,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an Operation",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9359,6 +9257,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Revert a Transaction with Transaction ID only",
                 "consumes": [
                     "application/json"
@@ -9371,12 +9274,6 @@ const docTemplate = `{
                 ],
                 "summary": "Revert a Transaction",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9459,6 +9356,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/packages": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "List all the packages",
                 "produces": [
                     "application/json"
@@ -9468,12 +9370,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all packages",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -9584,6 +9480,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a Package with the input payload",
                 "consumes": [
                     "application/json"
@@ -9596,12 +9497,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a Package",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -9667,6 +9562,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/packages/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a package by id",
                 "produces": [
                     "application/json"
@@ -9676,12 +9576,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get package",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -9737,18 +9631,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "SoftDelete a Package with the input ID",
                 "tags": [
                     "Packages"
                 ],
                 "summary": "SoftDelete a Package by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -9801,6 +9694,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a package with the input payload",
                 "consumes": [
                     "application/json"
@@ -9813,12 +9711,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a package",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "The unique identifier of the Organization.",
@@ -9885,6 +9777,11 @@ const docTemplate = `{
         },
         "/v1/settings/metadata-indexes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all metadata indexes, optionally filtered by entity name",
                 "produces": [
                     "application/json"
@@ -9894,12 +9791,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Metadata Indexes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -9965,6 +9856,11 @@ const docTemplate = `{
         },
         "/v1/settings/metadata-indexes/entities/{entity_name}": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a metadata index for the specified entity",
                 "consumes": [
                     "application/json"
@@ -9977,12 +9873,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Metadata Index",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -10061,6 +9951,11 @@ const docTemplate = `{
         },
         "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a metadata index by entity name and index key",
                 "produces": [
                     "application/json"
@@ -10070,12 +9965,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete Metadata Index",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",

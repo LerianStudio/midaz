@@ -292,19 +292,57 @@
 
 ---
 
-## Phase 3 — Correct the ledger authentication contract (decision gate)
+## Phase 3 — Correct the ledger authentication contract
 
-**Milestone:** The ledger spec documents how to authenticate: authenticated operations require `BearerAuth`, Swagger UI's Authorize button applies to real operations, and generated SDKs attach the token. No dangling security definition, no duplicated per-endpoint `Authorization` param.
+**Milestone:** The ledger spec documents how to authenticate: every operation requires `BearerAuth`, Swagger UI's Authorize button applies to real operations, generated SDKs attach the token, and no dangling security definition or duplicated per-endpoint `Authorization` param remains. A guard prevents future ledger operations from shipping unauthenticated-in-docs.
 
-### Epic 3.1: Apply `@Security BearerAuth` across authenticated ledger operations
+**Decision (resolved 2026-06-10):** Owner ratified model (a) — auth is real (`ProtectedRouteChain`), so the declared `BearerAuth` scheme is referenced by operations and the optional `@Param Authorization` lines are dropped. **Mechanism correction:** model (a) was framed as a *global* security requirement, but swag v1.16.6 does NOT emit a top-level `.security` from a general-info `@security` directive (empirically verified — it produces `securityDefinitions` but no `.security`). The only swag-supported path is **per-operation `@Security`**, which emits `[{"BearerAuth":[]}]` on each operation. This is exactly the pattern tracer (28/31 ops) and reporter (22/22 ops) already use, so per-op delivers the identical outcome (every op requires Bearer) AND true cross-component source-style parity. C1 is ledger-only: tracer/reporter are already correct.
 
-**Goal:** Resolve C1 — the declared `BearerAuth` scheme (`ledger/cmd/app/main.go:30-33`) is referenced by every authenticated operation, and the ad-hoc optional `@Param Authorization header string false` lines are removed.
-**Scope:** every annotated handler in `components/ledger/internal/adapters/http/in/` (native + folded-in CRM/fees), `components/ledger/cmd/app/main.go`.
-**Dependencies:** Phase 1 (header normalized). Touches the same handler files as Phase 4 — sequence 3 before 4 so the auth annotation lands before the error-code lift.
-**Done when:** authenticated operations carry `@Security BearerAuth`; the `Authorization` `@Param` is gone from those operations; truly-public endpoints (health/version, if any) carry none; the regenerated spec shows `security` on operations and no orphan param; `make check-docs` green.
+### Epic 3.1: Apply per-operation `@Security BearerAuth` across all ledger operations
+
+**Goal:** Resolve C1 — all 111 ledger operations reference the declared `BearerAuth` scheme via `@Security BearerAuth`, and the 111 ad-hoc `@Param Authorization header string false "Bearer token..."` lines are removed.
+**Scope:** the 25 annotated handler files in `components/ledger/internal/adapters/http/in/` (native + folded-in CRM/fees) that carry `@Param Authorization`. `cmd/app/main.go` is NOT touched (the `@securityDefinitions.apikey BearerAuth` block is already correct; no general-info change needed).
+**Dependencies:** Phase 1 (header normalized), Phase 2 (committed `957ef176f`). Touches the same handler files as Phase 4 — sequence 3 before 4 so the auth annotation lands before the error-code lift.
+**Done when:** zero `@Param Authorization` lines remain in ledger handlers; all 111 ledger operations show `.security == [{"BearerAuth":[]}]` in the regenerated `components/ledger/api/swagger.json`; the `@Param X-Request-Id` tracing header is preserved; `go build ./components/ledger/...` green; `make check-docs` green post-commit.
 **Status:** Pending
 
-**⛔ DECISION GATE — resolve before elaborating tasks:** the audit recommends model (a): auth is real (`ProtectedRouteChain`), so `@Security BearerAuth` is correct, and the optional `@Param Authorization` is removed. Model (b) — keep the param approach and instead *delete* the unused `securityDefinition` — is only correct if auth is meant to read as fully optional in the contract. **Recommended: (a).** Confirm with the owner before writing tasks, because the choice flips whether the security block stays and the params go, or vice-versa. This also sets the pattern tracer/reporter already follow.
+#### Task 3.1.1: Replace `@Param Authorization` with `@Security BearerAuth` across ledger handlers (group A)
+
+- [ ] Done
+
+**Context:** Every ledger operation declares an ad-hoc optional auth header: `//\t@Param\t\t\tAuthorization\theader\t\tstring\t...\tfalse\t"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."` placed directly after `@Produce json` (see `asset.go:34`). The declared `BearerAuth` securityDefinition (`cmd/app/main.go:72`) is referenced by zero operations — that is C1. The fix is a one-for-one in-place line swap: the `@Param Authorization` line sits in the exact slot tracer puts `@Security ApiKeyAuth` (after `@Produce`, before other `@Param`s — see `tracer/.../rule_handler.go`), so replacing it preserves canonical placement.
+
+**Implementation vision:** For EACH `@Param` line whose parameter name is `Authorization` (the Bearer-token description), DELETE that line and insert in its place `//\t@Security\t\tBearerAuth` (mirror the file's tab alignment). Do NOT touch the adjacent `@Param X-Request-Id ... "Request ID for tracing"` line — that is a separate, legitimate tracing header that stays. Do NOT touch path/body/query `@Param`s. One `@Security BearerAuth` per operation; never duplicate. swag is position-agnostic but in-place replacement keeps the diff minimal and the style consistent with tracer/reporter.
+
+**Files (group A — first ~half by handler, partitioned in the workflow):** the subset of the 25 files in `components/ledger/internal/adapters/http/in/` carrying `@Param Authorization`. Workflow partitions the 25 files across parallel agents to avoid edit collisions.
+
+**Verification:** `grep -rn '@Param.*Authorization' components/ledger/internal/adapters/http/in/` → empty for the assigned files; `grep -rc '@Security' <assigned files>` → one per operation; `go build ./components/ledger/...` → exit 0.
+
+**Done when:** assigned files have every `@Param Authorization` replaced by `@Security BearerAuth`, X-Request-Id preserved, build green.
+
+#### Task 3.1.2: Regenerate and verify the ledger security contract
+
+- [ ] Done
+
+**Context:** After 3.1.1 lands across all 25 files, the emitted ledger spec must show per-op security. swag emits `@Security BearerAuth` as `security: [{"BearerAuth":[]}]` on each operation (empirically verified).
+
+**Implementation vision:** Run `make generate-docs` (Docker+npm). Assert in `components/ledger/api/swagger.json`: (1) every operation has `.security == [{"BearerAuth":[]}]` — count must equal total ops (111); (2) no operation retains an `Authorization` parameter; (3) `securityDefinitions.BearerAuth` unchanged. Revert the non-deterministic `postman/MIDAZ.postman_collection.json` UUID churn after regen (`git checkout`). Parity fields (Phase 1) must remain identical.
+
+**Files:** regenerated `components/ledger/api/{swagger.json,swagger.yaml,docs.go,openapi.yaml}` + `postman/specs/ledger/*`.
+
+**Verification:** `jq '[.paths[]|to_entries[]|.value|select(.security!=null)]|length' components/ledger/api/swagger.json` → 111; `jq '[.paths[]|to_entries[]|.value.parameters//[]|.[]|select(.name=="Authorization")]|length'` → 0; `make check-docs` (post-commit) green.
+
+**Done when:** all 111 ledger ops carry BearerAuth security in the spec, zero Authorization params, generation clean.
+
+### Epic 3.2: Guard against future unauthenticated ledger operations (secure-by-default)
+
+**Goal:** Compensate for the loss of "global" secure-by-default (swag can't express it): a guard fails CI if any ledger operation in the emitted spec lacks `.security`. Per-op annotation means a future endpoint could ship without `@Security`; this catches it.
+**Scope:** `postman/generator/check-docs.sh` (extend the parity/drift script with a ledger-security-coverage assertion). Ledger-only — tracer has 3 legitimately-public ops (/health, /readyz, /version), so a cross-component rule would need an allowlist; keep this scoped to ledger where zero public ops exist in-spec.
+**Dependencies:** Epic 3.1 (must land first, else the guard fails on the current 0/111 state).
+**Done when:** `check-docs` asserts every operation in `components/ledger/api/swagger.json` has a non-empty `.security`; the assertion passes on the post-3.1 spec and would fail if any ledger op dropped its security; documented in the script's header comment.
+**Status:** Pending
+
+*(Tasks elaborated at execution time if 3.2 is greenlit; 3.1 is the core C1 fix and runs first.)*
 
 ---
 

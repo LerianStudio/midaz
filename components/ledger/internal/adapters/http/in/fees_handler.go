@@ -39,7 +39,7 @@ type FeeHandler struct {
 //	@Tags			Fees
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string				false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string				true	"The unique identifier of the Organization."
 //	@Param			fee					body		model.FeeEstimate	true	"Fee Input"
 //	@Success		200					{object}	model.FeeEstimateResponse

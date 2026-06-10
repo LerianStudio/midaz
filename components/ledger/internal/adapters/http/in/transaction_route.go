@@ -29,7 +29,7 @@ type TransactionRouteHandler struct {
 //	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
 //	@Param			organization_id		path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
@@ -93,7 +93,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string					false	"Request ID for tracing"
 //	@Param			organization_id			path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string					true	"Ledger ID in UUID format"
@@ -146,7 +146,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string								false	"Request ID for tracing"
 //	@Param			organization_id			path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string								true	"Ledger ID in UUID format"
@@ -209,7 +209,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string			false	"Request ID for tracing"
 //	@Param			organization_id			path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string			true	"Ledger ID in UUID format"
@@ -267,7 +267,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"

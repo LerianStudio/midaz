@@ -28,7 +28,7 @@ type AssetRateHandler struct {
 //	@Tags			Asset Rates
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
@@ -79,7 +79,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Description	Get an AssetRate by External ID with the input details
 //	@Tags			Asset Rates
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -129,7 +129,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Description	Get an AssetRate by the Asset Code with the input details
 //	@Tags			Asset Rates
 //	@Produce		json
-//	@Param			Authorization	header		string		false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string		false	"Request ID"
 //	@Param			organization_id	path		string		true	"Organization ID"
 //	@Param			ledger_id		path		string		true	"Ledger ID"

@@ -31,7 +31,7 @@ type InstrumentHandler struct {
 //	@Tags			Instruments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			instrument				body		mmodel.CreateInstrumentInput	true	"Instrument Input"
@@ -85,7 +85,7 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 //	@Description	Retrieves detailed information about a specific instrument using its unique identifier.
 //	@Tags			Instruments
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path		string	true	"The unique identifier of the Instrument account."
@@ -145,7 +145,7 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 //	@Tags			Instruments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			holder_id			path		string					true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path		string					true	"The unique identifier of the Instrument account."
@@ -215,7 +215,7 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 //	@Summary		Delete an Instrument
 //	@Description	Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
 //	@Tags			Instruments
-//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."
@@ -274,7 +274,7 @@ func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
 //	@Description	List all Instruments with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.
 //	@Tags			Instruments
 //	@Produce		json
-//	@Param			Authorization			header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id			path		string	true	"The unique identifier of the Organization."
 //	@Param			holder_id				query		string	false	"The unique identifier of the Holder."
 //	@Param			metadata				query		string	false	"Metadata"
@@ -365,7 +365,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 //	@Summary		Delete a Related Party
 //	@Description	Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party.
 //	@Tags			Instruments
-//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			holder_id			path	string	true	"The unique identifier of the Holder."
 //	@Param			instrument_id		path	string	true	"The unique identifier of the Instrument account."

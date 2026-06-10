@@ -14,6 +14,11 @@ set -euo pipefail
 # (b) DRIFT CHECK (CHECK_DOCS_REGEN=1 only): regenerates the docs and asserts the
 #     committed artifacts still reproduce, so the source annotations and the
 #     committed specs cannot silently diverge.
+# (c) SECURITY COVERAGE (always, ledger only): asserts every ledger operation
+#     carries a .security requirement, so the secure-by-default contract cannot
+#     regress to a dangling securityDefinition (audit finding C1). Scoped to
+#     ledger: tracer's /health, /readyz and /version are intentionally public,
+#     and reporter already secures all its operations.
 
 # Root directory of the repo (this script lives in postman/generator/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -129,6 +134,38 @@ parity_check() {
     assert_field_matches "info.title" '.info.title' '^Midaz'
 }
 
+# Component whose every operation must declare a .security requirement.
+SECURITY_COVERAGE_COMPONENT="ledger"
+
+# Assert every operation in the ledger spec carries a non-empty .security block.
+security_coverage_check() {
+    print_header "Security coverage check (${SECURITY_COVERAGE_COMPONENT}: every operation secured)"
+
+    local file="${ROOT_DIR}/components/${SECURITY_COVERAGE_COMPONENT}/api/swagger.json"
+    if [ ! -f "${file}" ]; then
+        fail "Missing swagger.json for component '${SECURITY_COVERAGE_COMPONENT}' at ${file}. Run 'make generate-docs' first."
+    fi
+
+    # Operations are the HTTP-verb keys under each path; an operation is unsecured
+    # when its .security array is absent or empty.
+    local op_filter='.paths | to_entries[] | .key as $path | .value | to_entries[]
+        | select(.key | test("^(get|post|put|patch|delete|head|options)$"))
+        | { path: $path, method: .key, security: (.value.security // []) }'
+
+    local total secured
+    total="$(jq "[ ${op_filter} ] | length" "${file}")"
+    secured="$(jq "[ ${op_filter} | select(.security | length > 0) ] | length" "${file}")"
+
+    if [ "${secured}" != "${total}" ]; then
+        echo -e "    ${RED}❌ ${SECURITY_COVERAGE_COMPONENT} has unsecured operations (${secured}/${total} secured):${NC}"
+        jq -r "${op_filter} | select(.security | length == 0) | \"       \(.method | ascii_upcase) \(.path)\"" "${file}"
+        echo -e "    ${RED}Every ledger operation must declare '@Security BearerAuth' (audit finding C1).${NC}"
+        exit 1
+    fi
+
+    ok "All ${total} ${SECURITY_COVERAGE_COMPONENT} operations declare a .security requirement."
+}
+
 drift_check() {
     print_header "Drift check (regenerate and diff)"
 
@@ -151,6 +188,7 @@ drift_check() {
 main() {
     require_jq
     parity_check
+    security_coverage_check
 
     if [ "${CHECK_DOCS_REGEN:-}" = "1" ]; then
         drift_check

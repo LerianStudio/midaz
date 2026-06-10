@@ -51,7 +51,7 @@ type TransactionHandler struct {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
@@ -89,7 +89,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
@@ -127,7 +127,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
@@ -165,7 +165,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
@@ -203,7 +203,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Tags			Transactions
 //	@Accept			mpfd
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -285,7 +285,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Description	Get a Transaction with the input ID
 //	@Tags			Transactions
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"

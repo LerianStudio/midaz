@@ -45,7 +45,7 @@ type BillingPackageHandler struct {
 //	@Tags			Billing Packages
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string					false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string					true	"The unique identifier of the Organization."
 //	@Param			billingPackage		body		model.BillingPackage	true	"BillingPackage Input"
 //	@Success		201					{object}	model.BillingPackage
@@ -104,7 +104,7 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 //	@Description	List all billing packages
 //	@Tags			Billing Packages
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			ledgerId			query		string	false	"Ledger ID (optional — omit to list all packages for the organization)"
 //	@Param			type				query		string	false	"Filter by billing package type (volume or maintenance)"
@@ -200,7 +200,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 //	@Description	Get a billing package by id
 //	@Tags			Billing Packages
 //	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Param			id					path		string	true	"BillingPackage ID"
 //	@Success		200					{object}	model.BillingPackage
@@ -253,7 +253,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 //	@Tags			Billing Packages
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string						false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path		string						true	"The unique identifier of the Organization."
 //	@Param			id					path		string						true	"BillingPackage ID"
 //	@Param			billingPackage		body		model.BillingPackageUpdate	true	"Update BillingPackage Input"
@@ -326,7 +326,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 //	@Summary		SoftDelete a BillingPackage by ID
 //	@Description	SoftDelete a BillingPackage with the input ID
 //	@Tags			Billing Packages
-//	@Param			Authorization		header	string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			organization_id		path	string	true	"The unique identifier of the Organization."
 //	@Param			id					path	string	true	"BillingPackage ID"
 //	@Success		204

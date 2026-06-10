@@ -27,7 +27,7 @@ type AccountTypeHandler struct {
 //	@Tags			Account Types
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
@@ -78,7 +78,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Returns detailed information about an account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string				false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
 //	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
@@ -129,7 +129,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 //	@Tags			Account Types
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
@@ -186,7 +186,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Deletes an existing account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
@@ -234,7 +234,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string																										false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string																										false	"Request ID for tracing"
 //	@Param			organization_id	path		string																										true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																										true	"Ledger ID in UUID format"
