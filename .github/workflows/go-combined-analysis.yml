@@ -35,7 +35,7 @@ jobs:
       # (P5 Decision 1). The tracer BDD suite runs via a BESPOKE, non-gating
       # fast-follow job (tracer's mk/tests.mk `make tracer COMMAND=test-e2e`), not
       # through this caller — nothing here to drop or mis-scope.
-      filter_paths: '["components/crm", "components/ledger", "components/tracer", "components/reporter-manager", "components/reporter-worker"]'
+      filter_paths: '["components/crm", "components/ledger", "components/tracer", "components/reporter"]'
       path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.26.4"

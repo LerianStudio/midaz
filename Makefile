@@ -9,8 +9,7 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRACER_DIR := ./components/tracer
-REPORTER_MANAGER_DIR := ./components/reporter-manager
-REPORTER_WORKER_DIR := ./components/reporter-worker
+REPORTER_DIR := ./components/reporter
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
@@ -19,7 +18,7 @@ PKG_DIR := ./pkg
 # Adding a future component means editing ONLY this list, nothing else.
 # Infra is config-only (no Go build, no image) and is sequenced separately
 # by the service-lifecycle targets.
-GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR) $(REPORTER_MANAGER_DIR) $(REPORTER_WORKER_DIR)
+GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR) $(REPORTER_DIR)
 
 # Pinned tool versions — single source of truth (P8-T01).
 # Keep in sync with .github/workflows/go-combined-analysis.yml.
@@ -125,8 +124,7 @@ help:
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make tracer COMMAND=<cmd>         - Run command in tracer component"
-	@echo "  make reporter-manager COMMAND=<cmd> - Run command in reporter-manager component"
-	@echo "  make reporter-worker COMMAND=<cmd>  - Run command in reporter-worker component"
+	@echo "  make reporter COMMAND=<cmd>       - Run command in reporter component (unified api+worker)"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
@@ -570,7 +568,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra ledger tracer reporter-manager reporter-worker all-components
+.PHONY: infra ledger tracer reporter all-components
 infra:
 	$(call print_title,Running command in infra component)
 	@if [ -z "$(COMMAND)" ]; then \
@@ -595,21 +593,13 @@ tracer:
 	fi
 	@cd $(TRACER_DIR) && $(MAKE) $(COMMAND)
 
-reporter-manager:
-	$(call print_title,Running command in reporter-manager component)
+reporter:
+	$(call print_title,Running command in reporter component)
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
-	@cd $(REPORTER_MANAGER_DIR) && $(MAKE) $(COMMAND)
-
-reporter-worker:
-	$(call print_title,Running command in reporter-worker component)
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(REPORTER_WORKER_DIR) && $(MAKE) $(COMMAND)
+	@cd $(REPORTER_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,Running command across all components)

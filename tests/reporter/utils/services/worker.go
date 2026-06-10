@@ -28,7 +28,7 @@ type WorkerService struct {
 func StartWorker(ctx context.Context, cfg *ServiceConfig) (*WorkerService, error) {
 	// Build the worker binary if needed
 	binaryPath := "./.bin/worker-test"
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/reporter-worker/cmd/app")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/reporter/cmd/app")
 	buildCmd.Dir = findProjectRoot()
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
@@ -129,6 +129,7 @@ func buildWorkerEnv(cfg *ServiceConfig) []string {
 	env := os.Environ()
 
 	// Service
+	env = append(env, "RUN_MODE=worker")
 	env = append(env, "ENV_NAME=test")
 	env = append(env, "LOG_LEVEL=error")
 

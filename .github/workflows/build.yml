@@ -16,6 +16,14 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      # Reporter is ONE component (components/reporter) but emits TWO images. The
+      # two filter paths below are Dockerfile-only build contexts that exist solely
+      # to PIN the stable image names the external Helm chart depends on: their
+      # basenames derive midaz-reporter-manager (distroless, RUN_MODE=api) and
+      # midaz-reporter-worker (alpine+Chromium, RUN_MODE=worker). Both Dockerfiles
+      # compile the SAME components/reporter/cmd/app/main.go from the repo-root
+      # build context. The actual reporter source lives under components/reporter,
+      # which is listed in shared_paths below so a change there rebuilds BOTH images.
       filter_paths: |-
         components/ledger
         components/tracer
@@ -26,6 +34,7 @@ jobs:
         go.sum
         pkg/
         Makefile
+        components/reporter
       path_level: '2'
       app_name_prefix: "midaz"
       enable_dockerhub: true

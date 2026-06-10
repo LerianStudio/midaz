@@ -43,7 +43,7 @@ func StartManager(ctx context.Context, cfg *ServiceConfig) (*ManagerService, err
 
 	// Build the manager binary if needed
 	binaryPath := "./.bin/manager-test"
-	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/reporter-manager/cmd/app")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, "./components/reporter/cmd/app")
 	buildCmd.Dir = findProjectRoot()
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
@@ -133,6 +133,7 @@ func buildManagerEnv(cfg *ServiceConfig) []string {
 	env := os.Environ()
 
 	// Service
+	env = append(env, "RUN_MODE=api")
 	env = append(env, "ENV_NAME=test")
 	env = append(env, "SERVER_ADDRESS="+cfg.ServerAddress)
 	env = append(env, "LOG_LEVEL=error")

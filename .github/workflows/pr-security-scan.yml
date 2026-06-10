@@ -41,8 +41,7 @@ jobs:
         components/crm
         components/ledger
         components/tracer
-        components/reporter-manager
-        components/reporter-worker
+        components/reporter
       shared_paths: |
         go.mod
         go.sum
