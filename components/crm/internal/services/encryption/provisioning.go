@@ -10,11 +10,30 @@ import (
 	"fmt"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+)
+
+// defaultAuditActor is the ActorID recorded when the provision request omits an
+// actor. It documents that the action was initiated by the service itself
+// rather than an authenticated principal.
+const defaultAuditActor = "system"
+
+// auditActorTypeService classifies the actor as a service principal. It matches
+// the default applied by mmodel.NewProtectionAuditEvent for an empty ActorType.
+const auditActorTypeService = "service"
+
+// Static, error-free Reason phrases per outcome. They never carry dynamic error
+// text or PII, so they are safe to persist in the audit trail.
+const (
+	reasonProvisionSuccess       = "organization encryption provisioned"
+	reasonProvisionAlreadyExists = "organization encryption already provisioned"
+	reasonProvisionFailure       = "organization encryption provisioning failed"
 )
 
 // EntityOrganizationEncryption is the entity type for encryption-related errors.
@@ -63,14 +82,22 @@ type provisioningService struct {
 	registryRepo    mongoEncryption.RegistryRepository
 	keysetGenerator KeysetGenerator
 	kekMountPath    string
+	auditWriter     AuditWriter
 }
 
 // NewProvisioningService creates a new provisioning service with the given dependencies.
+//
+// auditWriter receives a best-effort, non-blocking provisioning audit event for
+// every terminal outcome of Provision. It MUST be non-nil: the provisioning
+// service exists only in envelope mode, where bootstrap always constructs a
+// repository-backed AuditWriter. Audit emission never affects the provisioning
+// result, return value, or error path.
 func NewProvisioningService(
 	keysetRepo mongoEncryption.KeysetRepository,
 	registryRepo mongoEncryption.RegistryRepository,
 	keysetGenerator KeysetGenerator,
 	config ProvisioningConfig,
+	auditWriter AuditWriter,
 ) ProvisioningService {
 	mountPath := config.KEKMountPath
 	if mountPath == "" {
@@ -82,6 +109,7 @@ func NewProvisioningService(
 		registryRepo:    registryRepo,
 		keysetGenerator: keysetGenerator,
 		kekMountPath:    mountPath,
+		auditWriter:     auditWriter,
 	}
 }
 
@@ -135,24 +163,44 @@ type ProvisionResult struct {
 //  3. Persists wrapped keysets to storage
 //  4. Creates registry record in active status
 func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
+	result, outcome, err := s.provision(ctx, req)
+
+	// Single-point, best-effort audit emission: exactly one event per terminal
+	// path, based on the outcome we are about to return. This must never alter
+	// the provisioning result, return value, or error path.
+	s.emitProvisioningAudit(ctx, req, result, outcome, err)
+
+	return result, err
+}
+
+// provision performs the actual provisioning work and reports the terminal
+// audit outcome alongside the result/error. It is the single internal entry
+// point so the exported Provision can emit exactly one audit event. The helpers
+// return their own outcome; this method never emits.
+func (s *provisioningService) provision(ctx context.Context, req ProvisionInput) (ProvisionResult, mmodel.AuditOutcome, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
-		return ProvisionResult{}, err
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
 	}
 
 	// Validate request
 	if err := req.Validate(); err != nil {
-		return ProvisionResult{}, fmt.Errorf("invalid provision request: %w", err)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, fmt.Errorf("invalid provision request: %w", err)
 	}
 
 	// Check if already provisioned (idempotent behavior)
 	provisioned, err := s.IsProvisioned(ctx, req.OrganizationID)
 	if err != nil {
-		return ProvisionResult{}, fmt.Errorf("failed to check provisioning status: %w", err)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, fmt.Errorf("failed to check provisioning status: %w", err)
 	}
 
 	if provisioned {
-		return s.getExistingProvisionResult(ctx, req.OrganizationID)
+		result, err := s.getExistingProvisionResult(ctx, req.OrganizationID)
+		if err != nil {
+			return result, mmodel.AuditOutcomeFailure, err
+		}
+
+		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
 	// Generate KEK path for this organization
@@ -161,18 +209,18 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 	// Generate AEAD keyset
 	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Check context before generating MAC keyset
 	if err := ctx.Err(); err != nil {
-		return ProvisionResult{}, err
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
 	}
 
 	// Generate MAC keyset
 	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, kekPath)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Build organization keyset
@@ -197,37 +245,126 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 			return s.handleExistingKeyset(ctx, req)
 		}
 
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Create and save registry record
 	return s.createAndSaveRegistry(ctx, req, kekPath, aeadBundle.Wrapped.Info.PrimaryKeyID, macBundle.Wrapped.Info.PrimaryKeyID)
 }
 
+// emitProvisioningAudit builds and emits exactly one best-effort provisioning
+// audit event for the terminal outcome. It is intentionally tolerant: if the
+// event cannot be built it debug-logs and skips emission, and it never inspects
+// the writer's result. Emission MUST NOT affect the provisioning outcome.
+func (s *provisioningService) emitProvisioningAudit(ctx context.Context, req ProvisionInput, result ProvisionResult, outcome mmodel.AuditOutcome, provErr error) {
+	logger, _, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+
+	actorID := req.Actor
+	if actorID == "" {
+		actorID = defaultAuditActor
+	}
+
+	input := mmodel.ProtectionAuditEventInput{
+		TenantID:       req.TenantID,
+		OrganizationID: req.OrganizationID,
+		EventType:      mmodel.AuditEventTypeProvisioning,
+		Action:         mmodel.AuditActionProvision,
+		Outcome:        outcome,
+		ActorID:        actorID,
+		ActorType:      auditActorTypeService,
+		Reason:         reasonForOutcome(outcome),
+		RequestID:      reqID,
+		Details:        provisioningAuditDetails(result, outcome, provErr),
+	}
+
+	event, err := mmodel.NewProtectionAuditEvent(input)
+	if err != nil {
+		if logger != nil {
+			logger.Log(ctx, libLog.LevelDebug, "audit event build skipped",
+				libLog.String("organization_id", req.OrganizationID),
+				libLog.String("outcome", string(outcome)))
+		}
+
+		return
+	}
+
+	s.auditWriter.EmitAsync(ctx, event)
+}
+
+// reasonForOutcome returns the static, error-free Reason phrase for an outcome.
+func reasonForOutcome(outcome mmodel.AuditOutcome) string {
+	switch outcome {
+	case mmodel.AuditOutcomeSuccess:
+		return reasonProvisionSuccess
+	case mmodel.AuditOutcomeAlreadyExists:
+		return reasonProvisionAlreadyExists
+	default:
+		return reasonProvisionFailure
+	}
+}
+
+// provisioningAuditDetails builds the non-sensitive AuditDetails for the event.
+// On success it records NewStatus=active and the affected primary key IDs; on
+// failure it records the static provisioning error code. It never includes
+// dynamic error text, keysets, or PII.
+func provisioningAuditDetails(result ProvisionResult, outcome mmodel.AuditOutcome, provErr error) *mmodel.AuditDetails {
+	switch outcome {
+	case mmodel.AuditOutcomeSuccess:
+		keyIDs := make([]uint32, 0, 2)
+		if result.AEADPrimaryKeyID != 0 {
+			keyIDs = append(keyIDs, result.AEADPrimaryKeyID)
+		}
+
+		if result.MACPrimaryKeyID != 0 {
+			keyIDs = append(keyIDs, result.MACPrimaryKeyID)
+		}
+
+		return &mmodel.AuditDetails{
+			NewStatus:      string(mmodel.RegistryStatusActive),
+			AffectedKeyIDs: keyIDs,
+		}
+	case mmodel.AuditOutcomeFailure:
+		if provErr == nil {
+			return nil
+		}
+
+		return &mmodel.AuditDetails{
+			ErrorCode: constant.ErrProvisioningFailed.Error(),
+		}
+	default:
+		return nil
+	}
+}
+
 // handleExistingKeyset handles the case where a keyset already exists but registry creation
 // failed (partial failure recovery). Completes provisioning by creating the registry.
-func (s *provisioningService) handleExistingKeyset(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
+func (s *provisioningService) handleExistingKeyset(ctx context.Context, req ProvisionInput) (ProvisionResult, mmodel.AuditOutcome, error) {
 	// Check if registry exists
 	existingRegistry, err := s.registryRepo.Get(ctx, req.OrganizationID)
 	if err != nil && !errors.Is(err, constant.ErrRegistryNotFound) && !errors.Is(err, mmodel.ErrRegistryNotFound) {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	if existingRegistry != nil {
 		// Both keyset and registry exist - truly already provisioned
 		// Return existing info for idempotent behavior
-		return s.getExistingProvisionResult(ctx, req.OrganizationID)
+		result, err := s.getExistingProvisionResult(ctx, req.OrganizationID)
+		if err != nil {
+			return result, mmodel.AuditOutcomeFailure, err
+		}
+
+		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
 	// Keyset exists but registry doesn't - recover from partial failure
 	// Read the existing keyset to get key IDs
 	existingKeyset, err := s.keysetRepo.Get(ctx, req.OrganizationID)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	if existingKeyset == nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Complete provisioning by creating the registry
@@ -237,21 +374,26 @@ func (s *provisioningService) handleExistingKeyset(ctx context.Context, req Prov
 
 // createAndSaveRegistry creates a registry record and saves it.
 // Idempotent: if registry already exists (concurrent provisioning race), returns existing result.
-func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, macKeyID uint32) (ProvisionResult, error) {
+func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, macKeyID uint32) (ProvisionResult, mmodel.AuditOutcome, error) {
 	// Create registry record in active status
 	registry, err := mmodel.NewOrganizationRegistryRecord(req.TenantID, req.OrganizationID, req.Actor, req.Reason)
 	if err != nil {
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	// Save registry record
 	if err := s.registryRepo.Save(ctx, registry); err != nil {
 		// Idempotent: if registry already exists (concurrent provisioning), return existing result
 		if errors.Is(err, constant.ErrRegistryAlreadyExists) || errors.Is(err, mmodel.ErrRegistryAlreadyExists) {
-			return s.getExistingProvisionResult(ctx, req.OrganizationID)
+			result, err := s.getExistingProvisionResult(ctx, req.OrganizationID)
+			if err != nil {
+				return result, mmodel.AuditOutcomeFailure, err
+			}
+
+			return result, mmodel.AuditOutcomeAlreadyExists, nil
 		}
 
-		return ProvisionResult{}, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
 	return ProvisionResult{
@@ -260,7 +402,7 @@ func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req Pro
 		AEADPrimaryKeyID: aeadKeyID,
 		MACPrimaryKeyID:  macKeyID,
 		RegistryStatus:   mmodel.RegistryStatusActive,
-	}, nil
+	}, mmodel.AuditOutcomeSuccess, nil
 }
 
 // getExistingProvisionResult retrieves provisioning info for an already-provisioned organization.

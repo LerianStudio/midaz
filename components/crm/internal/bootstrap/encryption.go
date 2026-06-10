@@ -26,6 +26,7 @@ type wireEncryptionServicesInput struct {
 	vaultClient          *vault.Client
 	keysetRepo           mongoEncryption.KeysetRepository
 	registryRepo         mongoEncryption.RegistryRepository
+	auditWriter          encryption.AuditWriter
 	legacyCrypto         encryption.LegacyCrypto
 	vaultMountPath       string
 	allowGracefulDegrade bool
@@ -120,12 +121,15 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Create Tink keyset factory for provisioning
 	keysetFactory := tink.NewKeysetFactory(input.vaultClient)
 
-	// Wire ProvisioningService FIRST (required by KeysetManager for lazy provisioning)
+	// Wire ProvisioningService FIRST (required by KeysetManager for lazy provisioning).
+	// auditWriter is envelope-only: bootstrap constructs a repository-backed writer
+	// in the envelope branch and threads it in here. It is never nil in this path.
 	provisioningService := encryption.NewProvisioningService(
 		input.keysetRepo,
 		input.registryRepo,
 		&keysetGeneratorAdapter{factory: keysetFactory},
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		input.auditWriter,
 	)
 
 	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService

@@ -505,6 +505,14 @@ type testWireEncryptionServicesInput struct {
 	allowGracefulDegrade bool
 }
 
+// stubAuditWriter is a discarding encryption.AuditWriter for wiring tests. The
+// wiring tests assert services are constructed but never call Provision, so the
+// writer is never exercised.
+type stubAuditWriter struct{}
+
+func (stubAuditWriter) Emit(_ context.Context, _ *mmodel.ProtectionAuditEvent)      {}
+func (stubAuditWriter) EmitAsync(_ context.Context, _ *mmodel.ProtectionAuditEvent) {}
+
 // testWireEncryptionServicesWithMocks wires encryption services using mock dependencies.
 // This function is test-only and allows passing mock implementations for all dependencies.
 func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) wireEncryptionServicesOutput {
@@ -613,12 +621,15 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Wire ProvisioningService with mock dependencies
+	// Wire ProvisioningService with mock dependencies. The AuditWriter is required
+	// (no nil-default); a discarding stub is sufficient since these wiring tests
+	// never invoke Provision.
 	provisioningService := encryption.NewProvisioningService(
 		keysetRepo,
 		registryRepo,
 		mockGenerator,
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		stubAuditWriter{},
 	)
 
 	return wireEncryptionServicesOutput{
