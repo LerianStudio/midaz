@@ -272,14 +272,14 @@ func TestRedisChecker_NilConn_Required_ReportsDown(t *testing.T) {
 }
 
 // TestRedisChecker_NilConn_Optional_ReportsSkipped verifies the Worker-style
-// case: when Redis is only used conditionally (FETCHER_ENABLED=true OR
-// MULTI_TENANT_ENABLED=true) and neither flag is set, a nil connection is
-// expected and MUST report StatusSkipped — not StatusDown — so the canonical
-// aggregation rule (skipped counts as healthy) does not falsely fail
-// /readyz / startup self-probe / Docker healthcheck.
+// case: when Redis is only used conditionally (MULTI_TENANT_ENABLED=true) and
+// that flag is not set, a nil connection is expected and MUST report
+// StatusSkipped — not StatusDown — so the canonical aggregation rule (skipped
+// counts as healthy) does not falsely fail /readyz / startup self-probe /
+// Docker healthcheck.
 //
 // Regression test for the Worker self-probe false-positive where
-// `FETCHER_ENABLED=false` + `MULTI_TENANT_ENABLED=false` produced
+// `MULTI_TENANT_ENABLED=false` produced
 // `dep:"redis", status:"down", error:"connection not configured"` and
 // caused Docker to mark the Worker container unhealthy.
 func TestRedisChecker_NilConn_Optional_ReportsSkipped(t *testing.T) {
@@ -292,10 +292,10 @@ func TestRedisChecker_NilConn_Optional_ReportsSkipped(t *testing.T) {
 		"optional Redis with no connection must be skipped, not down")
 	assert.NotEmpty(t, got.Reason,
 		"skipped status must carry a human-readable reason for operators")
-	assert.Contains(t, got.Reason, "FETCHER_ENABLED",
-		"reason must explain why Redis was deemed not required: %q", got.Reason)
 	assert.Contains(t, got.Reason, "MULTI_TENANT_ENABLED",
 		"reason must explain why Redis was deemed not required: %q", got.Reason)
+	assert.NotContains(t, got.Reason, "FETCHER_ENABLED",
+		"reason must not cite the removed FETCHER_ENABLED env var: %q", got.Reason)
 	assert.Empty(t, got.Error,
 		"skipped is not an error condition — Error must be empty")
 }

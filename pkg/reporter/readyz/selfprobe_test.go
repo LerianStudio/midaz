@@ -305,7 +305,7 @@ func TestRunSelfProbe_Degraded_ReturnsError(t *testing.T) {
 
 // TestRunSelfProbe_AllSkipped_ReturnsNil verifies that skipped deps count as
 // healthy. A service whose only deps are intentionally disabled (e.g.,
-// FETCHER_ENABLED=false) must be allowed to start.
+// MULTI_TENANT_ENABLED=false) must be allowed to start.
 func TestRunSelfProbe_AllSkipped_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
@@ -313,7 +313,7 @@ func TestRunSelfProbe_AllSkipped_ReturnsNil(t *testing.T) {
 	rec := &recordingLogger{}
 
 	checkers := []Checker{
-		&probeStubChecker{name: "fetcher", result: DependencyCheck{Status: StatusSkipped, Reason: "FETCHER_ENABLED=false"}},
+		&probeStubChecker{name: "redis", result: DependencyCheck{Status: StatusSkipped, Reason: "MULTI_TENANT_ENABLED=false"}},
 		&probeStubChecker{name: "tenant_manager", result: DependencyCheck{Status: StatusSkipped, Reason: "MULTI_TENANT_ENABLED=false"}},
 	}
 
@@ -325,7 +325,7 @@ func TestRunSelfProbe_AllSkipped_ReturnsNil(t *testing.T) {
 	gauge := collectSelfProbeGauge(t, reader)
 	// Skipped deps are reported as up=1 in the gauge — they are intentionally
 	// healthy, not absent.
-	assert.Equal(t, int64(1), gauge["fetcher"])
+	assert.Equal(t, int64(1), gauge["redis"])
 	assert.Equal(t, int64(1), gauge["tenant_manager"])
 }
 
@@ -430,16 +430,15 @@ func TestRunSelfProbe_PerDepLogContainsDepNameAndStatus(t *testing.T) {
 	_, metrics := newProbeMetricsReader(t)
 	rec := &recordingLogger{}
 
-	// Mirror the canonical six-dep set so we exercise the assertion across
-	// the full surface (mongodb, rabbitmq, redis, storage, fetcher,
-	// tenant_manager). A mix of statuses ensures both the success and
-	// failure log paths are covered.
+	// Mirror the canonical five-dep set so we exercise the assertion across
+	// the full surface (mongodb, rabbitmq, redis, storage, tenant_manager).
+	// A mix of statuses ensures both the success and failure log paths are
+	// covered.
 	checkers := []Checker{
 		&probeStubChecker{name: "mongodb", result: DependencyCheck{Status: StatusUp, LatencyMs: 5}},
 		&probeStubChecker{name: "rabbitmq", result: DependencyCheck{Status: StatusUp, LatencyMs: 7}},
 		&probeStubChecker{name: "redis", result: DependencyCheck{Status: StatusDown, Error: "boom"}},
 		&probeStubChecker{name: "storage", result: DependencyCheck{Status: StatusUp, LatencyMs: 3}},
-		&probeStubChecker{name: "fetcher", result: DependencyCheck{Status: StatusSkipped, Reason: "FETCHER_ENABLED=false"}},
 		&probeStubChecker{name: "tenant_manager", result: DependencyCheck{Status: StatusNA, Reason: "MULTI_TENANT_ENABLED=false"}},
 	}
 

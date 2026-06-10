@@ -167,11 +167,11 @@ func applyToxiproxyEndpoints(cfg *ServiceConfig, infra *containers.TestInfrastru
 }
 
 // onboardingDatasourceEnv returns the DATASOURCE_ONBOARDING_* entries that
-// register the onboarding PostgreSQL datasource with a service (DIRECT mode,
-// FETCHER_ENABLED=false). The worker scans os.Environ() for the
-// DATASOURCE_{NAME}_CONFIG_NAME marker (see pkg/reporter/datasource-config.go),
-// so CONFIG_NAME must be present and equal to "midaz_onboarding" for templates
-// and filters keyed on midaz_onboarding to resolve.
+// register the onboarding PostgreSQL datasource with a service (DIRECT mode).
+// The worker scans os.Environ() for the DATASOURCE_{NAME}_CONFIG_NAME marker
+// (see pkg/reporter/datasource-config.go), so CONFIG_NAME must be present and
+// equal to "midaz_onboarding" for templates and filters keyed on
+// midaz_onboarding to resolve.
 //
 // Returns nil when no Postgres datasource is configured, so suites without a
 // Postgres container are unaffected.

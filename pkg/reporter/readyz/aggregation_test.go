@@ -65,7 +65,7 @@ func TestAggregate_CanonicalRule(t *testing.T) {
 		{
 			name: "mix of skipped + n/a yields healthy 200",
 			checks: map[string]DependencyCheck{
-				"fetcher":  {Status: StatusSkipped, Reason: "FETCHER_ENABLED=false"},
+				"redis":    {Status: StatusSkipped, Reason: "MULTI_TENANT_ENABLED=false"},
 				"mongo":    {Status: StatusNA, Reason: "multi-tenant"},
 				"rabbitmq": {Status: StatusNA, Reason: "multi-tenant"},
 			},

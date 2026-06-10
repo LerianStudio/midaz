@@ -74,25 +74,6 @@ func TestBuildWorkerSaaSTLSDeps_NonTLSRabbitBlocksSaaS(t *testing.T) {
 	assert.Contains(t, err.Error(), "rabbitmq")
 }
 
-// TestBuildWorkerSaaSTLSDeps_RedisTLSFalseBlocksSaaS verifies the Redis
-// "Option A" wiring on the Worker side. The Worker only opens a Redis
-// connection when Fetcher or multi-tenant is enabled, so the test must
-// turn one of those flags on for Redis to be in the enforcement list.
-func TestBuildWorkerSaaSTLSDeps_RedisTLSFalseBlocksSaaS(t *testing.T) {
-	t.Parallel()
-
-	cfg := validSaaSTLSWorkerConfig()
-	cfg.FetcherEnabled = true
-	cfg.FetcherURL = "https://fetcher.example.com"
-	cfg.RedisTLS = false
-	// Mongo & Rabbit & storage already TLS in baseline; Redis is the first
-	// non-TLS dep we hit (now reachable because Fetcher is enabled).
-
-	err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildWorkerSaaSTLSDeps(cfg))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "redis")
-}
-
 // TestBuildWorkerSaaSTLSDeps_StorageHTTPBlocksSaaS verifies that an http://
 // OBJECT_STORAGE_ENDPOINT is rejected on the Worker side.
 func TestBuildWorkerSaaSTLSDeps_StorageHTTPBlocksSaaS(t *testing.T) {
@@ -129,63 +110,6 @@ func TestBuildWorkerSaaSTLSDeps_LocalAndBYOCBypassEnforcement(t *testing.T) {
 			require.NoError(t, err, "mode %q must not enforce TLS", mode)
 		})
 	}
-}
-
-// TestBuildWorkerSaaSTLSDeps_FetcherEnforcedOnlyWhenEnabled verifies that
-// FETCHER_ENABLED gates both the Fetcher upstream URL and the Fetcher S3
-// storage endpoint in the dep list.
-func TestBuildWorkerSaaSTLSDeps_FetcherEnforcedOnlyWhenEnabled(t *testing.T) {
-	t.Parallel()
-
-	t.Run("disabled fetcher with http URLs is ignored", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSWorkerConfig()
-		cfg.FetcherEnabled = false
-		cfg.FetcherURL = "http://fetcher:4006"
-		cfg.FetcherStorageEndpoint = "http://fetcher-s3:8333"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildWorkerSaaSTLSDeps(cfg))
-		require.NoError(t, err)
-	})
-
-	t.Run("enabled fetcher with http upstream blocks SaaS", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSWorkerConfig()
-		cfg.FetcherEnabled = true
-		cfg.FetcherURL = "http://fetcher:4006"
-		cfg.FetcherStorageEndpoint = "https://fetcher-s3.example.com"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildWorkerSaaSTLSDeps(cfg))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fetcher")
-	})
-
-	t.Run("enabled fetcher with http storage blocks SaaS", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSWorkerConfig()
-		cfg.FetcherEnabled = true
-		cfg.FetcherURL = "https://fetcher.example.com"
-		cfg.FetcherStorageEndpoint = "http://fetcher-s3:8333"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildWorkerSaaSTLSDeps(cfg))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "fetcher_storage")
-	})
-
-	t.Run("enabled fetcher with all https passes", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := validSaaSTLSWorkerConfig()
-		cfg.FetcherEnabled = true
-		cfg.FetcherURL = "https://fetcher.example.com"
-		cfg.FetcherStorageEndpoint = "https://fetcher-s3.example.com"
-
-		err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, buildWorkerSaaSTLSDeps(cfg))
-		require.NoError(t, err)
-	})
 }
 
 // TestBuildWorkerSaaSTLSDeps_MultiTenantRedisOnlyWhenEnabled verifies that
@@ -647,19 +571,17 @@ func TestSynthesizeWorkerRabbitMQURI_HonorsTLSFlag(t *testing.T) {
 }
 
 // TestBuildWorkerSaaSTLSDeps_RedisOmittedWhenNotRequired verifies that the
-// Worker's Redis dep is excluded from SaaS enforcement when both Fetcher
-// and multi-tenant are disabled. The Worker does not open a Redis
-// connection in this configuration, so a leftover plaintext REDIS_HOST in
-// the environment must not block SaaS bootstrap.
+// Worker's Redis dep is excluded from SaaS enforcement in single-tenant
+// mode. The Worker does not open a Redis connection in this configuration,
+// so a leftover plaintext REDIS_HOST in the environment must not block SaaS
+// bootstrap.
 //
 // The decision mirrors BuildWorkerCheckers in health-server.go where
-// redisRequired = FetcherEnabled || MultiTenantEnabled gates the
-// RedisChecker as required.
+// redisRequired = MultiTenantEnabled gates the RedisChecker as required.
 func TestBuildWorkerSaaSTLSDeps_RedisOmittedWhenNotRequired(t *testing.T) {
 	t.Parallel()
 
 	cfg := validSaaSTLSWorkerConfig()
-	cfg.FetcherEnabled = false
 	cfg.MultiTenantEnabled = false
 	cfg.RedisTLS = false // would block if redis were enforced
 	cfg.RedisHost = "redis.example.com"
@@ -667,7 +589,7 @@ func TestBuildWorkerSaaSTLSDeps_RedisOmittedWhenNotRequired(t *testing.T) {
 	deps := buildWorkerSaaSTLSDeps(cfg)
 	for _, dep := range deps {
 		assert.NotEqual(t, "redis", dep.Name,
-			"redis must be excluded from SaaS deps when neither fetcher nor multi-tenant is enabled")
+			"redis must be excluded from SaaS deps in single-tenant mode")
 	}
 
 	err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, deps)
@@ -675,45 +597,14 @@ func TestBuildWorkerSaaSTLSDeps_RedisOmittedWhenNotRequired(t *testing.T) {
 		"plaintext redis must not block SaaS bootstrap when worker does not open a redis connection")
 }
 
-// TestBuildWorkerSaaSTLSDeps_RedisRequiredWhenFetcherEnabled is the
-// counterpart: with Fetcher enabled the worker opens Redis (reconciler
-// distributed lock), so plaintext Redis MUST block SaaS bootstrap.
-func TestBuildWorkerSaaSTLSDeps_RedisRequiredWhenFetcherEnabled(t *testing.T) {
-	t.Parallel()
-
-	cfg := validSaaSTLSWorkerConfig()
-	cfg.FetcherEnabled = true
-	cfg.FetcherURL = "https://fetcher.example.com"
-	cfg.MultiTenantEnabled = false
-	cfg.RedisTLS = false
-
-	deps := buildWorkerSaaSTLSDeps(cfg)
-
-	var found bool
-
-	for _, dep := range deps {
-		if dep.Name == "redis" {
-			found = true
-			break
-		}
-	}
-
-	assert.True(t, found, "redis must be present in SaaS deps when fetcher is enabled")
-
-	err := readyz.ValidateSaaSTLS(cfg.DeploymentMode, deps)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "redis")
-}
-
 // TestBuildWorkerSaaSTLSDeps_RedisRequiredWhenMultiTenantEnabled covers
-// the second activation path: with multi-tenant enabled the worker opens
+// the activation path: with multi-tenant enabled the worker opens
 // Redis (per-tenant client + tenant event-listener), so plaintext Redis
 // MUST block SaaS bootstrap.
 func TestBuildWorkerSaaSTLSDeps_RedisRequiredWhenMultiTenantEnabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := validSaaSTLSWorkerConfig()
-	cfg.FetcherEnabled = false
 	cfg.MultiTenantEnabled = true
 	cfg.MultiTenantURL = "https://tenant-manager.example.com"
 	cfg.MultiTenantRedisHost = "tenant-redis.example.com"

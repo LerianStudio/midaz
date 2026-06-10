@@ -46,11 +46,11 @@ Services split into:
 |-------------|-------------|------|
 | **`components/ledger`** | Unified binary: single process serving onboarding + transaction + CRM (holders/instruments) + fees | 3002 |
 | **`components/tracer`** | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | 4020 |
-| **`components/reporter-manager`** | Async report-generation REST API (templates, reports, deadlines) | 4005 |
-| **`components/reporter-worker`** | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
+| **`components/reporter`** (api surface, `RUN_MODE=api`) | Async report-generation REST API (templates, reports, deadlines) | 4005 |
+| **`components/reporter`** (worker surface, `RUN_MODE=worker`) | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
 | **`components/infra`** | Single consolidated docker-compose for shared infra (no Go build) | - |
 
-There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer and the two reporter services are co-located in the monorepo but each is a separate Go service deploy unit using the single root `go.mod`.
+There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer is a co-located but separate Go service deploy unit. Reporter is a single Go binary at `components/reporter` (`RUN_MODE=api|worker|all`) deployed split as an api Deployment (:4005) and a worker Deployment (:4006) from one image; the `components/reporter-{manager,worker}` dirs survive only as Dockerfile image-name anchors. All use the single root `go.mod`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -89,8 +89,8 @@ server := bootstrap.NewUnifiedServer(
 
 ### Component Layout
 
-This layout describes the Go service deploy units only — `ledger`, `tracer`, and the two
-`reporter-*` units. `components/crm` is the exception: it is a package tree (no `cmd/`, no
+This layout describes the Go service deploy units only — `ledger`, `tracer`, and `reporter`
+(one binary, `RUN_MODE=api|worker|all` split). `components/crm` is the exception: it is a package tree (no `cmd/`, no
 `internal/`) imported by the ledger binary, holding only `adapters/mongodb/` and `services/`
 (plus shared models); its entire HTTP surface lives in the ledger tree at
 `components/ledger/internal/adapters/http/in/`. `components/infra` is docker-compose only.
@@ -141,8 +141,8 @@ components/{service}/
 | `ledger` | 3002 | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees | Single Go service deploy unit; absorbs `crm` and fees |
 | `crm` | - | Customer/holder management, instruments | Package tree (no `cmd/`, no `internal/`) imported by the ledger binary; its HTTP surface lives in the ledger tree at `components/ledger/internal/adapters/http/in/` and registers under the `midaz` authz namespace. Not a deploy unit, emits no image. |
 | `tracer` | 4020 | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | Separate Go service deploy unit |
-| `reporter-manager` | 4005 | Async report-generation REST API (templates, reports, deadlines) | Separate Go service deploy unit |
-| `reporter-worker` | 4006 (HEALTH_PORT) | Headless RabbitMQ consumer rendering report artifacts | Separate Go service deploy unit; health probe only, no business REST surface |
+| `reporter` (api) | 4005 | Async report-generation REST API (templates, reports, deadlines) | `RUN_MODE=api` surface of the unified `components/reporter` binary; deployed as its own image/Deployment |
+| `reporter` (worker) | 4006 (HEALTH_PORT) | Headless RabbitMQ consumer rendering report artifacts | `RUN_MODE=worker` surface of the same binary; health probe only, no business REST surface |
 | `infra` | - | Single consolidated docker-compose for shared infra (PostgreSQL, MongoDB, Valkey, RabbitMQ, otel-lgtm, SeaweedFS) | Infrastructure-only, no Go build |
 
 ### Component Capabilities Matrix

@@ -1,6 +1,6 @@
 # Reporter → Embedded Fetcher Engine Migration
 
-Status: PLAN (not started) · Author: pairing w/ Galadriel · Date: 2026-06-09
+Status: Phases 0–5 COMPLETE; Phase 6 (single binary + split deploy) COMPLETE; Phase 7 (cleanup) COMPLETE · Author: pairing w/ Galadriel · Date: 2026-06-09
 Anchored to: `github.com/LerianStudio/fetcher/pkg/engine@pkg/engine/v1.0.0`
 
 ## Goal
@@ -136,7 +136,7 @@ it first.
 
 ## Phasing (rolling wave — Phase 1 detailed, rest epic-level)
 
-### Phase 0 — De-risk gate (DETAILED)
+### Phase 0 — De-risk gate (DETAILED) — ✅ COMPLETE
 The whole premise is "embedding inherits zero deps." Prove it before building anything.
 - 0.1 Add `require github.com/LerianStudio/fetcher/pkg/engine v1.0.0` to midaz go.mod;
   `go mod download`.
@@ -146,7 +146,7 @@ The whole premise is "embedding inherits zero deps." Prove it before building an
 - **GATE**: if anything bumps, STOP — investigate whether the engine module is truly
   clean or pruning leaked something; decide before proceeding.
 
-### Phase 1 — Tenant-aware connector adapter (DETAILED — critical path)
+### Phase 1 — Tenant-aware connector adapter (DETAILED — critical path) — ✅ COMPLETE
 Location: `components/reporter-worker/internal/adapters/engine/` (or `pkg/reporter/engine/`).
 - 1.1 `ConnectorRegistry`: map `datasourceType` (postgres/mongodb/…) → `ConnectorFactory`.
 - 1.2 `ConnectorFactory.Build(ctx, descriptor)`: map `ConnectionDescriptor` (host/port/db/
@@ -165,36 +165,39 @@ Location: `components/reporter-worker/internal/adapters/engine/` (or `pkg/report
   tenant isolation, ctx-cancel mid-stream, and a large-result test asserting bounded
   memory (cursor, not load-all).
 
-### Phase 2 — Wire engine into the worker
+### Phase 2 — Wire engine into the worker — ✅ COMPLETE
 - ConnectionStore (read-mostly over datasource-config) + Observability adapter; optional
   SchemaCache (Redis), ExecutionStore (Mongo). `engine.New(...)` in worker bootstrap with
   `Validate()` fail-fast. No CredentialProtector / WithEncryptedPersistence.
 
-### Phase 3 — Swap the worker job handler
+### Phase 3 — Swap the worker job handler — ✅ COMPLETE
 - generate-report handler: in-process `PlanExtraction` + `ExecuteExtraction` (Direct mode)
   → result map → render → deliver S3 → mark finished. Delete notification consumer,
   process-notification, reconciler, ExtractionMapping.
 
-### Phase 4 — Manager schema/validate in-process
+### Phase 4 — Manager schema/validate in-process — ✅ COMPLETE
 - Replace `FetcherProvider` `ListDataSources`/`ValidateSchema` with an in-process
   schema-scoped engine (DiscoverSchema/ValidateSchema), mirroring fetcher's
   connection_engine/schema_engine host pattern.
 
-### Phase 5 — Store-mode streaming sink (bounded memory for big reports)
+### Phase 5 — Store-mode streaming sink (bounded memory for big reports) — ✅ COMPLETE
 - Implement `ResultSink.OpenResultStream → ResultStreamWriter` over delivery S3 (or a
   staging area) so huge extractions stream to disk/object-store with constant memory
   instead of materializing in RAM. Choose Direct vs Store per report size threshold.
 
-### Phase 6 — Single binary + split deploy
+### Phase 6 — Single binary + split deploy — ✅ COMPLETE
 - `RUN_MODE=api|worker|all` runnable gating on the Launcher. **Mode-aware config
   validation** (api-only must not require S3/RabbitMQ; worker-only must not require HTTP
   TLS) and **mode-aware /readyz** probe sets. Helm: two Deployments, one image, split in
   prod; KEDA on queue depth for worker. Delete the fetcher HTTP client package, `FETCHER_*`
   env, transport-S3/HMAC. Collapse the separate reporter-worker deploy unit.
 
-### Phase 7 — Cleanup
+### Phase 7 — Cleanup — ✅ COMPLETE
 - Remove DirectProvider/FetcherProvider abstraction, dead env, update docs / llms-full.txt
-  / Helm values / postman.
+  / Helm values / postman. Worker-side vestigial fetcher/M2M config fields,
+  `reconcilerCancel` stub, and obsolete fetcher-gated TLS tests removed; `FETCHER_*`
+  env stripped from `.env.example`; STRUCTURE.md / AGENTS.md updated to the unified
+  `components/reporter` + `RUN_MODE=api|worker|all` reality.
 
 ## Sequencing decision
 

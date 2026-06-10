@@ -53,8 +53,8 @@ const (
 	StatusDegraded Status = "degraded"
 
 	// StatusSkipped means the dependency is intentionally disabled by config
-	// (e.g. FETCHER_ENABLED=false). The DependencyCheck.Reason field carries
-	// the human-readable explanation.
+	// (e.g. Redis on a single-tenant Worker with MULTI_TENANT_ENABLED=false).
+	// The DependencyCheck.Reason field carries the human-readable explanation.
 	StatusSkipped Status = "skipped"
 
 	// StatusNA means the dependency is not applicable in the current mode

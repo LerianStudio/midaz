@@ -69,11 +69,3 @@ func TestRegisterNotificationConsumerMultiTenant_AcceptsMongoManager(t *testing.
 
 	assert.Len(t, mockConsumer.registerCalls, 1, "Register must be called exactly once")
 }
-
-func TestService_ReconcilerCancel_Field_Exists(t *testing.T) {
-	t.Parallel()
-
-	// Verify that the Service struct has a reconcilerCancel field.
-	svc := &Service{}
-	assert.Nil(t, svc.reconcilerCancel, "reconcilerCancel must exist on Service and default to nil")
-}

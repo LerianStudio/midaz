@@ -114,9 +114,7 @@ type ValidationWarning struct {
 	Message string `json:"message"`
 }
 
-// ExtractionJobRequest represents a request to extract data from a data source
-// via the Fetcher service (dual-mode). Used when FETCHER_ENABLED=true to
-// delegate data extraction to the external Fetcher API.
+// ExtractionJobRequest represents a request to extract data from a data source.
 type ExtractionJobRequest struct {
 	// DataSourceID identifies which data source to extract from.
 	DataSourceID string `json:"dataSourceId"`

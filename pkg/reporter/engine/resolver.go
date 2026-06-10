@@ -110,9 +110,8 @@ type SingleTenantDatasources interface {
 type singleTenantDatasources = SingleTenantDatasources
 
 // singleTenantResolver resolves to the stable, env-configured datasource pools.
-// It ignores tenant identity entirely: in single-tenant mode (formerly
-// FETCHER_ENABLED=false) the whole process serves one logical tenant and the
-// datasources are global.
+// It ignores tenant identity entirely: in single-tenant mode the whole process
+// serves one logical tenant and the datasources are global.
 type singleTenantResolver struct {
 	datasources singleTenantDatasources
 }

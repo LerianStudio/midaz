@@ -2,7 +2,7 @@
 
 ## What Is This?
 
-Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships five deploy units: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, the two-unit Reporter (manager + worker), and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
+Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships four deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, the unified Reporter (one codebase deployed split via `RUN_MODE=api|worker`), and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
 
 ## Quick Facts
 
@@ -15,18 +15,19 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | HTTP Framework | Fiber v2 |
 | Databases | PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey |
 | lib-commons | `github.com/LerianStudio/lib-commons/v5` (+ `lib-observability`) |
-| Deploy units | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter Manager (:4005), Reporter Worker (:4006), Infra (Docker Compose) |
+| Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter (one image, `RUN_MODE=api` :4005 / `RUN_MODE=worker` :4006), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
-> `transaction_create.go`). Tracer and the two reporter components are separate Go services.
+> `transaction_create.go`). Tracer and Reporter are separate Go services; Reporter is one
+> codebase (`components/reporter`) deployed split via `RUN_MODE=api|worker`.
 
 ## Get Running
 
 ```bash
 make set-env     # Create .env files
-make up          # Start everything (infra → ledger → tracer → reporter-manager → reporter-worker)
+make up          # Start everything (infra → ledger → tracer → reporter api+worker surfaces)
 make test-unit   # Run unit tests
 make lint        # Lint all code
 ```
@@ -53,7 +54,11 @@ components/crm/         → CRM package tree (holders/instruments), imported by 
 components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fees types)
   (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
 
-components/{tracer,reporter-manager,reporter-worker}/  → Separate Go service deploy units
+components/tracer/     → Separate Go service deploy unit
+components/reporter/   → Unified reporter codebase (one image, RUN_MODE=api|worker|all)
+  internal/manager/    → REST API surface (:4005)
+  internal/worker/     → RabbitMQ consumer + health server surface (:4006)
+  (components/reporter-{manager,worker}/ are Dockerfile-stub image-name anchors)
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
@@ -61,7 +66,7 @@ pkg/
   errors.go           → Typed error structs
   gold/               → Transaction DSL parser (ANTLR4)
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)
-  reporter/           → Reporter shared library (used by both reporter deploy units)
+  reporter/           → Reporter shared library (used by both reporter RUN_MODE surfaces)
   net/http/           → Middleware, pagination, route helpers
 ```
 

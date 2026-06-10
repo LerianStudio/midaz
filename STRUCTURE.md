@@ -5,9 +5,11 @@ single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.26.3, single root `go
 `go.work`, no `replace`) following hexagonal architecture with Command Query Responsibility
 Segregation (CQRS).
 
-The repository ships **five deploy units** (four Go services + infra). CRM and fees are not
+The repository ships **four deploy surfaces** (three Go binaries + infra). CRM and fees are not
 deploy units: CRM is a collapsed package tree imported by the ledger binary, and fees are
-embedded inside the ledger binary.
+embedded inside the ledger binary. Reporter is one unified codebase
+(`components/reporter`) that ships as a single image deployed in two `RUN_MODE` surfaces
+(api on `:4005`, worker on `:4006`).
 
 #### Directory Layout
 
@@ -53,15 +55,16 @@ MIDAZ
  |   |   |   |---   app
  |   |   |---   internal
  |   |   |---   migrations
- |   |---   reporter-manager       # DEPLOY UNIT :4005
- |   |   |---   api
+ |   |---   reporter               # UNIFIED CODEBASE — one image, RUN_MODE=api|worker|all
+ |   |   |---   api                # api surface (:4005) Swagger spec
  |   |   |---   cmd
- |   |   |   |---   app
+ |   |   |   |---   app            # single main.go; RUN_MODE selects the surface
  |   |   |---   internal
- |   |---   reporter-worker        # DEPLOY UNIT :4006
- |   |   |---   cmd
- |   |   |   |---   app
- |   |   |---   internal
+ |   |   |   |---   app            # shared bootstrap wiring (RUN_MODE dispatch)
+ |   |   |   |---   manager        # REST API surface (:4005)
+ |   |   |   |---   worker         # RabbitMQ consumer + health server surface (:4006)
+ |   |---   reporter-manager       # Dockerfile stub (distroless image anchor, RUN_MODE=api)
+ |   |---   reporter-worker        # Dockerfile stub (alpine+Chromium image anchor, RUN_MODE=worker)
  |   image
  |   pkg                           # shared libraries (root)
  |   |---   constant
@@ -72,7 +75,7 @@ MIDAZ
  |   |---   mtransaction
  |   |---   net
  |   |---   pagination
- |   |---   reporter               # reporter shared library (used by both reporter units)
+ |   |---   reporter               # reporter shared library (used by both RUN_MODE surfaces)
  |   |---   repository
  |   |---   shell
  |   |---   streaming
@@ -93,8 +96,7 @@ MIDAZ
 | **infra** | — | Single `components/infra/docker-compose.yml`: PostgreSQL 17 (primary/replica), MongoDB, Valkey, RabbitMQ, SeaweedFS, KEDA, OTEL-LGTM. All units join `infra-network`. |
 | **ledger** | `:3002` | Unified binary: onboarding + transaction, **CRM** (holders/instruments), and **fees** (fee engine + billing). |
 | **tracer** | `:4020` | Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine, hash-chained audit log. Ships its own migrations under `components/tracer/migrations`. |
-| **reporter-manager** | `:4005` | REST API that accepts report-generation requests and publishes jobs to RabbitMQ (`reporter.generate-report.{exchange,queue,key}`). Distroless image. |
-| **reporter-worker** | `:4006` | Async consumer that renders PDFs via headless Chromium (chromedp) and writes output to S3-compatible object storage (SeaweedFS). Fat alpine image with the Chromium userland (cannot be distroless — R20). |
+| **reporter** | `:4005` / `:4006` | One unified codebase (`components/reporter`), one binary, deployed split via `RUN_MODE`: **api** (`:4005`) is the REST API that accepts report-generation requests and publishes jobs to RabbitMQ (`reporter.generate-report.{exchange,queue,key}`), shipped as a distroless image; **worker** (`:4006`) is the async consumer that runs extraction in-process and renders PDFs via headless Chromium (chromedp), writing output to S3-compatible object storage (SeaweedFS), shipped as a fat alpine image with the Chromium userland (cannot be distroless — R20). `RUN_MODE=all` runs both surfaces in one process (dev only). |
 
 #### Components (`./components`)
 
@@ -144,24 +146,29 @@ CRM scopes requests by the `X-Organization-Id` HTTP header (not path-based org h
 Real-time transaction validation and fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
 hash-chained audit log. Ships its own migrations under `./components/tracer/migrations`.
 
-##### Reporter (`./components/reporter-manager` + `./components/reporter-worker`) — two deploy units
+##### Reporter (`./components/reporter`) — one codebase, two `RUN_MODE` deploy surfaces
 
-Reporter is split across two deploy units (Option C split: shared library extracted to
-`pkg/reporter`, shared suites to `tests/reporter`):
+Reporter is a single unified codebase and binary (`components/reporter`) deployed split via
+`RUN_MODE` (Option C split: shared library extracted to `pkg/reporter`, shared suites to
+`tests/reporter`). Data extraction runs in-process — there is no remote fetcher hop.
 
-* **Reporter Manager** (`./components/reporter-manager`, `:4005`): REST API that accepts
-  report-generation requests and publishes jobs to RabbitMQ. Distroless image.
-* **Reporter Worker** (`./components/reporter-worker`, `:4006`): async consumer that renders PDFs
-  via headless Chromium (chromedp) and writes to S3-compatible object storage. Fat alpine image
-  with the Chromium userland (cannot be distroless — R20).
+* **API surface** (`RUN_MODE=api`, `:4005`): REST API that accepts report-generation requests
+  and publishes jobs to RabbitMQ. Shipped as a distroless image (the
+  `components/reporter-manager` Dockerfile stub is the image-name anchor).
+* **Worker surface** (`RUN_MODE=worker`, `:4006`): async consumer that runs extraction
+  in-process and renders PDFs via headless Chromium (chromedp), writing to S3-compatible object
+  storage. Shipped as a fat alpine image with the Chromium userland (cannot be distroless —
+  R20); the `components/reporter-worker` Dockerfile stub is that image-name anchor.
+* **`RUN_MODE=all`**: both surfaces in one process — dev / minimal envs only.
 
-Both attach to `infra-network` and use the shared Mongo / Valkey / RabbitMQ backing services.
+Both surfaces ship from the same image, attach to `infra-network`, and use the shared Mongo /
+Valkey / RabbitMQ backing services. Production deploys two Deployments (one per surface) from
+that single image; `OTEL_RESOURCE_SERVICE_NAME` and `RUN_MODE` are set per-Deployment.
 
-* **Shared library** (`./pkg/reporter`): datasource/fetcher, PDF/pongo rendering, template
-  builder, S3 (SeaweedFS) and storage adapters, multi-tenant helpers — imported by both reporter
-  deploy units.
+* **Shared library** (`./pkg/reporter`): datasource resolution, PDF/pongo rendering, template
+  builder, S3 (SeaweedFS) and storage adapters, multi-tenant helpers — imported by both surfaces.
 * **Shared suites** (`./tests/reporter`): `e2e`, `integration`, `property`, `fuzzy`, `chaos`,
-  and `utils` test trees for the reporter components.
+  and `utils` test trees for the reporter component.
 
 ##### Infra (`./components/infra`) — deploy unit (backing stack)
 
@@ -181,7 +188,7 @@ Cross-component Go libraries (root module):
 | `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |
 | `pkg/net` | HTTP middleware, pagination, protected-route helpers |
 | `pkg/streaming` | lib-streaming event modeling (`pkg/streaming/events`) |
-| `pkg/reporter` | Reporter shared library (datasource, rendering, storage) used by both reporter units |
+| `pkg/reporter` | Reporter shared library (datasource, rendering, storage) used by both reporter `RUN_MODE` surfaces |
 | `pkg/mbootstrap` | Bootstrap helpers |
 | `pkg/mongo` | MongoDB utilities |
 | `pkg/pagination` | Pagination helpers |

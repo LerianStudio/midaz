@@ -76,27 +76,10 @@ type Config struct {
 	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
 	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
 	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	// Fetcher dual-mode configuration envs
-	FetcherEnabled         bool   `env:"FETCHER_ENABLED" default:"false"`
-	FetcherURL             string `env:"FETCHER_URL"`
-	AppEncKey              string `env:"APP_ENC_KEY"`
-	FetcherStorageBucket   string `env:"FETCHER_STORAGE_BUCKET" default:"fetcher-storage"`
-	FetcherStorageEndpoint string `env:"FETCHER_STORAGE_ENDPOINT"`
-	// M2M auth (multi-tenant only)
-	AWSRegion        string `env:"AWS_REGION"`
-	M2MTargetService string `env:"M2M_TARGET_SERVICE" default:"fetcher"`
-	AuthAddress      string `env:"PLUGIN_AUTH_ADDRESS"`
-	AuthEnabled      bool   `env:"PLUGIN_AUTH_ENABLED"`
-	// Outbound M2M application credentials for calling the Fetcher in
-	// single-tenant deployments. Exchanged for a bearer token via plugin-auth
-	// when PLUGIN_AUTH_ENABLED=true. Multi-tenant deployments resolve
-	// credentials per-tenant from AWS Secrets Manager instead.
-	ClientID     string `env:"FETCHER_M2M_CLIENT_ID"`
-	ClientSecret string `env:"FETCHER_M2M_CLIENT_SECRET"`
-	// Reconciler configuration
-	ReconciliationIntervalMin int `env:"RECONCILIATION_INTERVAL_MIN" default:"5"`
-	M2MCredentialCacheTTLSec  int `env:"M2M_CREDENTIAL_CACHE_TTL_SEC" default:"300"`
-	M2MTokenCacheMarginSec    int `env:"M2M_TOKEN_CACHE_MARGIN_SEC" default:"60"`
+	AWSRegion                    string `env:"AWS_REGION"`
+	AuthAddress                  string `env:"PLUGIN_AUTH_ADDRESS"`
+	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
+	ReconciliationIntervalMin    int    `env:"RECONCILIATION_INTERVAL_MIN" default:"5"`
 	// Multi-tenant configuration envs
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
 	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
@@ -136,7 +119,7 @@ func InitWorker() (_ *Service, err error) {
 
 	// Gate 4: SaaS TLS enforcement. When DEPLOYMENT_MODE=saas, refuse to
 	// start if any configured DSN lacks TLS. Runs BEFORE any connection
-	// opens (Mongo, RabbitMQ, Redis, Storage, Fetcher, Tenant Manager) so a
+	// opens (Mongo, RabbitMQ, Redis, Storage, Tenant Manager) so a
 	// misconfigured SaaS deployment cannot silently start insecure.
 	//
 	// Bypassable via ALLOW_INSECURE_TLS (same flag/semantics as lib-commons:
@@ -203,8 +186,8 @@ func enforceWorkerSaaSTLS(cfg *Config) error {
 // the runtime uses to decide whether to construct each connection.
 //
 // Empty URIs are intentional and harmless: ValidateSaaSTLS skips deps whose
-// URI is empty, so optional dependencies (Fetcher, multi-tenant Redis,
-// fetcher_storage) auto-disable themselves when not configured.
+// URI is empty, so optional dependencies (multi-tenant Redis) auto-disable
+// themselves when not configured.
 //
 // Redis special case: this codebase does not have a single Redis URI; it has
 // (host, port, REDIS_TLS bool) separately. We synthesize a "redis://" or
@@ -213,9 +196,8 @@ func enforceWorkerSaaSTLS(cfg *Config) error {
 // shape (also keeps DetectRedisTLS contract uniform).
 //
 // Redis is conditionally enforced: the Worker only constructs a Redis
-// connection when FETCHER_ENABLED=true (reconciler distributed lock) OR
-// MULTI_TENANT_ENABLED=true (per-tenant Redis client + tenant
-// event-listener). When both are false the Worker never dials Redis, so a
+// connection when MULTI_TENANT_ENABLED=true (per-tenant Redis client + tenant
+// event-listener). In single-tenant mode the Worker never dials Redis, so a
 // leftover plaintext REDIS_HOST in the environment must NOT block SaaS
 // bootstrap. This mirrors the redisRequired gate in BuildWorkerCheckers
 // (health-server.go) so the readyz aggregation and SaaS enforcement see
@@ -228,24 +210,13 @@ func buildWorkerSaaSTLSDeps(cfg *Config) []readyz.SaaSTLSDep {
 	}
 
 	// Redis is only required when the Worker actually opens it. Mirrors
-	// redisRequired = FetcherEnabled || MultiTenantEnabled in
-	// BuildWorkerCheckers.
-	if cfg.FetcherEnabled || cfg.MultiTenantEnabled {
+	// redisRequired = MultiTenantEnabled in BuildWorkerCheckers.
+	if cfg.MultiTenantEnabled {
 		deps = append(deps, readyz.SaaSTLSDep{
 			Name:     "redis",
 			URI:      synthesizeWorkerRedisURI(cfg.RedisHost, cfg.RedisTLS),
 			DetectFn: readyz.DetectRedisTLS,
 		})
-	}
-
-	// Fetcher upstream URL + the Fetcher-specific S3 storage are only enforced
-	// when Fetcher is enabled. When disabled, both URLs may be unset and must
-	// not block SaaS bootstrap.
-	if cfg.FetcherEnabled {
-		deps = append(deps,
-			readyz.SaaSTLSDep{Name: "fetcher", URI: cfg.FetcherURL, DetectFn: readyz.DetectHTTPUpstreamTLS},
-			readyz.SaaSTLSDep{Name: "fetcher_storage", URI: cfg.FetcherStorageEndpoint, DetectFn: readyz.DetectS3TLS},
-		)
 	}
 
 	// Multi-tenant deps are only enforced when MT is actually enabled AND

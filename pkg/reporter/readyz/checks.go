@@ -49,11 +49,10 @@ const (
 
 	// reasonRedisOptionalUnused is the reason string when Redis is not
 	// configured AND not required by the current service configuration. The
-	// Worker uses Redis only when FETCHER_ENABLED=true (reconciler distributed
-	// lock) OR MULTI_TENANT_ENABLED=true (per-tenant Redis client + tenant
-	// event-listener); when both flags are false a nil RedisConnection is the
-	// expected steady state, NOT an error condition.
-	reasonRedisOptionalUnused = "redis not used in this configuration (FETCHER_ENABLED=false and MULTI_TENANT_ENABLED=false)"
+	// Worker uses Redis only when MULTI_TENANT_ENABLED=true (per-tenant Redis
+	// client + tenant event-listener); in single-tenant mode a nil
+	// RedisConnection is the expected steady state, NOT an error condition.
+	reasonRedisOptionalUnused = "redis not used in this configuration (single-tenant mode, MULTI_TENANT_ENABLED=false)"
 
 	// readinessProbeKey is the synthetic S3 key used to exercise the storage
 	// API path during readiness checks. It is intentionally unlikely to
@@ -338,8 +337,7 @@ func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
 // The required flag distinguishes services where Redis is mandatory (the
 // Manager — used by rate-limiter, idempotency, multi-tenant cache) from
 // services where Redis is conditional on feature flags (the Worker — used
-// only when FETCHER_ENABLED=true for the reconciler distributed lock OR
-// when MULTI_TENANT_ENABLED=true for the per-tenant Redis client and
+// only when MULTI_TENANT_ENABLED=true for the per-tenant Redis client and
 // tenant event-listener).
 //
 // When required=false and conn=nil the checker reports StatusSkipped with

@@ -129,10 +129,9 @@ func initMultiTenantConsumerWithRedis(
 ) (*tmconsumer.MultiTenantConsumer, *tmrabbitmq.Manager, *libRedis.RedisConnection, func(), error) {
 	// tmClient nil check is performed by the caller (initMultiTenantConsumer).
 
-	// Application Redis for internal worker operations (Reconciler distributed locking,
-	// tenant-aware key prefixing via GetKeyContext). Uses REDIS_HOST — NOT MULTI_TENANT_REDIS_*.
-	// The MULTI_TENANT_REDIS_* env vars are reserved for the EventListener Pub/Sub connection
-	// to tenant-manager (see TASK-019).
+	// Application Redis for internal worker operations and readyz probing. Uses
+	// REDIS_HOST — NOT MULTI_TENANT_REDIS_*. The MULTI_TENANT_REDIS_* env vars are
+	// reserved for the EventListener Pub/Sub connection to tenant-manager.
 	redisConn := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		MasterName:                   cfg.RedisMasterName,

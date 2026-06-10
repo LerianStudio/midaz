@@ -35,9 +35,6 @@ type Service struct {
 	mtConsumer MultiTenantConsumerInterface
 	// mtCleanup is the cleanup function for multi-tenant resources (Redis, etc.)
 	mtCleanup func()
-	// reconcilerCancel cancels the reconciler goroutine context during graceful shutdown.
-	// Nil when fetcher mode is disabled.
-	reconcilerCancel context.CancelFunc
 	// eventListenerCleanup stops the tenant event listener and closes its dedicated Redis
 	// Pub/Sub client. Nil when MULTI_TENANT_REDIS_HOST is not configured (lazy-load only).
 	eventListenerCleanup func()
@@ -88,20 +85,12 @@ func (app *Service) ConsumerApp() commons.App {
 // Shutdown closes worker resources in reverse initialization order. It is
 // invoked by Run() after the launcher unblocks, and by the unified app
 // orchestrator after the shared launcher terminates. Every teardown step
-// (reconciler cancel, health checker, health server, PDF pool, event
-// listener, multi-tenant resources, RabbitMQ, MongoDB, telemetry flush) is
-// preserved here so a graceful SIGTERM drains the same way under either
-// caller.
+// (health checker, health server, PDF pool, event listener, multi-tenant
+// resources, RabbitMQ, MongoDB, telemetry flush) is preserved here so a
+// graceful SIGTERM drains the same way under either caller.
 func (app *Service) Shutdown() {
 	// Graceful shutdown - close resources in reverse initialization order
 	app.Info("Starting graceful shutdown...")
-
-	// Cancel reconciler goroutine first so it stops before resources are closed
-	if app.reconcilerCancel != nil {
-		app.Info("Cancelling reconciler context...")
-		app.reconcilerCancel()
-		app.Info("Reconciler context cancelled")
-	}
 
 	// Stop health checker
 	if app.healthChecker != nil {
