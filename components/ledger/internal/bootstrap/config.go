@@ -877,7 +877,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, FeeApplier: fees.useCase, TracerReserver: tracerReserver}
+	transactionHandler := &httpin.TransactionHandler{
+		Command:            commandUseCase,
+		Query:              queryUseCase,
+		FeeApplier:         fees.useCase,
+		TracerReserver:     tracerReserver,
+		FeesMongoManager:   feeMgo.mongoManager,
+		MultiTenantEnabled: cfg.MultiTenantEnabled,
+	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
@@ -984,7 +991,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager, tenantServiceName)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
 	}
@@ -1525,6 +1532,19 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
 
 		return nil, nil
+	}
+
+	// Fail-fast guard: the ledger has no service-to-service token source today, so
+	// no M2MTokenProvider is ever wired below. Under multi-tenancy the tracer's
+	// TenantMiddleware derives tenantId from the JWT bearer; with no Authorization
+	// header every /v1/reservations call ships unauthenticated and tenant-less,
+	// failing closed (or resolving the wrong tenant pool) on the synchronous
+	// transaction-create hot path. Refuse to boot a multi-tenant deployment that
+	// enables the integration until that auth wiring exists, mirroring the empty
+	// baseURL fail-fast philosophy.
+	if cfg.MultiTenantEnabled {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true with TRACER_BASE_URL set requires a tracer M2M auth provider that is not yet wired; " +
+			"reservation calls would ship unauthenticated and tenant-less. Unset TRACER_BASE_URL to disable the integration until S2S auth is available")
 	}
 
 	opts := []tracerclient.TracerClientOption{}
