@@ -17,16 +17,16 @@ import (
 )
 
 // @title			Midaz Ledger API
-// @version		v4.0.0
+// @version		4.0.0
 // @description	This is a swagger documentation for the Midaz Ledger API. This unified service combines Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), Holders and Instruments endpoints (holder and instrument account management), Fees endpoints (packages, estimates, billing), the Holder-Account composition endpoint, and Metadata Index endpoints in a single service.
-// @termsOfService	http://swagger.io/terms/
+// @termsOfService	https://www.elastic.co/licensing/elastic-license
 // @contact.name	Discord community
 // @contact.url	https://discord.gg/DnhqKwkGv3
 // @license.name	Elastic License 2.0
 // @license.url	https://www.elastic.co/licensing/elastic-license
 // @host			localhost:3002
 // @BasePath		/
-// @schemes		http
+// @schemes		http https
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization

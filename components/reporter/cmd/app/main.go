@@ -17,16 +17,21 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/zap"
 )
 
-// @title						Reporter API
+// @title						Midaz Reporter API
 // @version					4.0.0
-// @description				This is a swagger documentation for Reporter. The unified reporter binary serves the REST API (RUN_MODE=api) and/or the RabbitMQ report-generation worker (RUN_MODE=worker); RUN_MODE=all runs both in one process for local development.
-// @termsOfService				http://swagger.io/terms/
+// @description				This is a swagger documentation for Reporter. The unified reporter binary serves the REST API (RUN_MODE=api) and/or the RabbitMQ report-generation worker (RUN_MODE=worker); RUN_MODE=all runs both in one process for local development. All REST endpoints documented here serve only when RUN_MODE=api or all (port :4005); the worker (port :4006) exposes health/readyz only.
+// @termsOfService				https://www.elastic.co/licensing/elastic-license
+// @contact.name				Discord community
+// @contact.url				https://discord.gg/DnhqKwkGv3
+// @license.name				Elastic License 2.0
+// @license.url				https://www.elastic.co/licensing/elastic-license
 // @host						localhost:4005
 // @BasePath					/
+// @schemes					http https
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
-// @description				The authorization token in the 'Bearer access_token' format. Only required when auth plugin is enabled.
+// @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
 func main() {
 	libCommons.InitLocalEnvConfig()
 

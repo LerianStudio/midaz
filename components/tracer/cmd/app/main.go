@@ -22,10 +22,14 @@ import (
 	_ "go.uber.org/automaxprocs"
 )
 
-// @title						Tracer API
+// @title						Midaz Tracer API
 // @version						4.0.0
-// @description					Transaction validation service with rules and limits
-// @termsOfService				http://swagger.io/terms/
+// @description					Midaz Tracer API — pre-flight transaction validation. Provides CEL-based rule evaluation, spending limits, two-phase reservations (hold / confirm / release), validation decisions, and a hash-chained audit trail.
+// @termsOfService				https://www.elastic.co/licensing/elastic-license
+// @contact.name				Discord community
+// @contact.url					https://discord.gg/DnhqKwkGv3
+// @license.name				Elastic License 2.0
+// @license.url					https://www.elastic.co/licensing/elastic-license
 // @host						localhost:4020
 // @schemes						http https
 // @BasePath					/

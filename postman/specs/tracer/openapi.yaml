@@ -1,9 +1,16 @@
 openapi: 3.0.1
 info:
-  contact: {}
-  description: Transaction validation service with rules and limits
-  termsOfService: http://swagger.io/terms/
-  title: Tracer API
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: "Midaz Tracer API — pre-flight transaction validation. Provides CEL-based\
+    \ rule evaluation, spending limits, two-phase reservations (hold / confirm / release),\
+    \ validation decisions, and a hash-chained audit trail."
+  license:
+    name: Elastic License 2.0
+    url: https://www.elastic.co/licensing/elastic-license
+  termsOfService: https://www.elastic.co/licensing/elastic-license
+  title: Midaz Tracer API
   version: 4.0.0
 servers:
 - url: http://localhost:4020/
@@ -1821,12 +1828,12 @@ components:
   schemas:
     api.ErrorResponse:
       example:
-        code: TRC-0001
+        code: "0053"
         message: Invalid input provided
         title: Bad Request
       properties:
         code:
-          example: TRC-0001
+          example: "0053"
           type: string
         message:
           example: Invalid input provided

@@ -9,8 +9,15 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {},
+        "termsOfService": "https://www.elastic.co/licensing/elastic-license",
+        "contact": {
+            "name": "Discord community",
+            "url": "https://discord.gg/DnhqKwkGv3"
+        },
+        "license": {
+            "name": "Elastic License 2.0",
+            "url": "https://www.elastic.co/licensing/elastic-license"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -3493,8 +3500,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:4020",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
-	Title:            "Tracer API",
-	Description:      "Transaction validation service with rules and limits",
+	Title:            "Midaz Tracer API",
+	Description:      "Midaz Tracer API — pre-flight transaction validation. Provides CEL-based rule evaluation, spending limits, two-phase reservations (hold / confirm / release), validation decisions, and a hash-chained audit trail.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

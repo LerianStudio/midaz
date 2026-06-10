@@ -25,7 +25,7 @@ POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
 
 # Components merged into the unified MIDAZ collection (ledger is primary)
-COMPONENTS=("ledger" "tracer" "reporter-manager")
+COMPONENTS=("ledger" "tracer" "reporter")
 
 # Colors for output
 GREEN='\033[0;32m'

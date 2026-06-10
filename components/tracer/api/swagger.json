@@ -5,10 +5,17 @@
     ],
     "swagger": "2.0",
     "info": {
-        "description": "Transaction validation service with rules and limits",
-        "title": "Tracer API",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {},
+        "description": "Midaz Tracer API — pre-flight transaction validation. Provides CEL-based rule evaluation, spending limits, two-phase reservations (hold / confirm / release), validation decisions, and a hash-chained audit trail.",
+        "title": "Midaz Tracer API",
+        "termsOfService": "https://www.elastic.co/licensing/elastic-license",
+        "contact": {
+            "name": "Discord community",
+            "url": "https://discord.gg/DnhqKwkGv3"
+        },
+        "license": {
+            "name": "Elastic License 2.0",
+            "url": "https://www.elastic.co/licensing/elastic-license"
+        },
         "version": "4.0.0"
     },
     "host": "localhost:4020",

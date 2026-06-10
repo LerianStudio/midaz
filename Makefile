@@ -130,6 +130,7 @@ help:
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
+	@echo "  make check-docs                  - Verify OpenAPI spec metadata parity (CHECK_DOCS_REGEN=1 also checks drift)"
 	@echo ""
 	@echo ""
 	@echo "Migration Commands:"
@@ -620,6 +621,10 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./postman/generator/generate-docs.sh
+
+.PHONY: check-docs
+check-docs:
+	@./postman/generator/check-docs.sh
 
 #-------------------------------------------------------
 # Developer Helper Commands

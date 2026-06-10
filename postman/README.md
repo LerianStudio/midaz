@@ -32,11 +32,24 @@ make generate-docs
 |---------|------|-------|
 | `ledger` | `:3002` | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees, all on one base URL |
 | `tracer` | `:4020` | Real-time transaction validation / fraud prevention |
-| `reporter-manager` | `:4005` | Async report management API |
+| `reporter` | `:4005` | Async report management API |
 
 `reporter-worker` is health-only (no REST API) and `crm` is a package tree folded
 into the ledger binary (its endpoints are part of the ledger swagger), so neither
 is generated separately.
+
+## General-info parity (enforced by `make check-docs`)
+
+The three component specs MUST agree on these `info` fields — keep them in sync when editing any `components/<c>/cmd/app/main.go` header:
+
+- `info.contact` — Discord community / https://discord.gg/DnhqKwkGv3
+- `info.license` — Elastic License 2.0 / https://www.elastic.co/licensing/elastic-license
+- `info.termsOfService` — https://www.elastic.co/licensing/elastic-license
+- `schemes` — `http https`
+- `info.version` — `4.0.0` (no `v` prefix)
+- `info.title` — must start with `Midaz `
+
+Security schemes intentionally differ and are NOT part of parity: ledger/reporter use `BearerAuth` (Authorization header), tracer uses `ApiKeyAuth` (X-API-Key). Do not normalize them.
 
 ## Layout
 
@@ -44,12 +57,12 @@ is generated separately.
 postman/
 ├── README.md                          # This file
 ├── WORKFLOW.md                        # Ledger end-to-end workflow definition (DO NOT MODIFY)
-├── MIDAZ.postman_collection.json      # Merged collection (ledger + tracer + reporter-manager)
+├── MIDAZ.postman_collection.json      # Merged collection (ledger + tracer + reporter)
 ├── MIDAZ.postman_environment.json     # Merged environment
 ├── specs/                             # Published OpenAPI specs per service
 │   ├── ledger/{swagger.json,swagger.yaml,openapi.yaml}
 │   ├── tracer/{swagger.json,swagger.yaml,openapi.yaml}
-│   └── reporter-manager/{swagger.json,swagger.yaml,openapi.yaml}
+│   └── reporter/{swagger.json,swagger.yaml,openapi.yaml}
 ├── backups/                           # Timestamped collection/environment backups (gitignored)
 ├── temp/                              # Scratch space used during a run (gitignored)
 └── generator/                         # Generation tooling
@@ -65,12 +78,12 @@ postman/
 ## Collection structure
 
 The merged collection is one **MIDAZ** collection. The ledger spec is primary, and
-the tracer and reporter-manager specs contribute their own folders (grouped by
+the tracer and reporter specs contribute their own folders (grouped by
 OpenAPI tag). Requests route to per-service base URLs:
 
 - Ledger uses `{{onboardingUrl}}` / `{{transactionUrl}}` (both resolve to `:3002`).
 - Tracer uses `{{tracerUrl}}` (`:4020`).
-- Reporter-manager uses `{{reportermanagerUrl}}` (`:4005`).
+- Reporter uses `{{reporterUrl}}` (`:4005`).
 
 Set `host` and `authToken` in the environment and the per-service URLs resolve
 automatically.
@@ -80,7 +93,7 @@ automatically.
 `WORKFLOW.md` defines an end-to-end ledger flow (Organization -> Ledger -> Account
 -> Transaction -> balance zero-out). `create-workflow.js` turns it into the
 "Complete API Workflow" folder during generation. This workflow chain covers the
-**ledger flow only** — tracer and reporter-manager appear in the collection as
+**ledger flow only** — tracer and reporter appear in the collection as
 plain endpoint folders without a scripted workflow. `WORKFLOW.md` is marked
 DO-NOT-MODIFY; treat it as the source of truth for the ledger workflow.
 

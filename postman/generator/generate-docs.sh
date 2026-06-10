@@ -17,7 +17,7 @@ GENERATOR_DIR="${ROOT_DIR}/postman/generator"
 SPECS_DIR="${ROOT_DIR}/postman/specs"
 
 # Components to process (each must have a cmd/app/main.go entry point)
-COMPONENTS=("ledger" "tracer" "reporter-manager")
+COMPONENTS=("ledger" "tracer" "reporter")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"

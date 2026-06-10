@@ -3,7 +3,8 @@
 # ------------------------------------------------------
 # API documentation/OpenAPI generation is single-sourced at the repo root
 # (`make generate-docs` -> postman/generator/generate-docs.sh, which regenerates
-# ledger, tracer and reporter-manager specs and refreshes the Postman hub).
+# ledger, tracer and reporter specs and refreshes the Postman hub). The
+# `check-docs` parity/drift guardrail also lives at the repo root, next to it.
 #
 # This fragment keeps only the per-component annotation-coverage check, used by
 # tracer's pre-merge gate. It depends on a component-local ./scripts/verify-api-docs.sh.

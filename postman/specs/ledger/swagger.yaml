@@ -3972,9 +3972,9 @@ info:
   license:
     name: Elastic License 2.0
     url: https://www.elastic.co/licensing/elastic-license
-  termsOfService: http://swagger.io/terms/
+  termsOfService: https://www.elastic.co/licensing/elastic-license
   title: Midaz Ledger API
-  version: v4.0.0
+  version: 4.0.0
 paths:
   /v1/organizations:
     get:
@@ -10947,6 +10947,7 @@ paths:
       - Metadata Indexes
 schemes:
 - http
+- https
 securityDefinitions:
   BearerAuth:
     description: 'Bearer token authentication. Format: ''Bearer {access_token}''.

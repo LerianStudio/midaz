@@ -99,7 +99,7 @@ function parseCommandLineArgs() {
   }
 
   // Component name drives ledger-only enrichment (base-URL routing, env template).
-  // Non-ledger components (tracer, reporter-manager) get a generic single-base-URL
+  // Non-ledger components (tracer, reporter) get a generic single-base-URL
   // collection and a minimal environment.
   let component = 'ledger';
   if (args.includes('--component') && args.indexOf('--component') + 1 < args.length) {
@@ -710,7 +710,7 @@ function createRequestItem(operation, path, method, spec) {
   // Determine the base URL variable. Ledger's unified binary historically split
   // onboarding vs transaction surfaces; both now serve on :3002, but the env
   // template keeps both aliases for backward compatibility. Non-ledger components
-  // (tracer, reporter-manager) expose a single base URL under a component-scoped
+  // (tracer, reporter) expose a single base URL under a component-scoped
   // variable so the merged MIDAZ environment carries distinct, non-colliding keys.
   let baseUrlVariable = `{{${componentEnvPrefix(COMPONENT)}Url}}`;
   if (COMPONENT === 'ledger') {
@@ -1161,10 +1161,10 @@ function addResponseExamples(requestItem, operation, spec) {
 // Default host port per non-ledger component (single base URL each).
 const COMPONENT_PORTS = {
   tracer: '4020',
-  'reporter-manager': '4005'
+  reporter: '4005'
 };
 
-// camelCase env-variable prefix for a component (e.g. reporter-manager -> reportermanager).
+// camelCase env-variable prefix for a component (strips hyphens, e.g. data-source -> datasource).
 function componentEnvPrefix(component) {
   return component.replace(/-/g, '');
 }

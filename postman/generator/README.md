@@ -36,13 +36,13 @@ postman/generator/
 ## Scope
 
 `generate-docs.sh` and `sync-postman.sh` cover **ledger, tracer and
-reporter-manager**. The ledger spec is primary; tracer and reporter-manager
+reporter**. The ledger spec is primary; tracer and reporter
 contribute their own folders to the merged collection.
 
 The **workflow generator** (`create-workflow.js`, `config/`, `lib/`) is
 **ledger-only by design**: it consumes `postman/WORKFLOW.md` (the ledger
 end-to-end flow) and produces the "Complete API Workflow" folder. Tracer and
-reporter-manager are documented as plain endpoint folders without a scripted
+reporter are documented as plain endpoint folders without a scripted
 workflow.
 
 ## Usage

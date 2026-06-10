@@ -1,12 +1,22 @@
 openapi: 3.0.1
 info:
-  contact: {}
-  description: This is a swagger documentation for Reporter
-  termsOfService: http://swagger.io/terms/
-  title: Reporter API
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: This is a swagger documentation for Reporter. The unified reporter
+    binary serves the REST API (RUN_MODE=api) and/or the RabbitMQ report-generation
+    worker (RUN_MODE=worker); RUN_MODE=all runs both in one process for local development.
+    All REST endpoints documented here serve only when RUN_MODE=api or all (port :4005);
+    the worker (port :4006) exposes health/readyz only.
+  license:
+    name: Elastic License 2.0
+    url: https://www.elastic.co/licensing/elastic-license
+  termsOfService: https://www.elastic.co/licensing/elastic-license
+  title: Midaz Reporter API
   version: 4.0.0
 servers:
-- url: //localhost:4005/
+- url: http://localhost:4005/
+- url: https://localhost:4005/
 paths:
   /v1/data-sources:
     get:
@@ -25,19 +35,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -65,31 +75,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -132,25 +142,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -177,25 +187,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -219,31 +229,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/internal_adapters_http_in.notificationResponse'
+                $ref: '#/components/schemas/internal_manager_adapters_http_in.notificationResponse'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -268,31 +278,31 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -326,31 +336,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -386,31 +396,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -436,31 +446,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/internal_adapters_http_in.metricsResponse'
+                $ref: '#/components/schemas/internal_manager_adapters_http_in.metricsResponse'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -480,6 +490,7 @@ paths:
           - Finished
           - Error
           - PendingExtraction
+          - Partial
           type: string
       - description: Template UUID (also accepts templateId)
         in: query
@@ -568,25 +579,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -625,31 +636,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -678,31 +689,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -744,46 +755,46 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
             application/octet-stream:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
             application/octet-stream:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
             application/octet-stream:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
             application/octet-stream:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
             application/octet-stream:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -817,25 +828,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -868,25 +879,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -908,19 +919,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -942,19 +953,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -983,25 +994,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -1032,25 +1043,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -1076,31 +1087,31 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -1127,31 +1138,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -1183,31 +1194,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Forbidden
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Not Found
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError'
+                $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
       security:
       - BearerAuth: []
@@ -1602,25 +1613,6 @@ components:
           example: 2026-01-01T00:00:00Z
           type: string
       type: object
-    github_com_LerianStudio_midaz_v4_pkg_reporter.HTTPError:
-      example:
-        code: code
-        err: "{}"
-        entityType: entityType
-        message: message
-        title: title
-      properties:
-        code:
-          type: string
-        entityType:
-          type: string
-        err:
-          type: object
-        message:
-          type: string
-        title:
-          type: string
-      type: object
     github_com_LerianStudio_midaz_v4_pkg_reporter_mongodb_template.Template:
       example:
         createdAt: 2021-01-01T00:00:00Z
@@ -1649,7 +1641,7 @@ components:
           example: 2021-01-01T00:00:00Z
           type: string
       type: object
-    internal_adapters_http_in.errorMetrics:
+    internal_manager_adapters_http_in.errorMetrics:
       example:
         previousPeriodTotal: 6
         total: 1
@@ -1659,7 +1651,7 @@ components:
         total:
           type: integer
       type: object
-    internal_adapters_http_in.metricsResponse:
+    internal_manager_adapters_http_in.metricsResponse:
       example:
         reports: 5
         templates: 5
@@ -1671,13 +1663,13 @@ components:
         dataSources:
           type: integer
         errors:
-          $ref: '#/components/schemas/internal_adapters_http_in.errorMetrics'
+          $ref: '#/components/schemas/internal_manager_adapters_http_in.errorMetrics'
         reports:
           type: integer
         templates:
           type: integer
       type: object
-    internal_adapters_http_in.notificationItem:
+    internal_manager_adapters_http_in.notificationItem:
       example:
         daysUntilDue: 0
         severity: severity
@@ -1718,7 +1710,7 @@ components:
         type:
           type: string
       type: object
-    internal_adapters_http_in.notificationResponse:
+    internal_manager_adapters_http_in.notificationResponse:
       example:
         total: 5
         items:
@@ -1751,7 +1743,7 @@ components:
       properties:
         items:
           items:
-            $ref: '#/components/schemas/internal_adapters_http_in.notificationItem'
+            $ref: '#/components/schemas/internal_manager_adapters_http_in.notificationItem'
           type: array
         total:
           type: integer
@@ -1846,6 +1838,25 @@ components:
           items:
             type: object
           type: array
+      type: object
+    pkg.HTTPError:
+      example:
+        code: code
+        err: "{}"
+        entityType: entityType
+        message: message
+        title: title
+      properties:
+        code:
+          type: string
+        entityType:
+          type: string
+        err:
+          type: object
+        message:
+          type: string
+        title:
+          type: string
       type: object
     pongo.BlockDefinition:
       example:
@@ -2417,8 +2428,8 @@ components:
       type: object
   securitySchemes:
     BearerAuth:
-      description: The authorization token in the 'Bearer access_token' format. Only
-        required when auth plugin is enabled.
+      description: "Bearer token authentication. Format: 'Bearer {access_token}'.\
+        \ Only required when auth plugin is enabled."
       in: header
       name: Authorization
       type: apiKey
