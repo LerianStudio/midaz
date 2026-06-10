@@ -120,8 +120,8 @@ func (uc *UseCase) prepareTemplateCreation(ctx context.Context, span trace.Span,
 
 	var midazOrgID string
 
-	if _, hasPluginCRM := mappedFields[pluginCRMDataSourceID]; hasPluginCRM {
-		if ds, exists := uc.ExternalDataSources.Get(pluginCRMDataSourceID); exists {
+	if _, hasCRM := mappedFields[crmDataSourceID]; hasCRM {
+		if ds, exists := uc.ExternalDataSources.Get(crmDataSourceID); exists {
 			midazOrgID = ds.MidazOrganizationID
 		}
 	}

@@ -39,13 +39,13 @@ func TestUseCase_TransformMappedFieldsForStorage(t *testing.T) {
 		{
 			name: "Success - Plugin CRM database adds organization mapping",
 			mappedFields: map[string]map[string][]string{
-				"plugin_crm": {
+				"crm": {
 					"contacts": {"id", "name"},
 				},
 			},
 			organizationID: "org-456",
 			expected: map[string]map[string][]string{
-				"plugin_crm": {
+				"crm": {
 					"contacts":     {"id", "name"},
 					"organization": {"org-456"},
 				},
@@ -57,7 +57,7 @@ func TestUseCase_TransformMappedFieldsForStorage(t *testing.T) {
 				"midaz_onboarding": {
 					"users": {"id"},
 				},
-				"plugin_crm": {
+				"crm": {
 					"leads": {"name", "email"},
 				},
 			},
@@ -66,7 +66,7 @@ func TestUseCase_TransformMappedFieldsForStorage(t *testing.T) {
 				"midaz_onboarding": {
 					"users": {"id"},
 				},
-				"plugin_crm": {
+				"crm": {
 					"leads":        {"name", "email"},
 					"organization": {"org-789"},
 				},

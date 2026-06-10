@@ -160,7 +160,7 @@ tests/reporter/e2e/
 │   └── infra.go                        # Infrastructure setup (MongoDB, PG, RabbitMQ, Redis, MinIO)
 └── testdata/
     ├── init_postgres.sql               # PostgreSQL seed data (midaz_onboarding)
-    ├── init_mongo.js                   # MongoDB seed data (plugin_crm)
+    ├── init_mongo.js                   # MongoDB seed data (crm)
     └── templates/                      # Template fixtures (23 .tpl + not-tpl.txt)
         ├── valid_html.tpl
         ├── valid_csv.tpl
@@ -302,7 +302,7 @@ func TestFilter_EqSingleValue(t *testing.T) { ... }
 |-----------|---------|--------------|
 | MongoDB | Reporter metadata storage | 27017 |
 | PostgreSQL | midaz_onboarding data source | 5432 |
-| MongoDB (plugin_crm) | plugin_crm data source | 27018 |
+| MongoDB (crm) | crm data source | 27018 |
 | RabbitMQ | Report generation queue | 5672 |
 | Redis | Cache and distributed locking | 6379 |
 | MinIO | S3-compatible report storage | 9000 |
@@ -412,10 +412,10 @@ docker ps -a | grep -E "(mongo|rabbit|redis|minio|postgres)" | awk '{print $1}' 
 
 | File | Test | Description |
 |------|------|-------------|
-| `infra_datasources_test.go` | `TestDS_ListDataSources` | List returns midaz_onboarding, midaz_transaction, and plugin_crm |
+| `infra_datasources_test.go` | `TestDS_ListDataSources` | List returns midaz_onboarding, midaz_transaction, and crm |
 | `infra_datasources_test.go` | `TestDS_GetMidazOnboarding` | Get PostgreSQL data source details (midaz_onboarding) |
 | `infra_datasources_test.go` | `TestDS_GetMidazTransaction` | Get PostgreSQL data source details (midaz_transaction) |
-| `infra_datasources_test.go` | `TestDS_GetPluginCRM` | Get MongoDB data source details |
+| `infra_datasources_test.go` | `TestDS_GetCRM` | Get MongoDB data source details |
 | `infra_datasources_test.go` | `TestDS_GetNotFound` | 404 for non-existent data source |
 | `infra_datasources_test.go` | `TestDS_GetPathTraversal` | Path traversal attack prevention |
 | `infra_datasources_test.go` | `TestDS_SchemaCaching` | Schema caching mechanisms |

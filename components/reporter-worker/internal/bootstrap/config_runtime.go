@@ -125,7 +125,7 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 	logger.Log(ctx, clog.LevelInfo, "Readyz + datasource metrics registered with OTel provider", clog.Bool("real_meter", meterForMetrics != nil))
 
 	// Connect to external datasources. The embedded engine resolves and queries
-	// these in-process (and the plugin_crm fan-out reuses the same pools); the
+	// these in-process (and the crm fan-out reuses the same pools); the
 	// HTTP-fetcher path that previously skipped direct connections is gone.
 	externalDataSourcesMap := pkg.ExternalDatasourceConnections(logger)
 	externalDataSources := pkg.NewSafeDataSources(externalDataSourcesMap)
@@ -140,19 +140,19 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 	appendWorkerPDFCleanup(logger, pdfPool, cleanups)
 
 	service := &services.UseCase{
-		Logger:                          logger,
-		Tracer:                          tracer,
-		MetricsFactory:                  workerMetricsFactory(telemetry),
-		TemplateSeaweedFS:               templateSeaweedFS.NewStorageRepository(storageClient),
-		ReportSeaweedFS:                 reportSeaweedFS.NewStorageRepository(storageClient),
-		ExternalDataSources:             externalDataSources,
-		ReportDataRepo:                  reportMongoDBRepository,
-		CircuitBreakerManager:           circuitBreakerManager,
-		HealthChecker:                   healthChecker,
-		ReportTTL:                       "",
-		PdfPool:                         pdfPool,
-		CryptoHashSecretKeyPluginCRM:    cfg.CryptoHashSecretKeyPluginCRM,
-		CryptoEncryptSecretKeyPluginCRM: cfg.CryptoEncryptSecretKeyPluginCRM,
+		Logger:                    logger,
+		Tracer:                    tracer,
+		MetricsFactory:            workerMetricsFactory(telemetry),
+		TemplateSeaweedFS:         templateSeaweedFS.NewStorageRepository(storageClient),
+		ReportSeaweedFS:           reportSeaweedFS.NewStorageRepository(storageClient),
+		ExternalDataSources:       externalDataSources,
+		ReportDataRepo:            reportMongoDBRepository,
+		CircuitBreakerManager:     circuitBreakerManager,
+		HealthChecker:             healthChecker,
+		ReportTTL:                 "",
+		PdfPool:                   pdfPool,
+		CryptoHashSecretKeyCRM:    cfg.CryptoHashSecretKeyCRM,
+		CryptoEncryptSecretKeyCRM: cfg.CryptoEncryptSecretKeyCRM,
 	}
 
 	logger.Log(ctx, clog.LevelInfo, "Reports will be stored permanently (no TTL - use S3 bucket lifecycle policies for expiration)")

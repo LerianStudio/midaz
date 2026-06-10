@@ -44,16 +44,16 @@ func TestDS_ListDataSources(t *testing.T) {
 			foundTransaction = true
 
 			assert.Equal(t, "postgresql", ds.Type, "midaz_transaction should be postgresql")
-		case shared.DSPluginCRM:
+		case shared.DSCRM:
 			foundCRM = true
 
-			assert.Equal(t, "mongodb", ds.Type, "plugin_crm should be mongodb")
+			assert.Equal(t, "mongodb", ds.Type, "crm should be mongodb")
 		}
 	}
 
 	assert.True(t, foundOnboarding, "data sources should contain %s", shared.DSMidazOnboarding)
 	assert.True(t, foundTransaction, "data sources should contain %s", shared.DSMidazTransaction)
-	assert.True(t, foundCRM, "data sources should contain %s", shared.DSPluginCRM)
+	assert.True(t, foundCRM, "data sources should contain %s", shared.DSCRM)
 }
 
 // TC-DS-002: GET /v1/data-sources/midaz_onboarding returns tables with fields.
@@ -89,21 +89,21 @@ func TestDS_GetMidazOnboarding(t *testing.T) {
 	}
 }
 
-// TC-DS-003: GET /v1/data-sources/plugin_crm returns tables with fields.
-func TestDS_GetPluginCRM(t *testing.T) {
+// TC-DS-003: GET /v1/data-sources/crm returns tables with fields.
+func TestDS_GetCRM(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
-	status, details, err := apiClient.GetDataSourceByID(ctx, shared.DSPluginCRM)
+	status, details, err := apiClient.GetDataSourceByID(ctx, shared.DSCRM)
 	require.NoError(t, err, "GetDataSourceByID should not return an error")
 
 	if status == http.StatusInternalServerError {
-		t.Skip("plugin_crm MongoDB connection unavailable (500) — skipping")
+		t.Skip("crm MongoDB connection unavailable (500) — skipping")
 	}
 
 	assert.Equal(t, http.StatusOK, status, "should return 200")
-	assert.Equal(t, shared.DSPluginCRM, details.ID, "ID should match")
+	assert.Equal(t, shared.DSCRM, details.ID, "ID should match")
 	assert.Equal(t, "mongodb", details.Type, "type should be mongodb")
 	require.NotEmpty(t, details.Tables, "tables should not be empty")
 

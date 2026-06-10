@@ -229,10 +229,10 @@ func TestGen_MongoDBDataSource(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), shared.DefaultPollTimeout)
 	defer cancel()
 
-	// Multi-source template requires plugin_crm MongoDB. Skip if unavailable.
-	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSPluginCRM)
+	// Multi-source template requires crm MongoDB. Skip if unavailable.
+	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSCRM)
 	if dsStatus != http.StatusOK {
-		t.Skipf("plugin_crm datasource unavailable (status %d) — skipping MongoDB test", dsStatus)
+		t.Skipf("crm datasource unavailable (status %d) — skipping MongoDB test", dsStatus)
 	}
 
 	tplID := createTemplateForFormat(t, ctx, shared.FormatHTML, shared.FixtureMultiSource)
@@ -264,10 +264,10 @@ func TestGen_MultiSourceReport(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), shared.DefaultPollTimeout)
 	defer cancel()
 
-	// Multi-source template requires plugin_crm MongoDB. Skip if unavailable.
-	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSPluginCRM)
+	// Multi-source template requires crm MongoDB. Skip if unavailable.
+	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSCRM)
 	if dsStatus != http.StatusOK {
-		t.Skipf("plugin_crm datasource unavailable (status %d) — skipping multi-source test", dsStatus)
+		t.Skipf("crm datasource unavailable (status %d) — skipping multi-source test", dsStatus)
 	}
 
 	tplID := createTemplateForFormat(t, ctx, shared.FormatHTML, shared.FixtureMultiSource)

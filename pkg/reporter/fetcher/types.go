@@ -15,7 +15,7 @@ type ConnectionResponse struct {
 	// ID is the unique identifier for the connection in Fetcher.
 	ID string `json:"id"`
 
-	// ConfigName is the datasource config name (e.g., "midaz_onboarding", "plugin_crm").
+	// ConfigName is the datasource config name (e.g., "midaz_onboarding", "crm").
 	ConfigName string `json:"configName"`
 
 	// Type identifies the database engine (e.g., "postgresql", "mongodb").

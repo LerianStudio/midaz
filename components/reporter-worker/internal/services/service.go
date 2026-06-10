@@ -37,7 +37,7 @@ type UseCase struct {
 	ReportSeaweedFS reportSeaweedFS.Repository
 
 	// ExternalDataSources holds a thread-safe map of external data sources identified by their names.
-	// It backs the plugin_crm org fan-out path; the embedded engine resolves
+	// It backs the crm org fan-out path; the embedded engine resolves
 	// every other datasource through its tenant resolver.
 	ExternalDataSources *pkg.SafeDataSources
 
@@ -56,15 +56,15 @@ type UseCase struct {
 	// PdfPool provides PDF generation capabilities using Chrome headless
 	PdfPool pdf.PDFGenerator
 
-	// CryptoHashSecretKeyPluginCRM is the hash secret key for plugin_crm data operations.
-	CryptoHashSecretKeyPluginCRM string
+	// CryptoHashSecretKeyCRM is the hash secret key for crm data operations.
+	CryptoHashSecretKeyCRM string
 
-	// CryptoEncryptSecretKeyPluginCRM is the encryption secret key for plugin_crm data operations.
-	CryptoEncryptSecretKeyPluginCRM string
+	// CryptoEncryptSecretKeyCRM is the encryption secret key for crm data operations.
+	CryptoEncryptSecretKeyCRM string
 
 	// Engine is the embedded in-process extraction engine
 	// (github.com/LerianStudio/fetcher/pkg/engine). The generate-report handler
-	// drives it (PlanExtraction / ExecuteExtraction) for every non-plugin_crm
+	// drives it (PlanExtraction / ExecuteExtraction) for every non-crm
 	// datasource. A nil Engine fails the extraction closed rather than silently
 	// returning empty data.
 	Engine *fetcherengine.Engine

@@ -181,18 +181,18 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForOrganization(ctx context.Conte
 	return schema, nil
 }
 
-// GetDatabaseSchemaForPluginCRM groups org-scoped collections by prefix (e.g. holders_*)
+// GetDatabaseSchemaForCRM groups org-scoped collections by prefix (e.g. holders_*)
 // and returns a union schema per logical name.
-func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context) ([]CollectionSchema, error) {
+func (ds *ExternalDataSource) GetDatabaseSchemaForCRM(ctx context.Context) ([]CollectionSchema, error) {
 	logger := ds.connection.Logger
 	tracer := ctxutil.NewTracerFromContext(ctx)
 	reqID := ctxutil.HeaderIDFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "repository.datasource.get_database_schema_for_plugin_crm")
+	ctx, span := tracer.Start(ctx, "repository.datasource.get_database_schema_for_crm")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("app.request.request_id", reqID))
-	logger.Log(ctx, log.LevelDebug, "Discovering plugin_crm schema via prefix-based collection grouping")
+	logger.Log(ctx, log.LevelDebug, "Discovering crm schema via prefix-based collection grouping")
 
 	schemaCtx, cancel := context.WithTimeout(ctx, constant.SchemaDiscoveryTimeout)
 	defer cancel()
@@ -200,7 +200,7 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context)
 	client, err := ds.connection.GetDB(ctx)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("mongodb plugin_crm schema discovery timeout while getting database: %w", err)
+			return nil, fmt.Errorf("mongodb crm schema discovery timeout while getting database: %w", err)
 		}
 
 		return nil, err
@@ -211,15 +211,15 @@ func (ds *ExternalDataSource) GetDatabaseSchemaForPluginCRM(ctx context.Context)
 	allCollections, err := database.ListCollectionNames(schemaCtx, bson.M{})
 	if err != nil {
 		if schemaCtx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("mongodb plugin_crm schema discovery timeout after %v while listing collections: %w", constant.SchemaDiscoveryTimeout, err)
+			return nil, fmt.Errorf("mongodb crm schema discovery timeout after %v while listing collections: %w", constant.SchemaDiscoveryTimeout, err)
 		}
 
-		return nil, fmt.Errorf("failed to list collections for plugin_crm schema: %w", err)
+		return nil, fmt.Errorf("failed to list collections for crm schema: %w", err)
 	}
 
 	logicalGroups := groupCollectionsByPrefix(allCollections)
 
-	logger.Log(ctx, log.LevelDebug, "Grouped plugin_crm collections by prefix",
+	logger.Log(ctx, log.LevelDebug, "Grouped crm collections by prefix",
 		log.Int("logical_groups", len(logicalGroups)),
 		log.Int("total_physical", len(allCollections)),
 	)

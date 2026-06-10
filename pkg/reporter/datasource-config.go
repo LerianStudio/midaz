@@ -590,7 +590,7 @@ func buildDataSourceConfig(name string, logger log.Logger) (DataSourceConfig, bo
 		SSL:         getDataSourceEnv(name, "SSL"),     // For MongoDB SSL
 		SSLCA:       getDataSourceEnv(name, "SSLCA"),   // For MongoDB CA file
 		Options:     getDataSourceEnv(name, "OPTIONS"), // For MongoDB URI options
-		// MidazOrganizationID is deprecated — plugin_crm now discovers all org-scoped
+		// MidazOrganizationID is deprecated — crm now discovers all org-scoped
 		// collections via prefix matching (ListCollectionNames). Kept for backward compat.
 		MidazOrganizationID: getDataSourceEnv(name, "MIDAZ_ORGANIZATION_ID"),
 	}

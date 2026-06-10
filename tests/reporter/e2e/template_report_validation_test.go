@@ -77,10 +77,10 @@ func TestTemplateReport_ACCS005(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), shared.DefaultPollTimeout)
 	defer cancel()
 
-	// ACCS005 requires plugin_crm (MongoDB) datasource.
-	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSPluginCRM)
+	// ACCS005 requires crm (MongoDB) datasource.
+	dsStatus, _, _ := apiClient.GetDataSourceByID(ctx, shared.DSCRM)
 	if dsStatus != http.StatusOK {
-		t.Skipf("plugin_crm datasource unavailable (status %d) — skipping ACCS005 test", dsStatus)
+		t.Skipf("crm datasource unavailable (status %d) — skipping ACCS005 test", dsStatus)
 	}
 
 	// Step 1: Create template with XML output format.

@@ -8,13 +8,13 @@
     </BCARQ>
     <SISARQ>
         <CCSArqInfDettRelctPessoa>
-            <CNPJBaseEntRespons>{{plugin_crm.holders.0.document|slice:':8'}}</CNPJBaseEntRespons>
+            <CNPJBaseEntRespons>{{crm.holders.0.document|slice:':8'}}</CNPJBaseEntRespons>
             <NumCtrlCCSOr>000000</NumCtrlCCSOr>
             <Repet_CCS0005_BDV>
                 {%- for account in midaz_onboarding.account %}
-                {%- for alias in plugin_crm.aliases %}
+                {%- for alias in crm.aliases %}
                 {%- if alias.account_id == account.id %}
-                {%- for holder in plugin_crm.holders %}
+                {%- for holder in crm.holders %}
                 {%- if holder.document == alias.document %}
                 <Grupo_CCS0005_BDV>
                     <SitInfDettPessoa></SitInfDettPessoa>

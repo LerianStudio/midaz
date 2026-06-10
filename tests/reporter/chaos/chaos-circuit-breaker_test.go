@@ -125,9 +125,9 @@ func TestIntegration_Chaos_CircuitBreaker_OpenAndRecover(t *testing.T) {
 		t.Skip("Skipping chaos test in short mode")
 	}
 
-	// Skip this test in testcontainers mode - requires external plugin_crm infrastructure
+	// Skip this test in testcontainers mode - requires external crm infrastructure
 	if os.Getenv("USE_EXISTING_INFRA") != "true" {
-		t.Skip("Skipping circuit breaker test - requires plugin_crm infrastructure (docker-compose)")
+		t.Skip("Skipping circuit breaker test - requires crm infrastructure (docker-compose)")
 	}
 
 	ctx := context.Background()
@@ -148,13 +148,13 @@ func TestIntegration_Chaos_CircuitBreaker_OpenAndRecover(t *testing.T) {
 	}
 	t.Logf("Using template: %s", templateID)
 
-	t.Log("Step 2: Simulating plugin_crm MongoDB failure (stopping container)...")
+	t.Log("Step 2: Simulating crm MongoDB failure (stopping container)...")
 	crmContainer := "plugin-crm-mongodb"
 	if err := h.StopContainer(crmContainer); err != nil {
-		t.Logf("Could not stop plugin_crm container (may not exist): %v", err)
-		t.Skip("plugin_crm container not available for chaos test")
+		t.Logf("Could not stop crm container (may not exist): %v", err)
+		t.Skip("crm container not available for chaos test")
 	}
-	t.Log("plugin_crm MongoDB stopped")
+	t.Log("crm MongoDB stopped")
 
 	t.Log("Step 3: Sending 20 report requests to trigger circuit breaker...")
 	successCount, failureCount := sendReportRequests(t, ctx, cli, headers, templateID, 20)
@@ -168,11 +168,11 @@ func TestIntegration_Chaos_CircuitBreaker_OpenAndRecover(t *testing.T) {
 	fastFailCount := testFastFail(t, ctx, cli, headers, templateID, 5)
 	t.Logf("Fast-fail results: %d/5 failed quickly", fastFailCount)
 
-	t.Log("Step 6: Restoring plugin_crm MongoDB...")
+	t.Log("Step 6: Restoring crm MongoDB...")
 	if err := h.StartContainer(crmContainer); err != nil {
-		t.Logf("Could not start plugin_crm container: %v", err)
+		t.Logf("Could not start crm container: %v", err)
 	} else {
-		t.Log("plugin_crm MongoDB restarted")
+		t.Log("crm MongoDB restarted")
 	}
 
 	// Intentional wait: circuit breaker timeout must expire before transitioning to half-open
@@ -193,7 +193,7 @@ func TestIntegration_Chaos_CircuitBreaker_OpenAndRecover(t *testing.T) {
 	t.Log("   docker logs plugin-reporter-worker 2>&1 | grep -E 'Circuit|breaker'")
 }
 
-// getTemplateIDForCRM tries to get any template that uses plugin_crm
+// getTemplateIDForCRM tries to get any template that uses crm
 func getTemplateIDForCRM(ctx context.Context, t *testing.T, cli *h.HTTPClient, headers map[string]string) (string, bool) {
 	code, body, err := cli.Request(ctx, "GET", "/v1/templates?limit=10", headers, nil)
 	if err != nil || code != 200 {

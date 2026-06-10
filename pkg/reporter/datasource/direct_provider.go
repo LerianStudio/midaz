@@ -211,7 +211,7 @@ func (dp *DirectProvider) GetDataSourceSchema(ctx context.Context, dataSourceID 
 //
 // PostgreSQL-specific: supports 3 table name formats (pongo2, qualified, legacy)
 // and detects schema ambiguity. MongoDB-specific: applies organization-scoped
-// collection lookup for plugin_crm datasources.
+// collection lookup for crm datasources.
 //
 // Per decision, unavailable datasources produce a warning (not error).
 func (dp *DirectProvider) ValidateSchema(ctx context.Context, dataSourceID string, tableFields map[string][]string) (*ValidationResult, error) {
@@ -378,7 +378,7 @@ func (dp *DirectProvider) validatePostgresSchema(
 }
 
 // validateMongoDBSchema validates tableFields against a MongoDB schema.
-// For plugin_crm datasources with MidazOrganizationID, applies org-scoped
+// For crm datasources with MidazOrganizationID, applies org-scoped
 // collection lookup and table name transformation.
 func (dp *DirectProvider) validateMongoDBSchema(
 	ctx context.Context,
@@ -398,7 +398,7 @@ func (dp *DirectProvider) validateMongoDBSchema(
 		return nil, err
 	}
 
-	// For plugin_crm with MidazOrganizationID, use org-scoped schema discovery
+	// For crm with MidazOrganizationID, use org-scoped schema discovery
 	var collectionSchemas []mongodb.CollectionSchema
 
 	var schemaErr error
@@ -430,7 +430,7 @@ func (dp *DirectProvider) validateMongoDBSchema(
 			continue
 		}
 
-		// For plugin_crm, transform table name: tableName + "_" + orgID
+		// For crm, transform table name: tableName + "_" + orgID
 		lookupName := tableKey
 		if ds.MidazOrganizationID != "" {
 			lookupName = tableKey + "_" + ds.MidazOrganizationID

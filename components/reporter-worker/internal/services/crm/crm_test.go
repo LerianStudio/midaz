@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package plugincrm
+package crm
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func expectedHash(t *testing.T, plaintext string) string {
 }
 
 func TestIs(t *testing.T) {
-	assert.True(t, Is("plugin_crm"))
+	assert.True(t, Is("crm"))
 	assert.False(t, Is("onboarding"))
 	assert.False(t, Is(""))
 }
@@ -373,8 +373,8 @@ func TestFanOutOrgCollections_ListErrorWraps(t *testing.T) {
 
 // TestFanOutOrgCollections_AppliesFiltersToEveryOrgCollection locks the
 // regression fix: the transformed advanced filters must reach EACH physical org
-// collection. Without this, a filtered plugin_crm report silently returns every
-// org collection's full row set.
+// collection. Without this, a filtered crm report silently returns every org
+// collection's full row set.
 func TestFanOutOrgCollections_AppliesFiltersToEveryOrgCollection(t *testing.T) {
 	q := &fakeQuerier{
 		names: []string{"holders_orgB", "holders_orgA"},

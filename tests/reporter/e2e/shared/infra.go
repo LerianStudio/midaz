@@ -42,7 +42,7 @@ type E2EEnv struct {
 	RabbitMQ       *rabbitmq.RabbitInfra
 	Redis          *redis.RedisInfra
 	Minio          *minio.MinioInfra     // S3-compatible storage
-	PluginCRMMongo *mongodb.MongoDBInfra // plugin_crm datasource (separate instance)
+	CRMMongo       *mongodb.MongoDBInfra // crm datasource (separate instance)
 	ManagerApp     *e2ekit.RunningApp
 	WorkerApp      *e2ekit.RunningApp
 	ManagerBaseURL string
@@ -67,13 +67,13 @@ func Setup(ctx context.Context) (*E2EEnv, error) {
 	}
 
 	env := &E2EEnv{
-		Suite:          suite,
-		Mongo:          infra.mongo,
-		Postgres:       infra.postgres,
-		RabbitMQ:       infra.rabbit,
-		Redis:          infra.redis,
-		Minio:          infra.minio,
-		PluginCRMMongo: infra.pluginCRMMongo,
+		Suite:    suite,
+		Mongo:    infra.mongo,
+		Postgres: infra.postgres,
+		RabbitMQ: infra.rabbit,
+		Redis:    infra.redis,
+		Minio:    infra.minio,
+		CRMMongo: infra.crmMongo,
 	}
 
 	// Create RabbitMQ topology programmatically (exchanges, queues, bindings).
@@ -82,10 +82,10 @@ func Setup(ctx context.Context) (*E2EEnv, error) {
 		return nil, fmt.Errorf("setup rabbitmq topology: %w", err)
 	}
 
-	// Seed plugin_crm MongoDB with test holders data.
-	if err := seedPluginCRMMongo(ctx, infra.pluginCRMMongo); err != nil {
+	// Seed crm MongoDB with test holders data.
+	if err := seedCRMMongo(ctx, infra.crmMongo); err != nil {
 		_ = suite.Terminate(ctx)
-		return nil, fmt.Errorf("seed plugin_crm mongo: %w", err)
+		return nil, fmt.Errorf("seed crm mongo: %w", err)
 	}
 
 	// If infra-only mode is requested, skip starting apps.
@@ -158,12 +158,12 @@ func Teardown(ctx context.Context, env *E2EEnv) {
 
 // coreInfra holds all infrastructure components.
 type coreInfra struct {
-	mongo          *mongodb.MongoDBInfra
-	postgres       *postgres.PostgresInfra
-	rabbit         *rabbitmq.RabbitInfra
-	redis          *redis.RedisInfra
-	minio          *minio.MinioInfra
-	pluginCRMMongo *mongodb.MongoDBInfra
+	mongo    *mongodb.MongoDBInfra
+	postgres *postgres.PostgresInfra
+	rabbit   *rabbitmq.RabbitInfra
+	redis    *redis.RedisInfra
+	minio    *minio.MinioInfra
+	crmMongo *mongodb.MongoDBInfra
 }
 
 // newCoreInfra creates all infrastructure components with their configuration.
@@ -175,7 +175,7 @@ func newCoreInfra() *coreInfra {
 	rabbitOpts := []rabbitmq.RabbitOption{}
 	redisOpts := []redis.RedisOption{}
 	minioOpts := []minio.MinioOption{}
-	pluginCRMMongoOpts := []mongodb.MongoDBOption{}
+	crmMongoOpts := []mongodb.MongoDBOption{}
 
 	if isFixedPortEnabled() {
 		mongoOpts = append(mongoOpts, mongodb.WithMongoDBFixedPort("27017"))
@@ -183,7 +183,7 @@ func newCoreInfra() *coreInfra {
 		rabbitOpts = append(rabbitOpts, rabbitmq.WithRabbitFixedPort("5672"))
 		redisOpts = append(redisOpts, redis.WithRedisFixedPort("6379"))
 		minioOpts = append(minioOpts, minio.WithMinioFixedPort("9000"))
-		pluginCRMMongoOpts = append(pluginCRMMongoOpts, mongodb.WithMongoDBFixedPort("27018"))
+		crmMongoOpts = append(crmMongoOpts, mongodb.WithMongoDBFixedPort("27018"))
 	}
 
 	return &coreInfra{
@@ -216,11 +216,11 @@ func newCoreInfra() *coreInfra {
 			Bucket:  "reporter-storage",
 			Options: minioOpts,
 		}),
-		pluginCRMMongo: mongodb.NewMongoDBInfra(mongodb.MongoDBConfig{
+		crmMongo: mongodb.NewMongoDBInfra(mongodb.MongoDBConfig{
 			Name:     "plugin-crm",
 			Username: CoreInfraUsername,
-			Password: PluginCRMPassword,
-			Options:  pluginCRMMongoOpts,
+			Password: CRMPassword,
+			Options:  crmMongoOpts,
 		}),
 	}
 }
@@ -233,7 +233,7 @@ func (c *coreInfra) infras() []itestkit.Infra {
 		c.rabbit,
 		c.redis,
 		c.minio,
-		c.pluginCRMMongo,
+		c.crmMongo,
 	}
 }
 
@@ -332,21 +332,21 @@ func generateHash(c *libCrypto.Crypto, plaintext string) string {
 	return c.GenerateHash(&plaintext)
 }
 
-// seedPluginCRMMongo connects to the plugin_crm MongoDB and inserts test holder documents.
+// seedCRMMongo connects to the crm MongoDB and inserts test holder documents.
 // PII fields (name, document, mother_name, account) are encrypted with AES-256-GCM and
 // searchable hashes are stored in the "search" sub-document, matching the Worker's expected
 // storage format. The Worker decrypts these fields at report-generation time.
-func seedPluginCRMMongo(ctx context.Context, mongoInfra *mongodb.MongoDBInfra) error {
+func seedCRMMongo(ctx context.Context, mongoInfra *mongodb.MongoDBInfra) error {
 	endpoint, err := mongoInfra.Endpoint()
 	if err != nil {
-		return fmt.Errorf("get plugin_crm mongo endpoint: %w", err)
+		return fmt.Errorf("get crm mongo endpoint: %w", err)
 	}
 
 	// Use Upstream (host-accessible address) not HostPort() which returns network alias.
 	// Build URI with URL-encoded credentials (password contains @ which breaks URI parsing).
 	uri := fmt.Sprintf("mongodb://%s:%s@%s",
 		url.QueryEscape(CoreInfraUsername),
-		url.QueryEscape(PluginCRMPassword),
+		url.QueryEscape(CRMPassword),
 		endpoint.Upstream)
 
 	connectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -359,23 +359,23 @@ func seedPluginCRMMongo(ctx context.Context, mongoInfra *mongodb.MongoDBInfra) e
 
 	client, err := mongo.Connect(clientOpts)
 	if err != nil {
-		return fmt.Errorf("connect to plugin_crm mongo: %w", err)
+		return fmt.Errorf("connect to crm mongo: %w", err)
 	}
 	defer client.Disconnect(ctx)
 
 	if err := client.Ping(connectCtx, nil); err != nil {
-		return fmt.Errorf("ping plugin_crm mongo: %w", err)
+		return fmt.Errorf("ping crm mongo: %w", err)
 	}
 
 	crypto := newTestCrypto()
 
-	db := client.Database(DSPluginCRM)
+	db := client.Database(DSCRM)
 
 	// Create both the base collection (for Manager schema discovery) and the
 	// organization-suffixed collection (for Worker report generation).
 	// The Worker constructs collection names as "holders_<midazOrgID>" via
-	// processPluginCRMCollection in generate-report-data.go.
-	orgCollection := CollectionHolders + "_" + PluginCRMMidazOrgID
+	// processCRMCollection in generate-report-data.go.
+	orgCollection := CollectionHolders + "_" + CRMMidazOrgID
 	collection := db.Collection(orgCollection)
 
 	// Insert test holder documents.
@@ -428,13 +428,13 @@ func seedPluginCRMMongo(ctx context.Context, mongoInfra *mongodb.MongoDBInfra) e
 
 	_, err = collection.InsertMany(connectCtx, holders)
 	if err != nil {
-		return fmt.Errorf("insert holders into plugin_crm: %w", err)
+		return fmt.Errorf("insert holders into crm: %w", err)
 	}
 
 	// Seed aliases collection for ACCS005 template.
 	// Links holders to accounts via document and account_id, with banking details.
 	// PII fields (document, banking_details.account) are encrypted.
-	aliasCollection := CollectionAliases + "_" + PluginCRMMidazOrgID
+	aliasCollection := CollectionAliases + "_" + CRMMidazOrgID
 	aliases := []interface{}{
 		bson.M{
 			"_id":        "alias-001",
@@ -468,7 +468,7 @@ func seedPluginCRMMongo(ctx context.Context, mongoInfra *mongodb.MongoDBInfra) e
 
 	_, err = db.Collection(aliasCollection).InsertMany(connectCtx, aliases)
 	if err != nil {
-		return fmt.Errorf("insert aliases into plugin_crm: %w", err)
+		return fmt.Errorf("insert aliases into crm: %w", err)
 	}
 
 	return nil

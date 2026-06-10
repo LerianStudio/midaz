@@ -149,8 +149,8 @@ func TestConfig_ValidateProductionConfig(t *testing.T) {
 				cfg.RabbitMQPass = "real-secret"
 				cfg.ObjectStorageSecretKey = "real-secret"
 				cfg.ObjectStorageEndpoint = "https://storage.example.com"
-				cfg.CryptoHashSecretKeyPluginCRM = "real-secret"
-				cfg.CryptoEncryptSecretKeyPluginCRM = "real-secret"
+				cfg.CryptoHashSecretKeyCRM = "real-secret"
+				cfg.CryptoEncryptSecretKeyCRM = "real-secret"
 			},
 			expectErr: false,
 		},
@@ -162,8 +162,8 @@ func TestConfig_ValidateProductionConfig(t *testing.T) {
 				cfg.MongoDBPassword = "real-secret"
 				cfg.RabbitMQPass = "real-secret"
 				cfg.ObjectStorageSecretKey = "real-secret"
-				cfg.CryptoHashSecretKeyPluginCRM = "real-secret"
-				cfg.CryptoEncryptSecretKeyPluginCRM = "real-secret"
+				cfg.CryptoHashSecretKeyCRM = "real-secret"
+				cfg.CryptoEncryptSecretKeyCRM = "real-secret"
 			},
 			expectErr:   true,
 			errContains: []string{"ENABLE_TELEMETRY must be true in production"},
@@ -176,8 +176,8 @@ func TestConfig_ValidateProductionConfig(t *testing.T) {
 				cfg.MongoDBPassword = "CHANGE_ME"
 				cfg.RabbitMQPass = "real-secret"
 				cfg.ObjectStorageSecretKey = "real-secret"
-				cfg.CryptoHashSecretKeyPluginCRM = "real-secret"
-				cfg.CryptoEncryptSecretKeyPluginCRM = "real-secret"
+				cfg.CryptoHashSecretKeyCRM = "real-secret"
+				cfg.CryptoEncryptSecretKeyCRM = "real-secret"
 			},
 			expectErr:   true,
 			errContains: []string{"MONGO_PASSWORD must not use the default placeholder in production"},
@@ -190,8 +190,8 @@ func TestConfig_ValidateProductionConfig(t *testing.T) {
 				cfg.MongoDBPassword = ""
 				cfg.RabbitMQPass = ""
 				cfg.ObjectStorageSecretKey = "real-secret"
-				cfg.CryptoHashSecretKeyPluginCRM = "real-secret"
-				cfg.CryptoEncryptSecretKeyPluginCRM = "real-secret"
+				cfg.CryptoHashSecretKeyCRM = "real-secret"
+				cfg.CryptoEncryptSecretKeyCRM = "real-secret"
 			},
 			expectErr:   true,
 			errContains: []string{"MONGO_PASSWORD must not be empty in production", "RABBITMQ_DEFAULT_PASS must not be empty in production"},
@@ -204,13 +204,13 @@ func TestConfig_ValidateProductionConfig(t *testing.T) {
 				cfg.MongoDBPassword = "real-secret"
 				cfg.RabbitMQPass = "real-secret"
 				cfg.ObjectStorageSecretKey = "real-secret"
-				cfg.CryptoHashSecretKeyPluginCRM = ""
-				cfg.CryptoEncryptSecretKeyPluginCRM = ""
+				cfg.CryptoHashSecretKeyCRM = ""
+				cfg.CryptoEncryptSecretKeyCRM = ""
 			},
 			expectErr: true,
 			errContains: []string{
-				"CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM must not be empty in production",
-				"CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM must not be empty in production",
+				"CRYPTO_HASH_SECRET_KEY_CRM must not be empty in production",
+				"CRYPTO_ENCRYPT_SECRET_KEY_CRM must not be empty in production",
 			},
 		},
 		{
@@ -270,8 +270,8 @@ func TestConfig_Validate_ProductionRejectsHTTPRabbitHealthURL(t *testing.T) {
 	cfg.MongoDBPassword = "mongo-secret"
 	cfg.RabbitMQPass = "rabbit-secret"
 	cfg.ObjectStorageSecretKey = "object-storage-secret"
-	cfg.CryptoHashSecretKeyPluginCRM = "hash-secret"
-	cfg.CryptoEncryptSecretKeyPluginCRM = "encrypt-secret"
+	cfg.CryptoHashSecretKeyCRM = "hash-secret"
+	cfg.CryptoEncryptSecretKeyCRM = "encrypt-secret"
 	cfg.RabbitMQHealthCheckURL = "http://rabbitmq:15672"
 
 	err := cfg.Validate()
@@ -289,8 +289,8 @@ func TestConfig_Validate_ProductionRequiresSecureStorageAndRedisWhenMultiTenant(
 	cfg.MongoDBPassword = "mongo-secret"
 	cfg.RabbitMQPass = "rabbit-secret"
 	cfg.ObjectStorageSecretKey = "object-storage-secret"
-	cfg.CryptoHashSecretKeyPluginCRM = "hash-secret"
-	cfg.CryptoEncryptSecretKeyPluginCRM = "encrypt-secret"
+	cfg.CryptoHashSecretKeyCRM = "hash-secret"
+	cfg.CryptoEncryptSecretKeyCRM = "encrypt-secret"
 	cfg.MultiTenantEnabled = true
 	cfg.MultiTenantURL = "https://tenant-manager.internal"
 	cfg.MultiTenantCircuitBreakerThreshold = 5
@@ -350,8 +350,8 @@ func TestConfig_Validate_ProductionRequiresSecureRabbitMQScheme(t *testing.T) {
 	cfg.MongoDBPassword = "mongo-secret"
 	cfg.RabbitMQPass = "rabbit-secret"
 	cfg.ObjectStorageSecretKey = "object-storage-secret"
-	cfg.CryptoHashSecretKeyPluginCRM = "hash-secret"
-	cfg.CryptoEncryptSecretKeyPluginCRM = "encrypt-secret"
+	cfg.CryptoHashSecretKeyCRM = "hash-secret"
+	cfg.CryptoEncryptSecretKeyCRM = "encrypt-secret"
 	cfg.RabbitURI = "amqp"
 
 	err := cfg.Validate()
@@ -370,8 +370,8 @@ func productionInsecureTLSWorkerConfig() *Config {
 	cfg.MongoDBPassword = "mongo-secret"
 	cfg.RabbitMQPass = "rabbit-secret"
 	cfg.ObjectStorageSecretKey = "object-storage-secret"
-	cfg.CryptoHashSecretKeyPluginCRM = "hash-secret"
-	cfg.CryptoEncryptSecretKeyPluginCRM = "encrypt-secret"
+	cfg.CryptoHashSecretKeyCRM = "hash-secret"
+	cfg.CryptoEncryptSecretKeyCRM = "encrypt-secret"
 	cfg.MultiTenantEnabled = true
 	cfg.MultiTenantURL = "https://tenant-manager.internal"
 	cfg.MultiTenantCircuitBreakerThreshold = 5

@@ -889,9 +889,9 @@ func TestGenerateCode_ExpressionBlock(t *testing.T) {
 		{
 			name: "inline expression",
 			blocks: []TemplateBlock{
-				{Type: "expression", Expression: "6 + plugin_crm.holders|length + plugin_crm.aliases|length", Inline: true},
+				{Type: "expression", Expression: "6 + crm.holders|length + crm.aliases|length", Inline: true},
 			},
-			expected: "{{ 6 + plugin_crm.holders|length + plugin_crm.aliases|length }}",
+			expected: "{{ 6 + crm.holders|length + crm.aliases|length }}",
 		},
 	}
 

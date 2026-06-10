@@ -4,27 +4,22 @@
 
 //go:build integration
 
-// This file is the worker-level plugin_crm extraction parity test. It is the
-// safety net for the Phase 3 engine cutover: plugin_crm extraction does NOT
-// route through the generic engine (the engine queries literal collection names,
-// while plugin_crm needs the holders_* org fan-out, the hash-based advanced
-// filter pre-transform, and field decryption), so the golden-file engine parity
-// test in generate-report-extraction_parity_integration_test.go could not cover
-// it. The legacy HTTP path that used to exercise this surface is deleted, so this
-// is the regression guard locking current plugin_crm behavior before the cutover
-// commits.
+// This file is the worker-level crm extraction parity test. It is the safety net
+// for the Phase 3 engine cutover: crm extraction does NOT route through the
+// generic engine (the engine queries literal collection names, while crm needs
+// the holders_* org fan-out, the hash-based advanced filter pre-transform, and
+// field decryption), so the golden-file engine parity test in
+// generate-report-extraction_parity_integration_test.go could not cover it. The
+// legacy HTTP path that used to exercise this surface is deleted, so this is the
+// regression guard locking crm behavior.
 //
-// It drives the REAL composed handler method UseCase.extractPluginCRM over a real
+// It drives the REAL composed handler method UseCase.extractCRM over a real
 // mongodb.ExternalDataSource backed by testcontainers MongoDB and a real
 // CircuitBreakerManager — the exact production wiring the worker bootstrap builds
-// for the plugin_crm datasource. Fixtures are encrypted/hashed at seed time with
-// the SAME lib-commons crypto primitives the plugincrm module decrypts/hashes
-// with (libCrypto.Crypto.Encrypt / GenerateHash under the configured keys), so
-// the module round-trips them; no cipher is reinvented.
-//
-// The legacy naming "plugin_crm" is preserved deliberately: this test is the
-// regression guard for the upcoming repo-wide rename to "crm", so it must lock
-// current behavior faithfully.
+// for the crm datasource. Fixtures are encrypted/hashed at seed time with the
+// SAME lib-commons crypto primitives the crm module decrypts/hashes with
+// (libCrypto.Crypto.Encrypt / GenerateHash under the configured keys), so the
+// module round-trips them; no cipher is reinvented.
 //
 // It proves, end-to-end against a live Mongo:
 //
@@ -70,7 +65,7 @@ import (
 )
 
 // ----------------------------------------------------------------------------
-// Fixed fixtures (no time.Now). plugin_crm crypto keys: the hash key is an
+// Fixed fixtures (no time.Now). crm crypto keys: the hash key is an
 // arbitrary HMAC secret; the encrypt key is a hex-encoded 32-byte (AES-256) key,
 // matching the shape libCrypto.Crypto.InitializeCipher requires.
 // ----------------------------------------------------------------------------
@@ -80,14 +75,14 @@ const (
 	// crmParityEncryptKey is a hex-encoded 32-byte (AES-256) key.
 	crmParityEncryptKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 
-	crmParityDatasource = "plugin_crm"
+	crmParityDatasource = "crm"
 
 	crmParityOrgA = "orgA"
 	crmParityOrgB = "orgB"
 
-	// crmParityDB is the logical mongo database the per-tenant plugin_crm
+	// crmParityDB is the logical mongo database the per-tenant crm
 	// repository points at.
-	crmParityDB = "plugin_crm"
+	crmParityDB = "crm"
 
 	// crmParityCollection is the logical collection the report references; the
 	// fan-out discovers its physical org-scoped variants holders_<org>.
@@ -277,7 +272,7 @@ func crmStartMongo(t *testing.T) (*mongo.Client, string, func()) {
 
 // crmNewCrypto builds an initialized cipher over the parity keys, used by the
 // seed to encrypt fixture fields and hash the filterable document. It uses the
-// SAME libCrypto.Crypto the plugincrm module instantiates internally, so the
+// SAME libCrypto.Crypto the crm module instantiates internally, so the
 // seed's ciphertext/hash are exactly what the module's DecryptRecords /
 // TransformFilters expect.
 func crmNewCrypto(t *testing.T) *libCrypto.Crypto {
@@ -376,7 +371,7 @@ func crmSeed(t *testing.T, client *mongo.Client, crypto *libCrypto.Crypto) {
 	require.NoError(t, err)
 }
 
-// crmUseCase wires the real production plugin_crm dependencies: a real
+// crmUseCase wires the real production crm dependencies: a real
 // mongodb.ExternalDataSource over the testcontainer, a real CircuitBreakerManager,
 // and the parity crypto keys. encryptKey/hashKey are parameters so the
 // fail-closed test can null one out.
@@ -402,9 +397,9 @@ func crmUseCase(t *testing.T, mongoURI string, logger log.Logger, hashKey, encry
 				MongoDBRepository: repo,
 			},
 		}),
-		CircuitBreakerManager:           pkg.NewCircuitBreakerManager(logger),
-		CryptoHashSecretKeyPluginCRM:    hashKey,
-		CryptoEncryptSecretKeyPluginCRM: encryptKey,
+		CircuitBreakerManager:     pkg.NewCircuitBreakerManager(logger),
+		CryptoHashSecretKeyCRM:    hashKey,
+		CryptoEncryptSecretKeyCRM: encryptKey,
 	}
 }
 
@@ -430,10 +425,10 @@ func findRowByDocument(rows []map[string]any, document string) (map[string]any, 
 // Tests.
 // ----------------------------------------------------------------------------
 
-// TestIntegration_PluginCRMParity_FanOutDecryptUnfiltered proves org fan-out +
+// TestIntegration_CRMParity_FanOutDecryptUnfiltered proves org fan-out +
 // organization_id injection + full-tree decryption with no filter: BOTH org
 // collections are read and every encrypted field round-trips to plaintext.
-func TestIntegration_PluginCRMParity_FanOutDecryptUnfiltered(t *testing.T) {
+func TestIntegration_CRMParity_FanOutDecryptUnfiltered(t *testing.T) {
 	client, uri, teardown := crmStartMongo(t)
 	defer teardown()
 
@@ -445,7 +440,7 @@ func TestIntegration_PluginCRMParity_FanOutDecryptUnfiltered(t *testing.T) {
 
 	result := make(map[string]map[string][]map[string]any)
 
-	err := uc.extractPluginCRM(context.Background(), crmParityDatasource, crmCollections(), nil, result)
+	err := uc.extractCRM(context.Background(), crmParityDatasource, crmCollections(), nil, result)
 	require.NoError(t, err)
 
 	rows := result[crmParityDatasource][crmParityCollection]
@@ -468,11 +463,11 @@ func TestIntegration_PluginCRMParity_FanOutDecryptUnfiltered(t *testing.T) {
 	assertNoPIILeak(t, logger.snapshot())
 }
 
-// TestIntegration_PluginCRMParity_HashFilterSelectsSubset proves the hash-based
+// TestIntegration_CRMParity_HashFilterSelectsSubset proves the hash-based
 // advanced-filter transform: a filter on the logical "document" field is rewritten
 // to the hashed search.document value and selects exactly the orgA row, NOT the
 // full two-row set.
-func TestIntegration_PluginCRMParity_HashFilterSelectsSubset(t *testing.T) {
+func TestIntegration_CRMParity_HashFilterSelectsSubset(t *testing.T) {
 	client, uri, teardown := crmStartMongo(t)
 	defer teardown()
 
@@ -495,7 +490,7 @@ func TestIntegration_PluginCRMParity_HashFilterSelectsSubset(t *testing.T) {
 
 	result := make(map[string]map[string][]map[string]any)
 
-	err := uc.extractPluginCRM(context.Background(), crmParityDatasource, crmCollections(), filters, result)
+	err := uc.extractCRM(context.Background(), crmParityDatasource, crmCollections(), filters, result)
 	require.NoError(t, err)
 
 	rows := result[crmParityDatasource][crmParityCollection]
@@ -511,10 +506,10 @@ func TestIntegration_PluginCRMParity_HashFilterSelectsSubset(t *testing.T) {
 	assertNoPIILeak(t, logger.snapshot())
 }
 
-// TestIntegration_PluginCRMParity_FailsClosedOnMissingEncryptKey proves the path
+// TestIntegration_CRMParity_FailsClosedOnMissingEncryptKey proves the path
 // fails LOUD when a crypto key is absent: a precondition error, never silent
 // plaintext or a panic.
-func TestIntegration_PluginCRMParity_FailsClosedOnMissingEncryptKey(t *testing.T) {
+func TestIntegration_CRMParity_FailsClosedOnMissingEncryptKey(t *testing.T) {
 	client, uri, teardown := crmStartMongo(t)
 	defer teardown()
 
@@ -527,7 +522,7 @@ func TestIntegration_PluginCRMParity_FailsClosedOnMissingEncryptKey(t *testing.T
 
 	result := make(map[string]map[string][]map[string]any)
 
-	err := uc.extractPluginCRM(context.Background(), crmParityDatasource, crmCollections(), nil, result)
+	err := uc.extractCRM(context.Background(), crmParityDatasource, crmCollections(), nil, result)
 	require.Error(t, err, "a missing encrypt key must fail closed, never return plaintext")
 
 	// The handler wraps decryption precondition failures as a business decryption
@@ -543,7 +538,7 @@ func TestIntegration_PluginCRMParity_FailsClosedOnMissingEncryptKey(t *testing.T
 }
 
 // assertCRMFailClosed asserts the error is the loud fail-closed classification
-// the handler produces. extractPluginCRMCollection wraps a decryption-stage
+// the handler produces. extractCRMCollection wraps a decryption-stage
 // precondition failure with ValidateBusinessError(ErrDecryptionData, ...), which
 // yields a typed InternalServerError carrying code "0264"; the underlying
 // encrypt-key-not-configured precondition message is interpolated into it. The
@@ -558,7 +553,7 @@ func assertCRMFailClosed(t *testing.T, err error) {
 	assert.Equal(t, cnErr.ErrDecryptionData.Error(), ise.Code,
 		"fail-closed error must classify as the decryption error family (0264)")
 
-	assert.ErrorContains(t, err, "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured",
+	assert.ErrorContains(t, err, "CRYPTO_ENCRYPT_SECRET_KEY_CRM not configured",
 		"fail-closed cause must be the encrypt-key-not-configured precondition")
 }
 

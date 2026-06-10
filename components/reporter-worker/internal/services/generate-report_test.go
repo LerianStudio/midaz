@@ -280,7 +280,7 @@ func TestUseCase_GenerateReport_ErrorAndSkipPaths(t *testing.T) {
 // This test exercises the CRM plugin path with cipher initialization, hash generation, and encrypted
 // field decryption, which demands significantly different UseCase wiring (crypto keys, MongoDB mocks,
 // organization-scoped collections) that would bloat shared table-driven setup beyond readability.
-func TestUseCase_GenerateReport_PluginCRMWithEncryptedData(t *testing.T) {
+func TestUseCase_GenerateReport_CRMWithEncryptedData(t *testing.T) {
 	t.Parallel()
 
 	hashKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -315,10 +315,10 @@ func TestUseCase_GenerateReport_PluginCRMWithEncryptedData(t *testing.T) {
 
 	hashedDocument := crypto.GenerateHash(&testDocument)
 
-	templateContent := `Cliente: {{ plugin_crm.holders.0.name }}
-Documento: {{ plugin_crm.holders.0.document }}
-Email: {{ plugin_crm.holders.0.contact.primary_email }}
-Conta Bancaria: {{ plugin_crm.holders.0.banking_details.account }}`
+	templateContent := `Cliente: {{ crm.holders.0.name }}
+Documento: {{ crm.holders.0.document }}
+Email: {{ crm.holders.0.contact.primary_email }}
+Conta Bancaria: {{ crm.holders.0.banking_details.account }}`
 
 	nameStr := "Joao Silva"
 	emailStr := "joao@example.com"
@@ -352,12 +352,12 @@ Conta Bancaria: {{ plugin_crm.holders.0.banking_details.account }}`
 		ReportID:     reportID,
 		OutputFormat: "html",
 		DataQueries: map[string]map[string][]string{
-			"plugin_crm": {
+			"crm": {
 				"holders": {"name", "document", "contact.primary_email", "banking_details.account"},
 			},
 		},
 		Filters: map[string]map[string]map[string]model.FilterCondition{
-			"plugin_crm": {
+			"crm": {
 				"holders": {
 					"document": {
 						Equals: []any{testDocument},
@@ -424,16 +424,16 @@ Conta Bancaria: {{ plugin_crm.holders.0.banking_details.account }}`
 	circuitBreakerManager := pkg.NewCircuitBreakerManager(logger)
 
 	useCase := &UseCase{
-		Logger:                          log.NewNop(),
-		Tracer:                          noop.NewTracerProvider().Tracer("test"),
-		TemplateSeaweedFS:               mockTemplateRepo,
-		ReportSeaweedFS:                 mockReportRepo,
-		ReportDataRepo:                  mockReportDataRepo,
-		CircuitBreakerManager:           circuitBreakerManager,
-		CryptoHashSecretKeyPluginCRM:    hashKey,
-		CryptoEncryptSecretKeyPluginCRM: encryptKey,
+		Logger:                    log.NewNop(),
+		Tracer:                    noop.NewTracerProvider().Tracer("test"),
+		TemplateSeaweedFS:         mockTemplateRepo,
+		ReportSeaweedFS:           mockReportRepo,
+		ReportDataRepo:            mockReportDataRepo,
+		CircuitBreakerManager:     circuitBreakerManager,
+		CryptoHashSecretKeyCRM:    hashKey,
+		CryptoEncryptSecretKeyCRM: encryptKey,
 		ExternalDataSources: pkg.NewSafeDataSources(map[string]pkg.DataSource{
-			"plugin_crm": {
+			"crm": {
 				Initialized:         true,
 				DatabaseType:        "mongodb",
 				MongoDBRepository:   mockMongoRepo,

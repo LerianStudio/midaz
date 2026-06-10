@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package plugincrm
+package crm
 
 import (
 	"fmt"
@@ -15,18 +15,16 @@ import (
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// DecryptRecords decrypts the plugin_crm sensitive fields on each extracted
-// record in place and returns the slice. It reproduces the legacy
-// decryptPluginCRMData: it first decides whether any requested field implies
-// decryption (a known top-level encrypted field, or any nested/dotted field),
-// short-circuiting to the input untouched when none do, then initializes the
-// AES-GCM cipher and walks each record's encrypted-field tree.
+// DecryptRecords decrypts the crm sensitive fields on each extracted record in
+// place and returns the slice. It first decides whether any requested field
+// implies decryption (a known top-level encrypted field, or any nested/dotted
+// field), short-circuiting to the input untouched when none do, then initializes
+// the AES-GCM cipher and walks each record's encrypted-field tree.
 //
 // Both keys are required when decryption is needed; an empty key fails closed
-// with the same precondition errors the legacy worker returned. The keys are
-// supplied by the caller (UseCase.CryptoHashSecretKeyPluginCRM /
-// UseCase.CryptoEncryptSecretKeyPluginCRM); this function neither holds nor
-// logs them, and it never logs decrypted values.
+// with a precondition error. The keys are supplied by the caller
+// (UseCase.CryptoHashSecretKeyCRM / UseCase.CryptoEncryptSecretKeyCRM); this
+// function neither holds nor logs them, and it never logs decrypted values.
 func DecryptRecords(records []map[string]any, fields []string, hashKey, encryptKey string, logger log.Logger) ([]map[string]any, error) {
 	if !needsDecryption(fields) {
 		return records, nil
@@ -36,7 +34,7 @@ func DecryptRecords(records []map[string]any, fields []string, hashKey, encryptK
 		return nil, pkgErr.FailedPreconditionError{
 			Code:    cnErr.ErrCodeCRMEncryptKeyNotConfigured.Error(),
 			Title:   "CRM Crypto Not Configured",
-			Message: "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM not configured",
+			Message: "CRYPTO_ENCRYPT_SECRET_KEY_CRM not configured",
 		}
 	}
 
@@ -44,7 +42,7 @@ func DecryptRecords(records []map[string]any, fields []string, hashKey, encryptK
 		return nil, pkgErr.FailedPreconditionError{
 			Code:    cnErr.ErrCodeCRMHashKeyNotConfigured.Error(),
 			Title:   "CRM Crypto Not Configured",
-			Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured",
+			Message: "CRYPTO_HASH_SECRET_KEY_CRM not configured",
 		}
 	}
 
@@ -98,7 +96,7 @@ func needsDecryption(fields []string) bool {
 }
 
 // isEncryptedField reports whether a top-level field is known to be encrypted in
-// plugin_crm. It mirrors the legacy isEncryptedField set exactly.
+// crm.
 func isEncryptedField(field string) bool {
 	encryptedFields := map[string]bool{
 		"document": true,

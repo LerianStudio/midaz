@@ -37,16 +37,16 @@ const (
 	CoreInfraUsername = "plugin"
 	CoreInfraPassword = "Lerian@123"
 
-	// PluginCRMPassword avoids @ in password for MongoDB URI compatibility.
+	// CRMPassword avoids @ in password for MongoDB URI compatibility.
 	// Reporter's datasource-config.go doesn't URL-encode passwords in MongoDB connection strings.
-	PluginCRMPassword = "testpass123"
+	CRMPassword = "testpass123"
 )
 
 // DataSource IDs (match DATASOURCE_* env convention)
 const (
 	DSMidazOnboarding  = "midaz_onboarding"
 	DSMidazTransaction = "midaz_transaction"
-	DSPluginCRM        = "plugin_crm"
+	DSCRM              = "crm"
 )
 
 // PostgreSQL table names (midaz_onboarding schema)
@@ -71,15 +71,15 @@ const (
 	QualifiedTableOperation      = "public.operation"
 )
 
-// MongoDB collection names (plugin_crm)
+// MongoDB collection names (crm)
 const (
 	CollectionHolders = "holders"
 	CollectionAliases = "aliases"
 
-	// PluginCRMMidazOrgID is the Midaz organization ID used to construct
-	// plugin_crm collection names (e.g., "holders_<orgID>").
-	// The Worker code appends this to the base collection name for plugin_crm queries.
-	PluginCRMMidazOrgID = "test-org-001"
+	// CRMMidazOrgID is the Midaz organization ID used to construct
+	// crm collection names (e.g., "holders_<orgID>").
+	// The Worker code appends this to the base collection name for crm queries.
+	CRMMidazOrgID = "test-org-001"
 )
 
 // RabbitMQ topology
@@ -92,8 +92,8 @@ const (
 	RabbitDLQRoutingKey = "reporter.dlq.key"
 )
 
-// Crypto keys for plugin_crm data encryption.
-// The Worker decrypts plugin_crm fields at report-generation time, so E2E seeds must encrypt.
+// Crypto keys for crm data encryption.
+// The Worker decrypts crm fields at report-generation time, so E2E seeds must encrypt.
 // These are distinct keys: one for HMAC hashing, one for AES-256-GCM encryption.
 const (
 	// TestCryptoHashKey is 32 bytes (64 hex chars) used for HMAC-SHA256 hashing of searchable fields.

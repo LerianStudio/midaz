@@ -82,7 +82,7 @@ func TestUseCase_GetBaseCollectionName(t *testing.T) {
 	}
 }
 
-func TestUseCase_ShouldIncludeFieldForPluginCRM(t *testing.T) {
+func TestUseCase_ShouldIncludeFieldForCRM(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -178,13 +178,13 @@ func TestUseCase_ShouldIncludeFieldForPluginCRM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := uc.shouldIncludeFieldForPluginCRM(tt.fieldName, tt.collectionName)
+			result := uc.shouldIncludeFieldForCRM(tt.fieldName, tt.collectionName)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestUseCase_GetFieldsForPluginCRM(t *testing.T) {
+func TestUseCase_GetFieldsForCRM(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -316,13 +316,13 @@ func TestUseCase_GetFieldsForPluginCRM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := uc.getFieldsForPluginCRM(tt.schema)
+			result := uc.getFieldsForCRM(tt.schema)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestUseCase_GetExpandedFieldsForPluginCRM(t *testing.T) {
+func TestUseCase_GetExpandedFieldsForCRM(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -379,7 +379,7 @@ func TestUseCase_GetExpandedFieldsForPluginCRM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := uc.getExpandedFieldsForPluginCRM(tt.collectionName)
+			result := uc.getExpandedFieldsForCRM(tt.collectionName)
 
 			if tt.expectNil {
 				assert.Nil(t, result)
@@ -808,13 +808,13 @@ func TestUseCase_GetDisplayNameForCollection(t *testing.T) {
 		expected       string
 	}{
 		{
-			name:           "plugin_crm strips org suffix",
+			name:           "crm strips org suffix",
 			collectionName: "holders_org123",
-			dataSourceID:   "plugin_crm",
+			dataSourceID:   "crm",
 			expected:       "holders",
 		},
 		{
-			name:           "non-plugin_crm returns full name",
+			name:           "non-crm returns full name",
 			collectionName: "holders_org123",
 			dataSourceID:   "midaz_organization",
 			expected:       "holders_org123",
@@ -831,7 +831,7 @@ func TestUseCase_GetDisplayNameForCollection(t *testing.T) {
 	}
 }
 
-func TestUseCase_GetFieldsForCollection_NonPluginCRM(t *testing.T) {
+func TestUseCase_GetFieldsForCollection_NonCRM(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{Logger: log.NewNop(), Tracer: noop.NewTracerProvider().Tracer("test")}

@@ -13,31 +13,31 @@ import (
 )
 
 // TestUseCase_HasCryptoHashSecretKeyField verifies that the worker UseCase struct
-// has a CryptoHashSecretKeyPluginCRM field for centralized configuration
-// instead of using os.Getenv("CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM").
+// has a CryptoHashSecretKeyCRM field for centralized configuration
+// instead of using os.Getenv("CRYPTO_HASH_SECRET_KEY_CRM").
 func TestUseCase_HasCryptoHashSecretKeyField(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{
-		Logger:                       log.NewNop(),
-		Tracer:                       noop.NewTracerProvider().Tracer("test"),
-		CryptoHashSecretKeyPluginCRM: "test-hash-secret-key",
+		Logger:                 log.NewNop(),
+		Tracer:                 noop.NewTracerProvider().Tracer("test"),
+		CryptoHashSecretKeyCRM: "test-hash-secret-key",
 	}
 
-	assert.Equal(t, "test-hash-secret-key", uc.CryptoHashSecretKeyPluginCRM)
+	assert.Equal(t, "test-hash-secret-key", uc.CryptoHashSecretKeyCRM)
 }
 
 // TestUseCase_HasCryptoEncryptSecretKeyField verifies that the worker UseCase struct
-// has a CryptoEncryptSecretKeyPluginCRM field for centralized configuration
-// instead of using os.Getenv("CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM").
+// has a CryptoEncryptSecretKeyCRM field for centralized configuration
+// instead of using os.Getenv("CRYPTO_ENCRYPT_SECRET_KEY_CRM").
 func TestUseCase_HasCryptoEncryptSecretKeyField(t *testing.T) {
 	t.Parallel()
 
 	uc := &UseCase{
-		Logger:                          log.NewNop(),
-		Tracer:                          noop.NewTracerProvider().Tracer("test"),
-		CryptoEncryptSecretKeyPluginCRM: "test-encrypt-secret-key",
+		Logger:                    log.NewNop(),
+		Tracer:                    noop.NewTracerProvider().Tracer("test"),
+		CryptoEncryptSecretKeyCRM: "test-encrypt-secret-key",
 	}
 
-	assert.Equal(t, "test-encrypt-secret-key", uc.CryptoEncryptSecretKeyPluginCRM)
+	assert.Equal(t, "test-encrypt-secret-key", uc.CryptoEncryptSecretKeyCRM)
 }

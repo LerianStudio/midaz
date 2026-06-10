@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package plugincrm
+package crm
 
 import (
 	"context"
@@ -30,23 +30,22 @@ type CollectionQuerier interface {
 	// filters are the hash-transformed search.* conditions produced by
 	// TransformFilters; a nil/empty filter map means no filtering (the whole
 	// collection). Applying the filters to EACH physical org collection is what
-	// keeps a filtered plugin_crm report from silently widening to every org's
-	// full row set.
+	// keeps a filtered crm report from silently widening to every org's full row
+	// set.
 	QueryCollection(ctx context.Context, physicalCollection string, fields []string, filters map[string]model.FilterCondition) ([]map[string]any, error)
 }
 
-// FanOutOrgCollections reproduces the legacy processPluginCRMCollection
-// org-collection fan-out for a logical plugin_crm collection (e.g. "holders"):
-// it discovers every physical collection named "<collection>_<organizationID>",
-// queries each one with the report's field selection and the transformed
-// advanced filters, injects the source organization_id into every returned
-// record, and merges the per-org rows into a single deterministic slice.
+// FanOutOrgCollections performs the org-collection fan-out for a logical crm
+// collection (e.g. "holders"): it discovers every physical collection named
+// "<collection>_<organizationID>", queries each one with the report's field
+// selection and the transformed advanced filters, injects the source
+// organization_id into every returned record, and merges the per-org rows into a
+// single deterministic slice.
 //
 // The filters MUST be the hash-transformed conditions from TransformFilters and
-// are applied to EACH physical org collection — exactly as the legacy worker
-// did via queryMongoCollectionWithFilters. Passing them through here is what
-// prevents a filtered plugin_crm report from silently returning every org
-// collection's full row set.
+// are applied to EACH physical org collection. Passing them through here is what
+// prevents a filtered crm report from silently returning every org collection's
+// full row set.
 //
 // The matching collections are sorted before querying so the merge order is
 // stable: templates using index-based access (e.g. holders.0.document) must
@@ -59,7 +58,7 @@ type CollectionQuerier interface {
 func FanOutOrgCollections(ctx context.Context, querier CollectionQuerier, collection string, fields []string, filters map[string]model.FilterCondition) ([]map[string]any, error) {
 	allCollections, err := querier.ListCollectionNames(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list plugin_crm collections: %w", err)
+		return nil, fmt.Errorf("failed to list crm collections: %w", err)
 	}
 
 	prefix := collection + "_"
@@ -81,7 +80,7 @@ func FanOutOrgCollections(ctx context.Context, querier CollectionQuerier, collec
 
 		rows, queryErr := querier.QueryCollection(ctx, physicalCollection, fields, filters)
 		if queryErr != nil {
-			return nil, fmt.Errorf("failed to query plugin_crm collection %s: %w", physicalCollection, queryErr)
+			return nil, fmt.Errorf("failed to query crm collection %s: %w", physicalCollection, queryErr)
 		}
 
 		for i := range rows {

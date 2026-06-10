@@ -91,19 +91,19 @@ func (mr *MockRepositoryMockRecorder) GetDatabaseSchemaForOrganization(ctx, orga
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabaseSchemaForOrganization", reflect.TypeOf((*MockRepository)(nil).GetDatabaseSchemaForOrganization), ctx, organizationID)
 }
 
-// GetDatabaseSchemaForPluginCRM mocks base method.
-func (m *MockRepository) GetDatabaseSchemaForPluginCRM(ctx context.Context) ([]CollectionSchema, error) {
+// GetDatabaseSchemaForCRM mocks base method.
+func (m *MockRepository) GetDatabaseSchemaForCRM(ctx context.Context) ([]CollectionSchema, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDatabaseSchemaForPluginCRM", ctx)
+	ret := m.ctrl.Call(m, "GetDatabaseSchemaForCRM", ctx)
 	ret0, _ := ret[0].([]CollectionSchema)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetDatabaseSchemaForPluginCRM indicates an expected call of GetDatabaseSchemaForPluginCRM.
-func (mr *MockRepositoryMockRecorder) GetDatabaseSchemaForPluginCRM(ctx any) *gomock.Call {
+// GetDatabaseSchemaForCRM indicates an expected call of GetDatabaseSchemaForCRM.
+func (mr *MockRepositoryMockRecorder) GetDatabaseSchemaForCRM(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabaseSchemaForPluginCRM", reflect.TypeOf((*MockRepository)(nil).GetDatabaseSchemaForPluginCRM), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabaseSchemaForCRM", reflect.TypeOf((*MockRepository)(nil).GetDatabaseSchemaForCRM), ctx)
 }
 
 // ListCollectionNames mocks base method.

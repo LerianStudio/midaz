@@ -324,7 +324,7 @@ func (ds *ExternalDataSource) processQueryResults(queryCtx context.Context, curs
 }
 
 // ListCollectionNames returns all collection names in the database.
-// Used by plugin_crm to discover org-scoped collections (e.g. holders_orgA, aliases_orgB).
+// Used by crm to discover org-scoped collections (e.g. holders_orgA, aliases_orgB).
 func (ds *ExternalDataSource) ListCollectionNames(ctx context.Context) ([]string, error) {
 	logger := ctxutil.NewLoggerFromContext(ctx)
 

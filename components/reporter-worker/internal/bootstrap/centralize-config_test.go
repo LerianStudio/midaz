@@ -12,28 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestConfig_HasCryptoHashSecretKeyPluginCRMField verifies that the worker Config struct
-// has a CryptoHashSecretKeyPluginCRM field loaded from CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM env var.
-func TestConfig_HasCryptoHashSecretKeyPluginCRMField(t *testing.T) {
+// TestConfig_HasCryptoHashSecretKeyCRMField verifies that the worker Config struct
+// has a CryptoHashSecretKeyCRM field loaded from CRYPTO_HASH_SECRET_KEY_CRM env var.
+func TestConfig_HasCryptoHashSecretKeyCRMField(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		CryptoHashSecretKeyPluginCRM: "test-hash-secret",
+		CryptoHashSecretKeyCRM: "test-hash-secret",
 	}
 
-	assert.Equal(t, "test-hash-secret", cfg.CryptoHashSecretKeyPluginCRM)
+	assert.Equal(t, "test-hash-secret", cfg.CryptoHashSecretKeyCRM)
 }
 
-// TestConfig_HasCryptoEncryptSecretKeyPluginCRMField verifies that the worker Config struct
-// has a CryptoEncryptSecretKeyPluginCRM field loaded from CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM env var.
-func TestConfig_HasCryptoEncryptSecretKeyPluginCRMField(t *testing.T) {
+// TestConfig_HasCryptoEncryptSecretKeyCRMField verifies that the worker Config struct
+// has a CryptoEncryptSecretKeyCRM field loaded from CRYPTO_ENCRYPT_SECRET_KEY_CRM env var.
+func TestConfig_HasCryptoEncryptSecretKeyCRMField(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		CryptoEncryptSecretKeyPluginCRM: "test-encrypt-secret",
+		CryptoEncryptSecretKeyCRM: "test-encrypt-secret",
 	}
 
-	assert.Equal(t, "test-encrypt-secret", cfg.CryptoEncryptSecretKeyPluginCRM)
+	assert.Equal(t, "test-encrypt-secret", cfg.CryptoEncryptSecretKeyCRM)
 }
 
 // TestNewMultiQueueConsumer_ReceivesQueueName verifies that NewMultiQueueConsumer

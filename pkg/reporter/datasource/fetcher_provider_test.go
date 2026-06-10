@@ -71,7 +71,7 @@ func TestFetcherProvider_ListDataSources(t *testing.T) {
 			mockFn: func(_ context.Context) ([]fetcher.ConnectionResponse, error) {
 				return []fetcher.ConnectionResponse{
 					{ID: "pg-uuid-123", ConfigName: "midaz_onboarding", Type: "postgresql"},
-					{ID: "mongo-uuid-456", ConfigName: "plugin_crm", Type: "mongodb"},
+					{ID: "mongo-uuid-456", ConfigName: "crm", Type: "mongodb"},
 				}, nil
 			},
 			wantLen: 2,
@@ -90,7 +90,7 @@ func TestFetcherProvider_ListDataSources(t *testing.T) {
 				assert.Equal(t, "postgresql", pg.Type)
 
 				mongo := byID["mongo-uuid-456"]
-				assert.Equal(t, "plugin_crm", mongo.Name)
+				assert.Equal(t, "crm", mongo.Name)
 				assert.Equal(t, "mongodb", mongo.Type)
 			},
 		},

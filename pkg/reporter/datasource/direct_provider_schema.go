@@ -16,7 +16,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 )
 
-const pluginCRMDataSourceID = "plugin_crm"
+const crmDataSourceID = "crm"
 
 // getPostgresSchema retrieves schema from a PostgreSQL datasource repository.
 func (dp *DirectProvider) getPostgresSchema(ctx context.Context, dataSourceID string, ds pkg.DataSource) (*DataSourceSchema, error) {
@@ -81,15 +81,15 @@ func (dp *DirectProvider) getMongoDBSchema(ctx context.Context, dataSourceID str
 		return nil, err
 	}
 
-	// plugin_crm uses prefix-based collection grouping (holders_*, aliases_*)
+	// crm uses prefix-based collection grouping (holders_*, aliases_*)
 	// with union schema across all organizations. Other MongoDB datasources
 	// use the standard schema discovery.
 	var collectionSchemas []mongodb.CollectionSchema
 
 	var err error
 
-	if dataSourceID == pluginCRMDataSourceID {
-		collectionSchemas, err = ds.MongoDBRepository.GetDatabaseSchemaForPluginCRM(ctx)
+	if dataSourceID == crmDataSourceID {
+		collectionSchemas, err = ds.MongoDBRepository.GetDatabaseSchemaForCRM(ctx)
 	} else if ds.MidazOrganizationID != "" {
 		collectionSchemas, err = ds.MongoDBRepository.GetDatabaseSchemaForOrganization(ctx, ds.MidazOrganizationID)
 	} else {
@@ -112,10 +112,10 @@ func (dp *DirectProvider) getMongoDBSchema(ctx context.Context, dataSourceID str
 			})
 		}
 
-		// For plugin_crm, GetDatabaseSchemaForPluginCRM already returns logical
+		// For crm, GetDatabaseSchemaForCRM already returns logical
 		// names (e.g. "holders"). For org-scoped, strip the suffix.
 		displayName := cs.CollectionName
-		if ds.MidazOrganizationID != "" && dataSourceID != pluginCRMDataSourceID {
+		if ds.MidazOrganizationID != "" && dataSourceID != crmDataSourceID {
 			displayName = stripOrgSuffix(cs.CollectionName, ds.MidazOrganizationID)
 		}
 

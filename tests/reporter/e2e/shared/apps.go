@@ -62,10 +62,10 @@ type AppEnv struct {
 	S3SecretKey   string
 
 	// Plugin CRM MongoDB connection configuration (separate instance).
-	PluginCRMMongoHost     string
-	PluginCRMMongoPort     string
-	PluginCRMMongoUser     string
-	PluginCRMMongoPassword string
+	CRMMongoHost     string
+	CRMMongoPort     string
+	CRMMongoUser     string
+	CRMMongoPassword string
 }
 
 // BuildAppEnv constructs environment variables from infrastructure endpoints.
@@ -104,39 +104,39 @@ func BuildAppEnv(network string, env *E2EEnv) (*AppEnv, error) {
 	s3URL = strings.Replace(s3URL, "localhost", "host.docker.internal", 1)
 	s3URL = strings.Replace(s3URL, "127.0.0.1", "host.docker.internal", 1)
 
-	pluginCRMHost, pluginCRMPort, err := env.PluginCRMMongo.HostPort()
+	crmHost, crmPort, err := env.CRMMongo.HostPort()
 	if err != nil {
-		return nil, fmt.Errorf("plugin_crm mongo host/port: %w", err)
+		return nil, fmt.Errorf("crm mongo host/port: %w", err)
 	}
 
 	// Redis expects host:port format for the REDIS_HOST env var.
 	redisAddr := fmt.Sprintf("%s:%d", redisHost, redisPort)
 
 	return &AppEnv{
-		Network:                network,
-		MongoHost:              mongoHost,
-		MongoPort:              strconv.Itoa(mongoPort),
-		MongoUser:              CoreInfraUsername,
-		MongoPassword:          CoreInfraPassword,
-		PGHost:                 pgHost,
-		PGPort:                 strconv.Itoa(pgPort),
-		PGUser:                 CoreInfraUsername,
-		PGPassword:             CoreInfraPassword,
-		RabbitHost:             rabbitHost,
-		RabbitPort:             strconv.Itoa(rabbitPort),
-		RabbitManagementPort:   "15672",
-		RabbitUser:             CoreInfraUsername,
-		RabbitPassword:         CoreInfraPassword,
-		RedisHost:              redisAddr,
-		RedisPassword:          CoreInfraPassword,
-		S3Endpoint:             s3URL,
-		S3Bucket:               env.Minio.Bucket(),
-		S3AccessKeyID:          env.Minio.AccessKeyID(),
-		S3SecretKey:            env.Minio.SecretAccessKey(),
-		PluginCRMMongoHost:     pluginCRMHost,
-		PluginCRMMongoPort:     strconv.Itoa(pluginCRMPort),
-		PluginCRMMongoUser:     CoreInfraUsername,
-		PluginCRMMongoPassword: PluginCRMPassword,
+		Network:              network,
+		MongoHost:            mongoHost,
+		MongoPort:            strconv.Itoa(mongoPort),
+		MongoUser:            CoreInfraUsername,
+		MongoPassword:        CoreInfraPassword,
+		PGHost:               pgHost,
+		PGPort:               strconv.Itoa(pgPort),
+		PGUser:               CoreInfraUsername,
+		PGPassword:           CoreInfraPassword,
+		RabbitHost:           rabbitHost,
+		RabbitPort:           strconv.Itoa(rabbitPort),
+		RabbitManagementPort: "15672",
+		RabbitUser:           CoreInfraUsername,
+		RabbitPassword:       CoreInfraPassword,
+		RedisHost:            redisAddr,
+		RedisPassword:        CoreInfraPassword,
+		S3Endpoint:           s3URL,
+		S3Bucket:             env.Minio.Bucket(),
+		S3AccessKeyID:        env.Minio.AccessKeyID(),
+		S3SecretKey:          env.Minio.SecretAccessKey(),
+		CRMMongoHost:         crmHost,
+		CRMMongoPort:         strconv.Itoa(crmPort),
+		CRMMongoUser:         CoreInfraUsername,
+		CRMMongoPassword:     CRMPassword,
 	}, nil
 }
 
@@ -208,20 +208,20 @@ func (e *AppEnv) ManagerEnv() map[string]string {
 		"DATASOURCE_MIDAZ_TRANSACTION_TYPE":        "postgresql",
 		"DATASOURCE_MIDAZ_TRANSACTION_SSLMODE":     "disable",
 
-		"DATASOURCE_PLUGIN_CRM_CONFIG_NAME":           DSPluginCRM,
-		"DATASOURCE_PLUGIN_CRM_HOST":                  e.PluginCRMMongoHost,
-		"DATASOURCE_PLUGIN_CRM_PORT":                  e.PluginCRMMongoPort,
-		"DATASOURCE_PLUGIN_CRM_USER":                  e.PluginCRMMongoUser,
-		"DATASOURCE_PLUGIN_CRM_PASSWORD":              e.PluginCRMMongoPassword,
-		"DATASOURCE_PLUGIN_CRM_DATABASE":              DSPluginCRM,
-		"DATASOURCE_PLUGIN_CRM_TYPE":                  "mongodb",
-		"DATASOURCE_PLUGIN_CRM_OPTIONS":               "authSource=admin",
-		"DATASOURCE_PLUGIN_CRM_MIDAZ_ORGANIZATION_ID": PluginCRMMidazOrgID,
+		"DATASOURCE_CRM_CONFIG_NAME":           DSCRM,
+		"DATASOURCE_CRM_HOST":                  e.CRMMongoHost,
+		"DATASOURCE_CRM_PORT":                  e.CRMMongoPort,
+		"DATASOURCE_CRM_USER":                  e.CRMMongoUser,
+		"DATASOURCE_CRM_PASSWORD":              e.CRMMongoPassword,
+		"DATASOURCE_CRM_DATABASE":              DSCRM,
+		"DATASOURCE_CRM_TYPE":                  "mongodb",
+		"DATASOURCE_CRM_OPTIONS":               "authSource=admin",
+		"DATASOURCE_CRM_MIDAZ_ORGANIZATION_ID": CRMMidazOrgID,
 	}
 }
 
 // WorkerEnv returns the complete set of environment variables required by the Worker container.
-// This includes DATASOURCE_* variables for midaz_onboarding (PostgreSQL) and plugin_crm (MongoDB).
+// This includes DATASOURCE_* variables for midaz_onboarding (PostgreSQL) and crm (MongoDB).
 func (e *AppEnv) WorkerEnv() map[string]string {
 	return map[string]string{
 		// Service configuration
@@ -282,16 +282,16 @@ func (e *AppEnv) WorkerEnv() map[string]string {
 		"DATASOURCE_MIDAZ_TRANSACTION_TYPE":        "postgresql",
 		"DATASOURCE_MIDAZ_TRANSACTION_SSLMODE":     "disable",
 
-		// DATASOURCE: plugin_crm (MongoDB)
-		"DATASOURCE_PLUGIN_CRM_CONFIG_NAME":           DSPluginCRM,
-		"DATASOURCE_PLUGIN_CRM_HOST":                  e.PluginCRMMongoHost,
-		"DATASOURCE_PLUGIN_CRM_PORT":                  e.PluginCRMMongoPort,
-		"DATASOURCE_PLUGIN_CRM_USER":                  e.PluginCRMMongoUser,
-		"DATASOURCE_PLUGIN_CRM_PASSWORD":              e.PluginCRMMongoPassword,
-		"DATASOURCE_PLUGIN_CRM_DATABASE":              DSPluginCRM,
-		"DATASOURCE_PLUGIN_CRM_TYPE":                  "mongodb",
-		"DATASOURCE_PLUGIN_CRM_OPTIONS":               "authSource=admin",
-		"DATASOURCE_PLUGIN_CRM_MIDAZ_ORGANIZATION_ID": PluginCRMMidazOrgID,
+		// DATASOURCE: crm (MongoDB)
+		"DATASOURCE_CRM_CONFIG_NAME":           DSCRM,
+		"DATASOURCE_CRM_HOST":                  e.CRMMongoHost,
+		"DATASOURCE_CRM_PORT":                  e.CRMMongoPort,
+		"DATASOURCE_CRM_USER":                  e.CRMMongoUser,
+		"DATASOURCE_CRM_PASSWORD":              e.CRMMongoPassword,
+		"DATASOURCE_CRM_DATABASE":              DSCRM,
+		"DATASOURCE_CRM_TYPE":                  "mongodb",
+		"DATASOURCE_CRM_OPTIONS":               "authSource=admin",
+		"DATASOURCE_CRM_MIDAZ_ORGANIZATION_ID": CRMMidazOrgID,
 
 		// PDF generation
 		"PDF_POOL_WORKERS":    "1",
@@ -302,9 +302,9 @@ func (e *AppEnv) WorkerEnv() map[string]string {
 		"OTEL_LIBRARY_NAME":    "reporter",
 		"MULTI_TENANT_ENABLED": "false",
 
-		// Crypto keys for plugin_crm PII decryption (must match keys used to encrypt seed data).
-		"CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM":    TestCryptoHashKey,
-		"CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM": TestCryptoEncryptKey,
+		// Crypto keys for crm PII decryption (must match keys used to encrypt seed data).
+		"CRYPTO_HASH_SECRET_KEY_CRM":    TestCryptoHashKey,
+		"CRYPTO_ENCRYPT_SECRET_KEY_CRM": TestCryptoEncryptKey,
 	}
 }
 

@@ -112,9 +112,9 @@ func (uc *UseCase) getDataSourceInformationLegacy(ctx context.Context) []*model.
 		}
 
 		if dataSourceInformation != nil && strings.TrimSpace(dataSourceInformation.Id) != "" {
-			// Add note for plugin_crm about field filtering
-			if key == pluginCRMDataSourceID {
-				uc.Logger.Log(ctx, log.LevelDebug, "Note: plugin_crm data source filters out encrypted fields and only shows non-encrypted fields and search fields for security")
+			// Add note for crm about field filtering
+			if key == crmDataSourceID {
+				uc.Logger.Log(ctx, log.LevelDebug, "Note: crm data source filters out encrypted fields and only shows non-encrypted fields and search fields for security")
 			}
 
 			result = append(result, dataSourceInformation)

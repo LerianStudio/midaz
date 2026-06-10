@@ -1,5 +1,5 @@
-// Reporter E2E Test: MongoDB seed data for plugin_crm
-db = db.getSiblingDB('plugin_crm');
+// Reporter E2E Test: MongoDB seed data for crm
+db = db.getSiblingDB('crm');
 
 db.holders.drop();
 

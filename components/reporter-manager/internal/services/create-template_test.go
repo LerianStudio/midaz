@@ -332,14 +332,14 @@ func TestUseCase_CreateTemplate(t *testing.T) {
 	}
 }
 
-func TestUseCase_CreateTemplateWithPluginCRM(t *testing.T) {
+func TestUseCase_CreateTemplateWithCRM(t *testing.T) {
 	t.Parallel()
 
 	// Register datasource IDs additively (no Reset) AFTER t.Parallel(). This ensures
 	// registration occurs after all non-parallel tests (which may call Reset) have
 	// completed, preventing races. RegisterDataSourceIDsForTesting is lock-protected
 	// and additive; subtests only READ the global state via IsValidDataSourceID.
-	pkg.RegisterDataSourceIDsForTesting([]string{"plugin_crm"})
+	pkg.RegisterDataSourceIDsForTesting([]string{"crm"})
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -349,10 +349,10 @@ func TestUseCase_CreateTemplateWithPluginCRM(t *testing.T) {
 	tempId := uuid.New()
 
 	externalDataSourcesMap := map[string]pkg.DataSource{}
-	externalDataSourcesMap["plugin_crm"] = pkg.DataSource{
+	externalDataSourcesMap["crm"] = pkg.DataSource{
 		DatabaseType:        "mongodb",
 		MongoURI:            "",
-		MongoDBName:         "plugin_crm",
+		MongoDBName:         "crm",
 		Connection:          nil,
 		Initialized:         true,
 		MidazOrganizationID: "org-123-abc",
@@ -376,7 +376,7 @@ func TestUseCase_CreateTemplateWithPluginCRM(t *testing.T) {
 
 	templateCRM := `
 		<?xml version="1.0" encoding="UTF-8"?>
-		{% for h in plugin_crm.holder %}
+		{% for h in crm.holder %}
 		<Holder>
 			<Name>{{ h.name }}</Name>
 			<Document>{{ h.document }}</Document>
@@ -385,7 +385,7 @@ func TestUseCase_CreateTemplateWithPluginCRM(t *testing.T) {
 	`
 	templateCRMFileHeader, _ := createFileHeaderFromString(templateCRM, "crm_template.tpl")
 
-	t.Run("Success - Template with plugin_crm datasource", func(t *testing.T) {
+	t.Run("Success - Template with crm datasource", func(t *testing.T) {
 		mockTempRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			Return(templateEntity, nil)

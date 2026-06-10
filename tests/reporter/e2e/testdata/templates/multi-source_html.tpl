@@ -43,7 +43,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for h in plugin_crm.holders %}
+            {% for h in crm.holders %}
             <tr>
                 <td>{{ h._id }}</td>
                 <td>{{ h.email }}</td>

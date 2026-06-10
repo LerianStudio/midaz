@@ -26,7 +26,7 @@ type Repository interface {
 	QueryWithAdvancedFilters(ctx context.Context, collection string, fields []string, filter map[string]model.FilterCondition) ([]map[string]any, error)
 	GetDatabaseSchema(ctx context.Context) ([]CollectionSchema, error)
 	GetDatabaseSchemaForOrganization(ctx context.Context, organizationID string) ([]CollectionSchema, error)
-	GetDatabaseSchemaForPluginCRM(ctx context.Context) ([]CollectionSchema, error)
+	GetDatabaseSchemaForCRM(ctx context.Context) ([]CollectionSchema, error)
 	ListCollectionNames(ctx context.Context) ([]string, error)
 	CloseConnection(ctx context.Context) error
 

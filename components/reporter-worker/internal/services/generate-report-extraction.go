@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services/plugincrm"
+	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services/crm"
 	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 	cnErr "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
@@ -48,10 +48,10 @@ const singleTenantEngineTenantID = "default"
 // conditions (context cancellation). E9 partial-failure semantics are preserved:
 // a failed section is dropped from result and recorded with its classified code.
 //
-// plugin_crm datasources do NOT route through the generic engine: the engine
-// queries literal collection names, while plugin_crm requires the holders_* org
+// crm datasources do NOT route through the generic engine: the engine
+// queries literal collection names, while crm requires the holders_* org
 // fan-out, hash-based pre-filter transform, and field decryption. Those run via
-// the plugincrm stage against the host-owned per-tenant mongo repository.
+// the crm stage against the host-owned per-tenant mongo repository.
 func (uc *UseCase) extractViaEngine(
 	ctx context.Context,
 	message GenerateReportMessage,
@@ -94,7 +94,7 @@ func (uc *UseCase) extractViaEngine(
 }
 
 // extractDatasource extracts a single datasource (report section). It dispatches
-// plugin_crm to the dedicated fan-out/decrypt path and every other datasource to
+// crm to the dedicated fan-out/decrypt path and every other datasource to
 // the embedded engine.
 func (uc *UseCase) extractDatasource(
 	ctx context.Context,
@@ -103,8 +103,8 @@ func (uc *UseCase) extractDatasource(
 	tables map[string][]string,
 	result map[string]map[string][]map[string]any,
 ) error {
-	if plugincrm.Is(databaseName) {
-		return uc.extractPluginCRM(ctx, databaseName, tables, message.Filters, result)
+	if crm.Is(databaseName) {
+		return uc.extractCRM(ctx, databaseName, tables, message.Filters, result)
 	}
 
 	return uc.extractEngineDatasource(ctx, message, databaseName, tables, result)
@@ -498,12 +498,12 @@ func rekeyEngineResult(
 	}
 }
 
-// extractPluginCRM reproduces the legacy plugin_crm extraction path: for each
+// extractCRM reproduces the legacy crm extraction path: for each
 // requested logical collection it runs the PRE-FILTER hash transform, fans out
 // over the org-scoped physical collections (holders_*) with organization_id
 // injection, then runs the POST-EXTRACTION field decryption. The synthetic
 // "organization" collection is skipped (metadata, not queryable).
-func (uc *UseCase) extractPluginCRM(
+func (uc *UseCase) extractCRM(
 	ctx context.Context,
 	databaseName string,
 	collections map[string][]string,
@@ -512,7 +512,7 @@ func (uc *UseCase) extractPluginCRM(
 ) error {
 	reqID := ctxutil.HeaderIDFromContext(ctx)
 
-	ctx, span := uc.Tracer.Start(ctx, "service.report.extract_plugin_crm")
+	ctx, span := uc.Tracer.Start(ctx, "service.report.extract_crm")
 	defer span.End()
 
 	span.SetAttributes(
@@ -536,7 +536,7 @@ func (uc *UseCase) extractPluginCRM(
 		return pkgErr.FailedPreconditionError{
 			Code:    cnErr.ErrCodeDataSourceUnavailable.Error(),
 			Title:   "Data Source Unavailable",
-			Message: fmt.Sprintf("plugin_crm datasource %s has no mongo connection", databaseName),
+			Message: fmt.Sprintf("crm datasource %s has no mongo connection", databaseName),
 		}
 	}
 
@@ -545,23 +545,23 @@ func (uc *UseCase) extractPluginCRM(
 	}
 
 	databaseFilters := allFilters[databaseName]
-	querier := &pluginCRMQuerier{repo: dataSource.MongoDBRepository}
+	querier := &crmQuerier{repo: dataSource.MongoDBRepository}
 
 	for collection, fields := range collections {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		if !plugincrm.IsQueryableCollection(collection) {
+		if !crm.IsQueryableCollection(collection) {
 			uc.Logger.Log(ctx, log.LevelDebug,
-				"Skipping plugin_crm organization collection - metadata, not queryable",
+				"Skipping crm organization collection - metadata, not queryable",
 				log.String("collection", collection))
 
 			continue
 		}
 
-		if err := uc.extractPluginCRMCollection(ctx, querier, databaseName, collection, fields, databaseFilters, result); err != nil {
-			libOtel.HandleSpanError(span, "Error extracting plugin_crm collection", err)
+		if err := uc.extractCRMCollection(ctx, querier, databaseName, collection, fields, databaseFilters, result); err != nil {
+			libOtel.HandleSpanError(span, "Error extracting crm collection", err)
 			return err
 		}
 	}
@@ -569,11 +569,11 @@ func (uc *UseCase) extractPluginCRM(
 	return nil
 }
 
-// extractPluginCRMCollection runs the three plugin_crm seams for one logical
+// extractCRMCollection runs the three crm seams for one logical
 // collection: PRE-FILTER transform, org fan-out, POST-EXTRACTION decryption.
-func (uc *UseCase) extractPluginCRMCollection(
+func (uc *UseCase) extractCRMCollection(
 	ctx context.Context,
-	querier plugincrm.CollectionQuerier,
+	querier crm.CollectionQuerier,
 	databaseName, collection string,
 	fields []string,
 	databaseFilters map[string]map[string]model.FilterCondition,
@@ -581,17 +581,17 @@ func (uc *UseCase) extractPluginCRMCollection(
 ) error {
 	collectionFilters := getTableFilters(databaseFilters, collection)
 
-	transformedFilters, err := plugincrm.TransformFilters(collectionFilters, uc.CryptoHashSecretKeyPluginCRM, uc.Logger)
+	transformedFilters, err := crm.TransformFilters(collectionFilters, uc.CryptoHashSecretKeyCRM, uc.Logger)
 	if err != nil {
 		return err
 	}
 
-	rows, err := uc.runPluginCRMFanOut(ctx, querier, collection, fields, transformedFilters)
+	rows, err := uc.runCRMFanOut(ctx, querier, collection, fields, transformedFilters)
 	if err != nil {
 		return err
 	}
 
-	decrypted, err := plugincrm.DecryptRecords(rows, fields, uc.CryptoHashSecretKeyPluginCRM, uc.CryptoEncryptSecretKeyPluginCRM, uc.Logger)
+	decrypted, err := crm.DecryptRecords(rows, fields, uc.CryptoHashSecretKeyCRM, uc.CryptoEncryptSecretKeyCRM, uc.Logger)
 	if err != nil {
 		return pkgErr.ValidateBusinessError(cnErr.ErrDecryptionData, "", err)
 	}
@@ -601,18 +601,18 @@ func (uc *UseCase) extractPluginCRMCollection(
 	return nil
 }
 
-// runPluginCRMFanOut executes the org-collection fan-out under circuit-breaker
+// runCRMFanOut executes the org-collection fan-out under circuit-breaker
 // protection, keeping the same breaker keying the legacy worker used (keyed by
-// the plugin_crm datasource name) so resilience parity is preserved.
-func (uc *UseCase) runPluginCRMFanOut(
+// the crm datasource name) so resilience parity is preserved.
+func (uc *UseCase) runCRMFanOut(
 	ctx context.Context,
-	querier plugincrm.CollectionQuerier,
+	querier crm.CollectionQuerier,
 	collection string,
 	fields []string,
 	filters map[string]model.FilterCondition,
 ) ([]map[string]any, error) {
-	fanOutResult, err := uc.CircuitBreakerManager.Execute(plugincrm.DatasourceName, func() (any, error) {
-		return plugincrm.FanOutOrgCollections(ctx, querier, collection, fields, filters)
+	fanOutResult, err := uc.CircuitBreakerManager.Execute(crm.DatasourceName, func() (any, error) {
+		return crm.FanOutOrgCollections(ctx, querier, collection, fields, filters)
 	})
 	if err != nil {
 		return nil, err
@@ -623,36 +623,36 @@ func (uc *UseCase) runPluginCRMFanOut(
 		return nil, pkgErr.FailedPreconditionError{
 			Code:    cnErr.ErrCodeUnexpectedCollectionResult.Error(),
 			Title:   "Unexpected Query Result",
-			Message: fmt.Sprintf("unexpected fan-out result type for plugin_crm collection %s", collection),
+			Message: fmt.Sprintf("unexpected fan-out result type for crm collection %s", collection),
 		}
 	}
 
 	return rows, nil
 }
 
-// pluginCRMQuerier adapts the reporter's mongodb.Repository onto the
-// plugincrm.CollectionQuerier seam, routing the no-filter case to Query and the
+// crmQuerier adapts the reporter's mongodb.Repository onto the
+// crm.CollectionQuerier seam, routing the no-filter case to Query and the
 // filtered case to QueryWithAdvancedFilters exactly as the legacy worker did.
-type pluginCRMQuerier struct {
-	repo pluginCRMRepository
+type crmQuerier struct {
+	repo crmRepository
 }
 
-// pluginCRMRepository is the narrow read surface the fan-out needs from the
+// crmRepository is the narrow read surface the fan-out needs from the
 // reporter's mongo repository. *mongodb.ExternalDataSource satisfies it.
-type pluginCRMRepository interface {
+type crmRepository interface {
 	ListCollectionNames(ctx context.Context) ([]string, error)
 	Query(ctx context.Context, collection string, fields []string, filter map[string][]any) ([]map[string]any, error)
 	QueryWithAdvancedFilters(ctx context.Context, collection string, fields []string, filter map[string]model.FilterCondition) ([]map[string]any, error)
 }
 
 // ListCollectionNames forwards to the repository.
-func (q *pluginCRMQuerier) ListCollectionNames(ctx context.Context) ([]string, error) {
+func (q *crmQuerier) ListCollectionNames(ctx context.Context) ([]string, error) {
 	return q.repo.ListCollectionNames(ctx)
 }
 
 // QueryCollection queries one physical collection, using advanced filters when
 // present and the legacy plain Query otherwise.
-func (q *pluginCRMQuerier) QueryCollection(ctx context.Context, physicalCollection string, fields []string, filters map[string]model.FilterCondition) ([]map[string]any, error) {
+func (q *crmQuerier) QueryCollection(ctx context.Context, physicalCollection string, fields []string, filters map[string]model.FilterCondition) ([]map[string]any, error) {
 	if len(filters) > 0 {
 		return q.repo.QueryWithAdvancedFilters(ctx, physicalCollection, fields, filters)
 	}
@@ -660,4 +660,4 @@ func (q *pluginCRMQuerier) QueryCollection(ctx context.Context, physicalCollecti
 	return q.repo.Query(ctx, physicalCollection, fields, nil)
 }
 
-var _ plugincrm.CollectionQuerier = (*pluginCRMQuerier)(nil)
+var _ crm.CollectionQuerier = (*crmQuerier)(nil)

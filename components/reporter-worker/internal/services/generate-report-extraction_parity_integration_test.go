@@ -24,8 +24,8 @@
 //     error from GenerateReport (so the report is marked Error), never a silent
 //     Finished with missing data.
 //
-// plugin_crm coverage deferred: see the package-level note in
-// TestIntegration_Parity_PluginCRMDeferred at the bottom of this file.
+// crm coverage deferred: see the package-level note in
+// TestIntegration_Parity_CRMDeferred at the bottom of this file.
 package services
 
 import (
@@ -87,7 +87,7 @@ func (m *parityMongoManager) GetDatabaseForTenant(_ context.Context, tenantID st
 
 // parityLookup is a DatasourceLookup over a fixed descriptor set, standing in
 // for the bootstrap datasource map. It declares the two datasources the parity
-// report extracts from: a postgres "ledger" and a mongo "crm".
+// report extracts from: a postgres "ledger" and a generic mongo "mongo".
 type parityLookup struct {
 	conns map[string]rengine.DatasourceConnection
 	names []string
@@ -192,9 +192,9 @@ func parityEngine(t *testing.T, pg *sql.DB, mongoDB *mongo.Database) *fetcherEng
 	lookup := &parityLookup{
 		conns: map[string]rengine.DatasourceConnection{
 			"ledger": {ConfigName: "ledger", Type: rengine.DatasourceTypePostgres, Schemas: []string{"public"}},
-			"crm":    {ConfigName: "crm", Type: rengine.DatasourceTypeMongo},
+			"mongo":  {ConfigName: "mongo", Type: rengine.DatasourceTypeMongo},
 		},
-		names: []string{"ledger", "crm"},
+		names: []string{"ledger", "mongo"},
 	}
 
 	resolver := rengine.NewMultiTenantResolver(
@@ -305,14 +305,14 @@ func TestIntegration_Parity_MultiDatasourceFiltersAndBetween(t *testing.T) {
 		TemplateID: uuid.New(),
 		DataQueries: map[string]map[string][]string{
 			"ledger": {"public__accounts": {"id", "status", "created_at"}},
-			"crm":    {"holders": {"name", "status"}},
+			"mongo":  {"holders": {"name", "status"}},
 		},
 		Filters: map[string]map[string]map[string]model.FilterCondition{
 			"ledger": {"public__accounts": {
 				"status":     {Equals: []any{"ACTIVE"}},
 				"created_at": {Between: []any{"2025-06-01", "2025-06-30"}},
 			}},
-			"crm": {"holders": {
+			"mongo": {"holders": {
 				"status": {Equals: []any{"ACTIVE"}},
 			}},
 		},
@@ -333,8 +333,8 @@ func TestIntegration_Parity_MultiDatasourceFiltersAndBetween(t *testing.T) {
 	assert.NotContains(t, result["ledger"], "public.accounts",
 		"the engine's dot-qualified key must NOT leak to the renderer")
 
-	require.Contains(t, result, "crm")
-	require.Contains(t, result["crm"], "holders")
+	require.Contains(t, result, "mongo")
+	require.Contains(t, result["mongo"], "holders")
 
 	// AXIS 2 — filter row-count parity. status=ACTIVE AND created_at within
 	// June 2025: acc-1 (06-01) only — acc-3 is INACTIVE, acc-4 is ACTIVE but July.
@@ -347,7 +347,7 @@ func TestIntegration_Parity_MultiDatasourceFiltersAndBetween(t *testing.T) {
 	assert.NotContains(t, pgRows[0], "secret", "unselected column must not be extracted")
 
 	// Mongo Equals=ACTIVE matches Alice + Carol (IN semantics over the singleton).
-	mongoRows := result["crm"]["holders"]
+	mongoRows := result["mongo"]["holders"]
 	require.Len(t, mongoRows, 2, "ACTIVE holders must match Alice and Carol")
 	names := map[string]bool{}
 	for _, r := range mongoRows {
@@ -526,22 +526,22 @@ func TestIntegration_Parity_ContextCancelMarksError(t *testing.T) {
 	assert.Equal(t, "report_generation_canceled", meta["error_code"])
 }
 
-// TestIntegration_Parity_PluginCRMCovered points at where the plugin_crm
+// TestIntegration_Parity_CRMCovered points at where the crm
 // worker-level parity now lives.
 //
-// plugin_crm parity (org fan-out over holders_* physical collections with
-// organization_id injection, CryptoEncryptSecretKeyPluginCRM field decryption,
+// crm parity (org fan-out over holders_* physical collections with
+// organization_id injection, CryptoEncryptSecretKeyCRM field decryption,
 // and the document -> search.document hash-based advanced-filter transform) does
 // NOT route through the generic engine assembled in this file — it runs via
-// uc.extractPluginCRM against the host-owned per-tenant mongo repository
+// uc.extractCRM against the host-owned per-tenant mongo repository
 // (UseCase.ExternalDataSources). That path is covered end-to-end against a live
 // testcontainers MongoDB in
-// generate-report-extraction_plugincrm_parity_integration_test.go, which drives
+// generate-report-extraction_crm_parity_integration_test.go, which drives
 // the real composed handler over a real mongodb.ExternalDataSource and
 // CircuitBreakerManager with fixtures encrypted/hashed by the same lib-commons
-// crypto primitives the plugincrm module uses.
-func TestIntegration_Parity_PluginCRMCovered(t *testing.T) {
-	t.Log("plugin_crm worker-level parity covered in " +
-		"generate-report-extraction_plugincrm_parity_integration_test.go " +
-		"(TestIntegration_PluginCRMParity_*).")
+// crypto primitives the crm module uses.
+func TestIntegration_Parity_CRMCovered(t *testing.T) {
+	t.Log("crm worker-level parity covered in " +
+		"generate-report-extraction_crm_parity_integration_test.go " +
+		"(TestIntegration_CRMParity_*).")
 }

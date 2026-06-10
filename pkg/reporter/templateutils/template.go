@@ -66,9 +66,9 @@ func MappedFieldsOfTemplate(templateFile string) map[string]map[string][]string 
 			}
 		}
 
-		// For expressions with arithmetic operators (e.g., "6 + plugin_crm.holders|length"),
+		// For expressions with arithmetic operators (e.g., "6 + crm.holders|length"),
 		// use regex-based extraction that correctly isolates dotted field paths
-		// instead of the pipe-splitting logic that misinterprets "6 + plugin_crm.holders" as a path.
+		// instead of the pipe-splitting logic that misinterprets "6 + crm.holders" as a path.
 		if containsArithmeticOperator(expr) {
 			registerArithmeticFieldPaths(expr, resultRegex, variableMap)
 			continue
@@ -570,9 +570,9 @@ func regexBlockForOnPlaceholder(templateFile string) map[string][]string {
 
 // resolveNestedVariables resolves nested loop variable references in variableMap.
 // When a variable's path starts with another loop variable, it expands the full path.
-// Example: if variableMap["alias"] = ["plugin_crm", "aliases"] and
+// Example: if variableMap["alias"] = ["crm", "aliases"] and
 // variableMap["related_party"] = ["alias", "related_parties"], this function
-// resolves it to variableMap["related_party"] = ["plugin_crm", "aliases", "related_parties"]
+// resolves it to variableMap["related_party"] = ["crm", "aliases", "related_parties"]
 func resolveNestedVariables(variableMap map[string][]string) {
 	maxIterations := len(variableMap) // Prevent infinite loops
 
@@ -1151,7 +1151,7 @@ func cleanPathLegacy(path string) []string {
 }
 
 // registerArithmeticFieldPaths extracts dotted field paths from arithmetic expressions
-// (e.g., "6 + plugin_crm.holders|length") and ensures the referenced collections exist
+// (e.g., "6 + crm.holders|length") and ensures the referenced collections exist
 // in the result map. For 2-part paths (datasource.collection), it only ensures the
 // map structure exists without overwriting existing field lists.
 func registerArithmeticFieldPaths(expr string, resultRegex map[string]any, variableMap map[string][]string) {
@@ -1182,7 +1182,7 @@ func registerArithmeticFieldPaths(expr string, resultRegex map[string]any, varia
 }
 
 // containsArithmeticOperator checks if an expression contains arithmetic operators
-// surrounded by spaces (e.g., "6 + plugin_crm.holders|length").
+// surrounded by spaces (e.g., "6 + crm.holders|length").
 var arithmeticOperatorRegex = regexp.MustCompile(`\s[+\-*/]\s`)
 
 func containsArithmeticOperator(expr string) bool {

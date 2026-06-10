@@ -5,7 +5,7 @@
 package services
 
 // TransformMappedFieldsForStorage transforms mapped fields for storage in the database.
-// For plugin_crm database, an organization mapping entry is added when organizationID is provided.
+// For crm database, an organization mapping entry is added when organizationID is provided.
 func TransformMappedFieldsForStorage(mappedFields map[string]map[string][]string, organizationID string) map[string]map[string][]string {
 	transformedFields := make(map[string]map[string][]string)
 
@@ -16,8 +16,8 @@ func TransformMappedFieldsForStorage(mappedFields map[string]map[string][]string
 			transformedTables[tableName] = fields
 		}
 
-		// For plugin_crm database, add organization mapping only if organizationID is provided
-		if databaseName == pluginCRMDataSourceID && organizationID != "" {
+		// For crm database, add organization mapping only if organizationID is provided
+		if databaseName == crmDataSourceID && organizationID != "" {
 			transformedTables["organization"] = []string{organizationID}
 		}
 

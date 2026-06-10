@@ -209,7 +209,7 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 		},
 		{
 			name: "FailedPreconditionError 0296 (crypto config) is non-retryable",
-			err:  pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"},
+			err:  pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_CRM not configured"},
 			want: true,
 		},
 		{
@@ -219,13 +219,13 @@ func TestIsNonRetryableHandlerError(t *testing.T) {
 		},
 		{
 			name: "wrapped FailedPreconditionError 0296 is non-retryable",
-			err:  fmt.Errorf("query: %w", pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM not configured"}),
+			err:  fmt.Errorf("query: %w", pkg.FailedPreconditionError{Code: "0296", Title: "CRM Crypto Not Configured", Message: "CRYPTO_HASH_SECRET_KEY_CRM not configured"}),
 			want: true,
 		},
 		// Heuristic pattern fallback (safety net for untyped errors)
 		{
 			name: "pattern: 'key not configured' is non-retryable",
-			err:  fmt.Errorf("CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM key not configured"),
+			err:  fmt.Errorf("CRYPTO_HASH_SECRET_KEY_CRM key not configured"),
 			want: true,
 		},
 		{

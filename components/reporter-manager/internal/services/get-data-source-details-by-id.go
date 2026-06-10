@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const pluginCRMDataSourceID = "plugin_crm"
+const crmDataSourceID = "crm"
 
 var (
 	// Define encrypted fields that should be excluded
@@ -322,7 +322,7 @@ func (uc *UseCase) getDataSourceDetailsOfMongoDBDatabase(ctx context.Context, lo
 		err    error
 	)
 
-	// If MidazOrganizationID is configured (e.g., for plugin_crm), fetch only collections for that organization
+	// If MidazOrganizationID is configured (e.g., for crm), fetch only collections for that organization
 	if dataSource.MidazOrganizationID != "" {
 		logger.Log(ctx, log.LevelDebug, "Fetching schema for Midaz organization",
 			log.String("organization_id", dataSource.MidazOrganizationID),
@@ -373,8 +373,8 @@ func (uc *UseCase) processCollectionsForDataSource(schema []mongodb.CollectionSc
 
 // getFieldsForCollection determines which fields to include for a collection
 func (uc *UseCase) getFieldsForCollection(collection mongodb.CollectionSchema, dataSourceID string) []string {
-	if dataSourceID == pluginCRMDataSourceID {
-		return uc.getFieldsForPluginCRM(collection)
+	if dataSourceID == crmDataSourceID {
+		return uc.getFieldsForCRM(collection)
 	}
 
 	// For other databases, include all fields
@@ -386,11 +386,11 @@ func (uc *UseCase) getFieldsForCollection(collection mongodb.CollectionSchema, d
 	return fields
 }
 
-// getFieldsForPluginCRM gets fields for plugin_crm collections with special handling
-func (uc *UseCase) getFieldsForPluginCRM(collection mongodb.CollectionSchema) []string {
+// getFieldsForCRM gets fields for crm collections with special handling
+func (uc *UseCase) getFieldsForCRM(collection mongodb.CollectionSchema) []string {
 	baseCollectionName := uc.getBaseCollectionName(collection.CollectionName)
 
-	expandedFields := uc.getExpandedFieldsForPluginCRM(baseCollectionName)
+	expandedFields := uc.getExpandedFieldsForCRM(baseCollectionName)
 	if expandedFields != nil {
 		return expandedFields
 	}
@@ -399,7 +399,7 @@ func (uc *UseCase) getFieldsForPluginCRM(collection mongodb.CollectionSchema) []
 	fields := make([]string, 0)
 
 	for _, collectionField := range collection.Fields {
-		if uc.shouldIncludeFieldForPluginCRM(collectionField.Name, baseCollectionName) {
+		if uc.shouldIncludeFieldForCRM(collectionField.Name, baseCollectionName) {
 			fields = append(fields, collectionField.Name)
 		}
 	}
@@ -423,15 +423,15 @@ func (uc *UseCase) getBaseCollectionName(collectionName string) string {
 
 // getDisplayNameForCollection gets the display name for a collection
 func (uc *UseCase) getDisplayNameForCollection(collectionName, dataSourceID string) string {
-	if dataSourceID == pluginCRMDataSourceID {
+	if dataSourceID == crmDataSourceID {
 		return uc.getBaseCollectionName(collectionName)
 	}
 
 	return collectionName
 }
 
-// shouldIncludeFieldForPluginCRM determines if a field should be included for plugin_crm based on encryption status
-func (uc *UseCase) shouldIncludeFieldForPluginCRM(fieldName, collectionName string) bool {
+// shouldIncludeFieldForCRM determines if a field should be included for crm based on encryption status
+func (uc *UseCase) shouldIncludeFieldForCRM(fieldName, collectionName string) bool {
 	// Check if it's a search field (include these)
 	if searchFields[fieldName] {
 		return true
@@ -457,8 +457,8 @@ func (uc *UseCase) shouldIncludeFieldForPluginCRM(fieldName, collectionName stri
 	return true
 }
 
-// getExpandedFieldsForPluginCRM returns the expanded field list for plugin_crm collections
-func (uc *UseCase) getExpandedFieldsForPluginCRM(collectionName string) []string {
+// getExpandedFieldsForCRM returns the expanded field list for crm collections
+func (uc *UseCase) getExpandedFieldsForCRM(collectionName string) []string {
 	switch collectionName {
 	case "holders":
 		return []string{

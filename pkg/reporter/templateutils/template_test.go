@@ -1042,7 +1042,7 @@ func TestMappedFieldsOfTemplate_NestedLoopWithParentVariable(t *testing.T) {
 	t.Parallel()
 
 	template := `
-{% for alias in plugin_crm.aliases %}
+{% for alias in crm.aliases %}
   Alias ID: {{ alias.account_id }}
   {% for related_party in alias.related_parties %}
     Role: {{ related_party.role }}
@@ -1052,15 +1052,15 @@ func TestMappedFieldsOfTemplate_NestedLoopWithParentVariable(t *testing.T) {
 
 	result := MappedFieldsOfTemplate(template)
 
-	// Should map to plugin_crm
+	// Should map to crm
 	assert.NotNil(t, result)
-	assert.Contains(t, result, "plugin_crm", "plugin_crm should exist in result")
+	assert.Contains(t, result, "crm", "crm should exist in result")
 
-	pluginCRM := result["plugin_crm"]
-	assert.Contains(t, pluginCRM, "aliases", "aliases should exist under plugin_crm")
+	crm := result["crm"]
+	assert.Contains(t, crm, "aliases", "aliases should exist under crm")
 
 	// Get aliases fields
-	aliasesFields := pluginCRM["aliases"]
+	aliasesFields := crm["aliases"]
 
 	// Should contain account_id (direct field from alias)
 	assert.Contains(t, aliasesFields, "account_id", "account_id should be in aliases fields")
@@ -1174,12 +1174,12 @@ func TestResolveNestedVariables(t *testing.T) {
 		{
 			name: "nested loop - resolve parent variable",
 			input: map[string][]string{
-				"alias":         {"plugin_crm", "aliases"},
+				"alias":         {"crm", "aliases"},
 				"related_party": {"alias", "related_parties"},
 			},
 			expected: map[string][]string{
-				"alias":         {"plugin_crm", "aliases"},
-				"related_party": {"plugin_crm", "aliases", "related_parties"},
+				"alias":         {"crm", "aliases"},
+				"related_party": {"crm", "aliases", "related_parties"},
 			},
 		},
 		{
@@ -2344,8 +2344,8 @@ func TestMappedFieldsOfTemplate_WithFilterAndNestedFor(t *testing.T) {
 	// Reproduces the pattern: with operations = filter(...) + for operation in operations
 	// The "operations" variable is defined by "with" and iterated by "for".
 	// Without re-resolving nested variables, "operations" would appear as a phantom data source.
-	template := `{%- for holder in plugin_crm.holders %}
-{%- for alias in plugin_crm.aliases %}
+	template := `{%- for holder in crm.holders %}
+{%- for alias in crm.aliases %}
 {%- if alias.holder_id == holder.id %}
 {%- with operations = filter(midaz_transaction.operation, "account_id", alias.account_id) %}
 {% sum_by operations by 'amount.value' %}
@@ -2375,22 +2375,22 @@ func TestMappedFieldsOfTemplate_ArithmeticWithLength(t *testing.T) {
 
 	// Realistic template: collections are used in for loops AND in an arithmetic |length expression.
 	// The arithmetic expression must NOT create phantom data sources or overwrite existing field mappings.
-	template := `{%- for holder in plugin_crm.holders %}{{ holder.name }}{%- endfor %}
-{%- for alias in plugin_crm.aliases %}{{ alias.account_id }}{%- endfor %}
+	template := `{%- for holder in crm.holders %}{{ holder.name }}{%- endfor %}
+{%- for alias in crm.aliases %}{{ alias.account_id }}{%- endfor %}
 {%- for op in midaz_transaction.operation %}{{ op.amount }}{%- endfor %}
-|9999|{{ 6 + plugin_crm.holders|length + plugin_crm.aliases|length + midaz_transaction.operation|length }}|`
+|9999|{{ 6 + crm.holders|length + crm.aliases|length + midaz_transaction.operation|length }}|`
 
 	result := MappedFieldsOfTemplate(template)
 
-	// "6 + plugin_crm" must NOT appear as a data source
-	assert.NotContains(t, result, "6 + plugin_crm", "arithmetic operand should not be a data source")
+	// "6 + crm" must NOT appear as a data source
+	assert.NotContains(t, result, "6 + crm", "arithmetic operand should not be a data source")
 
 	// Correct data sources and fields should be preserved from the for loops
-	require.Contains(t, result, "plugin_crm")
-	require.Contains(t, result["plugin_crm"], "holders")
-	assert.Contains(t, result["plugin_crm"]["holders"], "name")
-	require.Contains(t, result["plugin_crm"], "aliases")
-	assert.Contains(t, result["plugin_crm"]["aliases"], "account_id")
+	require.Contains(t, result, "crm")
+	require.Contains(t, result["crm"], "holders")
+	assert.Contains(t, result["crm"]["holders"], "name")
+	require.Contains(t, result["crm"], "aliases")
+	assert.Contains(t, result["crm"]["aliases"], "account_id")
 	require.Contains(t, result, "midaz_transaction")
 	require.Contains(t, result["midaz_transaction"], "operation")
 	assert.Contains(t, result["midaz_transaction"]["operation"], "amount")

@@ -159,8 +159,8 @@ func (c *Config) validateProductionConfig(errs []string) []string {
 		{c.MongoDBPassword, "MONGO_PASSWORD"},
 		{c.RabbitMQPass, "RABBITMQ_DEFAULT_PASS"},
 		{c.ObjectStorageSecretKey, "OBJECT_STORAGE_SECRET_KEY"},
-		{c.CryptoHashSecretKeyPluginCRM, "CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM"},
-		{c.CryptoEncryptSecretKeyPluginCRM, "CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM"},
+		{c.CryptoHashSecretKeyCRM, "CRYPTO_HASH_SECRET_KEY_CRM"},
+		{c.CryptoEncryptSecretKeyCRM, "CRYPTO_ENCRYPT_SECRET_KEY_CRM"},
 	}
 
 	for _, s := range secrets {
