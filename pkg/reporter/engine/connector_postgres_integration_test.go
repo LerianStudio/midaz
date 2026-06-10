@@ -176,6 +176,134 @@ func TestIntegration_PostgresConnector_StreamsAndProjects(t *testing.T) {
 	assert.Equal(t, 5, count)
 }
 
+// streamPostgresFiltered builds a connector against the seeded tenant DB and
+// streams the accounts table with the supplied filters, returning the collected
+// rows (filter translation runs against a real Postgres engine).
+func streamPostgresFiltered(t *testing.T, db *sql.DB, fields []string, filters datasourceFilters) ([]map[string]any, error) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	reg := NewRegistry(resolver, nil)
+	factory, _ := reg.Connector(DatasourceTypePostgres)
+
+	connector, err := factory.Build(ctx, WithTenantID(fetcher.ConnectionDescriptor{
+		ConfigName: "ledger", Type: DatasourceTypePostgres,
+	}, "tenant-default"))
+	require.NoError(t, err)
+
+	defer func() { _ = connector.Close(ctx) }()
+
+	cursor, err := connector.QueryStream(ctx, fetcher.ExtractionRequest{
+		MappedFields: map[string]fetcher.FieldSelection{"ledger": {"public.accounts": fields}},
+		Filters:      map[string]any{"ledger": filters},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = cursor.Close(ctx) }()
+
+	var rows []map[string]any
+
+	for cursor.Next(ctx) {
+		_, row := cursor.Row()
+		rows = append(rows, row)
+	}
+
+	return rows, cursor.Err()
+}
+
+func seedFilterAccounts(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	_, err := db.ExecContext(ctx, `CREATE TABLE accounts (id text PRIMARY KEY, status text, balance int, created_at date)`)
+	require.NoError(t, err)
+
+	seed := []struct {
+		id      string
+		status  string
+		balance int
+		created string
+	}{
+		{"acc-1", "ACTIVE", 100, "2025-06-01"},
+		{"acc-2", "PENDING", 500, "2025-06-15"},
+		{"acc-3", "INACTIVE", 1000, "2025-06-30"},
+		{"acc-4", "ACTIVE", 2000, "2025-07-10"},
+	}
+	for _, s := range seed {
+		_, err = db.ExecContext(ctx,
+			`INSERT INTO accounts (id, status, balance, created_at) VALUES ($1, $2, $3, $4)`,
+			s.id, s.status, s.balance, s.created)
+		require.NoError(t, err)
+	}
+}
+
+func TestIntegration_PostgresConnector_FilterEqualitySingleAndMulti(t *testing.T) {
+	infra, teardown := startPostgres(t)
+	defer teardown()
+
+	db := openTenantDB(t, infra, "tenant_default", false)
+	seedFilterAccounts(t, db)
+
+	rows, err := streamPostgresFiltered(t, db, []string{"id", "status"},
+		datasourceFilters{"public.accounts": {"status": {Equals: []any{"ACTIVE"}}}})
+	require.NoError(t, err)
+	assert.Len(t, rows, 2)
+
+	rows, err = streamPostgresFiltered(t, db, []string{"id", "status"},
+		datasourceFilters{"public.accounts": {"status": {Equals: []any{"ACTIVE", "PENDING"}}}})
+	require.NoError(t, err)
+	assert.Len(t, rows, 3)
+}
+
+func TestIntegration_PostgresConnector_FilterRange(t *testing.T) {
+	infra, teardown := startPostgres(t)
+	defer teardown()
+
+	db := openTenantDB(t, infra, "tenant_default", false)
+	seedFilterAccounts(t, db)
+
+	rows, err := streamPostgresFiltered(t, db, []string{"id", "balance"},
+		datasourceFilters{"public.accounts": {"balance": {GreaterThan: []any{100}, LessOrEqual: []any{1000}}}})
+	require.NoError(t, err)
+	assert.Len(t, rows, 2) // balance 500 and 1000
+}
+
+func TestIntegration_PostgresConnector_FilterBetweenDateExpansion(t *testing.T) {
+	infra, teardown := startPostgres(t)
+	defer teardown()
+
+	db := openTenantDB(t, infra, "tenant_default", false)
+	seedFilterAccounts(t, db)
+
+	// Between [2025-06-01, 2025-06-30] must include the 2025-06-30 row: the
+	// date-only upper bound is expanded to end-of-day.
+	rows, err := streamPostgresFiltered(t, db, []string{"id", "created_at"},
+		datasourceFilters{"public.accounts": {"created_at": {Between: []any{"2025-06-01", "2025-06-30"}}}})
+	require.NoError(t, err)
+	assert.Len(t, rows, 3) // 06-01, 06-15, 06-30 (07-10 excluded)
+}
+
+func TestIntegration_PostgresConnector_FilterUnknownFieldErrors(t *testing.T) {
+	infra, teardown := startPostgres(t)
+	defer teardown()
+
+	db := openTenantDB(t, infra, "tenant_default", false)
+	seedFilterAccounts(t, db)
+
+	_, err := streamPostgresFiltered(t, db, []string{"id"},
+		datasourceFilters{"public.accounts": {"ghost": {Equals: []any{"x"}}}})
+	require.Error(t, err)
+
+	var engineErr *fetcher.EngineError
+	require.ErrorAs(t, err, &engineErr)
+	assert.Equal(t, fetcher.CategoryValidation, engineErr.Category)
+}
+
 func TestIntegration_PostgresConnector_DiscoverSchema(t *testing.T) {
 	infra, teardown := startPostgres(t)
 	defer teardown()

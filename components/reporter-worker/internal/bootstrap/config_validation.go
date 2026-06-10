@@ -103,17 +103,6 @@ func (c *Config) multiTenantValidationErrors() []string {
 		errs = append(errs, "MULTI_TENANT_SERVICE_API_KEY is required when MULTI_TENANT_ENABLED=true")
 	}
 
-	// When Fetcher mode is also enabled, M2M auth is mandatory for tenant-scoped API calls.
-	if c.FetcherEnabled {
-		if c.AWSRegion == "" {
-			errs = append(errs, "AWS_REGION is required when MULTI_TENANT_ENABLED=true and FETCHER_ENABLED=true (needed for M2M credential retrieval)")
-		}
-
-		if c.AuthAddress == "" {
-			errs = append(errs, "PLUGIN_AUTH_ADDRESS is required when MULTI_TENANT_ENABLED=true and FETCHER_ENABLED=true (needed for M2M token exchange)")
-		}
-	}
-
 	return errs
 }
 

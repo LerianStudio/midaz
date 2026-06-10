@@ -81,17 +81,9 @@ func (uc *UseCase) GenerateReport(ctx context.Context, body []byte) (err error) 
 
 	result := make(map[string]map[string][]map[string]any)
 
-	failures, err := uc.generateReportData(ctx, message, result, &span, message.ReportID)
+	failures, err := uc.extractViaEngine(ctx, message, result)
 	if err != nil {
-		// In Fetcher mode, requestFetcherExtraction returns nil (report is now async).
-		// An error here means something went wrong with the extraction dispatch itself.
-		return err
-	}
-
-	// In Fetcher mode, generateReportData sets status to PendingExtraction and returns nil.
-	// The report generation continues asynchronously when Fetcher notifies back (T9).
-	if uc.isFetcherMode() {
-		return nil
+		return uc.handleErrorWithUpdate(ctx, message.ReportID, &span, "Error extracting report data", err)
 	}
 
 	status, statusMetadata := decideReportStatus(len(message.DataQueries), failures)
@@ -141,11 +133,6 @@ func (uc *UseCase) parseMessage(ctx context.Context, body []byte, span *trace.Sp
 	}
 
 	return message, nil
-}
-
-// markReportAsFinished updates report status to finished.
-func (uc *UseCase) markReportAsFinished(ctx context.Context, reportID uuid.UUID, span *trace.Span) error {
-	return uc.finalizeReportStatus(ctx, reportID, constant.FinishedStatus, nil, span)
 }
 
 // finalizeReportStatus persists the terminal report status (Finished, Partial, or

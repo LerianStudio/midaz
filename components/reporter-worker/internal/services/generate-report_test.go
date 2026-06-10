@@ -17,10 +17,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	mongodb2 "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
-	postgres2 "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 
+	fetcherEngine "github.com/LerianStudio/fetcher/pkg/engine"
+	memengine "github.com/LerianStudio/fetcher/pkg/engine/memory"
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libObservability "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"
@@ -31,9 +32,11 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// NOTE: Kept separate from table-driven TestUseCase_GenerateReport_ErrorAndSkipPaths due to complex mock
-// wiring for the full success path (template repo, postgres schema, query, report upload, status update).
-// The error/skip table-driven test below covers negative and early-return paths with simpler setup.
+// NOTE: Kept separate from table-driven TestUseCase_GenerateReport_ErrorAndSkipPaths due to complex
+// wiring for the full success path (template repo, embedded engine extraction, report upload, status
+// update). The error/skip table-driven test below covers negative and early-return paths with simpler
+// setup. The engine is a REAL *engine.Engine driven through the in-memory connector harness so the test
+// exercises the actual PlanExtraction/ExecuteExtraction/decode/re-key handler path rather than mocking it.
 func TestUseCase_GenerateReport_Success(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +45,6 @@ func TestUseCase_GenerateReport_Success(t *testing.T) {
 
 	mockTemplateRepo := template.NewMockRepository(ctrl)
 	mockReportRepo := report.NewMockRepository(ctrl)
-	mockPostgresRepo := postgres2.NewMockRepository(ctrl)
 	mockReportDataRepo := reportData.NewMockRepository(ctrl)
 
 	templateID := uuid.New()
@@ -58,8 +60,8 @@ func TestUseCase_GenerateReport_Success(t *testing.T) {
 		Filters: map[string]map[string]map[string]model.FilterCondition{
 			"onboarding": {
 				"organization": {
-					"id": {
-						Equals: []any{1, 2, 3},
+					"name": {
+						Equals: []any{"World"},
 					},
 				},
 			},
@@ -80,36 +82,12 @@ func TestUseCase_GenerateReport_Success(t *testing.T) {
 		Get(gomock.Any(), templateID.String()).
 		Return([]byte("Hello {{ onboarding.organization.0.name }}"), nil)
 
-	mockPostgresRepo.
-		EXPECT().
-		GetDatabaseSchema(gomock.Any(), gomock.Any()).
-		Return([]postgres2.TableSchema{
-			{
-				TableName: "organization",
-				Columns: []postgres2.ColumnInformation{
-					{Name: "name", DataType: "text"},
-					{Name: "id", DataType: "integer", IsPrimaryKey: true},
-				},
-			},
-		}, nil)
-
-	mockPostgresRepo.
-		EXPECT().
-		QueryWithAdvancedFilters(
-			gomock.Any(),
-			gomock.Any(),
-			gomock.Any(), // schemaName
-			"organization",
-			[]string{"name"},
-			gomock.Any(),
-		).
-		Return([]map[string]any{{"name": "World"}}, nil)
-
 	mockReportRepo.
 		EXPECT().
 		Put(gomock.Any(), gomock.Any(), "text/plain", gomock.Any(), "").
 		Return(nil)
 
+	// Finished status carries no failure metadata (nil): a clean engine extraction.
 	mockReportDataRepo.
 		EXPECT().
 		UpdateReportStatusById(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil).
@@ -125,17 +103,65 @@ func TestUseCase_GenerateReport_Success(t *testing.T) {
 		ReportSeaweedFS:       mockReportRepo,
 		ReportDataRepo:        mockReportDataRepo,
 		CircuitBreakerManager: circuitBreakerManager,
-		ExternalDataSources: pkg.NewSafeDataSources(map[string]pkg.DataSource{
-			"onboarding": {
-				Initialized:        true,
-				DatabaseType:       "postgresql",
-				PostgresRepository: mockPostgresRepo,
-			},
+		// The template (and DataQueries) reference the BARE key "organization", but
+		// the connector discovers — and streams under — the QUALIFIED
+		// "public.organization" the real postgres connector emits. This drives the
+		// bare-key schema-autodiscovery path through the real planner end-to-end.
+		Engine: newTestEngine(t, "onboarding", "public.organization", map[string][]map[string]any{
+			"public.organization": {{"name": "World"}},
 		}),
 	}
 
 	err := useCase.GenerateReport(context.Background(), bodyBytes)
 	require.NoError(t, err)
+}
+
+// newTestEngine builds a real embedded extraction engine driven by the in-memory
+// connector harness, seeded so configName resolves a connector whose
+// QueryStream returns rows keyed by qualifiedTable. It lets the handler test
+// exercise the genuine PlanExtraction/ExecuteExtraction/decode/re-key path
+// without a database.
+func newTestEngine(t *testing.T, configName, qualifiedTable string, rows map[string][]map[string]any) *fetcherEngine.Engine {
+	t.Helper()
+
+	const datasourceType = "postgresql"
+
+	fields := make([]string, 0)
+	for _, r := range rows[qualifiedTable] {
+		for k := range r {
+			fields = append(fields, k)
+		}
+
+		break
+	}
+
+	connector := memengine.NewTemplateConnector(memengine.ConnectorBehavior{
+		Rows: rows,
+		Schema: fetcherEngine.SchemaSnapshot{
+			Tables: []fetcherEngine.TableSnapshot{{Name: qualifiedTable, Fields: fields}},
+		},
+	})
+
+	registry := memengine.NewConnectorRegistry()
+	registry.Register(datasourceType, memengine.NewConnectorFactory(connector))
+
+	store := memengine.NewConnectionStore()
+	tenant, err := fetcherEngine.NewTenantContext(singleTenantEngineTenantID)
+	require.NoError(t, err)
+
+	err = store.Create(context.Background(), tenant, fetcherEngine.ConnectionDescriptor{
+		ConfigName: configName,
+		Type:       datasourceType,
+	}, nil)
+	require.NoError(t, err)
+
+	engine, err := fetcherEngine.New(
+		fetcherEngine.WithConnectorRegistry(registry),
+		fetcherEngine.WithConnectionStore(store),
+	)
+	require.NoError(t, err)
+
+	return engine
 }
 
 func TestUseCase_GenerateReport_ErrorAndSkipPaths(t *testing.T) {
@@ -643,7 +669,7 @@ func TestUseCase_MarkReportAsFinished(t *testing.T) {
 				ReportDataRepo: mockReportDataRepo,
 			}
 
-			err := useCase.markReportAsFinished(context.Background(), tt.reportID, &span)
+			err := useCase.finalizeReportStatus(context.Background(), tt.reportID, "Finished", nil, &span)
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
@@ -813,7 +839,7 @@ func TestUseCase_MarkReportAsFinished_NestedErrorWhenUpdateAlsoFails(t *testing.
 		ReportDataRepo: mockReportDataRepo,
 	}
 
-	err := useCase.markReportAsFinished(context.Background(), reportID, &span)
+	err := useCase.finalizeReportStatus(context.Background(), reportID, "Finished", nil, &span)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "second update also failed")
 }

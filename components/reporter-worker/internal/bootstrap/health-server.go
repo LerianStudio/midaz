@@ -11,7 +11,6 @@ import (
 	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	mongoDB "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
 	libRedis "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
@@ -73,9 +72,9 @@ type HealthServerConfig struct {
 	// multi-tenant mode).
 	RabbitMQConnection *libRabbitmq.RabbitMQConnection
 
-	// RedisConnection is the worker's Redis/Valkey connection (used by
-	// reconciler distributed locking in fetcher mode). nil if Redis is
-	// not required.
+	// RedisConnection is the worker's Redis/Valkey connection (multi-tenant
+	// per-tenant Redis client + tenant event-listener). nil if Redis is not
+	// required (single-tenant mode no longer dials Redis).
 	RedisConnection *libRedis.RedisConnection
 
 	// StorageClient is the S3-compatible object storage adapter.
@@ -85,31 +84,18 @@ type HealthServerConfig struct {
 	// for TLS posture detection.
 	StorageEndpoint string
 
-	// DataSourceProvider is the active provider (DirectProvider or
-	// FetcherProvider). The FetcherChecker uses a type-assertion to detect
-	// which is in use.
-	DataSourceProvider datasource.DataSourceProvider
-
-	// FetcherURL is the base URL of the Fetcher API — used only for TLS
-	// posture detection.
-	FetcherURL string
-
 	// TenantManagerClient is the Tenant Manager client. nil when
 	// MultiTenantEnabled=false. The TenantManagerChecker performs only a
 	// nil-check.
 	TenantManagerClient *tmclient.Client
 
-	// MultiTenantEnabled mirrors MULTI_TENANT_ENABLED.
+	// MultiTenantEnabled mirrors MULTI_TENANT_ENABLED. It drives whether Redis
+	// is treated as a required dependency: the Worker only constructs a Redis
+	// connection when MULTI_TENANT_ENABLED=true (per-tenant Redis client +
+	// tenant event-listener). In single-tenant mode a nil RedisConnection is the
+	// expected steady state and the RedisChecker reports StatusSkipped instead
+	// of StatusDown.
 	MultiTenantEnabled bool
-
-	// FetcherEnabled mirrors FETCHER_ENABLED. Combined with MultiTenantEnabled
-	// this drives whether Redis is treated as a required dependency: the
-	// Worker only constructs a Redis connection when FETCHER_ENABLED=true
-	// (reconciler distributed lock) or MULTI_TENANT_ENABLED=true (per-tenant
-	// Redis client + tenant event-listener). When both are false, a nil
-	// RedisConnection is the expected steady state and the RedisChecker
-	// reports StatusSkipped instead of StatusDown.
-	FetcherEnabled bool
 
 	// MongoURI is used only for TLS posture detection.
 	MongoURI string
@@ -151,19 +137,19 @@ type HealthServerConfig struct {
 // two surfaces in lock-step.
 //
 // Redis is conditionally required: the Worker constructs a Redis connection
-// only when FETCHER_ENABLED=true (reconciler distributed lock) OR
-// MULTI_TENANT_ENABLED=true (per-tenant Redis client + tenant event-listener).
-// When both flags are false a nil RedisConnection is expected and the
-// RedisChecker reports StatusSkipped rather than failing the aggregation.
+// only when MULTI_TENANT_ENABLED=true (per-tenant Redis client + tenant
+// event-listener). Redis now backs only SchemaCache/locks, no longer the
+// retired fetcher reconciler. In single-tenant mode a nil RedisConnection is
+// expected and the RedisChecker reports StatusSkipped rather than failing the
+// aggregation.
 func BuildWorkerCheckers(cfg HealthServerConfig) []readyz.Checker {
-	redisRequired := cfg.FetcherEnabled || cfg.MultiTenantEnabled
+	redisRequired := cfg.MultiTenantEnabled
 
 	return []readyz.Checker{
 		readyz.NewMongoChecker(cfg.MongoConnection, cfg.MultiTenantEnabled),
 		readyz.NewRabbitMQChecker(cfg.RabbitMQConnection, cfg.MultiTenantEnabled),
 		readyz.NewRedisChecker(cfg.RedisConnection, redisRequired),
 		readyz.NewStorageChecker(cfg.StorageClient, cfg.StorageEndpoint),
-		readyz.NewFetcherChecker(cfg.DataSourceProvider, cfg.FetcherURL),
 		readyz.NewTenantManagerChecker(cfg.MultiTenantEnabled, func() bool {
 			return cfg.TenantManagerClient != nil
 		}),

@@ -11,20 +11,14 @@ import (
 	"strings"
 	"time"
 
-	workerRedis "github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v4/components/reporter-worker/internal/services"
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/auth"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
-	pkgCrypto "github.com/LerianStudio/midaz/v4/pkg/reporter/crypto"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/datasource"
 	mongoDB "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/multitenant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/pdf"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/readyz"
-	libRedis "github.com/LerianStudio/midaz/v4/pkg/reporter/redis"
 	reportSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/report"
 	templateSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/storage"
@@ -43,16 +37,15 @@ import (
 // workerDependencies holds the shared infrastructure components created during
 // worker initialization and reused by both single-tenant and multi-tenant paths.
 type workerDependencies struct {
-	ctx                context.Context
-	telemetry          *libOtel.Telemetry
-	tracer             trace.Tracer
-	mongoConnection    *mongoDB.MongoConnection
-	reportRepo         *reportData.ReportMongoDBRepository
-	healthChecker      *pkg.HealthChecker
-	pdfPool            *pdf.WorkerPool
-	service            *services.UseCase
-	storageClient      storage.ObjectStorage
-	dataSourceProvider datasource.DataSourceProvider
+	ctx             context.Context
+	telemetry       *libOtel.Telemetry
+	tracer          trace.Tracer
+	mongoConnection *mongoDB.MongoConnection
+	reportRepo      *reportData.ReportMongoDBRepository
+	healthChecker   *pkg.HealthChecker
+	pdfPool         *pdf.WorkerPool
+	service         *services.UseCase
+	storageClient   storage.ObjectStorage
 	// readyzMetrics is the OTel emitter for the canonical /readyz metric
 	// set. Built once at bootstrap and shared between the HealthServer
 	// (which emits per-check histogram + counter) and Gate 7's RunSelfProbe
@@ -106,9 +99,6 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 		return nil, fmt.Errorf("failed to create tracer: %w", err)
 	}
 
-	// Log datasource mode (Gap 9)
-	logDatasourceMode(cfg, logger)
-
 	circuitBreakerManager := pkg.NewCircuitBreakerManager(logger)
 
 	// Build the readyz + datasource metric sets on the same meter used by
@@ -134,30 +124,15 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 
 	logger.Log(ctx, clog.LevelInfo, "Readyz + datasource metrics registered with OTel provider", clog.Bool("real_meter", meterForMetrics != nil))
 
-	// Gap 3: Only connect to external datasources in direct mode.
-	// In fetcher mode, the Fetcher service handles datasource connections.
-	var externalDataSources *pkg.SafeDataSources
+	// Connect to external datasources. The embedded engine resolves and queries
+	// these in-process (and the plugin_crm fan-out reuses the same pools); the
+	// HTTP-fetcher path that previously skipped direct connections is gone.
+	externalDataSourcesMap := pkg.ExternalDatasourceConnections(logger)
+	externalDataSources := pkg.NewSafeDataSources(externalDataSourcesMap)
 
-	var healthChecker *pkg.HealthChecker
-
-	if !cfg.FetcherEnabled {
-		externalDataSourcesMap := pkg.ExternalDatasourceConnections(logger)
-		externalDataSources = pkg.NewSafeDataSources(externalDataSourcesMap)
-
-		healthChecker, err = pkg.NewHealthCheckerWithMetrics(&externalDataSourcesMap, circuitBreakerManager, logger, dsMetrics)
-		if err != nil {
-			return nil, fmt.Errorf("failed to construct health checker: %w", err)
-		}
-	} else {
-		logger.Log(ctx, clog.LevelInfo, "Fetcher mode enabled — skipping direct datasource connections")
-
-		emptyMap := make(map[string]pkg.DataSource)
-		externalDataSources = pkg.NewSafeDataSources(emptyMap)
-
-		healthChecker, err = pkg.NewHealthCheckerWithMetrics(&emptyMap, circuitBreakerManager, logger, dsMetrics)
-		if err != nil {
-			return nil, fmt.Errorf("failed to construct health checker: %w", err)
-		}
+	healthChecker, err := pkg.NewHealthCheckerWithMetrics(&externalDataSourcesMap, circuitBreakerManager, logger, dsMetrics)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct health checker: %w", err)
 	}
 
 	pdfPool := pdf.NewWorkerPool(cfg.PdfPoolWorkers, time.Duration(cfg.PdfPoolTimeoutSeconds)*time.Second, logger)
@@ -178,13 +153,6 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 		PdfPool:                         pdfPool,
 		CryptoHashSecretKeyPluginCRM:    cfg.CryptoHashSecretKeyPluginCRM,
 		CryptoEncryptSecretKeyPluginCRM: cfg.CryptoEncryptSecretKeyPluginCRM,
-		AppEncKey:                       cfg.AppEncKey,
-		// FetcherDataStorage is wired in config_fetcher.go when FETCHER_ENABLED=true
-	}
-
-	// Derive storage decryption and HMAC keys from APP_ENC_KEY using HKDF.
-	if err = deriveWorkerStorageKeys(ctx, cfg, logger, service); err != nil {
-		return nil, err
 	}
 
 	logger.Log(ctx, clog.LevelInfo, "Reports will be stored permanently (no TTL - use S3 bucket lifecycle policies for expiration)")
@@ -205,6 +173,12 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 
 	service.Engine = engine
 
+	// Mirror the engine resolver's tenancy mode onto the UseCase so the
+	// generate-report handler fails closed on a tenant-less job in MT mode rather
+	// than substituting the single-tenant placeholder (which would read a
+	// wrong/shared database). buildEngineResolver keys off the same flag.
+	service.EngineMultiTenant = cfg.MultiTenantEnabled
+
 	healthChecker.Start()
 	appendWorkerHealthCleanup(logger, healthChecker, cleanups)
 
@@ -220,32 +194,6 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 		storageClient:   storageClient,
 		readyzMetrics:   readyzMetrics,
 	}, nil
-}
-
-// deriveWorkerStorageKeys derives the storage-decryption and external-HMAC keys
-// from APP_ENC_KEY via HKDF and stores them on the service. The derived keys are
-// compatible with the Fetcher's encryption. A missing APP_ENC_KEY is a no-op.
-func deriveWorkerStorageKeys(ctx context.Context, cfg *Config, logger clog.Logger, service *services.UseCase) error {
-	if cfg.AppEncKey == "" {
-		return nil
-	}
-
-	masterKey, mkErr := pkgCrypto.DecodeMasterKey(cfg.AppEncKey)
-	if mkErr != nil {
-		return fmt.Errorf("failed to decode APP_ENC_KEY: %w", mkErr)
-	}
-
-	keyDeriver, kdErr := pkgCrypto.NewHKDFKeyDeriver(masterKey)
-	if kdErr != nil {
-		return fmt.Errorf("failed to initialize key deriver: %w", kdErr)
-	}
-
-	service.StorageDecryptKey = keyDeriver.GetStorageEncryptKey()
-	service.ExternalHMACKey = keyDeriver.GetExternalHMACKey()
-
-	logger.Log(ctx, clog.LevelInfo, "HKDF key derivation initialized from APP_ENC_KEY")
-
-	return nil
 }
 
 // workerMetricsFactory returns the lib-observability MetricsFactory carried by
@@ -362,42 +310,6 @@ func initMultiTenantWorkerService(cfg *Config, logger clog.Logger, tmClient *tmc
 
 	cleanups.Register("multi-tenant consumer cleanup", mtCleanup)
 
-	var reconcilerCancel context.CancelFunc
-
-	if cfg.FetcherEnabled {
-		redisRepo, redisRepoErr := workerRedis.NewWorkerRedis(mtRedisConn)
-		if redisRepoErr != nil {
-			logger.Log(deps.ctx, clog.LevelWarn,
-				"Redis unavailable for reconciler distributed lock — reconciler will run without locking",
-				clog.Err(redisRepoErr))
-		}
-
-		var redisRepoInterface libRedis.RedisRepository
-		if redisRepo != nil {
-			redisRepoInterface = redisRepo
-		}
-
-		credFetcher, credErr := auth.BuildCredentialFetcher(deps.ctx, auth.SMCredentialFetcherConfig{
-			AWSRegion:       cfg.AWSRegion,
-			Environment:     cfg.MultiTenantEnvironment,
-			ApplicationName: constant.ApplicationName,
-		})
-		if credErr != nil {
-			return nil, fmt.Errorf("failed to build M2M credential fetcher: %w", credErr)
-		}
-
-		var fetcherErr error
-
-		reconcilerCancel, fetcherErr = wireWorkerFetcherMode(deps.ctx, cfg, logger, deps.tracer, deps, redisRepoInterface, credFetcher, tmClient, tenantMongoManager)
-		if fetcherErr != nil {
-			return nil, fetcherErr
-		}
-
-		if regErr := registerNotificationConsumerMultiTenant(mtConsumer, deps.service, logger, tenantMongoManager); regErr != nil {
-			return nil, regErr
-		}
-	}
-
 	// drainState is created early because both the consumer and the health
 	// server share it. The drainState is wired below after construction.
 	multiQueueConsumer, mtConsumerErr := NewMultiQueueConsumerMultiTenant(mtConsumer, deps.service, cfg.RabbitMQGenerateReportQueue, logger, tenantMongoManager, nil)
@@ -405,9 +317,9 @@ func initMultiTenantWorkerService(cfg *Config, logger clog.Logger, tmClient *tmc
 		return nil, mtConsumerErr
 	}
 
-	// Event-driven tenant discovery via Redis Pub/Sub.
-	// Created AFTER both consumers are registered (generate-report + fetcher-notification)
-	// so that EnsureConsumerStarted starts both queue consumers for a tenant.
+	// Event-driven tenant discovery via Redis Pub/Sub. Created AFTER the
+	// generate-report consumer is registered so EnsureConsumerStarted starts the
+	// queue consumer for a tenant.
 	eventListenerCleanup, elErr := initEventListener(cfg, logger, tmClient, mtConsumer, tenantMongoManager, rabbitMQManager)
 	if elErr != nil {
 		return nil, elErr
@@ -431,11 +343,8 @@ func initMultiTenantWorkerService(cfg *Config, logger clog.Logger, tmClient *tmc
 		RedisConnection:     mtRedisConn,
 		StorageClient:       deps.storageClient,
 		StorageEndpoint:     cfg.ObjectStorageEndpoint,
-		DataSourceProvider:  deps.dataSourceProvider,
-		FetcherURL:          cfg.FetcherURL,
 		TenantManagerClient: tmClient,
 		MultiTenantEnabled:  true,
-		FetcherEnabled:      cfg.FetcherEnabled,
 		MongoURI:            cfg.MongoURI,
 		RabbitURI:           cfg.RabbitURI,
 		DrainState:          drainState,
@@ -463,7 +372,6 @@ func initMultiTenantWorkerService(cfg *Config, logger clog.Logger, tmClient *tmc
 		telemetry:            deps.telemetry,
 		mtConsumer:           mtConsumer,
 		mtCleanup:            mtCleanup,
-		reconcilerCancel:     reconcilerCancel,
 		eventListenerCleanup: eventListenerCleanup,
 		drainState:           drainState,
 		selfProbeState:       selfProbeState,
@@ -501,43 +409,6 @@ func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, deps *worker
 
 	cleanups.Register("closing RabbitMQ connection", closeRabbitMQ(rabbitMQConnection, logger))
 
-	var (
-		reconcilerCancel context.CancelFunc
-		redisConn        *libRedis.RedisConnection
-	)
-
-	if cfg.FetcherEnabled {
-		var redisRepoInterface libRedis.RedisRepository
-
-		if cfg.RedisHost != "" {
-			redisConn = buildWorkerRedisConnection(cfg, logger)
-
-			redisRepo, redisRepoErr := workerRedis.NewWorkerRedis(redisConn)
-			if redisRepoErr != nil {
-				logger.Log(deps.ctx, clog.LevelWarn,
-					"Redis unavailable for reconciler distributed lock — reconciler will run without locking",
-					clog.Err(redisRepoErr))
-			} else {
-				redisRepoInterface = redisRepo
-
-				cleanups.Register("closing worker Redis connection", func() {
-					if closeErr := redisConn.Close(); closeErr != nil {
-						logger.Log(context.Background(), clog.LevelError, "Failed to close worker Redis connection", clog.Err(closeErr))
-					}
-				})
-			}
-		}
-
-		var fetcherErr error
-
-		reconcilerCancel, fetcherErr = wireWorkerFetcherMode(deps.ctx, cfg, logger, deps.tracer, deps, redisRepoInterface, nil, nil, nil)
-		if fetcherErr != nil {
-			return nil, fetcherErr
-		}
-
-		registerNotificationConsumerSingleTenant(routes, deps.service, logger)
-	}
-
 	drainState := &readyz.DrainState{}
 
 	// Gate 7: self-probe gates /health (see comment in multi-tenant path).
@@ -548,14 +419,11 @@ func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, deps *worker
 		Port:                cfg.HealthPort,
 		MongoConnection:     deps.mongoConnection,
 		RabbitMQConnection:  rabbitMQConnection,
-		RedisConnection:     redisConn,
+		RedisConnection:     nil,
 		StorageClient:       deps.storageClient,
 		StorageEndpoint:     cfg.ObjectStorageEndpoint,
-		DataSourceProvider:  deps.dataSourceProvider,
-		FetcherURL:          cfg.FetcherURL,
 		TenantManagerClient: nil,
 		MultiTenantEnabled:  false,
-		FetcherEnabled:      cfg.FetcherEnabled,
 		MongoURI:            cfg.MongoURI,
 		RabbitURI:           cfg.RabbitURI,
 		DrainState:          drainState,
@@ -580,7 +448,6 @@ func initSingleTenantWorkerService(cfg *Config, logger clog.Logger, deps *worker
 		rabbitMQConnection: rabbitMQConnection,
 		pdfPool:            deps.pdfPool,
 		telemetry:          deps.telemetry,
-		reconcilerCancel:   reconcilerCancel,
 		drainState:         drainState,
 		selfProbeState:     selfProbeState,
 	}, nil

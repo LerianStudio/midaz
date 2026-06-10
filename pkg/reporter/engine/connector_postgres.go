@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	fetcher "github.com/LerianStudio/fetcher/pkg/engine"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/Masterminds/squirrel"
 )
 
@@ -155,7 +157,8 @@ func (c *postgresConnector) discoverSchema(ctx context.Context) (fetcher.SchemaS
 // SQL errors surface synchronously, then advances table-by-table as it drains —
 // peak memory stays bounded to one row plus the driver's own buffer.
 func (c *postgresConnector) QueryStream(ctx context.Context, request fetcher.ExtractionRequest) (fetcher.RowCursor, error) {
-	if err := rejectUnsupportedFilters(c.configName, request); err != nil {
+	filters, err := filtersForDatasource(c.configName, request.Filters)
+	if err != nil {
 		return nil, err
 	}
 
@@ -168,10 +171,23 @@ func (c *postgresConnector) QueryStream(ctx context.Context, request fetcher.Ext
 
 	sort.Strings(tables)
 
+	// Discover the schema once so per-table filter field references can be
+	// validated against the real columns; an unknown field must error loudly
+	// rather than silently widen the result. Only paid when filters are present.
+	var snapshot fetcher.SchemaSnapshot
+	if len(filters) > 0 {
+		snapshot, err = c.DiscoverSchema(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	cursor := &postgresCursor{
 		connector: c,
 		ctx:       ctx,
 		selection: selection,
+		filters:   filters,
+		schema:    snapshot,
 		tables:    tables,
 	}
 
@@ -199,6 +215,8 @@ type postgresCursor struct {
 	connector *postgresConnector
 	ctx       context.Context
 	selection fetcher.FieldSelection
+	filters   datasourceFilters
+	schema    fetcher.SchemaSnapshot
 	tables    []string
 	tableIdx  int
 
@@ -310,7 +328,7 @@ func (c *postgresCursor) openNextTable() error {
 			continue
 		}
 
-		query, args, err := buildPostgresSelect(qualified, fields)
+		query, args, err := buildPostgresSelect(qualified, fields, c.filters.tableFilters(qualified), c.schema)
 		if err != nil {
 			return NewEngineValidationError("failed to build postgres select: " + err.Error())
 		}
@@ -379,31 +397,13 @@ func (c *postgresCursor) fail(err error) {
 	}
 }
 
-// rejectUnsupportedFilters fails closed when an extraction step carries filter
-// criteria for this datasource. Filter translation (the engine-adapter
-// equivalent of the reporter's squirrel WHERE builder and mongo filter builder)
-// is deferred to a later migration phase (see docs/plans/reporter-engine-migration.md,
-// Phases 2-3). Until it lands, accepting filters and silently dropping them
-// would extract the ENTIRE table/collection regardless of the requested scope —
-// a correctness and over-extraction hazard for a financial reporter. Rejecting
-// makes the gap a loud CategoryValidation failure rather than a silent
-// full-table read. The adapter is not yet wired into the generate-report
-// handler, so this rejection cannot reach production; it guards the seam until
-// filter support is implemented.
-func rejectUnsupportedFilters(configName string, request fetcher.ExtractionRequest) error {
-	if filters, ok := request.Filters[configName]; ok && filters != nil {
-		return NewEngineValidationError("extraction filters are not yet supported by the embedded engine adapter")
-	}
-
-	return nil
-}
-
 // buildPostgresSelect assembles a SELECT over the qualified table using
 // squirrel with PostgreSQL dollar placeholders. Field selection projects only
 // the root column for nested JSONB paths (e.g. "fee_charge.totalAmount" selects
 // "fee_charge"), mirroring the reporter's existing projection. A "*" selection
-// projects all columns.
-func buildPostgresSelect(qualified string, fields []string) (string, []any, error) {
+// projects all columns. Per-field filter conditions are translated into WHERE
+// clauses via applyPostgresFilters, validated against the discovered schema.
+func buildPostgresSelect(qualified string, fields []string, filters map[string]model.FilterCondition, schema fetcher.SchemaSnapshot) (string, []any, error) {
 	schemaName, tableName := splitQualified(qualified)
 	target := quoteIdentifier(tableName)
 
@@ -418,7 +418,110 @@ func buildPostgresSelect(qualified string, fields []string) (string, []any, erro
 		cols = []string{"*"}
 	}
 
-	return psql.Select(cols...).From(target).ToSql()
+	builder := psql.Select(cols...).From(target)
+
+	builder, err := applyPostgresFilters(builder, qualified, filters, schema)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return builder.ToSql()
+}
+
+// applyPostgresFilters translates FilterCondition criteria into WHERE clauses on
+// the squirrel builder, reusing the exact operator semantics of
+// pkg/reporter/postgres applyAdvancedFilter: Equals (single -> Eq, multi -> IN),
+// Gt/GtOrEq/Lt/LtOrEq, Between with date-range upper-bound expansion, In -> Eq,
+// NotIn -> NotEq. Every filter field is validated against the discovered schema
+// columns; an unknown field is a loud error so a mis-referenced filter can never
+// silently widen the result. Fields are applied in sorted order for
+// deterministic SQL. Empty conditions are skipped.
+func applyPostgresFilters(builder squirrel.SelectBuilder, qualified string, filters map[string]model.FilterCondition, schema fetcher.SchemaSnapshot) (squirrel.SelectBuilder, error) {
+	if len(filters) == 0 {
+		return builder, nil
+	}
+
+	validColumns := validColumnSet(schema, qualified)
+
+	fields := make([]string, 0, len(filters))
+	for field := range filters {
+		fields = append(fields, field)
+	}
+
+	sort.Strings(fields)
+
+	for _, field := range fields {
+		condition := filters[field]
+		if isPostgresFilterEmpty(condition) {
+			continue
+		}
+
+		if _, ok := validColumns[rootField(field)]; !ok {
+			return builder, NewEngineValidationError("unknown filter field " + field + " for table " + qualified)
+		}
+
+		if err := validateFilterCondition(field, condition); err != nil {
+			return builder, err
+		}
+
+		builder = applyPostgresFilterCondition(builder, field, condition)
+	}
+
+	return builder, nil
+}
+
+// applyPostgresFilterCondition applies a single FilterCondition to the builder,
+// mirroring pkg/reporter/postgres applyAdvancedFilter operator-for-operator.
+func applyPostgresFilterCondition(builder squirrel.SelectBuilder, field string, condition model.FilterCondition) squirrel.SelectBuilder {
+	if len(condition.Equals) == 1 {
+		builder = builder.Where(squirrel.Eq{field: condition.Equals[0]})
+	} else if len(condition.Equals) > 1 {
+		builder = builder.Where(squirrel.Eq{field: condition.Equals})
+	}
+
+	if len(condition.GreaterThan) > 0 {
+		builder = builder.Where(squirrel.Gt{field: condition.GreaterThan[0]})
+	}
+
+	if len(condition.GreaterOrEqual) > 0 {
+		builder = builder.Where(squirrel.GtOrEq{field: condition.GreaterOrEqual[0]})
+	}
+
+	if len(condition.LessThan) > 0 {
+		builder = builder.Where(squirrel.Lt{field: condition.LessThan[0]})
+	}
+
+	if len(condition.LessOrEqual) > 0 {
+		builder = builder.Where(squirrel.LtOrEq{field: condition.LessOrEqual[0]})
+	}
+
+	if len(condition.Between) == constant.BetweenOperatorValues {
+		endValue := applyDateRangeUpperBound(field, condition.Between[0], condition.Between[1])
+		builder = builder.Where(squirrel.GtOrEq{field: condition.Between[0]}).Where(squirrel.LtOrEq{field: endValue})
+	}
+
+	if len(condition.In) > 0 {
+		builder = builder.Where(squirrel.Eq{field: condition.In})
+	}
+
+	if len(condition.NotIn) > 0 {
+		builder = builder.Where(squirrel.NotEq{field: condition.NotIn})
+	}
+
+	return builder
+}
+
+// isPostgresFilterEmpty reports whether a FilterCondition carries no active
+// operator, mirroring the legacy isFilterConditionEmpty.
+func isPostgresFilterEmpty(condition model.FilterCondition) bool {
+	return len(condition.Equals) == 0 &&
+		len(condition.GreaterThan) == 0 &&
+		len(condition.GreaterOrEqual) == 0 &&
+		len(condition.LessThan) == 0 &&
+		len(condition.LessOrEqual) == 0 &&
+		len(condition.Between) == 0 &&
+		len(condition.In) == 0 &&
+		len(condition.NotIn) == 0
 }
 
 // projectColumns reduces a field selection to the distinct root columns to

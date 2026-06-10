@@ -12,6 +12,7 @@ import (
 
 	fetcher "github.com/LerianStudio/fetcher/pkg/engine"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -114,28 +115,94 @@ func (c *mongoConnector) discoverSchema(ctx context.Context) (fetcher.SchemaSnap
 	return buildSnapshot(c.configName, tables), nil
 }
 
-// sampleFields reads one document from a collection to enumerate its top-level
-// field names. MongoDB is schemaless, so a single sample is the same shallow
-// discovery the reporter's existing path uses for projection validation.
+// sampleFields enumerates a collection's top-level field names across the whole
+// collection (sampling large collections), matching the legacy reporter's
+// discoverAllFieldsWithAggregation. MongoDB is schemaless: a single-document
+// sample would miss root fields absent from the first doc but present in others,
+// which would wrongly reject a valid filter field. Aggregating $objectToArray
+// keys across documents reproduces the legacy known-field set, so filter-field
+// validation accepts the same fields the legacy worker did.
 func (c *mongoConnector) sampleFields(ctx context.Context, collection string) ([]string, error) {
-	var doc bson.M
+	coll := c.db.Collection(collection)
 
-	err := c.db.Collection(collection).FindOne(ctx, bson.M{}).Decode(&doc)
-
-	switch {
-	case err == nil:
-	case strings.Contains(err.Error(), mongo.ErrNoDocuments.Error()):
-		return nil, nil
-	default:
+	count, err := coll.CountDocuments(ctx, bson.M{})
+	if err != nil {
 		return nil, classifyQueryError(ctx, "mongo field sampling failed", err)
 	}
 
-	fields := make([]string, 0, len(doc))
-	for field := range doc {
-		fields = append(fields, field)
+	if count == 0 {
+		return nil, nil
 	}
 
-	return fields, nil
+	cursor, err := coll.Aggregate(ctx, fieldDiscoveryPipeline(count))
+	if err != nil {
+		return nil, classifyQueryError(ctx, "mongo field sampling failed", err)
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	if !cursor.Next(ctx) {
+		if curErr := cursor.Err(); curErr != nil {
+			return nil, classifyQueryError(ctx, "mongo field sampling failed", curErr)
+		}
+
+		return nil, nil
+	}
+
+	var result struct {
+		AllKeys []string `bson:"allkeys"`
+	}
+
+	if err := cursor.Decode(&result); err != nil {
+		return nil, NewEngineInternalError("failed to decode mongo field discovery result", err)
+	}
+
+	return result.AllKeys, nil
+}
+
+// fieldDiscoveryPipeline builds the $objectToArray/$addToSet aggregation that
+// collects the set of top-level field names, mirroring the legacy reporter's
+// discoverAllFieldsWithAggregation: large collections are sampled with $sample,
+// smaller ones are bounded with $limit.
+func fieldDiscoveryPipeline(count int64) []bson.D {
+	var first bson.D
+
+	if count > constant.MongoLargeCollectionThreshold {
+		first = bson.D{{Key: "$sample", Value: bson.D{{Key: "size", Value: sampleSizeForCount(count)}}}}
+	} else {
+		limit := count
+		if limit > constant.MongoSmallCollectionLimit {
+			limit = constant.MongoSmallCollectionLimit
+		}
+
+		first = bson.D{{Key: "$limit", Value: limit}}
+	}
+
+	return []bson.D{
+		first,
+		{{Key: "$project", Value: bson.D{{Key: "arrayofkeyvalue", Value: bson.D{{Key: "$objectToArray", Value: "$$ROOT"}}}}}},
+		{{Key: "$unwind", Value: "$arrayofkeyvalue"}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "allkeys", Value: bson.D{{Key: "$addToSet", Value: "$arrayofkeyvalue.k"}}},
+		}}},
+	}
+}
+
+// sampleSizeForCount mirrors the legacy calculateOptimalSampleSize tiering so
+// large-collection field discovery samples the same number of documents.
+func sampleSizeForCount(count int64) int64 {
+	switch {
+	case count <= constant.MongoSmallCollectionDocLimit:
+		return count
+	case count <= constant.MongoMediumCollectionDocLimit:
+		return constant.MongoDefaultSampleSize
+	case count <= constant.MongoLargeCollectionDocLimit:
+		return constant.MongoMediumSampleSize
+	case count <= constant.MongoVeryLargeCollectionDocLimit:
+		return constant.MongoLargeSampleSize
+	default:
+		return constant.MongoMaxSampleSize
+	}
 }
 
 // QueryStream opens a mongo cursor per selected collection and streams documents
@@ -143,7 +210,8 @@ func (c *mongoConnector) sampleFields(ctx context.Context, collection string) ([
 // selected fields (nested-field-aware, mirroring the reporter's projection). It
 // primes the first collection's cursor so query errors surface synchronously.
 func (c *mongoConnector) QueryStream(ctx context.Context, request fetcher.ExtractionRequest) (fetcher.RowCursor, error) {
-	if err := rejectUnsupportedFilters(c.configName, request); err != nil {
+	filters, err := filtersForDatasource(c.configName, request.Filters)
+	if err != nil {
 		return nil, err
 	}
 
@@ -156,10 +224,23 @@ func (c *mongoConnector) QueryStream(ctx context.Context, request fetcher.Extrac
 
 	sort.Strings(collections)
 
+	// Discover the schema once so per-collection filter field references can be
+	// validated against the sampled fields; an unknown field must error loudly
+	// rather than silently widen the result. Only paid when filters are present.
+	var snapshot fetcher.SchemaSnapshot
+	if len(filters) > 0 {
+		snapshot, err = c.DiscoverSchema(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	cursor := &mongoCursor{
 		connector:   c,
 		ctx:         ctx,
 		selection:   selection,
+		filters:     filters,
+		schema:      snapshot,
 		collections: collections,
 	}
 
@@ -183,6 +264,8 @@ type mongoCursor struct {
 	connector   *mongoConnector
 	ctx         context.Context
 	selection   fetcher.FieldSelection
+	filters     datasourceFilters
+	schema      fetcher.SchemaSnapshot
 	collections []string
 	collIdx     int
 
@@ -291,8 +374,13 @@ func (c *mongoCursor) openNextCollection() error {
 
 		findOpts := mongoProjection(fields)
 
+		mongoFilter, err := buildMongoFilter(collection, c.filters.tableFilters(collection), c.schema)
+		if err != nil {
+			return err
+		}
+
 		result, execErr := c.connector.breaker.Execute(c.connector.configName, func() (any, error) {
-			return c.connector.db.Collection(collection).Find(c.ctx, bson.M{}, findOpts)
+			return c.connector.db.Collection(collection).Find(c.ctx, mongoFilter, findOpts)
 		})
 		if execErr != nil {
 			return classifyQueryError(c.ctx, "mongo find failed", execErr)
@@ -335,6 +423,135 @@ func (c *mongoCursor) fail(err error) {
 		_ = c.cursor.Close(c.ctx)
 		c.cursor = nil
 	}
+}
+
+// buildMongoFilter translates per-field FilterCondition criteria for a
+// collection into the bson.M passed to Collection.Find, reusing the exact
+// operator semantics of pkg/reporter/mongodb convertFilterConditionToMongoFilter:
+// $eq/$in (single vs multi Equals), $gt/$gte/$lt/$lte, Between -> $gte+$lte, and
+// $nin. Every filter field is validated against the discovered schema fields; an
+// unknown field is a loud error so a mis-referenced filter can never silently
+// widen the result. An empty/nil filter set yields an empty bson.M (match-all).
+func buildMongoFilter(collection string, filters map[string]model.FilterCondition, schema fetcher.SchemaSnapshot) (bson.M, error) {
+	mongoFilter := bson.M{}
+	if len(filters) == 0 {
+		return mongoFilter, nil
+	}
+
+	validFields := validColumnSet(schema, collection)
+
+	// An existing-but-empty collection samples no fields, so validFields is empty
+	// even though the collection is real. The legacy validateCollectionAndFields
+	// short-circuited on count==0 and applied the filter (yielding zero rows);
+	// rejecting every filter field here would turn a successful empty extraction
+	// into a hard report failure. Only skip field validation when the collection
+	// is present in the discovered schema but carries no fields — a collection
+	// absent from the snapshot does not exist and is still rejected.
+	skipFieldValidation := len(validFields) == 0 && collectionInSnapshot(schema, collection)
+
+	fields := make([]string, 0, len(filters))
+	for field := range filters {
+		fields = append(fields, field)
+	}
+
+	sort.Strings(fields)
+
+	for _, field := range fields {
+		condition := filters[field]
+		if isMongoFilterEmpty(condition) {
+			continue
+		}
+
+		if !skipFieldValidation {
+			if _, ok := validFields[rootField(field)]; !ok {
+				return nil, NewEngineValidationError("unknown filter field " + field + " for collection " + collection)
+			}
+		}
+
+		if err := validateFilterCondition(field, condition); err != nil {
+			return nil, err
+		}
+
+		fieldFilter, err := mongoFieldFilter(field, condition)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(fieldFilter) > 0 {
+			mongoFilter[field] = fieldFilter
+		}
+	}
+
+	return mongoFilter, nil
+}
+
+// mongoFieldFilter builds the per-field operator sub-document, mirroring
+// pkg/reporter/mongodb convertFilterConditionToMongoFilter, including its
+// conflict checks between Between/GtOrEq/LtOrEq and In/multi-Equals.
+func mongoFieldFilter(field string, condition model.FilterCondition) (map[string]any, error) {
+	fieldFilter := make(map[string]any)
+
+	if len(condition.Equals) == 1 {
+		fieldFilter["$eq"] = condition.Equals[0]
+	} else if len(condition.Equals) > 1 {
+		fieldFilter["$in"] = condition.Equals
+	}
+
+	if len(condition.GreaterThan) > 0 {
+		fieldFilter["$gt"] = condition.GreaterThan[0]
+	}
+
+	if len(condition.GreaterOrEqual) > 0 {
+		fieldFilter["$gte"] = condition.GreaterOrEqual[0]
+	}
+
+	if len(condition.LessThan) > 0 {
+		fieldFilter["$lt"] = condition.LessThan[0]
+	}
+
+	if len(condition.LessOrEqual) > 0 {
+		fieldFilter["$lte"] = condition.LessOrEqual[0]
+	}
+
+	if len(condition.Between) == constant.BetweenOperatorValues {
+		if _, exists := fieldFilter["$gte"]; exists {
+			return nil, NewEngineValidationError("conflicting operators for field " + field + ": between conflicts with gte")
+		}
+
+		if _, exists := fieldFilter["$lte"]; exists {
+			return nil, NewEngineValidationError("conflicting operators for field " + field + ": between conflicts with lte")
+		}
+
+		fieldFilter["$gte"] = condition.Between[0]
+		fieldFilter["$lte"] = condition.Between[1]
+	}
+
+	if len(condition.In) > 0 {
+		if _, exists := fieldFilter["$in"]; exists {
+			return nil, NewEngineValidationError("conflicting operators for field " + field + ": in conflicts with multi-value equals")
+		}
+
+		fieldFilter["$in"] = condition.In
+	}
+
+	if len(condition.NotIn) > 0 {
+		fieldFilter["$nin"] = condition.NotIn
+	}
+
+	return fieldFilter, nil
+}
+
+// isMongoFilterEmpty reports whether a FilterCondition carries no active
+// operator, mirroring the legacy isFilterConditionEmpty.
+func isMongoFilterEmpty(condition model.FilterCondition) bool {
+	return len(condition.Equals) == 0 &&
+		len(condition.GreaterThan) == 0 &&
+		len(condition.GreaterOrEqual) == 0 &&
+		len(condition.LessThan) == 0 &&
+		len(condition.LessOrEqual) == 0 &&
+		len(condition.Between) == 0 &&
+		len(condition.In) == 0 &&
+		len(condition.NotIn) == 0
 }
 
 // mongoProjection builds find options projecting only the selected fields. A "*"

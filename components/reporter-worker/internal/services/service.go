@@ -5,8 +5,6 @@
 package services
 
 import (
-	"context"
-
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	"go.opentelemetry.io/otel/trace"
@@ -14,19 +12,11 @@ import (
 	fetcherengine "github.com/LerianStudio/fetcher/pkg/engine"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/fetcher"
-	extractionRepo "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/extraction"
 	reportData "github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb/report"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/pdf"
 	reportSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/report"
 	templateSeaweedFS "github.com/LerianStudio/midaz/v4/pkg/reporter/seaweedfs/template"
 )
-
-// ExtractionJobCreator abstracts the Fetcher client's extraction job creation
-// so the worker can be tested without a real HTTP client.
-type ExtractionJobCreator interface {
-	CreateExtractionJob(ctx context.Context, jobReq fetcher.CreateExtractionJobRequest) (*fetcher.ExtractionJobResponse, error)
-}
 
 // UseCase is a struct that coordinates the handling of template files, report storage, external data sources, and report data.
 type UseCase struct {
@@ -47,6 +37,8 @@ type UseCase struct {
 	ReportSeaweedFS reportSeaweedFS.Repository
 
 	// ExternalDataSources holds a thread-safe map of external data sources identified by their names.
+	// It backs the plugin_crm org fan-out path; the embedded engine resolves
+	// every other datasource through its tenant resolver.
 	ExternalDataSources *pkg.SafeDataSources
 
 	// ReportDataRepo is an interface for operations related to report data storage used in the reporting use case
@@ -70,39 +62,17 @@ type UseCase struct {
 	// CryptoEncryptSecretKeyPluginCRM is the encryption secret key for plugin_crm data operations.
 	CryptoEncryptSecretKeyPluginCRM string
 
-	// FetcherClient provides extraction job creation via the Fetcher API.
-	// When non-nil, the worker uses Fetcher mode (dual-mode dispatch).
-	// When nil, the worker uses direct datasource querying (legacy mode).
-	FetcherClient ExtractionJobCreator
-
-	// ExtractionMappingRepo is a repository for tracking extraction job mappings in MongoDB.
-	ExtractionMappingRepo extractionRepo.Repository
-
-	// AppEncKey is the shared master key (APP_ENC_KEY) between Reporter and Fetcher.
-	// Kept for backward compatibility. Derived keys below are preferred.
-	AppEncKey string
-
-	// StorageDecryptKey is the HKDF-derived AES-256 key for decrypting extracted data
-	// from SeaweedFS. Derived from APP_ENC_KEY with context "fetcher-storage-encryption-v1".
-	StorageDecryptKey []byte
-
-	// ExternalHMACKey is the HKDF-derived key for verifying HMAC signatures on
-	// extracted data. Derived from APP_ENC_KEY with context "fetcher-external-hmac-v1".
-	ExternalHMACKey []byte
-
-	// FetcherDataStorage provides access to the Fetcher's object storage (S3)
-	// for downloading extracted data files in the notification flow.
-	FetcherDataStorage FetcherDataDownloader
-
 	// Engine is the embedded in-process extraction engine
-	// (github.com/LerianStudio/fetcher/pkg/engine). It is constructed and wired
-	// at bootstrap (config_engine.go) but is NOT yet driven by the generate-report
-	// job handler — Phase 3 swaps the handler to call PlanExtraction /
-	// ExecuteExtraction. A nil Engine means embedded extraction is not configured.
+	// (github.com/LerianStudio/fetcher/pkg/engine). The generate-report handler
+	// drives it (PlanExtraction / ExecuteExtraction) for every non-plugin_crm
+	// datasource. A nil Engine fails the extraction closed rather than silently
+	// returning empty data.
 	Engine *fetcherengine.Engine
-}
 
-// FetcherDataDownloader abstracts downloading extracted data from Fetcher's storage.
-type FetcherDataDownloader interface {
-	DownloadFile(ctx context.Context, path string) ([]byte, error)
+	// EngineMultiTenant mirrors the engine resolver's tenancy mode (set at
+	// bootstrap from resolver.IsMultiTenant()). It gates the single-tenant tenant
+	// placeholder: in multi-tenant mode an empty request tenant MUST fail closed
+	// (tenant is the isolation boundary), never be substituted with a synthetic
+	// tenant that would read a wrong/shared database.
+	EngineMultiTenant bool
 }
