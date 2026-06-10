@@ -134,7 +134,6 @@ func TestProducerDefault_RetryConstants(t *testing.T) {
 	assert.Equal(t, 5, constant.ProducerMaxRetries)
 	assert.Equal(t, 500*time.Millisecond, constant.ProducerInitialBackoff)
 	assert.Equal(t, 10*time.Second, constant.ProducerMaxBackoff)
-	assert.Equal(t, 2.0, constant.ProducerBackoffFactor)
 }
 
 func TestProducerRabbitMQRepository_StructFields(t *testing.T) {

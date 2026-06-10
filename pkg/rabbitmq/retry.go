@@ -8,15 +8,12 @@ import (
 	"context"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
 	"github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 )
-
-// SleepFunc sleeps for the given duration between retries.
-// Injecting a no-op implementation in tests removes real backoff delays.
-type SleepFunc func(time.Duration)
 
 // BackoffFunc returns the delay to wait before the given retry attempt (0-indexed).
 type BackoffFunc func(attempt int) time.Duration
@@ -40,34 +37,25 @@ type RetryManager struct {
 	backoff    BackoffFunc
 	republish  RepublishFunc
 	maxRetries int
-	sleepFunc  SleepFunc
 	logger     log.Logger
 }
 
-// Config holds the dependencies for a RetryManager. SleepFunc defaults to time.Sleep
-// when nil so production callers need not supply it; tests inject a no-op.
+// Config holds the dependencies for a RetryManager.
 type Config struct {
 	Classifier ErrorClassifier
 	Backoff    BackoffFunc
 	Republish  RepublishFunc
 	MaxRetries int
-	SleepFunc  SleepFunc
 	Logger     log.Logger
 }
 
-// NewRetryManager builds a RetryManager from cfg. A nil SleepFunc defaults to time.Sleep.
+// NewRetryManager builds a RetryManager from cfg.
 func NewRetryManager(cfg Config) *RetryManager {
-	sleepFunc := cfg.SleepFunc
-	if sleepFunc == nil {
-		sleepFunc = time.Sleep
-	}
-
 	return &RetryManager{
 		classifier: cfg.Classifier,
 		backoff:    cfg.Backoff,
 		republish:  cfg.Republish,
 		maxRetries: cfg.MaxRetries,
-		sleepFunc:  sleepFunc,
 		logger:     cfg.Logger,
 	}
 }
@@ -113,7 +101,18 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 		log.Err(err),
 	)
 
-	rm.sleepFunc(backoff)
+	// Interruptible backoff: on ctx cancellation (e.g. SIGTERM) abandon the retry
+	// immediately. The delivery is left unacked, so the broker safely redelivers it
+	// after the consumer reconnects — no in-flight retry can block shutdown.
+	if waitErr := libBackoff.WaitContext(ctx, backoff); waitErr != nil {
+		rm.logger.Log(ctx, log.LevelWarn, "Retry backoff interrupted by context cancellation; leaving message unacked for redelivery",
+			log.Int("worker_id", workerID),
+			log.String("queue", queue),
+			log.Err(waitErr),
+		)
+
+		return
+	}
 
 	failureReason := rm.classifier.ClassifyFailureReason(err)
 	retryHeaders := BuildRetryHeaders(message.Headers, retryCount, failureReason)

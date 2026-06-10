@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
@@ -22,11 +21,7 @@ func TestNewConsumerRetryManager(t *testing.T) {
 	t.Parallel()
 
 	classifier := pkgRabbitmq.NewDefaultErrorClassifier()
-	backoff := &pkg.BackoffCalculator{
-		InitialDelay: pkgConstant.RetryInitialBackoff,
-		MaxDelay:     pkgConstant.RetryMaxBackoff,
-		Factor:       2.0,
-	}
+	backoff := func(int) time.Duration { return 0 }
 	logger := log.NewNop()
 
 	telemetry := libOtel.Telemetry{}
@@ -35,13 +30,12 @@ func TestNewConsumerRetryManager(t *testing.T) {
 
 	require.NotNil(t, rm)
 	assert.Equal(t, classifier, rm.classifier)
-	assert.Equal(t, backoff, rm.backoff)
+	require.NotNil(t, rm.backoff, "backoff func must be set")
 	assert.Nil(t, rm.conn)
 	assert.Nil(t, rm.rabbitMQManager)
 	assert.Equal(t, logger, rm.logger)
 	assert.Equal(t, telemetry, rm.telemetry)
 	assert.Equal(t, pkgConstant.MaxMessageRetries, rm.maxRetries)
-	assert.NotNil(t, rm.sleepFunc, "sleepFunc must default to a non-nil function")
 }
 
 func TestNewConsumerRetryManager_MaxRetriesFromConstant(t *testing.T) {
@@ -49,7 +43,7 @@ func TestNewConsumerRetryManager_MaxRetriesFromConstant(t *testing.T) {
 
 	rm := NewConsumerRetryManager(
 		pkgRabbitmq.NewDefaultErrorClassifier(),
-		&pkg.BackoffCalculator{},
+		func(int) time.Duration { return 0 },
 		nil,
 		nil,
 		log.NewNop(),
@@ -58,26 +52,4 @@ func TestNewConsumerRetryManager_MaxRetriesFromConstant(t *testing.T) {
 
 	assert.Equal(t, pkgConstant.MaxMessageRetries, rm.maxRetries,
 		"maxRetries must be set from pkgConstant.MaxMessageRetries")
-}
-
-func TestNewConsumerRetryManager_SleepFuncDefaultsToTimeSleep(t *testing.T) {
-	t.Parallel()
-
-	rm := NewConsumerRetryManager(
-		pkgRabbitmq.NewDefaultErrorClassifier(),
-		&pkg.BackoffCalculator{},
-		nil,
-		nil,
-		log.NewNop(),
-		libOtel.Telemetry{},
-	)
-
-	// Verify the sleepFunc is set (we can't compare function pointers in Go,
-	// but we can verify it's not nil and call it with zero duration).
-	require.NotNil(t, rm.sleepFunc)
-
-	// Calling with zero duration should return immediately without panic.
-	assert.NotPanics(t, func() {
-		rm.sleepFunc(0 * time.Millisecond)
-	})
 }

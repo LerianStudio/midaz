@@ -90,24 +90,43 @@ func newEngine(maxRetries int, republish RepublishFunc) *RetryManager {
 		Backoff:    func(int) time.Duration { return 0 },
 		Republish:  republish,
 		MaxRetries: maxRetries,
-		SleepFunc:  func(time.Duration) {},
 		Logger:     log.NewNop(),
 	})
 }
 
-func TestRetryManager_NewDefaultsSleepFunc(t *testing.T) {
+func TestHandleFailure_CanceledContext_AbandonsRetryWithoutAckOrNack(t *testing.T) {
 	t.Parallel()
 
+	ack := &testAcknowledger{}
+	message := buildDelivery(ack, amqp.Table{RetryCountHeader: 0})
+
+	// Non-zero backoff so WaitContext would block if the context were live; a
+	// cancelled context must short-circuit it.
 	rm := NewRetryManager(Config{
 		Classifier: NewDefaultClassifier(),
-		Backoff:    func(int) time.Duration { return 0 },
+		Backoff:    func(int) time.Duration { return time.Hour },
 		Republish:  func(context.Context, int, string, amqp.Delivery, amqp.Table, trace.Span) error { return nil },
 		MaxRetries: 5,
 		Logger:     log.NewNop(),
 	})
 
-	require.NotNil(t, rm.sleepFunc, "sleepFunc must default to a non-nil function")
-	assert.NotPanics(t, func() { rm.sleepFunc(0) })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		rm.HandleFailure(ctx, 0, "test-queue", message, errors.New("transient"), 0, testSpan())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("HandleFailure blocked on backoff despite cancelled context")
+	}
+
+	assert.False(t, ack.acked, "cancelled retry must not ack the delivery")
+	assert.False(t, ack.nacked, "cancelled retry must leave the delivery unacked for redelivery")
 }
 
 func TestHandleFailure_NonRetryableError_SendsToDLQ(t *testing.T) {

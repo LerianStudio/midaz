@@ -8,12 +8,13 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
 	"github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/lib-observability/log"
@@ -73,7 +74,12 @@ func NewConsumerRoutes(
 
 	retryMgr := NewConsumerRetryManager(
 		pkgRabbitmq.NewDefaultErrorClassifier(),
-		pkg.ConsumerBackoff,
+		func(attempt int) time.Duration {
+			return min(
+				libBackoff.ExponentialWithJitter(pkgConstant.RetryInitialBackoff, attempt),
+				pkgConstant.RetryMaxBackoff,
+			)
+		},
 		conn,
 		nil, // no multi-tenant channel manager in single-tenant mode
 		logger,

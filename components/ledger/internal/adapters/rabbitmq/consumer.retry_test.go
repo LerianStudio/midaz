@@ -43,7 +43,6 @@ func newTestRetryManager(channel publishChannel) *ConsumerRetryManager {
 		backoff:     func(int) time.Duration { return 0 },
 		channelFunc: func() publishChannel { return channel },
 		maxRetries:  maxMessageRetries,
-		sleepFunc:   func(time.Duration) {},
 		logger:      testLogger,
 	}
 }

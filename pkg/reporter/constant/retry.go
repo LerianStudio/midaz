@@ -17,9 +17,6 @@ const (
 	// RetryMaxBackoff is the upper bound for the backoff delay.
 	RetryMaxBackoff = 30 * time.Second
 
-	// RetryJitterMax is the maximum random jitter added to backoff to prevent thundering herd.
-	RetryJitterMax = 500 * time.Millisecond
-
 	// RetryCountHeader is the RabbitMQ message header key for tracking retry attempts.
 	RetryCountHeader = "x-retry-count"
 
@@ -41,9 +38,6 @@ const (
 
 	// ProducerMaxBackoff is the upper bound for the producer retry backoff delay.
 	ProducerMaxBackoff = 10 * time.Second
-
-	// ProducerBackoffFactor is the multiplier applied to the backoff on each successive retry.
-	ProducerBackoffFactor = 2.0
 )
 
 // RabbitMQ Connection Monitor Configuration

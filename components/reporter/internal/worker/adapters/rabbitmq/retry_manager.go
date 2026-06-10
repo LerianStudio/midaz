@@ -7,9 +7,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
-	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	pkgReporterRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
@@ -27,11 +25,10 @@ import (
 // generic pkg/rabbitmq retry engine, which owns the classify/backoff/Ack flow.
 type ConsumerRetryManager struct {
 	classifier      pkgReporterRabbitmq.ErrorClassifier
-	backoff         *pkg.BackoffCalculator
+	backoff         pkgRabbitmq.BackoffFunc
 	conn            *rabbitmq.RabbitMQConnection     // single-tenant channel
 	rabbitMQManager RabbitMQManagerConsumerInterface // multi-tenant channel (nil in ST)
 	maxRetries      int
-	sleepFunc       func(time.Duration)
 	logger          log.Logger
 	telemetry       libOtel.Telemetry
 }
@@ -39,7 +36,7 @@ type ConsumerRetryManager struct {
 // NewConsumerRetryManager creates a new retry manager with the given dependencies.
 func NewConsumerRetryManager(
 	classifier pkgReporterRabbitmq.ErrorClassifier,
-	backoff *pkg.BackoffCalculator,
+	backoff pkgRabbitmq.BackoffFunc,
 	conn *rabbitmq.RabbitMQConnection,
 	rabbitMQManager RabbitMQManagerConsumerInterface,
 	logger log.Logger,
@@ -51,7 +48,6 @@ func NewConsumerRetryManager(
 		conn:            conn,
 		rabbitMQManager: rabbitMQManager,
 		maxRetries:      pkgConstant.MaxMessageRetries,
-		sleepFunc:       time.Sleep,
 		logger:          logger,
 		telemetry:       telemetry,
 	}
@@ -63,10 +59,9 @@ func NewConsumerRetryManager(
 func (rm *ConsumerRetryManager) HandleFailure(ctx context.Context, workerID int, queue string, message amqp091.Delivery, err error, retryCount int, span trace.Span) {
 	engine := pkgRabbitmq.NewRetryManager(pkgRabbitmq.Config{
 		Classifier: rm.classifier,
-		Backoff:    rm.backoff.Calculate,
+		Backoff:    rm.backoff,
 		Republish:  rm.republish,
 		MaxRetries: rm.maxRetries,
-		SleepFunc:  rm.sleepFunc,
 		Logger:     rm.logger,
 	})
 

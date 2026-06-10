@@ -49,7 +49,6 @@ func TestConsumerRoutes_RetryConstants(t *testing.T) {
 	assert.Equal(t, 5, pkgConstant.MaxMessageRetries)
 	assert.Equal(t, 1*time.Second, pkgConstant.RetryInitialBackoff)
 	assert.Equal(t, 30*time.Second, pkgConstant.RetryMaxBackoff)
-	assert.Equal(t, 500*time.Millisecond, pkgConstant.RetryJitterMax)
 	assert.Equal(t, "x-retry-count", pkgConstant.RetryCountHeader)
 	assert.Equal(t, "x-failure-reason", pkgConstant.RetryFailureReasonHeader)
 }
@@ -126,12 +125,4 @@ func TestPkgRabbitmq_GetRetryCount_Integration(t *testing.T) {
 
 	headers := amqp091.Table{pkgConstant.RetryCountHeader: 3}
 	assert.Equal(t, 3, pkgRabbitmq.GetRetryCount(headers))
-}
-
-func TestPkgRabbitmq_BuildRetryHeaders_Integration(t *testing.T) {
-	t.Parallel()
-
-	headers := pkgRabbitmq.BuildRetryHeaders(nil, 0, "retryable_error")
-	assert.Equal(t, 1, headers[pkgConstant.RetryCountHeader])
-	assert.Equal(t, "retryable_error", headers[pkgConstant.RetryFailureReasonHeader])
 }

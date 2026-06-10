@@ -110,8 +110,9 @@ func setupConsumer(t *testing.T, handler pkgRabbitmq.QueueHandlerFunc) {
 	cr, err := NewConsumerRoutes(conn, 1, logger, telemetry, nil)
 	require.NoError(t, err, "NewConsumerRoutes should connect successfully")
 
-	// Override sleepFunc to no-op for fast tests (eliminates real backoff delays)
-	cr.retryManager.sleepFunc = func(_ time.Duration) {}
+	// Override backoff to zero for fast tests (eliminates real backoff delays).
+	// WaitContext returns immediately for non-positive durations.
+	cr.retryManager.backoff = func(int) time.Duration { return 0 }
 
 	cr.Register(containers.QueueGenerateReport, handler)
 

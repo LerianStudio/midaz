@@ -12,7 +12,6 @@ import (
 
 	pkgErr "github.com/LerianStudio/midaz/v4/pkg"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
@@ -76,11 +75,10 @@ func (f *testManager) GetConnection(_ context.Context, tenantID string) (RabbitM
 func buildRetryManager(conn *rabbitmq.RabbitMQConnection, manager RabbitMQManagerConsumerInterface) *ConsumerRetryManager {
 	return &ConsumerRetryManager{
 		classifier:      pkgRabbitmq.NewDefaultErrorClassifier(),
-		backoff:         &pkg.BackoffCalculator{InitialDelay: 1 * time.Millisecond, MaxDelay: 2 * time.Millisecond, Factor: 2.0},
+		backoff:         func(int) time.Duration { return 0 },
 		conn:            conn,
 		rabbitMQManager: manager,
 		maxRetries:      pkgConstant.MaxMessageRetries,
-		sleepFunc:       func(d time.Duration) {},
 		logger:          log.NewNop(),
 		telemetry:       libOtel.Telemetry{},
 	}

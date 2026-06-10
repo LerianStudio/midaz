@@ -5,15 +5,12 @@
 package rabbitmq
 
 import (
-	"context"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetRetryCount(t *testing.T) {
@@ -95,45 +92,6 @@ func TestGetRetryCount(t *testing.T) {
 	}
 }
 
-func TestBuildRetryHeaders(t *testing.T) {
-	t.Parallel()
-
-	t.Run("copies original headers and increments retry count", func(t *testing.T) {
-		t.Parallel()
-
-		original := amqp.Table{
-			"traceparent":             "00-abc-def-01",
-			"X-Request-Id":            "req-123",
-			constant.RetryCountHeader: 2,
-		}
-
-		result := BuildRetryHeaders(original, 2, "retryable_error")
-
-		assert.Equal(t, 3, result[constant.RetryCountHeader])
-		assert.Equal(t, "retryable_error", result[constant.RetryFailureReasonHeader])
-		assert.Equal(t, "00-abc-def-01", result["traceparent"])
-		assert.Equal(t, "req-123", result["X-Request-Id"])
-	})
-
-	t.Run("handles nil original headers", func(t *testing.T) {
-		t.Parallel()
-
-		result := BuildRetryHeaders(nil, 0, "unknown_error")
-
-		assert.Equal(t, 1, result[constant.RetryCountHeader])
-		assert.Equal(t, "unknown_error", result[constant.RetryFailureReasonHeader])
-	})
-
-	t.Run("does not mutate original headers", func(t *testing.T) {
-		t.Parallel()
-
-		original := amqp.Table{constant.RetryCountHeader: 1}
-		_ = BuildRetryHeaders(original, 1, "retryable_error")
-
-		assert.Equal(t, 1, original[constant.RetryCountHeader])
-	})
-}
-
 func TestNewProducerHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -155,67 +113,6 @@ func TestNewProducerHeaders(t *testing.T) {
 
 		assert.Equal(t, "tenant-42", headers[constant.HeaderXTenantID])
 		assert.Equal(t, "req-def", headers["X-Request-Id"])
-	})
-}
-
-func TestExtractTenantID(t *testing.T) {
-	t.Parallel()
-
-	t.Run("extracts tenant ID from headers", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		headers := amqp.Table{constant.HeaderXTenantID: "tenant-99"}
-
-		newCtx := ExtractTenantID(ctx, headers)
-
-		tenantID := tmcore.GetTenantIDContext(newCtx)
-		require.Equal(t, "tenant-99", tenantID)
-	})
-
-	t.Run("nil headers returns unchanged context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		newCtx := ExtractTenantID(ctx, nil)
-
-		assert.Equal(t, ctx, newCtx)
-	})
-
-	t.Run("missing header returns unchanged context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		headers := amqp.Table{"other": "value"}
-
-		newCtx := ExtractTenantID(ctx, headers)
-
-		tenantID := tmcore.GetTenantIDContext(newCtx)
-		assert.Empty(t, tenantID)
-	})
-
-	t.Run("empty string returns unchanged context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		headers := amqp.Table{constant.HeaderXTenantID: ""}
-
-		newCtx := ExtractTenantID(ctx, headers)
-
-		tenantID := tmcore.GetTenantIDContext(newCtx)
-		assert.Empty(t, tenantID)
-	})
-
-	t.Run("non-string header returns unchanged context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		headers := amqp.Table{constant.HeaderXTenantID: 42}
-
-		newCtx := ExtractTenantID(ctx, headers)
-
-		tenantID := tmcore.GetTenantIDContext(newCtx)
-		assert.Empty(t, tenantID)
 	})
 }
 

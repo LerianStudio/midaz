@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
-	pkgReporter "github.com/LerianStudio/midaz/v4/pkg/reporter"
+	reporterConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -43,7 +44,6 @@ type ConsumerRetryManager struct {
 	backoff     pkgRabbitmq.BackoffFunc
 	channelFunc func() publishChannel
 	maxRetries  int
-	sleepFunc   pkgRabbitmq.SleepFunc
 	logger      libLog.Logger
 }
 
@@ -64,11 +64,15 @@ func channelProviderFor(conn *libRabbitmq.RabbitMQConnection) func() publishChan
 // consumer. channelFunc resolves the live AMQP channel used for republish.
 func NewConsumerRetryManager(channelFunc func() publishChannel, logger libLog.Logger) *ConsumerRetryManager {
 	return &ConsumerRetryManager{
-		classifier:  pkgRabbitmq.NewDefaultClassifier(),
-		backoff:     pkgReporter.ConsumerBackoff.Calculate,
+		classifier: pkgRabbitmq.NewDefaultClassifier(),
+		backoff: func(attempt int) time.Duration {
+			return min(
+				libBackoff.ExponentialWithJitter(reporterConstant.RetryInitialBackoff, attempt),
+				reporterConstant.RetryMaxBackoff,
+			)
+		},
 		channelFunc: channelFunc,
 		maxRetries:  maxMessageRetries,
-		sleepFunc:   time.Sleep,
 		logger:      logger,
 	}
 }
@@ -83,7 +87,6 @@ func (rm *ConsumerRetryManager) HandleFailure(ctx context.Context, workerID int,
 		Backoff:    rm.backoff,
 		Republish:  rm.republish,
 		MaxRetries: rm.maxRetries,
-		SleepFunc:  rm.sleepFunc,
 		Logger:     rm.logger,
 	})
 

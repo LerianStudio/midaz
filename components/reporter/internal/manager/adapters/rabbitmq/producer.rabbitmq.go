@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/ctxutil"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/reporter/rabbitmq"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	clog "github.com/LerianStudio/lib-observability/log"
@@ -29,8 +29,16 @@ import (
 // Overridable in tests for deterministic behavior.
 var sleepFunc = time.Sleep
 
-// backoff is the pre-configured producer backoff calculator.
-var backoff = pkg.ProducerBackoff
+// producerBackoff returns the publish-retry delay for the given retry attempt
+// (0-indexed) using lib-commons full-jitter exponential backoff, capped at
+// ProducerMaxBackoff. Full jitter randomizes the delay across [0, base*2^attempt)
+// to avoid thundering-herd reconnect storms after a broker restart.
+func producerBackoff(attempt int) time.Duration {
+	return min(
+		libBackoff.ExponentialWithJitter(constant.ProducerInitialBackoff, attempt),
+		constant.ProducerMaxBackoff,
+	)
+}
 
 // RabbitMQChannel is an interface for the AMQP channel used by the producer.
 // This allows mocking the channel in tests for multi-tenant scenarios.
@@ -160,13 +168,11 @@ func (prmq *ProducerRabbitMQRepository) publishMultiTenant(
 
 	spanProducer.SetAttributes(attribute.String("app.request.tenant_id", tenantID))
 
-	currentBackoff := backoff.InitialDelay
-
 	var publishErr error
 
 	for attempt := 0; attempt <= constant.ProducerMaxRetries; attempt++ {
 		if attempt > 0 {
-			sleepDuration := backoff.Jitter(currentBackoff)
+			sleepDuration := producerBackoff(attempt - 1)
 			logger.Log(ctx, clog.LevelDebug, "Retrying multi-tenant publish",
 				clog.String("tenant_id", tenantID),
 				clog.Int("attempt", attempt+1),
@@ -176,8 +182,6 @@ func (prmq *ProducerRabbitMQRepository) publishMultiTenant(
 
 			spanProducer.SetAttributes(attribute.Int("app.request.rabbitmq.retry_attempt", attempt))
 			sleepFunc(sleepDuration)
-
-			currentBackoff = backoff.Next(currentBackoff)
 		}
 
 		channel, chanErr := prmq.rabbitMQManager.GetChannel(ctx, tenantID)
@@ -239,8 +243,6 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 	logger clog.Logger,
 	spanProducer trace.Span,
 ) error {
-	currentBackoff := backoff.InitialDelay
-
 	var publishErr error
 
 	for attempt := 0; attempt <= constant.ProducerMaxRetries; attempt++ {
@@ -258,7 +260,7 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 				return chanErr
 			}
 
-			sleepDuration := backoff.Jitter(currentBackoff)
+			sleepDuration := producerBackoff(attempt)
 			logger.Log(ctx, clog.LevelDebug, "Retrying EnsureChannel",
 				clog.Any("backoff", sleepDuration),
 				clog.Int("attempt", attempt+1),
@@ -266,8 +268,6 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 			)
 
 			sleepFunc(sleepDuration)
-
-			currentBackoff = backoff.Next(currentBackoff)
 
 			continue
 		}
@@ -309,7 +309,7 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 			return publishErr
 		}
 
-		sleepDuration := backoff.Jitter(currentBackoff)
+		sleepDuration := producerBackoff(attempt)
 		logger.Log(ctx, clog.LevelDebug, "Retrying publish",
 			clog.Any("backoff", sleepDuration),
 			clog.Int("attempt", attempt+1),
@@ -317,8 +317,6 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 		)
 
 		sleepFunc(sleepDuration)
-
-		currentBackoff = backoff.Next(currentBackoff)
 	}
 
 	return publishErr

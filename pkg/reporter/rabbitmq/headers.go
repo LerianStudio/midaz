@@ -5,13 +5,10 @@
 package rabbitmq
 
 import (
-	"context"
-
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -19,12 +16,6 @@ import (
 // Thin re-export of the generic pkg/rabbitmq helper; retained for reporter call sites.
 func GetRetryCount(headers amqp.Table) int {
 	return pkgRabbitmq.RetryCountFromHeaders(headers)
-}
-
-// BuildRetryHeaders creates a new header table for a retry republish.
-// Thin re-export of the generic pkg/rabbitmq helper; retained for reporter call sites.
-func BuildRetryHeaders(original amqp.Table, currentRetryCount int, failureReason string) amqp.Table {
-	return pkgRabbitmq.BuildRetryHeaders(original, currentRetryCount, failureReason)
 }
 
 // TenantIDFromHeaders extracts the tenant ID string from AMQP headers without
@@ -48,22 +39,4 @@ func NewProducerHeaders(reqID string, tenantID string) amqp.Table {
 	}
 
 	return headers
-}
-
-// ExtractTenantID reads the X-Tenant-ID header from AMQP message headers
-// and, if present and non-empty, stores the tenant ID in the returned context
-// using the lib-commons tenant-manager API.
-//
-// When the header is absent or not a string (e.g. legacy single-tenant messages),
-// the context is returned unchanged, preserving full backward compatibility.
-func ExtractTenantID(ctx context.Context, headers amqp.Table) context.Context {
-	if headers == nil {
-		return ctx
-	}
-
-	if tenantID, ok := headers[constant.HeaderXTenantID].(string); ok && tenantID != "" {
-		return tmcore.ContextWithTenantID(ctx, tenantID)
-	}
-
-	return ctx
 }
