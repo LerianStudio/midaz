@@ -6,10 +6,7 @@
 // two-phase reservation API (POST /v1/reservations and the per-id
 // confirm/release transitions). It mirrors the reporter fetcher client
 // pattern: a struct configured through functional options, an optional M2M
-// token provider for inter-service auth, an optional circuit-breaker executor,
-// and per-operation context timeouts. The transport is deliberately decoupled
-// from the RabbitMQ-coupled midaz CircuitBreakerManager wrapper — the breaker,
-// when present, is injected as the narrow CircuitBreakerExecutor interface.
+// token provider for inter-service auth, and per-operation context timeouts.
 package tracer
 
 import (
@@ -43,10 +40,6 @@ const (
 	// fast rather than holding the transaction create path open.
 	defaultOperationTimeout = 250 * time.Millisecond
 
-	// breakerName is the circuit-breaker registration key passed to the
-	// executor. A single name covers the reservation transport.
-	breakerName = "tracer-reservations"
-
 	// maxErrorResponseSize limits how much of an error response body is read to
 	// prevent OOM from a misconfigured or hostile upstream.
 	maxErrorResponseSize = 1 << 20 // 1 MB
@@ -65,14 +58,6 @@ var ErrTracerUnavailable = errors.New("tracer reservation service unavailable")
 // provider means single-tenant mode and no Authorization header is sent.
 type M2MTokenProvider interface {
 	GetToken(ctx context.Context) (string, error)
-}
-
-// CircuitBreakerExecutor runs an operation through a circuit breaker. It
-// mirrors the reporter fetcher's executor seam (and pkg.CircuitBreakerExecutor)
-// so the ledger can register a non-RabbitMQ breaker and inject it here without
-// this client depending on the RabbitMQ-coupled CircuitBreakerManager wrapper.
-type CircuitBreakerExecutor interface {
-	Execute(name string, fn func() (any, error)) (any, error)
 }
 
 // ReserveAccount is the account scope the tracer matches limits against. It
@@ -138,7 +123,6 @@ type TracerClient struct {
 	baseURL          string
 	httpClient       *http.Client
 	m2mProvider      M2MTokenProvider
-	cbExecutor       CircuitBreakerExecutor
 	operationTimeout time.Duration
 }
 
@@ -155,22 +139,6 @@ func WithM2MTokenProvider(provider M2MTokenProvider) TracerClientOption {
 	}
 }
 
-// WithCircuitBreaker configures the circuit-breaker executor. When set, every
-// reservation call runs through it so a tripped breaker fails fast with
-// ErrTracerUnavailable instead of issuing a doomed request.
-func WithCircuitBreaker(cb CircuitBreakerExecutor) TracerClientOption {
-	return func(c *TracerClient) {
-		c.cbExecutor = cb
-	}
-}
-
-// WithHTTPClient overrides the default http.Client.
-func WithHTTPClient(client *http.Client) TracerClientOption {
-	return func(c *TracerClient) {
-		c.httpClient = client
-	}
-}
-
 // WithOperationTimeout sets the per-operation context timeout from the ledger's
 // tracer.timeoutMs setting. A non-positive value leaves the default in place.
 func WithOperationTimeout(d time.Duration) TracerClientOption {
@@ -182,10 +150,10 @@ func WithOperationTimeout(d time.Duration) TracerClientOption {
 }
 
 // NewTracerClient builds an HTTP client for the tracer reservation API.
-// Optional dependencies (m2mProvider, cbExecutor, custom httpClient, operation
-// timeout) are supplied via functional options. It returns an error when
-// baseURL is empty so a misconfigured composition root fails at boot rather
-// than at the first transaction.
+// Optional dependencies (m2mProvider, operation timeout) are supplied via
+// functional options. It returns an error when baseURL is empty so a
+// misconfigured composition root fails at boot rather than at the first
+// transaction.
 func NewTracerClient(baseURL string, opts ...TracerClientOption) (*TracerClient, error) {
 	if baseURL == "" {
 		return nil, errors.New("empty baseURL passed to NewTracerClient")
@@ -209,7 +177,7 @@ func NewTracerClient(baseURL string, opts ...TracerClientOption) (*TracerClient,
 // Reserve holds limit capacity for a transaction (phase one). On a 201 it
 // parses the reservation handle (including a denied=true decision, which is a
 // successful response, not a transport failure). A timeout, transport error,
-// open breaker, or non-201 status returns an error; availability failures are
+// or non-201 status returns an error; availability failures are
 // ErrTracerUnavailable so the anchor can apply tracer.failPosture.
 func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*ReserveResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -346,13 +314,13 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 }
 
 // do executes a request against the tracer API applying the per-operation
-// context timeout, the M2M auth header, and (when configured) the circuit
-// breaker. The caller owns the returned response body and MUST close it.
+// context timeout, the W3C trace context, and the M2M auth header. The caller
+// owns the returned response body and MUST close it.
 //
-// Transport-availability failures (timeout, dial error, open breaker) are
-// normalised to ErrTracerUnavailable so the reserve anchor can branch on
-// tracer.failPosture; a non-2xx status is NOT an availability failure and is
-// surfaced verbatim by the caller's status check.
+// Transport-availability failures (timeout, dial error) are normalised to
+// ErrTracerUnavailable so the reserve anchor can branch on tracer.failPosture;
+// a non-2xx status is NOT an availability failure and is surfaced verbatim by
+// the caller's status check.
 func (c *TracerClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
 	defer cancel()
@@ -372,37 +340,19 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// Propagate the W3C trace context so the tracer's otelfiber middleware
+	// continues the ledger transaction-create trace instead of starting a fresh
+	// root span per reserve/confirm/release.
+	libOpentelemetry.InjectHTTPContext(ctx, req.Header)
+
 	if err := c.applyAuth(ctx, req); err != nil {
 		return nil, err
 	}
 
-	exec := func() (any, error) {
-		return c.httpClient.Do(req) //nolint:bodyclose // response is returned to the caller (Reserve/transition*), which owns and closes the body
+	resp, err := c.httpClient.Do(req) //nolint:bodyclose // response is returned to the caller (Reserve/transition*), which owns and closes the body
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	}
-
-	if c.cbExecutor != nil {
-		out, cbErr := c.cbExecutor.Execute(breakerName, exec)
-		if cbErr != nil {
-			// A transport/timeout error and an open-breaker rejection both
-			// surface here; both are availability failures the anchor maps via
-			// failPosture.
-			return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, cbErr)
-		}
-
-		resp, _ := out.(*http.Response)
-		if resp == nil {
-			return nil, fmt.Errorf("%w: circuit breaker returned no response", ErrTracerUnavailable)
-		}
-
-		return resp, nil
-	}
-
-	out, doErr := exec()
-	if doErr != nil {
-		return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, doErr)
-	}
-
-	resp, _ := out.(*http.Response)
 
 	return resp, nil
 }

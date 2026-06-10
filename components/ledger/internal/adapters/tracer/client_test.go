@@ -7,7 +7,6 @@ package tracer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -253,70 +252,4 @@ func TestTracerClient_Confirm_TimeoutReturnsUnavailable(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrTracerUnavailable)
-}
-
-// recordingExecutor is a CircuitBreakerExecutor stub that either runs the
-// operation or short-circuits with an open-breaker error.
-type recordingExecutor struct {
-	name     string
-	openErr  error
-	executed bool
-}
-
-func (e *recordingExecutor) Execute(name string, fn func() (any, error)) (any, error) {
-	e.name = name
-
-	if e.openErr != nil {
-		return nil, e.openErr
-	}
-
-	e.executed = true
-
-	return fn()
-}
-
-func TestTracerClient_Reserve_RoutesThroughCircuitBreaker(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
-	}))
-	defer srv.Close()
-
-	exec := &recordingExecutor{}
-	client, err := NewTracerClient(srv.URL, WithCircuitBreaker(exec))
-	require.NoError(t, err)
-
-	_, err = client.Reserve(context.Background(), ReserveRequest{
-		TransactionID: fixedTransactionID,
-		Amount:        "100",
-		Currency:      "USD",
-		Account:       ReserveAccount{AccountID: "acc-1"},
-	})
-
-	require.NoError(t, err)
-	assert.True(t, exec.executed)
-	assert.Equal(t, breakerName, exec.name)
-}
-
-func TestTracerClient_Reserve_OpenBreakerReturnsUnavailable(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		t.Error("upstream must not be hit when the breaker is open")
-	}))
-	defer srv.Close()
-
-	exec := &recordingExecutor{openErr: errors.New("circuit breaker is open")}
-	client, err := NewTracerClient(srv.URL, WithCircuitBreaker(exec))
-	require.NoError(t, err)
-
-	result, err := client.Reserve(context.Background(), ReserveRequest{
-		TransactionID: fixedTransactionID,
-		Amount:        "100",
-		Currency:      "USD",
-		Account:       ReserveAccount{AccountID: "acc-1"},
-	})
-
-	require.Error(t, err)
-	require.Nil(t, result)
-	assert.ErrorIs(t, err, ErrTracerUnavailable)
-	assert.False(t, exec.executed)
 }
