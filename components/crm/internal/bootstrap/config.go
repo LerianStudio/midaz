@@ -159,7 +159,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Initialize encryption repositories for envelope mode only.
 	// In legacy mode, these remain nil (not needed for legacy encryption).
-	keysetRepo, registryRepo, auditWriter, err := initEncryptionRepos(kms, mongoConnection, logger)
+	keysetRepo, registryRepo, auditRepo, auditWriter, err := initEncryptionRepos(kms, mongoConnection, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +232,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		VaultClient:             kms.VaultClient,
 		KeysetRepo:              keysetRepo,
 		RegistryRepo:            registryRepo,
+		AuditRepo:               auditRepo,
 		EncryptionService:       encryptionResult.encryptionService,
 		ProvisioningService:     encryptionResult.provisioningService,
 		ProtectionStateResolver: encryptionResult.protectionStateResolver,
@@ -313,38 +314,40 @@ func initLegacyCrypto(cfg *Config, kms *KMSResult, logger libLog.Logger) (encryp
 	return crypto, nil
 }
 
-// initEncryptionRepos constructs the envelope-only encryption repositories and a
-// repository-backed AuditWriter. In legacy mode it returns nil for all three:
-// legacy encryption needs no keyset/registry repositories and has no provisioning
-// service, so it needs no audit writer. The AuditWriter is therefore envelope-only
-// and never a no-op.
+// initEncryptionRepos constructs the envelope-only encryption repositories, the
+// read-side audit Repository, and a repository-backed AuditWriter. In legacy mode
+// it returns nil for all of them: legacy encryption needs no keyset/registry
+// repositories and has no provisioning service, so it needs neither an audit
+// reader nor an audit writer. The audit repository is therefore envelope-only and
+// never a no-op. A single auditRepo instance backs both the read path (returned
+// directly) and the write path (wrapped by NewAuditWriter).
 func initEncryptionRepos(
 	kms *KMSResult,
 	mongoConnection *libMongo.Client,
 	logger libLog.Logger,
-) (mongoEncryption.KeysetRepository, mongoEncryption.RegistryRepository, encryption.AuditWriter, error) {
+) (mongoEncryption.KeysetRepository, mongoEncryption.RegistryRepository, audit.Repository, encryption.AuditWriter, error) {
 	if !kms.Mode.IsEnvelope() {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	keysetRepo, err := mongoEncryption.NewKeysetMongoDBRepository(mongoConnection)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
 	}
 
 	registryRepo, err := mongoEncryption.NewRegistryMongoDBRepository(mongoConnection)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to initialize registry repository: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize registry repository: %w", err)
 	}
 
 	auditRepo, err := audit.NewMongoDBRepository(mongoConnection)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to initialize audit repository: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize audit repository: %w", err)
 	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Encryption repositories initialized for envelope mode")
 
-	return keysetRepo, registryRepo, encryption.NewAuditWriter(auditRepo, logger), nil
+	return keysetRepo, registryRepo, auditRepo, encryption.NewAuditWriter(auditRepo, logger), nil
 }
 
 func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, error) {

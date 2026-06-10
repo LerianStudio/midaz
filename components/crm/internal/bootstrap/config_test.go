@@ -12,6 +12,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -469,6 +470,111 @@ func TestResolveMongoURI_InvalidLegacyValueReturnsError(t *testing.T) {
 	_, err := resolveMongoURI(&Config{MongoURI: "mongodb-invalid"}, "5703", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid MONGO_URI format")
+}
+
+// =============================================================================
+// Encryption Repository Wiring — Audit Read Repository (T-2.1.1)
+// =============================================================================
+
+func TestInitEncryptionRepos_AuditRepoWiring(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		mode              crypto.EncryptionMode
+		expectAuditRepo   bool
+		expectKeysetRepo  bool
+		expectRegistry    bool
+		expectAuditWriter bool
+	}{
+		{
+			name:              "legacy mode returns nil audit repo and writer",
+			mode:              crypto.EncryptionModeLegacy,
+			expectAuditRepo:   false,
+			expectKeysetRepo:  false,
+			expectRegistry:    false,
+			expectAuditWriter: false,
+		},
+		{
+			name:              "envelope mode returns non-nil audit repo and writer",
+			mode:              crypto.EncryptionModeEnvelope,
+			expectAuditRepo:   true,
+			expectKeysetRepo:  true,
+			expectRegistry:    true,
+			expectAuditWriter: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			kms := &KMSResult{Mode: tt.mode}
+			logger := newMockLogger()
+
+			// mongoConnection is nil: in envelope mode the repository constructors
+			// accept a nil connection (multi-tenant per-request resolution) and so
+			// succeed at startup, which is exactly what lets us assert reachability
+			// without a real MongoDB.
+			keysetRepo, registryRepo, auditRepo, auditWriter, err := initEncryptionRepos(kms, nil, logger)
+			require.NoError(t, err, "initEncryptionRepos must not error for nil connection")
+
+			if tt.expectAuditRepo {
+				assert.NotNil(t, auditRepo, "AuditRepo must be non-nil in envelope mode")
+			} else {
+				assert.Nil(t, auditRepo, "AuditRepo must be nil in legacy mode")
+			}
+
+			if tt.expectKeysetRepo {
+				assert.NotNil(t, keysetRepo, "KeysetRepo must be non-nil in envelope mode")
+			} else {
+				assert.Nil(t, keysetRepo, "KeysetRepo must be nil in legacy mode")
+			}
+
+			if tt.expectRegistry {
+				assert.NotNil(t, registryRepo, "RegistryRepo must be non-nil in envelope mode")
+			} else {
+				assert.Nil(t, registryRepo, "RegistryRepo must be nil in legacy mode")
+			}
+
+			if tt.expectAuditWriter {
+				assert.NotNil(t, auditWriter, "AuditWriter must be non-nil in envelope mode")
+			} else {
+				assert.Nil(t, auditWriter, "AuditWriter must be nil in legacy mode")
+			}
+		})
+	}
+}
+
+func TestService_AuditRepoField(t *testing.T) {
+	t.Parallel()
+
+	t.Run("envelope mode wires non-nil AuditRepo onto Service", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &KMSResult{Mode: crypto.EncryptionModeEnvelope}
+		logger := newMockLogger()
+
+		_, _, auditRepo, _, err := initEncryptionRepos(kms, nil, logger)
+		require.NoError(t, err)
+
+		svc := &Service{AuditRepo: auditRepo}
+		assert.NotNil(t, svc.AuditRepo, "Service.AuditRepo must be non-nil in envelope mode")
+	})
+
+	t.Run("legacy mode leaves AuditRepo nil on Service", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &KMSResult{Mode: crypto.EncryptionModeLegacy}
+		logger := newMockLogger()
+
+		_, _, auditRepo, _, err := initEncryptionRepos(kms, nil, logger)
+		require.NoError(t, err)
+
+		svc := &Service{AuditRepo: auditRepo}
+		assert.Nil(t, svc.AuditRepo, "Service.AuditRepo must be nil in legacy mode")
+	})
 }
 
 // mockLogger implements libLog.Logger for testing.
