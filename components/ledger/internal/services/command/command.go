@@ -110,7 +110,7 @@ type UseCase struct {
 
 	// HolderReader asserts holder existence for the RequireHolder gate on the
 	// create path. Org-scoped; satisfied by an adapter over the CRM holder
-	// service so command never imports components/crm. A nil value disables the
+	// service so command never imports the CRM package. A nil value disables the
 	// gate (the check only runs when RequireHolder is true and a HolderID is set).
 	HolderReader HolderReader
 

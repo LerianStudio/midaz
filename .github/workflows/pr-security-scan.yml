@@ -34,11 +34,11 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      # Analysis-class filter: covers every component that still has Go code in-tree
-      # (crm code remains pending the P9 teardown even though it emits no image), so
-      # it differs by design from build.yml's IMAGE filter (the four image dirs only).
+      # Analysis-class filter: covers every component that has Go code in-tree
+      # (CRM now lives under components/ledger/internal/crm, so it rolls up into the
+      # components/ledger entry at path_level 2), so it differs by design from
+      # build.yml's IMAGE filter (the four image dirs only).
       filter_paths: |-
-        components/crm
         components/ledger
         components/tracer
         components/reporter

@@ -5,7 +5,7 @@
 package composition
 
 import (
-	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
+	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 

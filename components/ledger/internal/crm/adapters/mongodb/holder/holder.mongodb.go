@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/dupkey"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/dupkey"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"

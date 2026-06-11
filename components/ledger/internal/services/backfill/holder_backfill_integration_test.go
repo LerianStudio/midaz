@@ -14,8 +14,8 @@ import (
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
-	crmservices "github.com/LerianStudio/midaz/v4/components/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"

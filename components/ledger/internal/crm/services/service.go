@@ -7,8 +7,8 @@ package services
 import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/instrument"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"go.opentelemetry.io/otel/trace"
 )

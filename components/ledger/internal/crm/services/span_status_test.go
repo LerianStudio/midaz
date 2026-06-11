@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

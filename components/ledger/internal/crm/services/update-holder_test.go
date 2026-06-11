@@ -10,14 +10,14 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func TestCreateHolder(t *testing.T) {
+func TestUpdateHolderByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -33,20 +33,19 @@ func TestCreateHolder(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		input          *mmodel.CreateHolderInput
+		input          *mmodel.UpdateHolderInput
 		mockSetup      func()
 		expectErr      bool
 		expectedHolder *mmodel.Holder
 	}{
 		{
-			name: "Success with required fields provided",
-			input: &mmodel.CreateHolderInput{
-				Name:     name,
-				Document: document,
+			name: "Success with single field provided",
+			input: &mmodel.UpdateHolderInput{
+				Name: &name,
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Holder{
 						ID:       &holderID,
 						Name:     &name,
@@ -61,14 +60,13 @@ func TestCreateHolder(t *testing.T) {
 			},
 		},
 		{
-			name: "Error when repository fails to create holder",
-			input: &mmodel.CreateHolderInput{
-				Name:     name,
-				Document: document,
+			name: "Error when repository fails to update holder",
+			input: &mmodel.UpdateHolderInput{
+				Name: &name,
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
@@ -80,8 +78,10 @@ func TestCreateHolder(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			testCase.mockSetup()
 
+			fieldsToRemove := []string{"field1", "field2"}
+
 			ctx := context.Background()
-			result, err := uc.CreateHolder(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", testCase.input)
+			result, err := uc.UpdateHolderByID(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", holderID, testCase.input, fieldsToRemove)
 
 			if testCase.expectErr {
 				assert.Error(t, err)

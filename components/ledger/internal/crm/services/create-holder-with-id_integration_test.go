@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"

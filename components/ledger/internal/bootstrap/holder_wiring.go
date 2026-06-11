@@ -26,7 +26,7 @@ type holderByIDReader interface {
 // holderReaderAdapter satisfies command.HolderReader over the CRM holder
 // service, hiding the repository's misleadingly-named collection parameter and
 // passing the organization ID through correctly. It lets the command package
-// assert holder existence without importing components/crm (dependency-inward).
+// assert holder existence without importing the CRM package (dependency-inward).
 type holderReaderAdapter struct {
 	service holderByIDReader
 }

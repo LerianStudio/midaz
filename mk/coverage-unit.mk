@@ -2,7 +2,7 @@
 #
 # Required variable (set before include):
 #   COVERAGE_PACKAGES  Space-separated Go package patterns relative to MIDAZ_ROOT
-#                      Example: ./components/crm/... ./pkg/...
+#                      Example: ./components/ledger/... ./pkg/...
 #
 # Optional overrides:
 #   PKG                Override package list for a single invocation
@@ -13,7 +13,7 @@
 #   $(TEST_REPORTS_DIR)/unit_coverage.out
 #
 # Usage in component Makefile:
-#   COVERAGE_PACKAGES := ./components/crm/... ./pkg/...
+#   COVERAGE_PACKAGES := ./components/ledger/... ./pkg/...
 #   include $(MIDAZ_ROOT)/mk/coverage-unit.mk
 #
 # CI compatibility:

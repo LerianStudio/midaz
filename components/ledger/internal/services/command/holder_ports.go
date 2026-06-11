@@ -21,7 +21,7 @@ var midazNamespace = uuid.MustParse("8d9e2c1b-3a47-5f60-9c8b-1d2e3f405162")
 // HolderReader is the narrow port the create path uses to assert a holder exists.
 //
 // It is defined here, in the command package, on purpose: command must not import
-// components/crm (dependency-inward). The port is org-scoped — ownership is
+// the CRM package (dependency-inward). The port is org-scoped — ownership is
 // org-global, not ledger-scoped, matching the per-org holder collection. The
 // implementation (an adapter over the CRM holder service, wired at bootstrap)
 // passes the org ID through to the repository; this contract hides the repository's
@@ -45,7 +45,7 @@ type SettingsReader interface {
 // HolderProvisioner is the narrow port the org-create path uses to provision the
 // deterministic self-holder. It is satisfied at bootstrap by the CRM holder
 // service's CreateHolderWithID, which treats a duplicate deterministic ID as
-// idempotent success — so command never imports components/crm.
+// idempotent success — so command never imports the CRM package.
 type HolderProvisioner interface {
 	// CreateHolderWithID provisions a holder with a caller-supplied deterministic ID.
 	CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error)
