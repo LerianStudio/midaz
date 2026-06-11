@@ -291,10 +291,12 @@ type Config struct {
 	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
 	// the transaction create path open; it mirrors the tracer.timeoutMs setting
 	// default (250ms) and is overridden per-ledger by the call site.
-	// TracerTransport selects the reservation transport: "grpc" or "rest"
-	// (default). gRPC is the seam's target transport; REST is the proven
-	// fallback, kept as the default during rollout so flipping to gRPC is a
-	// single-constant change after the Phase-1 integration test and a soak.
+	// TracerTransport selects the reservation transport: "grpc" (default) or
+	// "rest". gRPC is the seam's production transport; REST is retained as a
+	// fallback, selectable by setting TRACER_TRANSPORT=rest. A deploy that wires
+	// the tracer (TRACER_BASE_URL set) without overriding this now speaks gRPC,
+	// so the tracer must expose its gRPC seam (TRACER_GRPC_PORT) and, under
+	// TRACER_TLS_MODE=mtls, both ends need cert material.
 	// TracerTLSMode secures the reservation seam: "mtls" presents a client
 	// certificate and verifies the tracer's server certificate against the CA
 	// (mutual TLS is the seam's identity — no shared secret); "mesh" (and the
@@ -1568,7 +1570,7 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 
 	transport := strings.ToLower(strings.TrimSpace(cfg.TracerTransport))
 	if transport == "" {
-		transport = tracerTransportREST
+		transport = tracerTransportGRPC
 	}
 
 	switch transport {

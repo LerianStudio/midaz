@@ -132,7 +132,7 @@ func TestBuildTracerReserver_MTLSGuard(t *testing.T) {
 }
 
 // TestBuildTracerReserver_TransportSelection pins the TRACER_TRANSPORT toggle:
-// "grpc" builds the gRPC client, "rest" (and the empty default) build the HTTP
+// "rest" builds the HTTP client, "grpc" (and the empty default) build the gRPC
 // client, and an unknown value fails fast. The integration is single-tenant in
 // every case so the multi-tenant boot guard does not fire. grpc.NewClient is
 // lazy, so building the gRPC reserver never blocks on tracer reachability.
@@ -158,9 +158,9 @@ func TestBuildTracerReserver_TransportSelection(t *testing.T) {
 			wantType:  &tracerclient.TracerClient{},
 		},
 		{
-			name:      "empty defaults to REST",
+			name:      "empty defaults to gRPC",
 			transport: "",
-			wantType:  &tracerclient.TracerClient{},
+			wantType:  &tracerclient.TracerGRPCClient{},
 		},
 		{
 			name:      "case-insensitive GRPC",
