@@ -1382,9 +1382,10 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	commitBody, err := io.ReadAll(commitResp.Body)
 	require.NoError(t, err, "should read commit response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	assert.True(t, commitResp.StatusCode == 400 || commitResp.StatusCode == 422,
-		"expected HTTP 400 or 422 for commit on non-pending, got %d: %s", commitResp.StatusCode, string(commitBody))
+	// Assert: Should return 409 Conflict — committing a non-PENDING transaction is
+	// a state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, commitResp.StatusCode,
+		"expected HTTP 409 for commit on non-pending, got %d: %s", commitResp.StatusCode, string(commitBody))
 }
 
 // TestIntegration_TransactionHandler_RevertOnPending_Returns4xx validates that
@@ -1469,13 +1470,10 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	revertBody, err := io.ReadAll(revertResp.Body)
 	require.NoError(t, err, "should read revert response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	// Note: If this returns 500, it indicates a known backend issue
-	if revertResp.StatusCode == 500 {
-		t.Logf("WARNING: Revert on PENDING returned 500 (known backend issue): %s", string(revertBody))
-	}
-	assert.True(t, revertResp.StatusCode == 400 || revertResp.StatusCode == 422 || revertResp.StatusCode == 500,
-		"expected HTTP 400, 422, or 500 for revert on pending, got %d: %s", revertResp.StatusCode, string(revertBody))
+	// Assert: Should return 409 Conflict — reverting a PENDING transaction is a
+	// state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, revertResp.StatusCode,
+		"expected HTTP 409 for revert on pending, got %d: %s", revertResp.StatusCode, string(revertBody))
 }
 
 // TestIntegration_TransactionHandler_PendingTransaction_Revert validates the full
@@ -1922,9 +1920,10 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	cancelBody, err := io.ReadAll(cancelResp.Body)
 	require.NoError(t, err, "should read cancel response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	assert.True(t, cancelResp.StatusCode == 400 || cancelResp.StatusCode == 422,
-		"expected HTTP 400 or 422 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
+	// Assert: Should return 409 Conflict — cancelling a non-PENDING transaction is
+	// a state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, cancelResp.StatusCode,
+		"expected HTTP 409 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
 }
 
 // TestIntegration_TransactionHandler_ConcurrentMixedTransactions validates that

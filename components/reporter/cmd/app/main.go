@@ -84,19 +84,34 @@ func newOrchestratorLogger() (libLog.Logger, error) {
 		logLevel = "info"
 	}
 
-	envName := strings.ToLower(strings.TrimSpace(os.Getenv("ENV_NAME")))
-	if envName == "" {
-		envName = "development"
-	}
-
 	otelServiceName := os.Getenv("OTEL_RESOURCE_SERVICE_NAME")
 	if otelServiceName == "" {
 		otelServiceName = "reporter"
 	}
 
 	return libZap.New(libZap.Config{
-		Environment:     libZap.Environment(envName),
+		Environment:     resolveZapEnvironment(os.Getenv("ENV_NAME")),
 		Level:           logLevel,
 		OTelLibraryName: otelServiceName,
 	})
+}
+
+// resolveZapEnvironment maps an arbitrary ENV_NAME string onto one of the
+// canonical libZap environments. libZap.Config.Validate rejects any value
+// outside its known set, so unrecognized names (e.g. "test", "qa") must fall
+// back to a valid verbose profile rather than reach the validator raw. Mirrors
+// the per-surface resolvers in internal/manager and internal/worker bootstrap.
+func resolveZapEnvironment(envName string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(envName)) {
+	case "production", "prod":
+		return libZap.EnvironmentProduction
+	case "staging":
+		return libZap.EnvironmentStaging
+	case "uat":
+		return libZap.EnvironmentUAT
+	case "development", "dev":
+		return libZap.EnvironmentDevelopment
+	default:
+		return libZap.EnvironmentLocal
+	}
 }
