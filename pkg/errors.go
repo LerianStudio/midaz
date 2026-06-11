@@ -3077,6 +3077,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Reservation Transaction IDReq",
 			Message:    "Reservation: transactionId is required.",
 		},
+		constant.ErrReservationTenantRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantRequired.Error(),
+			Title:      "Reservation Tenant Required",
+			Message:    "Reservation: tenant id is required on the multi-tenant reservation surface.",
+		},
 		constant.ErrReservationScopeKeyRequired: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrReservationScopeKeyRequired.Error(),

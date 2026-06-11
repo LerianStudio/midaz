@@ -537,6 +537,7 @@ var (
 	ErrRouteNotFound                          = errors.New("0484")
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
+	ErrReservationTenantRequired              = errors.New("0487")
 )
 
 // List of CRM domain errors.

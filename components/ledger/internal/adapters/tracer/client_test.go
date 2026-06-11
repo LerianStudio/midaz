@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +145,66 @@ func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, hadAuth)
+}
+
+// TestTracerClient_Reserve_SetsTenantHeader pins trusted tenant propagation on
+// the REST transport: when the request context carries a tenant (multi-tenant
+// mode), the client sends it as the X-Tenant-Id header the tracer trusts over
+// the mTLS-verified connection.
+func TestTracerClient_Reserve_SetsTenantHeader(t *testing.T) {
+	var gotTenant string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTenant = r.Header.Get(TenantHeader)
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
+
+	_, err = client.Reserve(ctx, ReserveRequest{
+		TransactionID: fixedTransactionID,
+		Amount:        "100",
+		Currency:      "USD",
+		Account:       ReserveAccount{AccountID: "acc-1"},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "tenant-007", gotTenant)
+}
+
+// TestTracerClient_Reserve_OmitsTenantHeaderWhenAbsent pins single-tenant mode:
+// when the context carries no tenant, the client sends no X-Tenant-Id header at
+// all (the tracer then runs its single-tenant pass-through), rather than an
+// empty-valued header.
+func TestTracerClient_Reserve_OmitsTenantHeaderWhenAbsent(t *testing.T) {
+	var hadTenant bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hadTenant = r.Header[TenantHeader]
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
+	}))
+	defer srv.Close()
+
+	client, err := NewTracerClient(srv.URL)
+	require.NoError(t, err)
+
+	_, err = client.Reserve(context.Background(), ReserveRequest{
+		TransactionID: fixedTransactionID,
+		Amount:        "100",
+		Currency:      "USD",
+		Account:       ReserveAccount{AccountID: "acc-1"},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, hadTenant)
 }
 
 func TestTracerClient_Reserve_NonCreatedStatusErrors(t *testing.T) {

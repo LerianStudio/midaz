@@ -10,12 +10,14 @@ import (
 	"net"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -33,9 +35,18 @@ type stubReservationServer struct {
 	releaseByIDFn          func(*reservationv1.ReleaseByIdRequest) (*reservationv1.ReleaseByIdResponse, error)
 	confirmByTransactionFn func(*reservationv1.ConfirmByTransactionRequest) (*reservationv1.ConfirmByTransactionResponse, error)
 	releaseByTransactionFn func(*reservationv1.ReleaseByTransactionRequest) (*reservationv1.ReleaseByTransactionResponse, error)
+
+	// captureMetadata, when set, receives the incoming metadata the Reserve RPC
+	// arrived with so a test can assert on tenant propagation.
+	captureMetadata func(metadata.MD)
 }
 
-func (s *stubReservationServer) Reserve(_ context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+func (s *stubReservationServer) Reserve(ctx context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+	if s.captureMetadata != nil {
+		md, _ := metadata.FromIncomingContext(ctx)
+		s.captureMetadata(md)
+	}
+
 	return s.reserveFn(req)
 }
 
@@ -74,6 +85,7 @@ func newTestGRPCClient(t *testing.T, stub *stubReservationServer) *TracerGRPCCli
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor),
 	)
 	require.NoError(t, err)
 
@@ -379,6 +391,61 @@ func TestTracerGRPCClient_ReleaseByTransaction(t *testing.T) {
 	require.NoError(t, client.ReleaseByTransaction(context.Background(), transactionID))
 	require.NotNil(t, captured)
 	assert.Equal(t, transactionID.String(), captured.GetTransactionId())
+}
+
+// TestTracerGRPCClient_PropagatesTenantMetadata pins trusted tenant propagation
+// on the gRPC transport: when the request context carries a tenant, the client
+// appends it to the outgoing metadata under the lower-cased TenantHeader key,
+// and when the context carries none it appends nothing.
+func TestTracerGRPCClient_PropagatesTenantMetadata(t *testing.T) {
+	t.Parallel()
+
+	transactionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+
+	// The gRPC metadata key MUST be the lower-cased REST TenantHeader so the two
+	// transports cannot drift.
+	assert.Equal(t, "x-tenant-id", tenantMetadataKey)
+
+	t.Run("tenant in context lands on outgoing metadata", func(t *testing.T) {
+		t.Parallel()
+
+		var captured metadata.MD
+
+		stub := &stubReservationServer{
+			captureMetadata: func(md metadata.MD) { captured = md },
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-007")
+
+		_, err := client.Reserve(ctx, ReserveRequest{TransactionID: transactionID})
+		require.NoError(t, err)
+
+		require.NotNil(t, captured)
+		assert.Equal(t, []string{"tenant-007"}, captured.Get(tenantMetadataKey))
+	})
+
+	t.Run("no tenant in context appends no metadata", func(t *testing.T) {
+		t.Parallel()
+
+		var captured metadata.MD
+
+		stub := &stubReservationServer{
+			captureMetadata: func(md metadata.MD) { captured = md },
+			reserveFn: func(_ *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+				return &reservationv1.ReserveResult{TransactionId: transactionID.String()}, nil
+			},
+		}
+		client := newTestGRPCClient(t, stub)
+
+		_, err := client.Reserve(context.Background(), ReserveRequest{TransactionID: transactionID})
+		require.NoError(t, err)
+
+		assert.Empty(t, captured.Get(tenantMetadataKey))
+	})
 }
 
 func TestMapGRPCError(t *testing.T) {

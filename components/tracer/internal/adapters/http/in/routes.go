@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
@@ -26,6 +27,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -95,6 +97,19 @@ type RouteConfig struct {
 	// X-Forwarded-For. Empty (nil) means XFF is ignored and the socket peer IP
 	// is recorded. Parsed once at boot in bootstrap; never re-parsed per request.
 	TrustedProxyCIDRs []*net.IPNet
+}
+
+// reservationPathPrefix is the full mounted prefix of the reservation surface
+// (the /v1 group + the /reservations resource).
+const reservationPathPrefix = "/v1/reservations"
+
+// isReservationPath reports whether the request path targets the reservation
+// service-to-service seam. Used to exempt those routes from the JWT-claim tenant
+// middleware: the seam resolves its tenant from the trusted X-Tenant-Id header
+// instead. Matches both the collection ("/v1/reservations") and its
+// sub-resources ("/v1/reservations/...").
+func isReservationPath(path string) bool {
+	return path == reservationPathPrefix || strings.HasPrefix(path, reservationPathPrefix+"/")
 }
 
 // skipTelemetryPaths returns true for paths that should skip detailed telemetry.
@@ -254,7 +269,21 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		tenantMW := tmmiddleware.NewTenantMiddleware(
 			tmmiddleware.WithPG(pgManager),
 		)
-		api.Use(tenantMW.WithTenantDB)
+
+		// The reservation surface is the service-to-service seam: the ledger
+		// authenticates over mTLS (not a user JWT) and forwards a TRUSTED
+		// X-Tenant-Id header. Those routes resolve their tenant via their own
+		// reservationTenantMiddleware, so the JWT-claim path must NOT gate them
+		// (it would 401 the seam for lacking a Bearer token). Skip the shared
+		// middleware on /v1/reservations* and leave it intact for every other
+		// /v1 user route.
+		api.Use(func(c *fiber.Ctx) error {
+			if isReservationPath(c.Path()) {
+				return c.Next()
+			}
+
+			return tenantMW.WithTenantDB(c)
+		})
 
 		// Second middleware: lazy-spawn per-tenant workers on the first request
 		// that surfaces a tenant. Covers pod restarts where the Pub/Sub
@@ -351,17 +380,25 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 			return nil, fmt.Errorf("failed to create reservation handler: %w", err)
 		}
 
-		api.Post("/reservations", guard.With("reservations", "post", false), reservationHandler.Reserve)
+		// Reservation-scoped tenant resolution: on the mTLS/mesh-verified seam
+		// the ledger forwards a TRUSTED X-Tenant-Id header. Resolve the
+		// per-tenant PG pool from it here, on the reservation routes ONLY — the
+		// shared JWT-claim tenant middleware on the other /v1 user routes is left
+		// intact, and no header-trust path is opened elsewhere. In single-tenant
+		// mode the resolver is a no-op.
+		resTenantMW := reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
+
+		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Reserve)
 		// By-transaction transitions FIRST: the static "transaction" segment must
 		// be matched before the "/reservations/:id/..." param routes, or Fiber binds
 		// the literal "transaction" to :id. The ledger /commit and /cancel address
 		// reservations by transaction id (the per-reservation handle does not survive
 		// the separate state-transition request), so these are the lifecycle drivers
 		// for PENDING transactions.
-		api.Post("/reservations/transaction/:transaction_id/confirm", guard.With("reservations", "post", false), reservationHandler.ConfirmByTransaction)
-		api.Post("/reservations/transaction/:transaction_id/release", guard.With("reservations", "post", false), reservationHandler.ReleaseByTransaction)
-		api.Post("/reservations/:id/confirm", guard.With("reservations", "post", false), reservationHandler.Confirm)
-		api.Post("/reservations/:id/release", guard.With("reservations", "post", false), reservationHandler.Release)
+		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false), reservationHandler.ConfirmByTransaction)
+		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false), reservationHandler.ReleaseByTransaction)
+		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Confirm)
+		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Release)
 	}
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements)

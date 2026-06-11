@@ -39,11 +39,15 @@ type GRPCServer struct {
 // NewGRPCServer builds the gRPC server, registers the reservation service, and
 // returns the runnable. address is the listen address (e.g. ":4021"). When
 // tlsConfig is non-nil the server enforces mutual TLS via grpc.Creds; nil means
-// plaintext (mesh mode). Returns an error if any dependency is nil.
+// plaintext (mesh mode). When tenantInterceptor is non-nil it is chained as a
+// unary interceptor so the trusted x-tenant-id resolves the per-tenant pool
+// before the reservation handler runs (multi-tenant mode); nil leaves the
+// single-tenant path untouched. Returns an error if any dependency is nil.
 func NewGRPCServer(
 	address string,
 	reservationServer reservationv1.ReservationServiceServer,
 	tlsConfig *tls.Config,
+	tenantInterceptor grpc.UnaryServerInterceptor,
 	logger libObsLog.Logger,
 	telemetry *libObsOtel.Telemetry,
 ) (*GRPCServer, error) {
@@ -61,6 +65,10 @@ func NewGRPCServer(
 
 	opts := []grpc.ServerOption{
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	}
+
+	if tenantInterceptor != nil {
+		opts = append(opts, grpc.ChainUnaryInterceptor(tenantInterceptor))
 	}
 
 	if tlsConfig != nil {

@@ -22,9 +22,11 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
@@ -1220,6 +1222,7 @@ func initHTTPServer(
 func initGRPCServer(
 	cfg *Config,
 	reservationService *services.ReservationService,
+	pgManager *tmpostgres.Manager,
 	clk clock.Clock,
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
@@ -1240,7 +1243,17 @@ func initGRPCServer(
 		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
 	}
 
-	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, logger, telemetry)
+	// Resolve the per-tenant pool from the trusted x-tenant-id metadata the
+	// ledger forwards over the mTLS/mesh-verified connection. In single-tenant
+	// mode the resolver is a no-op and the interceptor passes through.
+	tenantResolver := seamtenant.NewResolver(pgManager, cfg.MultiTenantEnabled)
+
+	var tenantInterceptor grpc.UnaryServerInterceptor
+	if tenantResolver.Active() {
+		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver)
+	}
+
+	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
@@ -1919,7 +1932,12 @@ func finalizeStartup(
 	clk clock.Clock,
 	mtComponents *componentsMT,
 ) (*Service, error) {
-	grpcServer, err := initGRPCServer(cfg, reservationService, clk, logger, telemetry)
+	var pgManager *tmpostgres.Manager
+	if mtComponents != nil {
+		pgManager = mtComponents.pgManager
+	}
+
+	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, clk, logger, telemetry)
 	if err != nil {
 		return nil, err
 	}

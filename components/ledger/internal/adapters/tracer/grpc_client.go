@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -19,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
@@ -89,8 +91,11 @@ func NewTracerGRPCClient(target string, opts ...TracerGRPCClientOption) (*Tracer
 		opt(conf)
 	}
 
-	dialOptions := make([]grpc.DialOption, 0, len(conf.dialOptions)+2)
-	dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	dialOptions := make([]grpc.DialOption, 0, len(conf.dialOptions)+3)
+	dialOptions = append(dialOptions,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithChainUnaryInterceptor(tenantUnaryInterceptor),
+	)
 
 	// Default to insecure transport ONLY when no dial options are injected
 	// (mesh/empty mode). When mTLS credentials arrive via WithGRPCDialOptions
@@ -252,6 +257,28 @@ func (c *TracerGRPCClient) ReleaseByTransaction(ctx context.Context, transaction
 	}
 
 	return nil
+}
+
+// tenantUnaryInterceptor propagates the request's tenant to the tracer as the
+// trusted x-tenant-id outgoing metadata on every RPC, mirroring the REST
+// client's TenantHeader injection. The value is resolved from context via
+// tmcore.GetTenantIDContext; in single-tenant mode it is empty and nothing is
+// appended (the tracer then runs its single-tenant pass-through). The tenant
+// metadata key is the lower-cased TenantHeader (tenantMetadataKey) so the two
+// transports cannot drift. The tenant value is never logged.
+func tenantUnaryInterceptor(
+	ctx context.Context,
+	method string,
+	req, reply any,
+	cc *grpc.ClientConn,
+	invoker grpc.UnaryInvoker,
+	opts ...grpc.CallOption,
+) error {
+	if tenant := tmcore.GetTenantIDContext(ctx); tenant != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, tenantMetadataKey, tenant)
+	}
+
+	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
 // toProtoReserveRequest mirrors the REST ReserveRequest onto the proto message

@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -359,14 +361,22 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 // service), consistent with the durable "tenant is the trust boundary" model.
 const TenantHeader = "X-Tenant-Id"
 
-// injectTenant is the tenant-propagation injection point. mTLS replaces token
-// identity, so there is no Authorization header; the tenant travels as the
-// trusted X-Tenant-Id header. The ledger-side resolution of the tenant value
-// from context lands in Phase 2 — this hook is the seam that wiring plugs into,
-// so it is intentionally a no-op (no tenant resolution) today.
+// tenantMetadataKey is the gRPC outgoing-metadata key for the same trusted
+// tenant value the REST transport carries in TenantHeader. gRPC metadata keys
+// are lower-cased, so it is derived from TenantHeader to keep the REST header
+// and the gRPC metadata key from drifting apart.
+var tenantMetadataKey = strings.ToLower(TenantHeader)
+
+// injectTenant propagates the request's tenant to the tracer as the trusted
+// X-Tenant-Id header. mTLS replaces token identity, so there is no Authorization
+// header; the tenant travels as the trusted header over the mTLS-verified
+// connection. The value is resolved from context via tmcore.GetTenantIDContext;
+// in single-tenant mode it is empty and no header is set (the tracer then runs
+// its single-tenant pass-through). The tenant value is never logged.
 func (c *TracerClient) injectTenant(ctx context.Context, req *http.Request) {
-	_ = ctx
-	_ = req
+	if tenant := tmcore.GetTenantIDContext(ctx); tenant != "" {
+		req.Header.Set(TenantHeader, tenant)
+	}
 }
 
 // statusError builds the error for a non-success status. The body is read
