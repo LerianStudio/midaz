@@ -30,7 +30,6 @@ include $(MIDAZ_ROOT)/mk/colors.mk
 include $(MIDAZ_ROOT)/mk/utils.mk
 include $(MIDAZ_ROOT)/mk/docker.mk
 include $(MIDAZ_ROOT)/mk/database.mk
-include $(MIDAZ_ROOT)/mk/docs.mk
 include $(MIDAZ_ROOT)/mk/quality.mk
 include $(MIDAZ_ROOT)/mk/security.mk
 # tracer's component-local tests.mk owns the test/coverage targets (test-unit,
@@ -73,10 +72,10 @@ help:
 	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up / down / start / stop / restart / rebuild-up / logs / ps"
+	@echo "  make up / down / start / stop / restart / rebuild-up / logs"
 	@echo ""
 	@echo "$(BOLD)Database Commands:$(NC)"
-	@echo "  make migrate / migrate-down / migrate-version / seed / seed-down"
+	@echo "  make migrate / migrate-down / seed"
 	@echo ""
 	@echo "$(BOLD)Documentation Commands:$(NC)"
 	@echo "  make verify-api-docs             - Verify API documentation coverage"
@@ -133,6 +132,22 @@ endef
 .PHONY: pre-merge
 pre-merge:
 	$(pre_merge_steps)
+
+#-------------------------------------------------------
+# Documentation Commands
+#-------------------------------------------------------
+# API docs/OpenAPI generation is single-sourced at the repo root
+# (`make generate-docs`); the `check-docs` parity guardrail lives there too.
+# This target keeps only the per-component annotation-coverage check used by
+# tracer's pre-merge gate; it runs the tracer-local ./scripts/verify-api-docs.sh.
+
+# Verify API documentation coverage
+# Checks if all API endpoints have proper Swagger annotations
+.PHONY: verify-api-docs
+verify-api-docs:
+	$(call title1,"Verifying API documentation coverage")
+	@sh ./scripts/verify-api-docs.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Git Hook Commands

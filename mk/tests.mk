@@ -106,17 +106,6 @@ TEST_REPORTS_DIR ?= ./reports
 GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
 RETRY_ON_FAIL ?= 0
 
-.PHONY: tools tools-gotestsum
-tools: tools-gotestsum ## Install helpful dev/test tools
-
-tools-gotestsum:
-	@if [ -z "$(GOTESTSUM)" ]; then \
-		echo "Installing gotestsum..."; \
-		GO111MODULE=on go install gotest.tools/gotestsum@latest; \
-	else \
-		echo "gotestsum already installed: $(GOTESTSUM)"; \
-	fi
-
 
 #-------------------------------------------------------
 # Core Commands

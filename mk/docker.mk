@@ -23,13 +23,6 @@
 # Commands (alphabetically ordered)
 #-------------------------------------------------------
 
-# Build Docker images
-.PHONY: build-docker
-build-docker:
-	$(call title1,"Building Docker images")
-	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker images built successfully$(GREEN) ✔️$(NC)"
-
 # Stop and remove all Docker resources for this component
 .PHONY: clean-docker
 clean-docker:
@@ -60,18 +53,6 @@ logs:
 	else \
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs command.$(NC)"; \
 	fi
-
-# Show logs for the component's own service only
-.PHONY: logs-api
-logs-api:
-	$(call title1,"Showing logs for $(SERVICE_NAME) service")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(SERVICE_NAME)
-
-# List container status
-.PHONY: ps
-ps:
-	$(call title1,"Listing container status")
-	@$(DOCKER_CMD) -f docker-compose.yml ps
 
 # Rebuild and restart services (development workflow)
 .PHONY: rebuild-up

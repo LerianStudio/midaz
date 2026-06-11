@@ -19,8 +19,6 @@
 #   make format                      # Format Go code
 #   make generate                    # Generate mocks and code
 #   make tidy                        # Clean unused dependencies
-#   make update-deps                 # Update all deps to latest versions
-#   make quality                     # Run all quality checks (lint + test)
 # ------------------------------------------------------
 
 #-------------------------------------------------------
@@ -68,23 +66,9 @@ lint-fix:
 		echo "$(YELLOW)No Go files found, skipping$(NC)"; \
 	fi
 
-# Run all quality checks (aggregator command)
-.PHONY: quality
-quality: lint test
-	$(call title1,"Quality checks complete")
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) All quality checks passed$(GREEN) ✔️$(NC)"
-
 # Clean Go module dependencies (safe for frequent use)
 .PHONY: tidy
 tidy:
 	$(call title1,"Cleaning dependencies")
 	@go mod tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
-
-# Update all dependencies to latest versions and clean
-.PHONY: update-deps
-update-deps:
-	$(call title1,"Updating all dependencies")
-	@go get -u ./...
-	@go mod tidy
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies updated and cleaned successfully$(GREEN) ✔️$(NC)"

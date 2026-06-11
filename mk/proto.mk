@@ -9,7 +9,6 @@
 #
 # Usage:
 #   make proto         # regenerate stubs into pkg/proto/
-#   make proto-lint    # buf lint the proto sources
 #   make proto-check   # regenerate + fail if the committed stubs are stale (CI gate)
 # ------------------------------------------------------
 
@@ -17,7 +16,7 @@
 BUF_VERSION ?= v1.50.0
 BUF := go run github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
 
-.PHONY: proto proto-lint proto-check
+.PHONY: proto proto-check
 
 # Regenerate the protobuf/gRPC stubs.
 proto:
@@ -26,12 +25,6 @@ proto:
 	@$(BUF) lint
 	@$(BUF) generate
 	@echo "[ok] Protobuf stubs generated successfully"
-
-# Lint the proto sources only (no codegen).
-proto-lint:
-	$(call print_title,Linting protobuf sources)
-	@$(BUF) lint
-	@echo "[ok] Protobuf lint passed"
 
 # CI gate: regenerate and fail if the committed stubs drift from the proto.
 # Uses `git status --porcelain` (not `git diff`) so the gate catches BOTH a

@@ -30,8 +30,8 @@ MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 COVERAGE_PACKAGES := ./components/reporter/...
 
 # Shared monorepo fragments — one template, included by every component.
-# No database.mk: the reporter ships no SQL migrations. docs.mk is omitted —
-# API docs are generated from the repo root (postman/generator/generate-docs.sh).
+# No database.mk: the reporter ships no SQL migrations. API docs are generated
+# from the repo root (postman/generator/generate-docs.sh).
 include $(MIDAZ_ROOT)/mk/colors.mk
 include $(MIDAZ_ROOT)/mk/utils.mk
 include $(MIDAZ_ROOT)/mk/docker.mk
@@ -51,7 +51,6 @@ help:
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make build                       - Build the unified component binary (.bin/reporter)"
 	@echo "  make test                        - Run tests"
-	@echo "  make test-multi-tenant           - Run multi-tenant tagged tests"
 	@echo "  make coverage-unit               - Run unit tests with coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
@@ -61,7 +60,7 @@ help:
 	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up / down / start / stop / restart / rebuild-up / logs / ps / clean-docker"
+	@echo "  make up / down / start / stop / restart / rebuild-up / logs / clean-docker"
 	@echo ""
 	@echo "$(BOLD)Reporter-Specific Commands:$(NC)"
 	@echo "  (API docs are generated from the repo root: make generate-docs)"
@@ -104,12 +103,6 @@ test:
 	$(call title1,"Running tests")
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: test-multi-tenant
-test-multi-tenant:
-	$(call title1,"Running multi-tenant tagged tests")
-	@go test -tags multi_tenant ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Multi-tenant tests completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Reporter-Specific Commands
