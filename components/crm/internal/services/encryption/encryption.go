@@ -10,11 +10,37 @@ import (
 	"errors"
 	"fmt"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	cryptoTink "github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+// Protection path labels for the encrypt_decrypt metric and span output attr.
+const (
+	protectionPathLegacy   = "legacy"
+	protectionPathEnvelope = "envelope"
+	// protectionPathUnknown is recorded for failures that occur BEFORE a path is
+	// chosen (e.g. field-context validation), so no legacy/envelope path applies.
+	protectionPathUnknown = "unknown"
+)
+
+// Encrypt/decrypt outcome labels.
+const (
+	protectionOutcomeSuccess = "success"
+	protectionOutcomeFailure = "failure"
+)
+
+// Stable error_type classifiers for the encrypt_decrypt metric. These are short,
+// stable strings — never the raw error text — and carry no sensitive data.
+const (
+	errorTypeFieldContextInvalid = "field_context_invalid"
+	errorTypeEnvelopeDecrypt     = "envelope_decrypt_failed"
+	errorTypeLegacyReadNotAllow  = "legacy_read_not_allowed"
 )
 
 // Package-level errors for encryption operations.
@@ -164,6 +190,7 @@ type encryptionService struct {
 	keysetManager  *KeysetManager
 	keysetRepo     mongoEncryption.KeysetRepository
 	legacyCrypto   LegacyCrypto
+	metrics        *protectionMetrics
 	encryptionMode crypto.EncryptionMode
 }
 
@@ -181,11 +208,16 @@ type encryptionService struct {
 //
 // When encryptionMode is omitted or set to EncryptionModeLegacy, the service routes
 // encryption based on the per-organization registry state resolved by stateResolver.
+//
+// metrics is the nil-safe protection metrics seam, passed as a non-variadic param
+// before the variadic encryptionMode to avoid ambiguity. A nil value defaults to
+// NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
 func NewEncryptionService(
 	stateResolver *ProtectionStateResolver,
 	keysetManager *KeysetManager,
 	keysetRepo mongoEncryption.KeysetRepository,
 	legacyCrypto LegacyCrypto,
+	metrics *protectionMetrics,
 	encryptionMode ...crypto.EncryptionMode,
 ) EncryptionService {
 	mode := crypto.EncryptionModeLegacy
@@ -193,11 +225,16 @@ func NewEncryptionService(
 		mode = encryptionMode[0]
 	}
 
+	if metrics == nil {
+		metrics = NewProtectionMetrics(nil)
+	}
+
 	return &encryptionService{
 		stateResolver:  stateResolver,
 		keysetManager:  keysetManager,
 		keysetRepo:     keysetRepo,
 		legacyCrypto:   legacyCrypto,
+		metrics:        metrics,
 		encryptionMode: mode,
 	}
 }
@@ -225,33 +262,82 @@ func NewEncryptionService(
 //   - Uses libCommons crypto.Encrypt
 //   - Returns unmarked ciphertext
 func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+
+	ctx, span := tracer.Start(ctx, "service.protection.encrypt_field")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.organization_id", fieldCtx.OrganizationID))
+	// FieldName is a non-sensitive field identifier (NAME, never the value).
+	span.SetAttributes(attribute.String("app.request.field", fieldCtx.FieldName))
+
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 
-	// Validate field context
+	// Validate field context. This happens BEFORE a path is chosen, so a failure
+	// is attributed to path="unknown" with the field_context_invalid classifier.
 	if err := fieldCtx.Validate(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrFieldContextInvalid, err)
+		errWrap := fmt.Errorf("%w: %v", ErrFieldContextInvalid, err)
+		libOpenTelemetry.HandleSpanError(span, "invalid field context", errWrap)
+		s.metrics.recordEncryptDecrypt(ctx, protectionPathUnknown, protectionOutcomeFailure, errorTypeFieldContextInvalid)
+
+		return "", errWrap
 	}
 
-	// Encryption mode envelope: always use envelope encryption (triggers lazy provisioning)
-	if s.encryptionMode == crypto.EncryptionModeEnvelope {
-		return s.encryptEnvelope(ctx, fieldCtx, plaintext)
-	}
-
-	// Legacy encryption mode: resolve protection state per organization
-	state, err := s.stateResolver.Resolve(ctx, fieldCtx.OrganizationID)
+	// Resolve the encryption path (envelope vs legacy).
+	path, useEnvelope, err := s.resolveEncryptPath(ctx, fieldCtx.OrganizationID)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve protection state: %w", err)
+		// Path resolution failure has no stable per-branch classifier; record the
+		// failure on the resolved-or-unknown path without a raw-error label.
+		libOpenTelemetry.HandleSpanError(span, "failed to resolve protection state", err)
+		s.metrics.recordEncryptDecrypt(ctx, path, protectionOutcomeFailure, "")
+
+		return "", err
 	}
 
-	// Route based on per-org mode
+	span.SetAttributes(attribute.String("app.protection.path", path))
+
+	var result string
+
+	if useEnvelope {
+		result, err = s.encryptEnvelope(ctx, fieldCtx, plaintext)
+	} else {
+		result, err = s.encryptLegacy(ctx, plaintext)
+	}
+
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "encrypt failed", err)
+		s.metrics.recordEncryptDecrypt(ctx, path, protectionOutcomeFailure, "")
+
+		return "", err
+	}
+
+	s.metrics.recordEncryptDecrypt(ctx, path, protectionOutcomeSuccess, "")
+
+	return result, nil
+}
+
+// resolveEncryptPath determines whether encryption uses the envelope or legacy
+// path and returns the matching path label. In EncryptionModeEnvelope the path is
+// always envelope; otherwise it resolves per-organization protection state. On a
+// resolution error the path label is "unknown".
+func (s *encryptionService) resolveEncryptPath(ctx context.Context, organizationID string) (path string, useEnvelope bool, err error) {
+	if s.encryptionMode == crypto.EncryptionModeEnvelope {
+		return protectionPathEnvelope, true, nil
+	}
+
+	state, err := s.stateResolver.Resolve(ctx, organizationID)
+	if err != nil {
+		return protectionPathUnknown, false, fmt.Errorf("failed to resolve protection state: %w", err)
+	}
+
 	if state.MustUseEnvelope() {
-		return s.encryptEnvelope(ctx, fieldCtx, plaintext)
+		return protectionPathEnvelope, true, nil
 	}
 
-	return s.encryptLegacy(ctx, plaintext)
+	return protectionPathLegacy, false, nil
 }
 
 // encryptEnvelope performs envelope encryption using Tink AEAD.
@@ -318,29 +404,81 @@ func (s *encryptionService) encryptLegacy(ctx context.Context, plaintext string)
 //   - Marked ciphertext with envelope decrypt failure returns error (no fallback)
 //   - Unmarked ciphertext when legacy read not allowed returns error
 func (s *encryptionService) Decrypt(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+
+	ctx, span := tracer.Start(ctx, "service.protection.decrypt_field")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.organization_id", fieldCtx.OrganizationID))
+	// FieldName is a non-sensitive field identifier (NAME, never the value).
+	span.SetAttributes(attribute.String("app.request.field", fieldCtx.FieldName))
+
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 
-	// Validate field context
+	// Validate field context. This happens BEFORE a path is chosen, so a failure
+	// is attributed to path="unknown" with the field_context_invalid classifier.
 	if err := fieldCtx.Validate(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrFieldContextInvalid, err)
+		errWrap := fmt.Errorf("%w: %v", ErrFieldContextInvalid, err)
+		libOpenTelemetry.HandleSpanError(span, "invalid field context", errWrap)
+		s.metrics.recordEncryptDecrypt(ctx, protectionPathUnknown, protectionOutcomeFailure, errorTypeFieldContextInvalid)
+
+		return "", errWrap
 	}
 
 	// Check for envelope marker
 	marker, hasMarker, err := ParseEnvelopeMarker(ciphertext)
 	if err != nil {
+		// Marker parse failure is unclassified and precedes path selection.
+		libOpenTelemetry.HandleSpanError(span, "failed to parse envelope marker", err)
+		s.metrics.recordEncryptDecrypt(ctx, protectionPathUnknown, protectionOutcomeFailure, "")
+
 		return "", fmt.Errorf("failed to parse envelope marker: %w", err)
 	}
 
+	// Path derived from marker presence: marker -> envelope, else legacy.
 	if hasMarker {
-		// Envelope-encrypted: decrypt using Tink AEAD
-		return s.decryptEnvelope(ctx, fieldCtx, marker)
+		span.SetAttributes(attribute.String("app.protection.path", protectionPathEnvelope))
+
+		plaintext, derr := s.decryptEnvelope(ctx, fieldCtx, marker)
+		if derr != nil {
+			libOpenTelemetry.HandleSpanError(span, "envelope decrypt failed", derr)
+			s.metrics.recordEncryptDecrypt(ctx, protectionPathEnvelope, protectionOutcomeFailure, errorTypeEnvelopeDecrypt)
+
+			return "", derr
+		}
+
+		s.metrics.recordEncryptDecrypt(ctx, protectionPathEnvelope, protectionOutcomeSuccess, "")
+
+		return plaintext, nil
 	}
 
-	// No marker: legacy candidate
-	return s.decryptLegacy(ctx, fieldCtx, ciphertext)
+	span.SetAttributes(attribute.String("app.protection.path", protectionPathLegacy))
+
+	plaintext, derr := s.decryptLegacy(ctx, fieldCtx, ciphertext)
+	if derr != nil {
+		libOpenTelemetry.HandleSpanError(span, "legacy decrypt failed", derr)
+		s.metrics.recordEncryptDecrypt(ctx, protectionPathLegacy, protectionOutcomeFailure, classifyLegacyDecryptError(derr))
+
+		return "", derr
+	}
+
+	s.metrics.recordEncryptDecrypt(ctx, protectionPathLegacy, protectionOutcomeSuccess, "")
+
+	return plaintext, nil
+}
+
+// classifyLegacyDecryptError maps a legacy decrypt error to a short, stable
+// error_type classifier (never the raw error text). Rejected legacy reads map to
+// legacy_read_not_allowed; other failures carry no classifier label.
+func classifyLegacyDecryptError(err error) string {
+	if errors.Is(err, ErrLegacyReadNotAllowed) {
+		return errorTypeLegacyReadNotAllow
+	}
+
+	return ""
 }
 
 // decryptEnvelope performs envelope decryption using Tink AEAD.
@@ -377,6 +515,13 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 	if !state.CanReadLegacy {
 		return "", fmt.Errorf("%w: organization %s", ErrLegacyReadNotAllowed, fieldCtx.OrganizationID)
 	}
+
+	// Record an attempted (allowed) legacy read. The organization_status label
+	// carries the organization's resolved protection mode (state.Mode.String():
+	// "legacy"/"envelope"); the legacy read happens within that mode. This is
+	// emitted only for allowed reads, never on the ErrLegacyReadNotAllowed
+	// rejection above. Emission is nil-safe and best-effort.
+	s.metrics.recordLegacyRead(ctx, state.Mode.String())
 
 	// Check context before crypto operation
 	if err := ctx.Err(); err != nil {

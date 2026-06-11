@@ -163,7 +163,7 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 		macKeyset:  macBytes,
 	}
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
@@ -177,9 +177,9 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 		},
 	}
 
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil))
 
 	return svc, keyset
 }
@@ -236,10 +236,10 @@ func TestService_Encrypt_LegacyMode(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// KeysetManager and KeysetReader can be nil for legacy mode since they won't be used
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -342,7 +342,7 @@ func TestService_Encrypt_KeysetManagerError(t *testing.T) {
 
 	unwrapper := &serviceTestKeysetUnwrapper{}
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
@@ -355,10 +355,10 @@ func TestService_Encrypt_KeysetManagerError(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	legacyKeys := newTestLegacyKeyMaterial(t)
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -435,9 +435,9 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -476,9 +476,9 @@ func TestService_Decrypt_LegacyNotAllowed(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -670,9 +670,9 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-legacy",
@@ -765,9 +765,9 @@ func TestService_MustUseEnvelope_EnvelopeMode(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	mustUse, err := svc.MustUseEnvelope(ctx, "org-envelope")
 	require.NoError(t, err)
@@ -783,9 +783,9 @@ func TestService_MustUseEnvelope_LegacyMode(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	mustUse, err := svc.MustUseEnvelope(ctx, "org-legacy")
 	require.NoError(t, err)
@@ -985,9 +985,9 @@ func TestService_MustUseEnvelope_ContextCanceled(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	_, err := svc.MustUseEnvelope(ctx, "org-123")
 	require.Error(t, err)
@@ -1010,9 +1010,9 @@ func TestService_GetProtectionState(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	state, err := svc.GetProtectionState(ctx, "org-123")
 	require.NoError(t, err)
@@ -1036,9 +1036,9 @@ func TestService_GetProtectionState_ContextCanceled(t *testing.T) {
 			},
 		},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	_, err := svc.GetProtectionState(ctx, "org-123")
 	require.Error(t, err)
@@ -1062,7 +1062,7 @@ func TestService_GetKeysetInfo(t *testing.T) {
 		},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil, NewProtectionMetrics(nil))
 
 	info, err := svc.GetKeysetInfo(ctx, "org-123")
 	require.NoError(t, err)
@@ -1084,7 +1084,7 @@ func TestService_GetKeysetInfo_ContextCanceled(t *testing.T) {
 		},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil, NewProtectionMetrics(nil))
 
 	_, err := svc.GetKeysetInfo(ctx, "org-123")
 	require.Error(t, err)
@@ -1100,7 +1100,7 @@ func TestService_GetKeysetInfo_NotFound(t *testing.T) {
 		keysets: map[string]*mmodel.OrganizationKeyset{},
 	}
 
-	svc := NewEncryptionService(nil, nil, keysetRepo, nil)
+	svc := NewEncryptionService(nil, nil, keysetRepo, nil, NewProtectionMetrics(nil))
 
 	_, err := svc.GetKeysetInfo(ctx, "org-nonexistent")
 	require.Error(t, err)
@@ -1115,10 +1115,10 @@ func TestService_Encrypt_NilLegacyKeyMaterial(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Service with nil legacy key material
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -1142,10 +1142,10 @@ func TestService_Decrypt_NilLegacyKeyMaterial(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Service with nil legacy key material
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -1168,9 +1168,9 @@ func TestService_Encrypt_StateResolverError(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		err: errors.New("registry error"),
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -1192,9 +1192,9 @@ func TestService_GenerateSearchToken_StateResolverError(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		err: errors.New("registry error"),
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1227,7 +1227,7 @@ func TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Setup: KeysetManager with lazy provisioning enabled
 	// The provisioner will be called when keyset is not found
@@ -1264,14 +1264,14 @@ func TestService_Encrypt_GlobalModeEnvelope_TriggersLazyProvisioning(t *testing.
 		keysetRepo:        keysetRepo,
 	}
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
 	// This tells the service to use envelope encryption globally, triggering
 	// lazy provisioning even when per-org registry does not exist
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
@@ -1393,10 +1393,10 @@ func TestService_KMSNone_LegacyEncryptDecryptSearchUsesImportedLegacyKey(t *test
 	require.NoError(t, err)
 
 	// Build resolver with nil registry repo (KMS_VENDOR=none scenario)
-	resolver := NewProtectionStateResolver(nil)
+	resolver := NewProtectionStateResolver(nil, NewProtectionMetrics(nil))
 
 	// Build service with nil keyset manager and nil keyset repo (legacy-only mode)
-	svc := NewEncryptionService(resolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(resolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-legacy",
@@ -1444,8 +1444,8 @@ func TestService_SearchRouting_LegacyTokenAndEnvelopeTokenDifferByMode(t *testin
 	legacyKeys, err := NewLegacyKeyMaterial(legacyEncryptHexKey, legacyHashKey)
 	require.NoError(t, err)
 
-	legacyResolver := NewProtectionStateResolver(nil)
-	legacySvc := NewEncryptionService(legacyResolver, nil, nil, legacyKeys)
+	legacyResolver := NewProtectionStateResolver(nil, NewProtectionMetrics(nil))
+	legacySvc := NewEncryptionService(legacyResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1490,7 +1490,7 @@ func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Setup: KeysetManager with lazy provisioning enabled
 	// The provisioner will be called when keyset is not found
@@ -1527,14 +1527,14 @@ func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning
 		keysetRepo:        keysetRepo,
 	}
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// KEY CHANGE: Pass globalMode = EncryptionModeEnvelope to constructor
 	// This tells the service to use envelope encryption globally, triggering
 	// lazy provisioning even when per-org registry does not exist
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1608,9 +1608,9 @@ func TestService_GenerateSearchTokenCandidates_LegacyMode(t *testing.T) {
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys)
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-legacy",
@@ -1795,7 +1795,7 @@ func TestService_GenerateSearchTokenCandidates_GlobalModeEnvelope(t *testing.T) 
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Setup: KeysetManager with lazy provisioning enabled
 	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
@@ -1830,12 +1830,12 @@ func TestService_GenerateSearchTokenCandidates_GlobalModeEnvelope(t *testing.T) 
 		keysetRepo:        keysetRepo,
 	}
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig())
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, mockProvisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	legacyKeys := newTestLegacyKeyMaterial(t)
 
 	// Use globalMode = EncryptionModeEnvelope to trigger envelope path
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1864,9 +1864,9 @@ func TestService_GenerateSearchTokenCandidates_StateResolverError(t *testing.T) 
 	registryRepo := &serviceTestRegistryRepo{
 		err: errors.New("registry error"),
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1888,10 +1888,10 @@ func TestService_GenerateSearchTokenCandidates_NilLegacyKeyMaterial(t *testing.T
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
-	stateResolver := NewProtectionStateResolver(registryRepo)
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
 	// Service with nil legacy key material
-	svc := NewEncryptionService(stateResolver, nil, nil, nil)
+	svc := NewEncryptionService(stateResolver, nil, nil, nil, NewProtectionMetrics(nil))
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-legacy",

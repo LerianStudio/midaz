@@ -9,11 +9,22 @@ import (
 	"errors"
 	"fmt"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// statusNone is the protection status label used for legacy resolutions where no
+// registry record participates: nil registry repository (KMS_VENDOR=none),
+// registry-not-found, and nil-record. These organizations have no registry
+// status, so "none" is emitted rather than a record status string.
+const statusNone = "none"
 
 // ProtectionState contains the resolved encryption state for an organization.
 type ProtectionState struct {
@@ -38,12 +49,20 @@ func (ps ProtectionState) MustUseEnvelope() bool {
 // based on its registry state.
 type ProtectionStateResolver struct {
 	registryRepo mongoEncryption.RegistryRepository
+	metrics      *protectionMetrics
 }
 
 // NewProtectionStateResolver creates a new resolver with the given registry repository.
-func NewProtectionStateResolver(registryRepo mongoEncryption.RegistryRepository) *ProtectionStateResolver {
+// metrics is the nil-safe protection metrics seam; a nil value defaults to
+// NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
+func NewProtectionStateResolver(registryRepo mongoEncryption.RegistryRepository, metrics *protectionMetrics) *ProtectionStateResolver {
+	if metrics == nil {
+		metrics = NewProtectionMetrics(nil)
+	}
+
 	return &ProtectionStateResolver{
 		registryRepo: registryRepo,
+		metrics:      metrics,
 	}
 }
 
@@ -59,16 +78,17 @@ func NewProtectionStateResolver(registryRepo mongoEncryption.RegistryRepository)
 //   - Repository returns an unexpected error
 //   - Reader is nil
 func (r *ProtectionStateResolver) Resolve(ctx context.Context, organizationID string) (ProtectionState, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.protection.resolve_mode")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.organization_id", organizationID))
+
 	// Nil registry repository indicates KMS_VENDOR=none (legacy-only mode).
 	// Return legacy readable state to allow legacy encryption without envelope.
 	if r.registryRepo == nil {
-		return ProtectionState{
-			Mode:                 crypto.EncryptionModeLegacy,
-			CanReadLegacy:        true,
-			CurrentKeysetVersion: 0,
-			OrganizationID:       organizationID,
-			TenantID:             "",
-		}, nil
+		return r.legacyState(ctx, span, organizationID), nil
 	}
 
 	record, err := r.registryRepo.Get(ctx, organizationID)
@@ -76,39 +96,56 @@ func (r *ProtectionStateResolver) Resolve(ctx context.Context, organizationID st
 		if errors.Is(err, constant.ErrRegistryNotFound) {
 			// Organization hasn't been provisioned for envelope encryption yet.
 			// Default to legacy mode with legacy readable.
-			return ProtectionState{
-				Mode:                 crypto.EncryptionModeLegacy,
-				CanReadLegacy:        true,
-				CurrentKeysetVersion: 0,
-				OrganizationID:       organizationID,
-				TenantID:             "",
-			}, nil
+			return r.legacyState(ctx, span, organizationID), nil
 		}
 
+		// Unexpected repository error is not a resolved outcome: propagate
+		// unchanged without emitting mode/status metrics.
 		return ProtectionState{}, err
 	}
 
-	return r.resolveFromRecord(record)
+	return r.resolveFromRecord(ctx, logger, span, record)
+}
+
+// legacyState builds the legacy ProtectionState and emits the resolved-outcome
+// telemetry for the legacy branches that carry no registry record (nil repo,
+// not-found, nil-record): resolved_mode=legacy, mode metric=legacy, status=none.
+func (r *ProtectionStateResolver) legacyState(ctx context.Context, span trace.Span, organizationID string) ProtectionState {
+	mode := crypto.EncryptionModeLegacy
+
+	span.SetAttributes(attribute.String("app.protection.resolved_mode", mode.String()))
+	r.metrics.recordModeResolution(ctx, mode.String())
+	r.metrics.recordStatus(ctx, statusNone)
+
+	return ProtectionState{
+		Mode:                 mode,
+		CanReadLegacy:        true,
+		CurrentKeysetVersion: 0,
+		OrganizationID:       organizationID,
+		TenantID:             "",
+	}
 }
 
 // resolveFromRecord maps a registry record to a ProtectionState.
 // Returns legacy state if record is nil (organization not provisioned).
-func (r *ProtectionStateResolver) resolveFromRecord(record *mmodel.OrganizationRegistryRecord) (ProtectionState, error) {
-	// Guard against nil record (repository returned nil without error)
+func (r *ProtectionStateResolver) resolveFromRecord(ctx context.Context, logger libLog.Logger, span trace.Span, record *mmodel.OrganizationRegistryRecord) (ProtectionState, error) {
+	// Guard against nil record (repository returned nil without error).
+	// No registry record participates, so status=none (see statusNone).
 	if record == nil {
-		return ProtectionState{
-			Mode:                 crypto.EncryptionModeLegacy,
-			CanReadLegacy:        true,
-			CurrentKeysetVersion: 0,
-			OrganizationID:       "",
-			TenantID:             "",
-		}, nil
+		return r.legacyState(ctx, span, ""), nil
 	}
 
 	// Registry record exists → organization is provisioned for envelope encryption
 	if record.Status == mmodel.RegistryStatusActive {
+		mode := crypto.EncryptionModeEnvelope
+
+		span.SetAttributes(attribute.String("app.protection.resolved_mode", mode.String()))
+		r.metrics.recordModeResolution(ctx, mode.String())
+		// Active path emits the registry record status string ("active").
+		r.metrics.recordStatus(ctx, string(record.Status))
+
 		return ProtectionState{
-			Mode:                 crypto.EncryptionModeEnvelope,
+			Mode:                 mode,
 			CanReadLegacy:        record.LegacyReadable,
 			CurrentKeysetVersion: record.CurrentVersion,
 			OrganizationID:       record.OrganizationID,
@@ -116,6 +153,16 @@ func (r *ProtectionStateResolver) resolveFromRecord(record *mmodel.OrganizationR
 		}, nil
 	}
 
-	// Unknown status - treat as error to avoid silent misconfiguration
-	return ProtectionState{}, fmt.Errorf("unknown registry status: %s", record.Status)
+	// Unknown status - treat as error to avoid silent misconfiguration.
+	// Record the span error and a status=unknown counter, but return the
+	// ORIGINAL error unchanged.
+	err := fmt.Errorf("unknown registry status: %s", record.Status)
+	libOpenTelemetry.HandleSpanError(span, "unknown registry status", err)
+	r.metrics.recordStatus(ctx, "unknown")
+
+	// Operator-actionable misconfiguration: warn with the failing status only
+	// (never PII/values). Org id is already on the span.
+	logger.Log(ctx, libLog.LevelWarn, "unknown registry status", libLog.String("registry_status", string(record.Status)))
+
+	return ProtectionState{}, err
 }

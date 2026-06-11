@@ -25,7 +25,7 @@ type ReadyzHandler interface {
 	HandleReadyz(c *fiber.Ctx) error
 }
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, eh *EncryptionHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, readyzHandler ReadyzHandler, hh *HolderHandler, ah *AliasHandler, eh *EncryptionHandler, auditHandler *AuditHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -82,6 +82,17 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	if eh != nil {
 		f.Post("/v1/organizations/:organization_id/encryption/provision", auth.Authorize(ApplicationName, "encryption", "post"), http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ProvisionEncryptionInput), eh.Provision))
 		f.Get("/v1/organizations/:organization_id/encryption/status", auth.Authorize(ApplicationName, "encryption", "get"), http.ParseUUIDPathParameters("organization"), eh.GetProvisioningStatus)
+	}
+
+	// Protection audit (read-only).
+	// Registered only when auditHandler is non-nil; in legacy mode the bootstrap
+	// factory returns nil so this block is skipped and the route is absent (404),
+	// which is the intended "feature not applicable in legacy mode" behavior.
+	if auditHandler != nil {
+		f.Get("/v1/organizations/:organization_id/protection/audit",
+			auth.Authorize(ApplicationName, "protection", "get"),
+			http.ParseUUIDPathParameters("organization"),
+			auditHandler.GetAuditEvents)
 	}
 
 	f.Use(tlMid.EndTracingSpans)

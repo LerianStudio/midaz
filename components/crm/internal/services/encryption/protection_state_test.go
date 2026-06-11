@@ -126,7 +126,7 @@ func TestProtectionStateResolver_Resolve(t *testing.T) {
 				err:    tt.readerErr,
 			}
 
-			resolver := NewProtectionStateResolver(reader)
+			resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
 			state, err := resolver.Resolve(context.Background(), tt.organizationID)
 
 			if tt.wantErr != nil {
@@ -204,7 +204,7 @@ func TestNewProtectionStateResolver(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeRegistryRepoForProtection{}
-	resolver := NewProtectionStateResolver(reader)
+	resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
 
 	if resolver == nil {
 		t.Error("NewProtectionStateResolver() returned nil")
@@ -214,7 +214,7 @@ func TestNewProtectionStateResolver(t *testing.T) {
 func TestProtectionStateResolver_Resolve_NilRegistryRepoReturnsLegacyReadable(t *testing.T) {
 	t.Parallel()
 
-	resolver := NewProtectionStateResolver(nil)
+	resolver := NewProtectionStateResolver(nil, NewProtectionMetrics(nil))
 	state, err := resolver.Resolve(context.Background(), "org-123")
 	if err != nil {
 		t.Errorf("Resolve() with nil registry repo unexpected error = %v", err)
@@ -245,7 +245,7 @@ func TestProtectionStateResolver_Resolve_ContextCancelled(t *testing.T) {
 		err:    context.Canceled,
 	}
 
-	resolver := NewProtectionStateResolver(reader)
+	resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
 	_, err := resolver.Resolve(ctx, "org-123")
 
 	if !errors.Is(err, context.Canceled) {

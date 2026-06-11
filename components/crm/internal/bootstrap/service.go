@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
@@ -29,6 +30,10 @@ type Service struct {
 	// These are nil in legacy mode (KMS_VENDOR=none or empty).
 	KeysetRepo   mongoEncryption.KeysetRepository
 	RegistryRepo mongoEncryption.RegistryRepository
+	// AuditRepo is the read-side protection audit repository. It is only
+	// populated in envelope encryption mode and is nil in legacy mode
+	// (KMS_VENDOR=none or empty); the audit endpoint stays unregistered then.
+	AuditRepo audit.Repository
 
 	// Encryption services - only populated in envelope encryption mode.
 	// These are nil in legacy mode (KMS_VENDOR=none or empty).

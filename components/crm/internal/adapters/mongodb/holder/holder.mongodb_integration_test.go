@@ -39,8 +39,8 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	// This matches KMS_VENDOR=none production behavior
 	crypto := testutils.SetupCrypto(t)
 
-	resolver := encryption.NewProtectionStateResolver(nil)
-	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
 	fe := encryption.NewFieldEncryptorAdapter(svc)
 
 	repo, err := NewMongoDBRepository(conn, fe)

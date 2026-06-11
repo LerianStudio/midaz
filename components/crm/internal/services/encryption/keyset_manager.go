@@ -64,6 +64,7 @@ type KeysetManager struct {
 	keysetRepo  mongoEncryption.KeysetRepository
 	unwrapper   KeysetUnwrapper
 	provisioner ProvisioningService // Required: enables lazy provisioning on first access
+	metrics     *protectionMetrics
 	cacheTTL    time.Duration
 	cache       map[string]*CachedPrimitives // Key: "tenantID:organizationID"
 	mu          sync.RWMutex
@@ -77,21 +78,29 @@ type KeysetManager struct {
 // NewKeysetManager creates a new keyset manager with the given dependencies.
 // The provisioner enables lazy provisioning for organizations without existing keysets.
 // Tenant ID for provisioning is obtained from context - callers must ensure it is set.
+// metrics is the nil-safe protection metrics seam; a nil value defaults to
+// NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
 func NewKeysetManager(
 	keysetRepo mongoEncryption.KeysetRepository,
 	unwrapper KeysetUnwrapper,
 	provisioner ProvisioningService,
 	config KeysetManagerConfig,
+	metrics *protectionMetrics,
 ) *KeysetManager {
 	ttl := config.CacheTTL
 	if ttl == 0 {
 		ttl = 5 * time.Minute
 	}
 
+	if metrics == nil {
+		metrics = NewProtectionMetrics(nil)
+	}
+
 	return &KeysetManager{
 		keysetRepo:  keysetRepo,
 		unwrapper:   unwrapper,
 		provisioner: provisioner,
+		metrics:     metrics,
 		cacheTTL:    ttl,
 		cache:       make(map[string]*CachedPrimitives),
 		fetching:    make(map[string]*sync.Mutex),
@@ -150,6 +159,9 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
+		// Fast-path cache hit: record exactly one hit.
+		km.metrics.recordCache(ctx, "get_primitives", "hit")
+
 		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
 	}
 
@@ -164,8 +176,16 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 	km.mu.RUnlock()
 
 	if ok && !cached.IsExpired() {
+		// Double-check cache hit: another goroutine populated the cache while we
+		// waited on the lock. Record exactly one hit (no double-count with the
+		// fast path, which already returned for the fast-path-hit case).
+		km.metrics.recordCache(ctx, "get_primitives", "hit")
+
 		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
 	}
+
+	// Cache miss: we will fetch and cache. Record exactly one miss per fetch.
+	km.metrics.recordCache(ctx, "get_primitives", "miss")
 
 	// Fetch and cache while holding org lock
 	primitives, err := km.fetchAndCache(ctx, cacheKey, organizationID)
@@ -219,9 +239,16 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
-	// Unwrap AEAD keyset
+	// Unwrap AEAD keyset. Provider is "vault" today (envelope encryption is
+	// Vault-only); this becomes dynamic when other KMS providers land.
+	// Provider operation timing is recorded even when the unwrap fails.
+	aeadStart := time.Now()
 	aeadBytes, err := km.unwrapper.UnwrapKeyset(ctx, keyset.KEKPath, keyset.WrappedKeyset)
+	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(aeadStart).Milliseconds())
+
 	if err != nil {
+		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapAEADFailed)
+
 		return nil, fmt.Errorf("failed to unwrap AEAD keyset: %w", err)
 	}
 
@@ -236,9 +263,14 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
-	// Unwrap MAC keyset
+	// Unwrap MAC keyset. Provider operation timing is recorded even on failure.
+	macStart := time.Now()
 	macBytes, err := km.unwrapper.UnwrapKeyset(ctx, keyset.KEKPath, keyset.WrappedHMACKeyset)
+	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(macStart).Milliseconds())
+
 	if err != nil {
+		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapMACFailed)
+
 		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
 	}
 

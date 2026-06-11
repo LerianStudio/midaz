@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
@@ -26,7 +27,9 @@ type wireEncryptionServicesInput struct {
 	vaultClient          *vault.Client
 	keysetRepo           mongoEncryption.KeysetRepository
 	registryRepo         mongoEncryption.RegistryRepository
+	auditWriter          encryption.AuditWriter
 	legacyCrypto         encryption.LegacyCrypto
+	metricsFactory       *metrics.MetricsFactory
 	vaultMountPath       string
 	allowGracefulDegrade bool
 }
@@ -59,17 +62,23 @@ type wireEncryptionServicesOutput struct {
 //
 // For testing with mock dependencies, use testWireEncryptionServicesWithMocks in encryption_test.go.
 func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionServicesOutput {
+	// Build the nil-safe protection metrics seam ONCE from the (possibly nil)
+	// metrics factory and thread it into every constructor below. A nil factory
+	// (telemetry disabled) yields a no-op emitter.
+	pm := encryption.NewProtectionMetrics(input.metricsFactory)
+
 	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
 	// ProtectionStateResolver with nil registryRepo returns legacy readable state.
 	// KeysetManager is nil since no envelope encryption is available.
 	// Uses lib-commons crypto directly (no Tink).
 	if strings.EqualFold(input.mode, "legacy") {
-		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil, pm)
 		encryptionService := encryption.NewEncryptionService(
 			protectionStateResolver,
 			nil,                // No keyset manager in legacy mode
 			nil,                // No keyset repo in legacy mode
 			input.legacyCrypto, // lib-commons crypto for legacy encryption
+			pm,
 			crypto.EncryptionModeLegacy,
 		)
 
@@ -112,7 +121,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	}
 
 	// Wire ProtectionStateResolver with RegistryRepository
-	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo)
+	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo, pm)
 
 	// Create Tink keyset wrapper using Vault client as KMS
 	keysetWrapper := tink.NewKeysetWrapper(input.vaultClient)
@@ -120,12 +129,16 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// Create Tink keyset factory for provisioning
 	keysetFactory := tink.NewKeysetFactory(input.vaultClient)
 
-	// Wire ProvisioningService FIRST (required by KeysetManager for lazy provisioning)
+	// Wire ProvisioningService FIRST (required by KeysetManager for lazy provisioning).
+	// auditWriter is envelope-only: bootstrap constructs a repository-backed writer
+	// in the envelope branch and threads it in here. It is never nil in this path.
 	provisioningService := encryption.NewProvisioningService(
 		input.keysetRepo,
 		input.registryRepo,
 		&keysetGeneratorAdapter{factory: keysetFactory},
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		input.auditWriter,
+		pm,
 	)
 
 	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService
@@ -135,6 +148,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		keysetWrapper,
 		provisioningService,
 		encryption.DefaultKeysetManagerConfig(),
+		pm,
 	)
 
 	// Wire EncryptionService with all dependencies
@@ -146,6 +160,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		keysetManager,
 		input.keysetRepo,
 		input.legacyCrypto,
+		pm,
 		crypto.EncryptionModeEnvelope,
 	)
 

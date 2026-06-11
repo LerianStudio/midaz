@@ -125,7 +125,7 @@ func TestKeysetManager_GetPrimitives_CacheMiss_Success(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	aead, mac, _, _, err := manager.GetPrimitives(context.Background(), "org-123")
 	if err != nil {
@@ -168,7 +168,7 @@ func TestKeysetManager_GetPrimitives_CacheHit_ReturnsCached(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// First call - cache miss
 	aead1, mac1, _, _, err := manager.GetPrimitives(context.Background(), "org-456")
@@ -225,7 +225,7 @@ func TestKeysetManager_GetPrimitives_CacheExpired_Refetches(t *testing.T) {
 	config := KeysetManagerConfig{
 		CacheTTL: 10 * time.Millisecond,
 	}
-	manager := NewKeysetManager(reader, unwrapper, nil, config)
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
 
 	// First call - cache miss
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-789")
@@ -263,7 +263,7 @@ func TestKeysetManager_GetPrimitives_KeysetNotFound_Error(t *testing.T) {
 
 	unwrapper := &fakeKeysetUnwrapper{}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-not-found")
 	if err == nil {
@@ -297,7 +297,7 @@ func TestKeysetManager_GetPrimitives_UnwrapError_Propagated(t *testing.T) {
 		err: unwrapErr,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-unwrap-fail")
 	if err == nil {
@@ -327,7 +327,7 @@ func TestKeysetManager_GetPrimitives_ParseError_Propagated(t *testing.T) {
 		macKeyset:  []byte("invalid-mac-keyset-data"),
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-parse-fail")
 	if err == nil {
@@ -354,7 +354,7 @@ func TestKeysetManager_GetPrimitives_ConcurrentAccess_Safe(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	const goroutines = 10
 
@@ -402,7 +402,7 @@ func TestKeysetManager_GetPrimitives_ContextCancelled(t *testing.T) {
 
 	unwrapper := &fakeKeysetUnwrapper{}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -436,7 +436,7 @@ func TestKeysetManager_InvalidateCache_RemovesEntry(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// First call - cache miss
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-invalidate")
@@ -478,7 +478,7 @@ func TestKeysetManager_ClearCache_RemovesAllEntries(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// First call - cache miss
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-clear")
@@ -547,7 +547,7 @@ func TestNewKeysetManager(t *testing.T) {
 	reader := &fakeKeysetRepo{}
 	unwrapper := &fakeKeysetUnwrapper{}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	if manager == nil {
 		t.Error("NewKeysetManager() returned nil")
@@ -575,7 +575,7 @@ func TestKeysetManager_GetPrimitives_MultipleOrganizations(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Test with org-1
 	reader.keyset = &mmodel.OrganizationKeyset{
@@ -683,7 +683,7 @@ func TestKeysetManager_GetPrimitives_PerOrgMutex_DeduplicatesConcurrentFetches(t
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	const goroutines = 10
 
@@ -767,7 +767,7 @@ func TestKeysetManager_GetPrimitives_NilKeyset_ReturnsError(t *testing.T) {
 
 	unwrapper := &fakeKeysetUnwrapper{}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-nil-keyset")
 	if err == nil {
@@ -928,7 +928,7 @@ func TestKeysetManager_GetPrimitives_AutoProvisionOnNotFound(t *testing.T) {
 		},
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
@@ -978,7 +978,7 @@ func TestKeysetManager_GetPrimitives_NoAutoProvisionWhenKeysetExists(t *testing.
 
 	provisioner := &fakeProvisioningService{}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	aead, mac, _, _, err := manager.GetPrimitives(context.Background(), "org-existing")
 	if err != nil {
@@ -1014,7 +1014,7 @@ func TestKeysetManager_GetPrimitives_AutoProvisionFails(t *testing.T) {
 		provisionErr: provisionErr,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
@@ -1049,7 +1049,7 @@ func TestKeysetManager_GetPrimitives_NoProvisionerConfigured(t *testing.T) {
 	unwrapper := &fakeKeysetUnwrapper{}
 
 	// No provisioner configured (nil)
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-no-prov")
 	if err == nil {
@@ -1079,7 +1079,7 @@ func TestKeysetManager_GetPrimitives_NilKeysetAfterProvision(t *testing.T) {
 		},
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
@@ -1122,7 +1122,7 @@ func TestKeysetManager_autoProvision_UsesTenantFromContext(t *testing.T) {
 		},
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Create context with tenant ID using tmcore
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-from-context")
@@ -1188,7 +1188,7 @@ func TestKeysetManager_autoProvision_DefaultsTenantWhenMissing(t *testing.T) {
 		},
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Context WITHOUT tenant ID - should default to "default"
 	ctx := context.Background()
@@ -1246,7 +1246,7 @@ func TestKeysetManager_GetPrimitives_TenantIsolation_CacheKeysScopedByTenant(t *
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Create contexts for two different tenants
 	ctxTenantA := tmcore.ContextWithTenantID(context.Background(), "tenant-alpha")
@@ -1321,7 +1321,7 @@ func TestKeysetManager_InvalidateCacheForTenant_OnlyAffectsSpecificTenant(t *tes
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	ctxTenantA := tmcore.ContextWithTenantID(context.Background(), "tenant-one")
 	ctxTenantB := tmcore.ContextWithTenantID(context.Background(), "tenant-two")
@@ -1420,7 +1420,7 @@ func TestKeysetManager_GetPrimitives_AutoProvision_RegistryProperties(t *testing
 		},
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Context with tenant ID (required for auto-provisioning)
 	ctx := tmcore.ContextWithTenantID(context.Background(), "test-tenant")
@@ -1581,7 +1581,7 @@ func TestKeysetManager_GetPrimitives_PopulatesMultiKeyMAC(t *testing.T) {
 		macKeyset:  macBytes,
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// Call GetPrimitives to trigger fetchAndCache
 	aead, mac, _, _, err := manager.GetPrimitives(context.Background(), "org-multikey")
@@ -1655,7 +1655,7 @@ func TestKeysetManager_fetchAndCache_MultiKeyMAC_StrictErrorMode(t *testing.T) {
 		macKeyset:  []byte("invalid-mac-keyset-data"),
 	}
 
-	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig())
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
 	// GetPrimitives should fail due to invalid MAC keyset
 	_, _, _, _, err = manager.GetPrimitives(context.Background(), "org-strict-error")

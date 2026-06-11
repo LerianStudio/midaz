@@ -505,17 +505,26 @@ type testWireEncryptionServicesInput struct {
 	allowGracefulDegrade bool
 }
 
+// stubAuditWriter is a discarding encryption.AuditWriter for wiring tests. The
+// wiring tests assert services are constructed but never call Provision, so the
+// writer is never exercised.
+type stubAuditWriter struct{}
+
+func (stubAuditWriter) Emit(_ context.Context, _ *mmodel.ProtectionAuditEvent)      {}
+func (stubAuditWriter) EmitAsync(_ context.Context, _ *mmodel.ProtectionAuditEvent) {}
+
 // testWireEncryptionServicesWithMocks wires encryption services using mock dependencies.
 // This function is test-only and allows passing mock implementations for all dependencies.
 func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) wireEncryptionServicesOutput {
 	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
 	if input.mode == encryptionModeLegacy {
-		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
 		encryptionService := encryption.NewEncryptionService(
 			protectionStateResolver,
 			nil,
 			nil,
 			input.legacyCrypto,
+			encryption.NewProtectionMetrics(nil),
 			crypto.EncryptionModeLegacy,
 		)
 
@@ -573,7 +582,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 	}
 
 	// Wire ProtectionStateResolver with RegistryRepository
-	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo)
+	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo, encryption.NewProtectionMetrics(nil))
 
 	// Type assert vault client to KeysetUnwrapper
 	mockUnwrapper, ok := input.vaultClient.(encryption.KeysetUnwrapper)
@@ -589,6 +598,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		mockUnwrapper,
 		nil,
 		encryption.DefaultKeysetManagerConfig(),
+		encryption.NewProtectionMetrics(nil),
 	)
 
 	// Wire EncryptionService with mock dependencies
@@ -598,6 +608,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		keysetManager,
 		keysetRepo,
 		input.legacyCrypto,
+		encryption.NewProtectionMetrics(nil),
 		crypto.EncryptionModeEnvelope,
 	)
 
@@ -613,12 +624,16 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Wire ProvisioningService with mock dependencies
+	// Wire ProvisioningService with mock dependencies. The AuditWriter is required
+	// (no nil-default); a discarding stub is sufficient since these wiring tests
+	// never invoke Provision.
 	provisioningService := encryption.NewProvisioningService(
 		keysetRepo,
 		registryRepo,
 		mockGenerator,
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		stubAuditWriter{},
+		encryption.NewProtectionMetrics(nil),
 	)
 
 	return wireEncryptionServicesOutput{
