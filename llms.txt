@@ -2,7 +2,7 @@
 
 > Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. One repository, five deploy units: a unified Ledger HTTP API (double-entry onboarding + transaction + CRM holders/instruments + fees) on :3002; a Tracer real-time transaction-validation / fraud-prevention API on :4020; a two-unit Reporter (manager :4005 + worker :4006 health-only consumer); and an Infra docker-compose backing stack. Stores: PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions, reporter jobs), Valkey/Redis (caching), and SeaweedFS (reporter object storage). Multi-tenant isolation via the lib-commons v5 tenant-manager.
 
-Midaz is no longer just a ledger: the monorepo now ships a complete, composable core banking platform — a double-entry ledger plus real-time transaction validation/fraud prevention, async reporting, CRM, and a fee engine, all building from the single root `go.mod`. The Ledger deploy unit (`:3002`) is one binary that folds four domains: onboarding (org/ledger/asset/portfolio/segment/account management), transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, annotation modes), **CRM** (holders/instruments, served on the same port under the host ledger's `midaz` namespace, scoped by the `X-Organization-Id` header), and **fees** (fee engine + billing packages, applied during transaction create). CRM and fees are NOT separate services — CRM is a package tree (`components/crm`) imported by the ledger binary, and fees are embedded in it. Tracer, Reporter Manager, and Reporter Worker are separate Go service deploy units. Infrastructure is provisioned via a single Docker Compose (PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey, SeaweedFS, KEDA, Grafana/OTEL-LGTM). Transactional messaging (PIX, cards, wires) and governance integrations remain external/marketplace.
+Midaz is no longer just a ledger: the monorepo now ships a complete, composable core banking platform — a double-entry ledger plus real-time transaction validation/fraud prevention, async reporting, CRM, and a fee engine, all building from the single root `go.mod`. The Ledger deploy unit (`:3002`) is one binary that folds four domains: onboarding (org/ledger/asset/portfolio/segment/account management), transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, annotation modes), **CRM** (holders/instruments, served on the same port under the host ledger's `midaz` namespace, scoped by the `X-Organization-Id` header), and **fees** (fee engine + billing packages, applied during transaction create). CRM and fees are NOT separate services — CRM is a package tree (`components/ledger/internal/crm`) imported by the ledger binary, and fees are embedded in it. Tracer, Reporter Manager, and Reporter Worker are separate Go service deploy units. Infrastructure is provisioned via a single Docker Compose (PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey, SeaweedFS, KEDA, Grafana/OTEL-LGTM). Transactional messaging (PIX, cards, wires) and governance integrations remain external/marketplace.
 
 The financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances.
 
@@ -25,9 +25,9 @@ The financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segme
 The five deploy units form one core banking platform in one monorepo:
 
 - [Ledger](STRUCTURE.md): Double-entry ledger — the unified binary on :3002 (onboarding + transaction + CRM + fees)
-- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit
+- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit. The ledger reaches it over an opt-in reservation seam (gRPC default / REST fallback, mutual TLS or service-mesh, trusted `x-tenant-id`): [topology](docs/architecture/ledger-tracer-reporter-topology.md)
 - [Reporter Manager](components/reporter-manager/): Async report generation API on :4005 → RabbitMQ jobs (worker :4006 health-only consumer renders to S3-compatible storage)
-- [CRM](components/crm/): Holders + instruments, folded into the ledger binary (not a deploy unit)
+- [CRM](components/ledger/internal/crm/): Holders + instruments, folded into the ledger binary (not a deploy unit)
 - [Fees](components/ledger/pkg/fee): Fee engine + billing packages, embedded in the ledger binary
 
 ## API
@@ -47,9 +47,9 @@ The five deploy units form one core banking platform in one monorepo:
   - [Services](components/ledger/internal/services/): CQRS command/query use cases + embedded `fees/`
   - [Embedded Fees](components/ledger/pkg/fee): `fee/` engine + [`feeshared/`](components/ledger/pkg/feeshared) (`plugin-fees`)
   - [Migrations](components/ledger/migrations/): SQL migrations for onboarding and transaction databases
-- [CRM Package Tree](components/crm/): Holder/instrument domain imported by ledger — NOT a deploy unit
-  - [MongoDB Repos](components/crm/adapters/mongodb/): CRM persistence (holder/ + instrument/)
-  - [Services](components/crm/services/): CRM business logic
+- [CRM Package Tree](components/ledger/internal/crm/): Holder/instrument domain imported by ledger — NOT a deploy unit
+  - [MongoDB Repos](components/ledger/internal/crm/adapters/mongodb/): CRM persistence (holder/ + instrument/)
+  - [Services](components/ledger/internal/crm/services/): CRM business logic
   - The entire CRM HTTP surface (handlers + routes) lives in the ledger tree (`components/ledger/internal/adapters/http/in/`, `midaz` namespace) so the swagger fold discovers it
 - [Tracer Component](components/tracer/): Real-time validation / fraud-prevention API deploy unit (:4020) — CEL rules, spending limits, hash-chained audit
 - [Reporter Manager](components/reporter-manager/): Report-request REST API deploy unit (:4005) → RabbitMQ jobs

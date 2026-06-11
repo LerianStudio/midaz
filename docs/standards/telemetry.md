@@ -50,7 +50,7 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 **Rationale:** `SetSpanAttributesFromValue(span, prefix, value, nil)` flattens every struct field onto the span — the mechanism behind the audit's P0 PII leak (76 of 100 call sites passed a nil Redactor, including plaintext CPF/email/phone before encryption). Namespacing inputs vs. outputs keeps span queries unambiguous, and presence-flags preserve observability of optionality without putting the data on the wire.
 
-**Canonical example (presence-flag idiom):** [`components/crm/adapters/mongodb/holder/holder.mongodb.go:133`](../../components/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 131–136).
+**Canonical example (presence-flag idiom):** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:133`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 131–136).
 
 **Counter-example (banned nil-Redactor flatten):** the shape to reject is `SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)`, which flattens the full holder (PII) onto the span. `SetSpanAttributesFromValue` with a nil Redactor now has **zero call sites** repo-wide — the holder paths were rewritten to the `has_*` presence-flag block above; the `forbidigo` gate keeps the flatten from returning.
 
@@ -249,7 +249,7 @@ The `MetricsFactory` is wired at each bootstrap from `telemetry.MetricsFactory` 
 
 ### crm
 
-`component = "crm"`. Covers the CRM holder/instrument use cases (`components/crm/services`). The `MetricsFactory` is set on the shared `crmservices.UseCase` instance at bootstrap (`crmMgo.holderHandler.Service.MetricsFactory` in `config.go`).
+`component = "crm"`. Covers the CRM holder/instrument use cases (`components/ledger/internal/crm/services`). The `MetricsFactory` is set on the shared `crmservices.UseCase` instance at bootstrap (`crmMgo.holderHandler.Service.MetricsFactory` in `config.go`).
 
 | operation | trigger method |
 | --- | --- |

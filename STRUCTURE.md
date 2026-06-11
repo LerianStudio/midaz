@@ -107,7 +107,7 @@ The unified ledger binary folds four domains into one process:
 * **Onboarding + Transaction**: the original midaz ledger (organizations, ledgers, assets,
   portfolios, segments, accounts, transactions, operations, balances; routing via
   account-types / operation-routes / transaction-routes).
-* **CRM (folded)**: holder/instrument routes registered from the `components/crm` package tree.
+* **CRM (folded)**: holder/instrument routes registered from the `components/ledger/internal/crm` package tree.
   See below.
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
@@ -120,15 +120,15 @@ The unified ledger binary folds four domains into one process:
 Composition root: `components/ledger/internal/bootstrap/config.go` (wires onboarding,
 transaction, `initCRM`, and fees).
 
-##### CRM (`./components/crm`) — package tree, NOT a deploy unit
+##### CRM (`./components/ledger/internal/crm`) — package tree, NOT a deploy unit
 
 CRM was lifted out of `internal/` so the ledger binary can import it across the component
 boundary. It has **no** `cmd/`, **no** standalone binary, and **no** HTTP or API tree of its
 own — the package tree holds only persistence and use cases:
 
-* **Adapters** (`./components/crm/adapters/mongodb/{holder,instrument}`): CRM persistence (the
+* **Adapters** (`./components/ledger/internal/crm/adapters/mongodb/{holder,instrument}`): CRM persistence (the
   only adapter in the package tree).
-* **Services** (`./components/crm/services`): holder/instrument command/query use cases.
+* **Services** (`./components/ledger/internal/crm/services`): holder/instrument command/query use cases.
 
 The entire CRM HTTP surface lives in the ledger tree under
 `components/ledger/internal/adapters/http/in/`: `crm_routes.go` (holder/instrument registration,

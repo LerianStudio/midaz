@@ -17,7 +17,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | lib-commons | `github.com/LerianStudio/lib-commons/v5` (+ `lib-observability`) |
 | Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter (one image, `RUN_MODE=api` :4005 / `RUN_MODE=worker` :4006), Infra (Docker Compose) |
 
-> **CRM and fees are not deploy units.** CRM is a package tree at `components/crm`, imported by
+> **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
 > `transaction_create.go`). Tracer and Reporter are separate Go services; Reporter is one
@@ -45,7 +45,7 @@ components/ledger/internal/
   services/command/   → Write use cases (one file per operation)
   services/query/     → Read use cases (one file per operation)
 
-components/crm/         → CRM package tree (holders/instruments), imported by ledger — NOT a deploy unit
+components/ledger/internal/crm/         → CRM package tree (holders/instruments), imported by ledger — NOT a deploy unit
   adapters/mongodb/     → CRM persistence (only adapter; no http/ or api/ tree here)
   services/             → Holder/instrument use cases
   (CRM HTTP handlers + routes live in components/ledger/internal/adapters/http/in/:

@@ -50,7 +50,7 @@ Services split into:
 | **`components/reporter`** (worker surface, `RUN_MODE=worker`) | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
 | **`components/infra`** | Single consolidated docker-compose for shared infra (no Go build) | - |
 
-There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer is a co-located but separate Go service deploy unit. Reporter is a single Go binary at `components/reporter` (`RUN_MODE=api|worker|all`) deployed split as an api Deployment (:4005) and a worker Deployment (:4006) from one image; the `components/reporter-{manager,worker}` dirs survive only as Dockerfile image-name anchors. All use the single root `go.mod`.
+There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/ledger/internal/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer is a co-located but separate Go service deploy unit. Reporter is a single Go binary at `components/reporter` (`RUN_MODE=api|worker|all`) deployed split as an api Deployment (:4005) and a worker Deployment (:4006) from one image; the `components/reporter-{manager,worker}` dirs survive only as Dockerfile image-name anchors. All use the single root `go.mod`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -90,7 +90,7 @@ server := bootstrap.NewUnifiedServer(
 ### Component Layout
 
 This layout describes the Go service deploy units only — `ledger`, `tracer`, and `reporter`
-(one binary, `RUN_MODE=api|worker|all` split). `components/crm` is the exception: it is a package tree (no `cmd/`, no
+(one binary, `RUN_MODE=api|worker|all` split). `components/ledger/internal/crm` is the exception: it is a package tree (no `cmd/`, no
 `internal/`) imported by the ledger binary, holding only `adapters/mongodb/` and `services/`
 (plus shared models); its entire HTTP surface lives in the ledger tree at
 `components/ledger/internal/adapters/http/in/`. `components/infra` is docker-compose only.

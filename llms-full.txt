@@ -40,7 +40,7 @@ Key capabilities:
 ### 2.1 Deploy Units
 
 Five deploy units: four Go services + infra. **CRM and fees are not deploy units** — CRM is a
-package tree (`components/crm`) imported by the ledger binary, and fees are embedded in the
+package tree (`components/ledger/internal/crm`) imported by the ledger binary, and fees are embedded in the
 ledger binary. Both are served on the ledger port `:3002`.
 
 | Deploy unit | Port | Description | Data Stores |
@@ -386,6 +386,18 @@ the transaction-create seam, not over HTTP.
 Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
 hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
 an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
+
+The ledger reaches Tracer over a separate reservation seam (not the `:4020` REST API). The seam is
+opt-in on both ends: the ledger turns it on by setting `TRACER_BASE_URL` (empty injects a nil
+reserver, leaving the transaction-create path unchanged), and the tracer starts the seam only when
+`TRACER_GRPC_PORT` is set (distinct from the `:4020` REST/health port). Transport is toggled by
+`TRACER_TRANSPORT` — gRPC by default, with REST retained as a selectable fallback. Identity is mutual
+TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated with no shared
+secret (the ledger presents a client cert, the tracer verifies it against its client CA, and the
+ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
+service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
+the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
+[docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -799,6 +811,13 @@ loaded by `libStreaming.LoadConfig()` with franz-go defaults.
 |----------|---------|-------------|
 | TRACER_BASE_URL | — | Tracer service base URL (enables reservation calls) |
 | TRACER_TIMEOUT_MS | — | Per-reservation-call timeout (ms) |
+| TRACER_TRANSPORT | grpc | Seam transport: `grpc` (default) or `rest` fallback |
+| TRACER_TLS_MODE | — | Seam identity: `mtls` (mutual TLS) or `mesh`/empty (plaintext, sidecar mTLS) |
+| TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
+| TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
+| TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
+
+Seam topology and TLS posture: [docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
 
 #### Fee Engine
 | Variable | Default | Description |
@@ -850,7 +869,12 @@ ledger binary (one set governs onboarding, transaction, CRM, and fees) — see s
 Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVER_ADDRESS`,
 `DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
 `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
-plus the standard OTEL exporter vars.
+plus the standard OTEL exporter vars. The ledger→tracer reservation seam (separate from the `:4020`
+REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; distinct from
+`SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
+server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
+`TRACER_TLS_MODE=mtls`; see
+[docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
 
 ### 6.4 Reporter Manager / Worker (ports 4005 / 4006)
 
