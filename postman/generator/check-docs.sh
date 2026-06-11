@@ -166,6 +166,39 @@ security_coverage_check() {
     ok "All ${total} ${SECURITY_COVERAGE_COMPONENT} operations declare a .security requirement."
 }
 
+# Lint the consolidated spec with @redocly/cli. The ruleset is `recommended`
+# scoped by postman/generator/redocly.yaml, which relaxes ONLY rules whose
+# findings are inherited from the per-component source specs or are structural
+# artifacts of the join (each documented with a WHY in that file). A genuinely
+# new merge-introduced problem (broken $ref, dropped security scheme, invalid
+# structure) still fails this gate.
+consolidated_lint_check() {
+    print_header "Consolidated spec lint (redocly)"
+
+    local redocly_bin="${GENERATOR_DIR}/node_modules/.bin/redocly"
+    local consolidated_yaml="${ROOT_DIR}/postman/specs/midaz.openapi.yaml"
+    local redocly_config="${GENERATOR_DIR}/redocly.yaml"
+
+    # Gate on artifact + binary presence (mirrors how drift_check is opt-in):
+    # when run standalone without a prior `make generate-docs`, the merged spec
+    # or node_modules may be absent; skip-with-warning rather than hard-fail.
+    if [ ! -f "${consolidated_yaml}" ]; then
+        echo -e "    ${BLUE}ℹ️  Consolidated spec not found at ${consolidated_yaml}; skipping (run 'make generate-docs' first).${NC}"
+        return 0
+    fi
+
+    if [ ! -x "${redocly_bin}" ]; then
+        echo -e "    ${BLUE}ℹ️  @redocly/cli not installed at ${redocly_bin}; skipping (run 'make generate-docs' first).${NC}"
+        return 0
+    fi
+
+    if (cd "${ROOT_DIR}" && "${redocly_bin}" lint postman/specs/midaz.openapi.yaml --config "${redocly_config}"); then
+        ok "Consolidated spec passed redocly lint (recommended, scoped by redocly.yaml)."
+    else
+        fail "redocly lint failed on the consolidated spec; see findings above."
+    fi
+}
+
 drift_check() {
     print_header "Drift check (regenerate and diff)"
 
@@ -189,6 +222,7 @@ main() {
     require_jq
     parity_check
     security_coverage_check
+    consolidated_lint_check
 
     if [ "${CHECK_DOCS_REGEN:-}" = "1" ]; then
         drift_check

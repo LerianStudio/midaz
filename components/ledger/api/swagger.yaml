@@ -3145,7 +3145,10 @@ definitions:
     description: Pagination is the struct designed to store the pagination data of
       an entity list.
     properties:
-      items: {}
+      items:
+        description: |-
+          Items holds the page of results. The element type is overridden per-endpoint via the
+          model.Pagination{items=[]X} generic annotation on each list endpoint.
       limit:
         example: 10
         type: integer

@@ -12719,6 +12719,9 @@ components:
         of an entity list.
       properties:
         items:
+          description: |-
+            Items holds the page of results. The element type is overridden per-endpoint via the
+            model.Pagination{items=[]X} generic annotation on each list endpoint.
           type: object
         limit:
           example: 10

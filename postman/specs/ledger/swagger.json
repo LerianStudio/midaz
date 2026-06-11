@@ -13683,7 +13683,9 @@
             "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
             "properties": {
-                "items": {},
+                "items": {
+                    "description": "Items holds the page of results. The element type is overridden per-endpoint via the\nmodel.Pagination{items=[]X} generic annotation on each list endpoint."
+                },
                 "limit": {
                     "type": "integer",
                     "example": 10

@@ -159,6 +159,117 @@ publish_specs() {
     fi
 }
 
+# Merge the three per-component openapi.yaml specs into one consolidated spec
+# (postman/specs/midaz.openapi.{yaml,json}) via @redocly/cli join. Ledger is
+# listed first so it acts as the "main" and takes precedence on shared metadata.
+consolidate_openapi() {
+    print_step "Consolidating OpenAPI specs" "PROCESSING"
+
+    local out_log="${LOG_DIR}/consolidate.out"
+    local err_log="${LOG_DIR}/consolidate.err"
+    local start_time=$(date +%s.%N)
+
+    local redocly_bin="${GENERATOR_DIR}/node_modules/.bin/redocly"
+    local consolidated_yaml="${SPECS_DIR}/midaz.openapi.yaml"
+    local consolidated_json="${SPECS_DIR}/midaz.openapi.json"
+
+    if [ ! -x "${redocly_bin}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        @redocly/cli not found at ${redocly_bin}; run install_npm_dependencies first."
+        return 1
+    fi
+
+    # 1. Assert all three component specs declare the same openapi: version.
+    local ref_version="" version=""
+    for component in "${COMPONENTS[@]}"; do
+        local spec="${ROOT_DIR}/components/${component}/api/openapi.yaml"
+        if [ ! -f "${spec}" ]; then
+            print_step "Consolidate OpenAPI specs" "FAILED"
+            echo -e "      ${RED}Error details:${NC}"
+            echo "        Missing component spec: ${spec}"
+            return 1
+        fi
+        version="$(awk '/^openapi:/ {print $2; exit}' "${spec}" | tr -d '"'"'"\\r)"
+        if [ -z "${ref_version}" ]; then
+            ref_version="${version}"
+        elif [ "${version}" != "${ref_version}" ]; then
+            print_step "Consolidate OpenAPI specs" "FAILED"
+            echo -e "      ${RED}Error details:${NC}"
+            echo "        openapi version mismatch: ${component} is '${version}', expected '${ref_version}'."
+            echo "        All component specs must share one openapi version before join."
+            return 1
+        fi
+    done
+
+    # 2. Join (ledger first => takes precedence). Run the locally-installed binary
+    #    directly so the component paths stay relative to ROOT_DIR.
+    if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
+            components/ledger/api/openapi.yaml \
+            components/tracer/api/openapi.yaml \
+            components/reporter/api/openapi.yaml \
+            --prefix-tags-with-info-prop title \
+            -o postman/specs/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 3. Produce a deterministic JSON twin from the YAML via the bundled js-yaml.
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+        const yaml = require("js-yaml");
+        const fs = require("fs");
+        const doc = yaml.load(fs.readFileSync("postman/specs/midaz.openapi.yaml", "utf8"));
+        fs.writeFileSync("postman/specs/midaz.openapi.json", JSON.stringify(doc, null, 2) + "\n");
+    ' >> "${out_log}" 2>> "${err_log}"); then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
+    fi
+
+    # 4. Security post-validation against the JSON twin. redocly join's security
+    #    merge is undocumented and root security may be dropped (known issue), so
+    #    this guard catches a regression where a scheme goes missing or an
+    #    operation references a scheme that is not defined.
+    local missing
+    missing="$(jq -r '
+        ["BearerAuth","ApiKeyAuth"]
+        - (.components.securitySchemes // {} | keys)
+        | join(", ")
+    ' "${consolidated_json}")"
+    if [ -n "${missing}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated spec is missing required securityScheme(s): ${missing}."
+        echo "        Expected both BearerAuth (ledger+reporter) and ApiKeyAuth (tracer)."
+        return 1
+    fi
+
+    local orphans
+    orphans="$(jq -r '
+        (.components.securitySchemes // {} | keys) as $defined
+        | [ .paths | to_entries[] | .value | to_entries[]
+            | select(.key | test("^(get|post|put|patch|delete|head|options)$"))
+            | (.value.security // [])[] | keys[] ]
+        | unique
+        | map(select(. as $s | ($defined | index($s)) | not))
+        | join(", ")
+    ' "${consolidated_json}")"
+    if [ -n "${orphans}" ]; then
+        print_step "Consolidate OpenAPI specs" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated spec has operations referencing undefined securityScheme(s): ${orphans}."
+        return 1
+    fi
+
+    local end_time=$(date +%s.%N)
+    local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+    print_step "Consolidated OpenAPI specs (openapi ${ref_version})" "SUCCESS" "${elapsed}"
+    return 0
+}
+
 # Install Node.js dependencies for Postman generation
 install_npm_dependencies() {
     print_step "Installing Node.js dependencies" "PROCESSING"
@@ -281,9 +392,12 @@ main() {
         done
     fi
 
-    # If OpenAPI generation succeeded, install dependencies and convert to Postman
+    # If OpenAPI generation succeeded, install dependencies, consolidate the
+    # per-component specs into one, then convert to Postman.
     if [ "$overall_success" = true ]; then
         if ! install_npm_dependencies; then
+            overall_success=false
+        elif ! consolidate_openapi; then
             overall_success=false
         elif ! convert_to_postman; then
             overall_success=false
@@ -303,6 +417,7 @@ main() {
         echo -e "${GREEN}🎉 Documentation generation completed successfully!${NC}"
         echo -e "   📄 Collection: postman/MIDAZ.postman_collection.json"
         echo -e "   🌍 Environment: postman/MIDAZ.postman_environment.json"
+        echo -e "   📚 Consolidated spec: postman/specs/midaz.openapi.yaml"
     else
         echo -e "${RED}❌ Documentation generation failed.${NC}"
         echo -e "   📋 Check logs in: ${LOG_DIR}/"
