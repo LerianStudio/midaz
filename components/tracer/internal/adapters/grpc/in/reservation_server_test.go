@@ -24,8 +24,10 @@ import (
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 )
 
-const canonicalAmount = "100.00"
-const canonicalCurrency = "USD"
+const (
+	canonicalAmount   = "100.00"
+	canonicalCurrency = "USD"
+)
 
 // newReserveRequest builds a valid proto reserve request whose timestamp sits
 // inside the validation window relative to the injected fixed clock, so the

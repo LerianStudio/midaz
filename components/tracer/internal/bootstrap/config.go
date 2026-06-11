@@ -26,11 +26,11 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
-	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"

@@ -74,7 +74,7 @@ type FilterCondition struct {
 //	@Description	    }
 //	@Description	  }
 type CreateReportInput struct {
-	TemplateID string                                            `json:"templateId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
+	TemplateID string                                           `json:"templateId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Filters    map[string]map[string]map[string]FilterCondition `json:"filters" validate:"required"`
 } //	@name	CreateReportInput
 

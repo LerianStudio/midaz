@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/DATA-DOG/go-sqlmock"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"

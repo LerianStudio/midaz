@@ -282,7 +282,8 @@ func runErrorContractCases(t *testing.T, tests []struct {
 	expectedStatus int
 	expectedCode   string
 	expectedTitle  string
-}) {
+},
+) {
 	t.Helper()
 
 	for _, tt := range tests {

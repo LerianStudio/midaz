@@ -348,7 +348,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 
 	c.injectTenant(ctx, req)
 
-	resp, err := c.httpClient.Do(req) //nolint:bodyclose // response is returned to the caller (Reserve/transition*), which owns and closes the body
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	}
