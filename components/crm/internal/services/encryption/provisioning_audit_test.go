@@ -21,10 +21,8 @@ import (
 // emitted with the expected outcome. It can be configured to return an error
 // (via the underlying repo) or to panic to prove provisioning is unaffected.
 type spyAuditWriter struct {
-	mu         sync.Mutex
-	emitted    []*mmodel.ProtectionAuditEvent
-	asyncCalls int
-	syncCalls  int
+	mu      sync.Mutex
+	emitted []*mmodel.ProtectionAuditEvent
 }
 
 func newSpyAuditWriter() *spyAuditWriter {
@@ -35,7 +33,6 @@ func (s *spyAuditWriter) Emit(_ context.Context, event *mmodel.ProtectionAuditEv
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.syncCalls++
 	s.emitted = append(s.emitted, event)
 }
 
@@ -46,7 +43,6 @@ func (s *spyAuditWriter) EmitAsync(_ context.Context, event *mmodel.ProtectionAu
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.asyncCalls++
 	s.emitted = append(s.emitted, event)
 }
 
@@ -80,7 +76,7 @@ func TestProvisioningService_Provision_EmitsSuccessAuditEvent(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	spy := newSpyAuditWriter()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -135,7 +131,7 @@ func TestProvisioningService_Provision_AlreadyProvisioned_EmitsAlreadyExists(t *
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -164,7 +160,7 @@ func TestProvisioningService_Provision_RegistryRecreatedFromExistingKeyset_Emits
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	result, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -192,7 +188,7 @@ func TestProvisioningService_Provision_RegistrySaveRace_EmitsAlreadyExists(t *te
 	// concurrently-written registry so getExistingProvisionResult succeeds.
 	registryRepo := &raceRegistryRepo{}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -246,7 +242,7 @@ func TestProvisioningService_Provision_HandleExistingKeyset_BothExist_EmitsAlrea
 	keysetRepo := &raceKeysetRepo{}
 	registryRepo := &raceRegistryRepoBothExist{}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -352,7 +348,7 @@ func TestProvisioningService_Provision_Failures_EmitFailure(t *testing.T) {
 
 			tt.mutate(keysetRepo, registryRepo, keysetGenerator)
 
-			svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy)
+			svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 			_, err := svc.Provision(ctx, newProvisionReq())
 			require.Error(t, err)
@@ -377,7 +373,7 @@ func TestProvisioningService_Provision_ResultUnchangedVsWriter(t *testing.T) {
 		t.Helper()
 
 		ctx := context.Background()
-		svc := NewProvisioningService(newFakeKeysetRepoForProv(), newFakeRegistryRepoForProv(), newFakeKeysetGenerator(), DefaultProvisioningConfig(), w)
+		svc := NewProvisioningService(newFakeKeysetRepoForProv(), newFakeRegistryRepoForProv(), newFakeKeysetGenerator(), DefaultProvisioningConfig(), w, NewProtectionMetrics(nil))
 
 		return svc.Provision(ctx, newProvisionReq())
 	}
@@ -424,7 +420,7 @@ func TestProvisioningService_Provision_InvalidRequest_EmitsFailure(t *testing.T)
 
 	ctx := context.Background()
 	spy := newSpyAuditWriter()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	req := newProvisionReq()
 	req.TenantID = ""
@@ -445,7 +441,7 @@ func TestProvisioningService_Provision_EventBuildFails_SkipsEmission(t *testing.
 
 	ctx := context.Background()
 	spy := newSpyAuditWriter()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy)
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
 
 	req := newProvisionReq()
 	req.OrganizationID = "" // fails validation AND event build (OrganizationID required)

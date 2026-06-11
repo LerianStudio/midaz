@@ -83,6 +83,7 @@ type provisioningService struct {
 	keysetGenerator KeysetGenerator
 	kekMountPath    string
 	auditWriter     AuditWriter
+	metrics         *protectionMetrics
 }
 
 // NewProvisioningService creates a new provisioning service with the given dependencies.
@@ -92,16 +93,24 @@ type provisioningService struct {
 // service exists only in envelope mode, where bootstrap always constructs a
 // repository-backed AuditWriter. Audit emission never affects the provisioning
 // result, return value, or error path.
+//
+// metrics is the nil-safe protection metrics seam; a nil value defaults to
+// NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
 func NewProvisioningService(
 	keysetRepo mongoEncryption.KeysetRepository,
 	registryRepo mongoEncryption.RegistryRepository,
 	keysetGenerator KeysetGenerator,
 	config ProvisioningConfig,
 	auditWriter AuditWriter,
+	metrics *protectionMetrics,
 ) ProvisioningService {
 	mountPath := config.KEKMountPath
 	if mountPath == "" {
 		mountPath = "transit"
+	}
+
+	if metrics == nil {
+		metrics = NewProtectionMetrics(nil)
 	}
 
 	return &provisioningService{
@@ -110,6 +119,7 @@ func NewProvisioningService(
 		keysetGenerator: keysetGenerator,
 		kekMountPath:    mountPath,
 		auditWriter:     auditWriter,
+		metrics:         metrics,
 	}
 }
 
@@ -206,9 +216,18 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	// Generate KEK path for this organization
 	kekPath := s.buildKEKPath(req.OrganizationID)
 
-	// Generate AEAD keyset
+	// Generate AEAD keyset. The KMS wrap happens inside the generator; provider
+	// timing is measured here at the service boundary (pkg/crypto/tink MUST NOT
+	// emit metrics). Provider is "vault" today (envelope is Vault-only); this
+	// becomes dynamic when other KMS providers land. Timing is recorded even on
+	// failure.
+	aeadWrapStart := time.Now()
 	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, kekPath)
+	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(aeadWrapStart).Milliseconds())
+
 	if err != nil {
+		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapAEADFailed)
+
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 
@@ -217,9 +236,15 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
 	}
 
-	// Generate MAC keyset
+	// Generate MAC keyset. Provider timing is measured here at the service
+	// boundary and recorded even on failure.
+	macWrapStart := time.Now()
 	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, kekPath)
+	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(macWrapStart).Milliseconds())
+
 	if err != nil {
+		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapMACFailed)
+
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 	}
 

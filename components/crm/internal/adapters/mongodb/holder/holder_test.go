@@ -25,8 +25,8 @@ func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	// Use lib-commons crypto directly, matching KMS_VENDOR=none production path
 	crypto := testutils.SetupCrypto(t)
 
-	resolver := encryption.NewProtectionStateResolver(nil)
-	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
 
 	return encryption.NewFieldEncryptorAdapter(svc)
 }

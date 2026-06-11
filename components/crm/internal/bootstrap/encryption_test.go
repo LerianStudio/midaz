@@ -518,12 +518,13 @@ func (stubAuditWriter) EmitAsync(_ context.Context, _ *mmodel.ProtectionAuditEve
 func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) wireEncryptionServicesOutput {
 	// Legacy mode: wire EncryptionService with nil dependencies for legacy-only operation.
 	if input.mode == encryptionModeLegacy {
-		protectionStateResolver := encryption.NewProtectionStateResolver(nil)
+		protectionStateResolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
 		encryptionService := encryption.NewEncryptionService(
 			protectionStateResolver,
 			nil,
 			nil,
 			input.legacyCrypto,
+			encryption.NewProtectionMetrics(nil),
 			crypto.EncryptionModeLegacy,
 		)
 
@@ -581,7 +582,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 	}
 
 	// Wire ProtectionStateResolver with RegistryRepository
-	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo)
+	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo, encryption.NewProtectionMetrics(nil))
 
 	// Type assert vault client to KeysetUnwrapper
 	mockUnwrapper, ok := input.vaultClient.(encryption.KeysetUnwrapper)
@@ -597,6 +598,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		mockUnwrapper,
 		nil,
 		encryption.DefaultKeysetManagerConfig(),
+		encryption.NewProtectionMetrics(nil),
 	)
 
 	// Wire EncryptionService with mock dependencies
@@ -606,6 +608,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		keysetManager,
 		keysetRepo,
 		input.legacyCrypto,
+		encryption.NewProtectionMetrics(nil),
 		crypto.EncryptionModeEnvelope,
 	)
 
@@ -630,6 +633,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		mockGenerator,
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
 		stubAuditWriter{},
+		encryption.NewProtectionMetrics(nil),
 	)
 
 	return wireEncryptionServicesOutput{

@@ -146,6 +146,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
 	}
 
+	// Extract the metrics factory ONCE (nil when telemetry disabled) and reuse it
+	// for both encryption metrics and readyz metrics emission.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	mongoConnection, err := initMongoConnection(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -165,7 +172,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
-	encryptionResult, err := buildEncryptionServices(cfg, kms, logger, keysetRepo, registryRepo, auditWriter, legacyCrypto)
+	encryptionResult, err := buildEncryptionServices(cfg, kms, logger, keysetRepo, registryRepo, auditWriter, legacyCrypto, metricsFactory)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +210,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Create encryption handler only when provisioning service is available (envelope mode)
 	encryptionHandler := newEncryptionHandler(encryptionResult.provisioningService, logger)
 
+	// Create audit handler only when the read-side audit repository is available
+	// (envelope mode). In legacy mode auditRepo is nil, so the handler is nil and
+	// the protection audit route stays unregistered (404).
+	auditHandler := newAuditHandler(auditRepo, logger)
+
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
@@ -210,19 +222,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}
 
-	// Get metrics factory from telemetry for readyz metrics emission
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
-
-	// Build readyz handler with MongoDB and Vault checkers
+	// Build readyz handler with MongoDB and Vault checkers (reuses the shared metricsFactory)
 	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, kms, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
 
-	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler)
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	return &Service{
@@ -254,6 +260,20 @@ func newEncryptionHandler(provisioningService encryption.ProvisioningService, lo
 	return &in.EncryptionHandler{ProvisioningService: provisioningService}
 }
 
+// newAuditHandler returns an AuditHandler only when a read-side audit repository
+// is available (envelope mode). In legacy mode auditRepo is nil, so this returns
+// nil and the protection audit route is left unregistered (404). That 404 is the
+// correct "feature not applicable in legacy mode" behavior, not an error.
+func newAuditHandler(auditRepo audit.Repository, logger libLog.Logger) *in.AuditHandler {
+	if auditRepo == nil {
+		return nil
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Protection audit endpoint enabled")
+
+	return &in.AuditHandler{Service: encryption.NewAuditQueryService(auditRepo)}
+}
+
 // buildEncryptionServices wires the encryption services for the active KMS mode.
 // In legacy mode the services use lib-commons crypto; in envelope mode they are
 // wired with Tink and Vault dependencies and the envelope-only AuditWriter. It
@@ -266,6 +286,7 @@ func buildEncryptionServices(
 	registryRepo mongoEncryption.RegistryRepository,
 	auditWriter encryption.AuditWriter,
 	legacyCrypto encryption.LegacyCrypto,
+	metricsFactory *metrics.MetricsFactory,
 ) (wireEncryptionServicesOutput, error) {
 	encryptionResult := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:                 kms.Mode.String(),
@@ -274,6 +295,7 @@ func buildEncryptionServices(
 		registryRepo:         registryRepo,
 		auditWriter:          auditWriter,
 		legacyCrypto:         legacyCrypto,
+		metricsFactory:       metricsFactory,
 		vaultMountPath:       cfg.VaultMountPath,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
 	})
