@@ -39,7 +39,7 @@ func TestNewHTTPServer_Success(t *testing.T) {
 		telemetry := &libOtel.Telemetry{}
 
 		// Act
-		server, err := NewHTTPServer(cfg, app, logger, telemetry)
+		server, err := NewHTTPServer(cfg, app, nil, logger, telemetry)
 
 		// Assert
 		require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestNewHTTPServer_Error_NilTelemetry(t *testing.T) {
 		logger := testutil.NewMockLogger()
 
 		// Act
-		server, err := NewHTTPServer(cfg, app, logger, nil)
+		server, err := NewHTTPServer(cfg, app, nil, logger, nil)
 
 		// Assert
 		require.Error(t, err)
@@ -76,7 +76,7 @@ func TestNewHTTPServer_Error_NilApp(t *testing.T) {
 		logger := testutil.NewMockLogger()
 		telemetry := &libOtel.Telemetry{}
 
-		server, err := NewHTTPServer(cfg, nil, logger, telemetry)
+		server, err := NewHTTPServer(cfg, nil, nil, logger, telemetry)
 
 		require.Error(t, err)
 		assert.Nil(t, server)
@@ -90,7 +90,7 @@ func TestNewHTTPServer_Error_NilLogger(t *testing.T) {
 		app := fiber.New()
 		telemetry := &libOtel.Telemetry{}
 
-		server, err := NewHTTPServer(cfg, app, nil, telemetry)
+		server, err := NewHTTPServer(cfg, app, nil, nil, telemetry)
 
 		require.Error(t, err)
 		assert.Nil(t, server)
@@ -104,7 +104,7 @@ func TestNewHTTPServer_Error_NilConfig(t *testing.T) {
 		logger := testutil.NewMockLogger()
 		telemetry := &libOtel.Telemetry{}
 
-		server, err := NewHTTPServer(nil, app, logger, telemetry)
+		server, err := NewHTTPServer(nil, app, nil, logger, telemetry)
 
 		require.Error(t, err)
 		assert.Nil(t, server)

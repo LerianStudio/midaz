@@ -34,6 +34,10 @@ import (
 type Service struct {
 	*HTTPServer
 	libLog.Logger
+	// grpcServer is the opt-in reservation gRPC seam. Nil when TRACER_GRPC_PORT
+	// is unset; when wired it runs as its own Launcher app so it drains on
+	// SIGTERM alongside the HTTP server.
+	grpcServer    *GRPCServer
 	postgresConn  *libPostgres.Client
 	cleanupWorker *workers.UsageCleanupWorker
 	syncWorker    *workers.RuleSyncWorker
@@ -89,6 +93,12 @@ func (app *Service) Run() {
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("HTTP Service", app.HTTPServer),
+	}
+
+	// gRPC reservation seam (opt-in via TRACER_GRPC_PORT). Registered as its own
+	// Launcher app so its ServerManager drains in-flight RPCs on SIGTERM.
+	if app.grpcServer != nil {
+		opts = append(opts, libCommons.RunApp("gRPC Service", app.grpcServer))
 	}
 
 	// Multi-tenant: supervisor manages per-tenant workers; listener feeds it.

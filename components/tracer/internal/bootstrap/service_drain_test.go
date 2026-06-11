@@ -27,7 +27,7 @@ func newDrainTestService(t *testing.T, cfg *Config) (*Service, *in.HealthChecker
 	logger := libLog.NewNop()
 	tel := libOtel.Telemetry{}
 
-	hs, err := NewHTTPServer(&Config{ServerAddress: ":0"}, app, logger, &tel)
+	hs, err := NewHTTPServer(&Config{ServerAddress: ":0"}, app, nil, logger, &tel)
 	require.NoError(t, err)
 
 	hc := in.NewTestableHealthChecker(nil)
@@ -118,7 +118,7 @@ func TestService_Shutdown_NoHealthChecker(t *testing.T) {
 	logger := libLog.NewNop()
 	tel := libOtel.Telemetry{}
 
-	hs, err := NewHTTPServer(&Config{ServerAddress: ":0"}, app, logger, &tel)
+	hs, err := NewHTTPServer(&Config{ServerAddress: ":0"}, app, nil, logger, &tel)
 	require.NoError(t, err)
 
 	svc := &Service{

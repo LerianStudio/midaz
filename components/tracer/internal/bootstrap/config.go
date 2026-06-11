@@ -24,6 +24,7 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/zap"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
+	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
@@ -43,7 +44,31 @@ import (
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	ServerAddress           string `env:"SERVER_ADDRESS"`
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	// TracerGRPCPort is the listen address for the reservation gRPC seam (e.g.
+	// ":4021"). When empty (the default) the gRPC server is NOT started — the
+	// transport is opt-in during the Phase-1 rollout. Transport security follows
+	// TRACER_TLS_MODE: in "mtls" the gRPC server requires+verifies a client cert.
+	TracerGRPCPort string `env:"TRACER_GRPC_PORT"`
+	// TracerTLSMode selects how the reservation seam is secured. "mtls"
+	// (Epic 1.3) makes the app load its own cert/key/CA and require+verify a
+	// client cert on BOTH the gRPC and the Fiber listeners — the verified mTLS
+	// peer is the seam credential (no shared secret). "mesh" lets a service-mesh
+	// sidecar (Istio/Linkerd) terminate mTLS, so the app listens plaintext and
+	// skips its own TLS. Empty/unset behaves like "mesh" (plaintext) so the
+	// Phase-1 toggle default and local dev keep working without cert material.
+	TracerTLSMode string `env:"TRACER_TLS_MODE"`
+	// TracerTLSCertFile / TracerTLSKeyFile are the PEM paths for the tracer's
+	// OWN server certificate and private key, presented on both transports in
+	// "mtls" mode. Required (non-empty) when TracerTLSMode=mtls.
+	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
+	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
+	// TracerTLSClientCAFile is the PEM bundle of CA certificate(s) used to
+	// verify client certificates the ledger presents. Required (non-empty) when
+	// TracerTLSMode=mtls — without it the server cannot enforce
+	// RequireAndVerifyClientCert.
+	TracerTLSClientCAFile string `env:"TRACER_TLS_CLIENT_CA_FILE"`
+
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
@@ -1035,7 +1060,7 @@ func initHTTPServer(
 	mtComponents *componentsMT,
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
-) (*HTTPServer, error) {
+) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 	// Init Transaction Validation repository and queries
 	transactionValidationRepo := postgres.NewTransactionValidationRepositoryWithConnection(pgConn)
@@ -1045,7 +1070,7 @@ func initHTTPServer(
 	// Init LimitChecker for ValidationService
 	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create limit checker: %w", err)
+		return nil, nil, fmt.Errorf("failed to create limit checker: %w", err)
 	}
 
 	// Init ValidationService with audit writer for SOX/GLBA compliance
@@ -1056,7 +1081,7 @@ func initHTTPServer(
 	// change would cascade into supervisor.go + 4 test sites in metrics_test.
 	validationService, err := services.NewValidationService(txBeginner, evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk) //nolint:contextcheck
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Attach multi-tenant metrics sink. In single-tenant mode this is the
@@ -1072,7 +1097,7 @@ func initHTTPServer(
 	// Init Transaction Validation service facade
 	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
+		return nil, nil, fmt.Errorf("failed to create transaction validation service: %w", err)
 	}
 
 	// Init Reservation service (two-phase capacity hold). It reuses the limit
@@ -1083,18 +1108,18 @@ func initHTTPServer(
 
 	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse reservation long-lived TTL: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse reservation long-lived TTL: %w", err)
 	}
 
 	reservationService, err := services.NewReservationServiceWithLongLivedTTL(txBeginner, limitChecker, reservationRepo, auditWriter, clk, longLivedTTL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create reservation service: %w", err)
+		return nil, nil, fmt.Errorf("failed to create reservation service: %w", err)
 	}
 
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Parse the trusted-proxy CIDR set ONCE at boot. A malformed entry fails
@@ -1102,7 +1127,7 @@ func initHTTPServer(
 	// silently recording forgeable audit IPs at runtime.
 	trustedProxyCIDRs, err := parseTrustedProxyCIDRs(cfg.TrustedProxyCIDRs)
 	if err != nil {
-		return nil, fmt.Errorf("invalid trusted proxy configuration: %w", err)
+		return nil, nil, fmt.Errorf("invalid trusted proxy configuration: %w", err)
 	}
 
 	// Route configuration with CORS settings. Authentication is handled
@@ -1166,10 +1191,61 @@ func initHTTPServer(
 		Supervisor:                   workerSupervisor,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create routes: %w", err)
+		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
 	}
 
-	return NewHTTPServer(cfg, httpApp, logger, telemetry)
+	// Secure the REST reservation seam per TRACER_TLS_MODE: mtls ⇒ a verifying
+	// *tls.Config, mesh/unset ⇒ nil (plaintext, sidecar terminates). Same builder
+	// the gRPC server uses, so both transports share one posture.
+	seamTLS, err := buildSeamTLSConfig(cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
+	}
+
+	httpServer, err := NewHTTPServer(cfg, httpApp, seamTLS, logger, telemetry)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return httpServer, reservationService, nil
+}
+
+// initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
+// error) when TRACER_GRPC_PORT is unset, so the gRPC transport stays off unless
+// an operator configures it. Transport security follows TRACER_TLS_MODE (Epic
+// 1.3): mtls ⇒ the server requires+verifies a client cert (reservation seam
+// unreachable without one); mesh/unset ⇒ plaintext (sidecar terminates). The
+// server delegates to the SAME reservationService the REST handler uses; clk
+// drives the reserve timestamp-window check identically to the REST path.
+func initGRPCServer(
+	cfg *Config,
+	reservationService *services.ReservationService,
+	clk clock.Clock,
+	logger libLog.Logger,
+	telemetry *libOtel.Telemetry,
+) (*GRPCServer, error) {
+	if cfg.TracerGRPCPort == "" {
+		return nil, nil
+	}
+
+	reservationServer, err := grpcin.NewReservationServer(reservationService, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
+	}
+
+	// Same seam TLS posture as the REST listener so the two transports cannot
+	// diverge. nil in mesh/unset mode ⇒ plaintext gRPC.
+	seamTLS, err := buildSeamTLSConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build reservation seam TLS config: %w", err)
+	}
+
+	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, logger, telemetry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
+	}
+
+	return grpcServer, nil
 }
 
 // initCleanupWorker creates the usage cleanup worker if enabled.
@@ -1366,6 +1442,7 @@ func initWorkers(
 	limitDeps *limitServiceDeps,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
+	grpcServer *GRPCServer,
 	postgresConn *libPostgres.Client,
 	healthChecker *in.HealthChecker,
 	logger libLog.Logger,
@@ -1374,6 +1451,7 @@ func initWorkers(
 ) (*Service, error) {
 	svc := &Service{
 		HTTPServer:    serverAPI,
+		grpcServer:    grpcServer,
 		Logger:        logger,
 		postgresConn:  postgresConn,
 		healthChecker: healthChecker,
@@ -1748,16 +1826,16 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// Init HTTP server with all services. mtComponents is nil in single-tenant
 	// mode; the HTTP server builder threads pgManager + supervisor through to
 	// the TenantMiddleware when non-nil.
-	serverAPI, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner)
+	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner)
 	if err != nil {
 		return nil, err
 	}
 
 	// Init background workers (conditional on MT mode inside initWorkers).
-	// finalizeStartup also runs the startup self-probe BEFORE the HTTP
-	// server begins accepting traffic; folded into one helper to keep
-	// InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, postgresConn, healthChecker, logger, clk, mtComponents)
+	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
+	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
+	// into one helper to keep InitServers under the gocyclo budget.
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents)
 	if err != nil {
 		return nil, err
 	}
@@ -1833,13 +1911,20 @@ func finalizeStartup(
 	limitDeps *limitServiceDeps,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
+	reservationService *services.ReservationService,
 	postgresConn *libPostgres.Client,
 	healthChecker *in.HealthChecker,
 	logger libLog.Logger,
+	telemetry *libOtel.Telemetry,
 	clk clock.Clock,
 	mtComponents *componentsMT,
 ) (*Service, error) {
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, postgresConn, healthChecker, logger, clk, mtComponents)
+	grpcServer, err := initGRPCServer(cfg, reservationService, clk, logger, telemetry)
+	if err != nil {
+		return nil, err
+	}
+
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents)
 	if err != nil {
 		return nil, err
 	}

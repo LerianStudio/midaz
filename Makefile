@@ -66,6 +66,7 @@ COVERAGE_PACKAGES := ./...
 include $(MK_DIR)/coverage-unit.mk
 include $(MK_DIR)/tests.mk
 include $(MK_DIR)/security.mk
+include $(MK_DIR)/proto.mk
 
 # The root security scan covers the whole monorepo source, not a single module.
 SEC_SCAN_PATHS := ./components/... ./pkg/...
@@ -131,6 +132,12 @@ help:
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo "  make check-docs                  - Verify OpenAPI spec metadata parity (CHECK_DOCS_REGEN=1 also checks drift)"
+	@echo ""
+	@echo ""
+	@echo "Protobuf Commands:"
+	@echo "  make proto                       - Regenerate gRPC stubs from proto/ into pkg/proto/"
+	@echo "  make proto-lint                  - Lint protobuf sources (buf lint)"
+	@echo "  make proto-check                 - Regenerate and fail if committed stubs are stale (CI gate)"
 	@echo ""
 	@echo ""
 	@echo "Migration Commands:"

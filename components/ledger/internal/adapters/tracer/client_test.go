@@ -24,17 +24,6 @@ var (
 	fixedReservationID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
 )
 
-// stubM2MProvider returns a fixed token and records that GetToken was called.
-type stubM2MProvider struct {
-	token  string
-	called bool
-}
-
-func (s *stubM2MProvider) GetToken(_ context.Context) (string, error) {
-	s.called = true
-	return s.token, nil
-}
-
 func TestNewTracerClient_RejectsEmptyBaseURL(t *testing.T) {
 	client, err := NewTracerClient("")
 
@@ -130,33 +119,10 @@ func TestTracerClient_Reserve_TimeoutReturnsUnavailable(t *testing.T) {
 	assert.ErrorIs(t, err, ErrTracerUnavailable)
 }
 
-func TestTracerClient_Reserve_AttachesM2MHeaderWhenProviderSet(t *testing.T) {
-	var gotAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
-
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(ReserveResult{TransactionID: fixedTransactionID, ReservationIDs: []uuid.UUID{}})
-	}))
-	defer srv.Close()
-
-	provider := &stubM2MProvider{token: "test-jwt"}
-	client, err := NewTracerClient(srv.URL, WithM2MTokenProvider(provider))
-	require.NoError(t, err)
-
-	_, err = client.Reserve(context.Background(), ReserveRequest{
-		TransactionID: fixedTransactionID,
-		Amount:        "100",
-		Currency:      "USD",
-		Account:       ReserveAccount{AccountID: "acc-1"},
-	})
-
-	require.NoError(t, err)
-	assert.True(t, provider.called)
-	assert.Equal(t, "Bearer test-jwt", gotAuth)
-}
-
-func TestTracerClient_Reserve_NoAuthHeaderWhenProviderNil(t *testing.T) {
+// TestTracerClient_Reserve_NoAuthHeader pins the mTLS identity model: the REST
+// client never sends an Authorization header (token identity was retired in
+// favour of mutual TLS), so no Bearer credential leaks onto the wire.
+func TestTracerClient_Reserve_NoAuthHeader(t *testing.T) {
 	var hadAuth bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, hadAuth = r.Header["Authorization"]

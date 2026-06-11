@@ -6,8 +6,10 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -40,6 +42,8 @@ import (
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const ApplicationName = "ledger"
@@ -287,8 +291,23 @@ type Config struct {
 	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
 	// the transaction create path open; it mirrors the tracer.timeoutMs setting
 	// default (250ms) and is overridden per-ledger by the call site.
-	TracerBaseURL   string `env:"TRACER_BASE_URL"`
-	TracerTimeoutMs int    `env:"TRACER_TIMEOUT_MS"`
+	// TracerTransport selects the reservation transport: "grpc" or "rest"
+	// (default). gRPC is the seam's target transport; REST is the proven
+	// fallback, kept as the default during rollout so flipping to gRPC is a
+	// single-constant change after the Phase-1 integration test and a soak.
+	// TracerTLSMode secures the reservation seam: "mtls" presents a client
+	// certificate and verifies the tracer's server certificate against the CA
+	// (mutual TLS is the seam's identity — no shared secret); "mesh" (and the
+	// empty default) speaks plaintext to a local service-mesh sidecar that
+	// terminates mTLS. Under "mtls" the cert/key/CA paths are required when the
+	// integration is on, enforced by buildTracerReserver.
+	TracerBaseURL     string `env:"TRACER_BASE_URL"`
+	TracerTimeoutMs   int    `env:"TRACER_TIMEOUT_MS"`
+	TracerTransport   string `env:"TRACER_TRANSPORT"`
+	TracerTLSMode     string `env:"TRACER_TLS_MODE"`
+	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
+	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
+	TracerTLSCAFile   string `env:"TRACER_TLS_CA_FILE"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -1534,22 +1553,55 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 		return nil, nil
 	}
 
-	// Fail-fast guard: the ledger has no service-to-service token source today, so
-	// no M2MTokenProvider is ever wired below. Under multi-tenancy the tracer's
-	// TenantMiddleware derives tenantId from the JWT bearer; with no Authorization
-	// header every /v1/reservations call ships unauthenticated and tenant-less,
-	// failing closed (or resolving the wrong tenant pool) on the synchronous
-	// transaction-create hot path. Refuse to boot a multi-tenant deployment that
-	// enables the integration until that auth wiring exists, mirroring the empty
-	// baseURL fail-fast philosophy.
-	if cfg.MultiTenantEnabled {
-		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true with TRACER_BASE_URL set requires a tracer M2M auth provider that is not yet wired; " +
-			"reservation calls would ship unauthenticated and tenant-less. Unset TRACER_BASE_URL to disable the integration until S2S auth is available")
+	// Fail-fast guard: identity on the reservation seam is mutual TLS (the
+	// verified peer IS the credential — no shared secret). The discriminator is
+	// the transport's security, NOT tenancy: with the integration on and
+	// TRACER_TLS_MODE=mtls, the cert/key/CA material is mandatory, so a
+	// misconfigured deploy fails at boot rather than dialing an unverified seam.
+	// "mesh" trusts a local sidecar to originate mTLS (no app cert material).
+	// buildSeamClientTLSConfig names the failing knob; in mesh/empty mode it
+	// returns a nil config and both transports dial plaintext.
+	tlsConfig, err := buildSeamClientTLSConfig(cfg, seamServerName(baseURL))
+	if err != nil {
+		return nil, err
 	}
+
+	transport := strings.ToLower(strings.TrimSpace(cfg.TracerTransport))
+	if transport == "" {
+		transport = tracerTransportREST
+	}
+
+	switch transport {
+	case tracerTransportGRPC:
+		return buildTracerGRPCReserver(cfg, baseURL, tlsConfig, logger)
+	case tracerTransportREST:
+		return buildTracerRESTReserver(cfg, baseURL, tlsConfig, logger)
+	default:
+		return nil, fmt.Errorf("invalid TRACER_TRANSPORT %q: expected %q or %q", cfg.TracerTransport, tracerTransportGRPC, tracerTransportREST)
+	}
+}
+
+// Tracer reservation transports selected by TRACER_TRANSPORT.
+const (
+	tracerTransportGRPC = "grpc"
+	tracerTransportREST = "rest"
+)
+
+// buildTracerRESTReserver wires the HTTP reservation client. When tlsConfig is
+// non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
+// REST seam presents the ledger's client cert and verifies the tracer's server
+// cert; a nil config (mesh/empty mode) leaves the default plaintext transport.
+func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
+		libLog.String("transport", tracerTransportREST))
 
 	opts := []tracerclient.TracerClientOption{}
 	if cfg.TracerTimeoutMs > 0 {
 		opts = append(opts, tracerclient.WithOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
+	}
+
+	if tlsConfig != nil {
+		opts = append(opts, tracerclient.WithTLSConfig(tlsConfig))
 	}
 
 	client, err := tracerclient.NewTracerClient(baseURL, opts...)
@@ -1558,4 +1610,60 @@ func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserv
 	}
 
 	return client, nil
+}
+
+// buildTracerGRPCReserver wires the gRPC reservation client. When tlsConfig is
+// non-nil (TRACER_TLS_MODE=mtls) it is injected as transport credentials
+// (credentials.NewTLS) so the gRPC seam presents the ledger's client cert and
+// verifies the tracer's server cert; a nil config (mesh/empty mode) leaves the
+// client's default insecure transport for a sidecar to secure. The target is the
+// same TRACER_BASE_URL value, stripped of any scheme so grpc.NewClient receives
+// a host:port authority.
+func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
+		libLog.String("transport", tracerTransportGRPC))
+
+	target := stripURLScheme(baseURL)
+
+	opts := []tracerclient.TracerGRPCClientOption{}
+	if cfg.TracerTimeoutMs > 0 {
+		opts = append(opts, tracerclient.WithGRPCOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
+	}
+
+	if tlsConfig != nil {
+		opts = append(opts, tracerclient.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))))
+	}
+
+	client, err := tracerclient.NewTracerGRPCClient(target, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// stripURLScheme removes an http:// or https:// scheme from a tracer endpoint so
+// the same TRACER_BASE_URL value feeds both the REST client (full URL) and the
+// gRPC client (host:port authority).
+func stripURLScheme(endpoint string) string {
+	if i := strings.Index(endpoint, "://"); i >= 0 {
+		return endpoint[i+len("://"):]
+	}
+
+	return endpoint
+}
+
+// seamServerName extracts the host (no port) the tracer's server certificate is
+// verified against in mtls mode. It tolerates both a full URL (https://host:port)
+// and a bare host:port authority; a parse failure falls back to the raw value so
+// the TLS layer surfaces the mismatch rather than this helper silently dropping
+// it.
+func seamServerName(endpoint string) string {
+	hostPort := stripURLScheme(endpoint)
+
+	if host, _, err := net.SplitHostPort(hostPort); err == nil {
+		return host
+	}
+
+	return hostPort
 }

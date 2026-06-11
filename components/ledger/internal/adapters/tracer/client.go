@@ -2,16 +2,19 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// Package tracer holds the ledger-side HTTP client for the tracer service's
+// Package tracer holds the ledger-side clients for the tracer service's
 // two-phase reservation API (POST /v1/reservations and the per-id
-// confirm/release transitions). It mirrors the reporter fetcher client
-// pattern: a struct configured through functional options, an optional M2M
-// token provider for inter-service auth, and per-operation context timeouts.
+// confirm/release transitions). It offers an HTTP (REST) and a gRPC transport
+// behind the same TracerReserver port; the composition root selects one from
+// cfg.TracerTransport. Service identity is mutual TLS (Epic 1.3), so neither
+// transport carries a static shared secret; the tenant travels as a trusted
+// X-Tenant-Id header / metadata (Phase 2) over the mTLS-verified connection.
 package tracer
 
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,12 +56,6 @@ const (
 // reservation DENIED decision (a successful 201 with denied=true), which is a
 // business outcome the anchor handles separately.
 var ErrTracerUnavailable = errors.New("tracer reservation service unavailable")
-
-// M2MTokenProvider provides M2M JWT tokens for inter-service auth. A nil
-// provider means single-tenant mode and no Authorization header is sent.
-type M2MTokenProvider interface {
-	GetToken(ctx context.Context) (string, error)
-}
 
 // ReserveAccount is the account scope the tracer matches limits against. It
 // serializes to the tracer's AccountContext shape ({"accountId": "..."}). The
@@ -122,22 +119,11 @@ type ReserveResult struct {
 type TracerClient struct {
 	baseURL          string
 	httpClient       *http.Client
-	m2mProvider      M2MTokenProvider
 	operationTimeout time.Duration
 }
 
 // TracerClientOption configures a TracerClient.
 type TracerClientOption func(*TracerClient)
-
-// WithM2MTokenProvider configures the M2M token provider for multi-tenant
-// inter-service auth. When set, every request carries an
-// Authorization: Bearer {JWT} header. When nil (default), no auth header is
-// sent (single-tenant mode).
-func WithM2MTokenProvider(provider M2MTokenProvider) TracerClientOption {
-	return func(c *TracerClient) {
-		c.m2mProvider = provider
-	}
-}
 
 // WithOperationTimeout sets the per-operation context timeout from the ledger's
 // tracer.timeoutMs setting. A non-positive value leaves the default in place.
@@ -149,11 +135,24 @@ func WithOperationTimeout(d time.Duration) TracerClientOption {
 	}
 }
 
+// WithTLSConfig secures the REST seam with mutual TLS (Epic 1.3): it installs an
+// http.Transport carrying the supplied *tls.Config, which presents the ledger's
+// client certificate and verifies the tracer's server certificate. A nil config
+// leaves the default plaintext transport (mesh mode, where a sidecar originates
+// mTLS). The composition root builds the config from TRACER_TLS_* and only
+// passes it in mtls mode.
+func WithTLSConfig(tlsConfig *tls.Config) TracerClientOption {
+	return func(c *TracerClient) {
+		if tlsConfig != nil {
+			c.httpClient.Transport = &http.Transport{TLSClientConfig: tlsConfig}
+		}
+	}
+}
+
 // NewTracerClient builds an HTTP client for the tracer reservation API.
-// Optional dependencies (m2mProvider, operation timeout) are supplied via
-// functional options. It returns an error when baseURL is empty so a
-// misconfigured composition root fails at boot rather than at the first
-// transaction.
+// Optional dependencies (operation timeout) are supplied via functional
+// options. It returns an error when baseURL is empty so a misconfigured
+// composition root fails at boot rather than at the first transaction.
 func NewTracerClient(baseURL string, opts ...TracerClientOption) (*TracerClient, error) {
 	if baseURL == "" {
 		return nil, errors.New("empty baseURL passed to NewTracerClient")
@@ -345,9 +344,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 	// root span per reserve/confirm/release.
 	libOpentelemetry.InjectHTTPContext(ctx, req.Header)
 
-	if err := c.applyAuth(ctx, req); err != nil {
-		return nil, err
-	}
+	c.injectTenant(ctx, req)
 
 	resp, err := c.httpClient.Do(req) //nolint:bodyclose // response is returned to the caller (Reserve/transition*), which owns and closes the body
 	if err != nil {
@@ -357,21 +354,19 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 	return resp, nil
 }
 
-// applyAuth adds the Authorization header when an M2MTokenProvider is
-// configured. In single-tenant mode (m2mProvider == nil) no header is added.
-func (c *TracerClient) applyAuth(ctx context.Context, req *http.Request) error {
-	if c.m2mProvider == nil {
-		return nil
-	}
+// TenantHeader is the trusted tenant-propagation header. The tracer trusts it
+// because the connection is mTLS-verified (Seam Contract: the peer is a known
+// service), consistent with the durable "tenant is the trust boundary" model.
+const TenantHeader = "X-Tenant-Id"
 
-	token, err := c.m2mProvider.GetToken(ctx)
-	if err != nil {
-		return fmt.Errorf("get M2M token: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	return nil
+// injectTenant is the tenant-propagation injection point. mTLS replaces token
+// identity, so there is no Authorization header; the tenant travels as the
+// trusted X-Tenant-Id header. The ledger-side resolution of the tenant value
+// from context lands in Phase 2 — this hook is the seam that wiring plugs into,
+// so it is intentionally a no-op (no tenant resolution) today.
+func (c *TracerClient) injectTenant(ctx context.Context, req *http.Request) {
+	_ = ctx
+	_ = req
 }
 
 // statusError builds the error for a non-success status. The body is read
