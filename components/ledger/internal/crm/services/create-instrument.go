@@ -11,10 +11,13 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateInstrumentInput) (_ *mmodel.Instrument, err error) {
@@ -103,6 +106,10 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 	instrument.Document = holder.Document
 	instrument.Type = holder.Type
 
+	if err = uc.validateInstrumentReferences(ctx, span, organizationID, cai.LedgerID, cai.AccountID); err != nil {
+		return nil, err
+	}
+
 	createdInstrument, err := uc.InstrumentRepo.Create(ctx, organizationID, instrument)
 	if err != nil {
 		recordSpanError(span, "Failed to create instrument", err)
@@ -111,4 +118,67 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 	}
 
 	return createdInstrument, nil
+}
+
+// validateInstrumentReferences verifies the body-supplied ledger and account
+// exist within the request organization before the instrument is persisted.
+// Malformed UUIDs return a 400-class validation error; a non-existent ledger or
+// account returns the 422 referential sentinel (NOT the query layer's 404, since
+// the addressed instrument route is well-formed — only its references are
+// invalid). Validation order is ledger first, then account within that ledger,
+// because the account lookup is ledger-partitioned.
+func (uc *UseCase) validateInstrumentReferences(ctx context.Context, span trace.Span, organizationID, ledgerIDStr, accountIDStr string) error {
+	organizationUUID, err := uuid.Parse(organizationID)
+	if err != nil {
+		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "organizationId")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid organization id for instrument references", bErr)
+
+		return bErr
+	}
+
+	ledgerUUID, err := uuid.Parse(ledgerIDStr)
+	if err != nil {
+		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "ledgerId")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledger id for instrument references", bErr)
+
+		return bErr
+	}
+
+	accountUUID, err := uuid.Parse(accountIDStr)
+	if err != nil {
+		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "accountId")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id for instrument references", bErr)
+
+		return bErr
+	}
+
+	ledgerExists, err := uc.LedgerAccounts.LedgerExists(ctx, organizationUUID, ledgerUUID)
+	if err != nil {
+		recordSpanError(span, "Failed to verify instrument ledger reference", err)
+
+		return err
+	}
+
+	if !ledgerExists {
+		bErr := pkg.ValidateBusinessError(constant.ErrInstrumentLedgerReferenceNotFound, constant.EntityInstrument)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Instrument ledger reference not found", bErr)
+
+		return bErr
+	}
+
+	accountExists, err := uc.LedgerAccounts.AccountExists(ctx, organizationUUID, ledgerUUID, accountUUID)
+	if err != nil {
+		recordSpanError(span, "Failed to verify instrument account reference", err)
+
+		return err
+	}
+
+	if !accountExists {
+		bErr := pkg.ValidateBusinessError(constant.ErrInstrumentAccountReferenceNotFound, constant.EntityInstrument)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Instrument account reference not found", bErr)
+
+		return bErr
+	}
+
+	return nil
 }

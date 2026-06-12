@@ -1236,6 +1236,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
 		},
+		constant.ErrInstrumentLedgerReferenceNotFound: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInstrumentLedgerReferenceNotFound.Error(),
+			Title:      "Instrument Ledger Reference Not Found",
+			Message:    "The ledger referenced by this instrument does not exist in this organization. Please provide a ledgerId that belongs to the organization and try again.",
+		},
+		constant.ErrInstrumentAccountReferenceNotFound: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInstrumentAccountReferenceNotFound.Error(),
+			Title:      "Instrument Account Reference Not Found",
+			Message:    "The account referenced by this instrument does not exist in the referenced ledger. Please provide an accountId that belongs to the ledger and try again.",
+		},
 		constant.ErrRelatedPartyNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrRelatedPartyNotFound.Error(),

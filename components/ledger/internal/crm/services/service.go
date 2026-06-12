@@ -17,6 +17,18 @@ type UseCase struct {
 	HolderRepo     holder.Repository
 	InstrumentRepo instrument.Repository
 
+	// Idempotency backs the CRM idempotency claim/set methods over the shared
+	// Redis infrastructure. A nil value disables the feature: claims become
+	// no-op passthroughs (mirroring the streaming nil-emitter guard).
+	Idempotency IdempotencyRepo
+
+	// LedgerAccounts verifies an instrument's body-supplied ledger/account
+	// references exist within the request organization before the instrument is
+	// persisted. It is a hard dependency of CreateInstrument: a nil value is a
+	// wiring error, not a disable switch, because the referential check is a
+	// data-integrity guarantee rather than optional telemetry.
+	LedgerAccounts LedgerAccountReader
+
 	// MetricsFactory emits the bounded domain_operations_total /
 	// domain_operation_duration_ms metrics for every state-mutating CRM
 	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so the

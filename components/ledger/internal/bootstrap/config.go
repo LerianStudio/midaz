@@ -852,6 +852,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// so setting the factory once covers every CRM entrypoint.
 	crmMgo.holderHandler.Service.MetricsFactory = metricsFactory
 
+	// === CRM idempotency ===
+	// Reuse the already-constructed transaction Redis repo (it satisfies the
+	// narrow crmservices.IdempotencyRepo port structurally). No second Redis
+	// client. Set once on the shared CRM use case.
+	crmMgo.holderHandler.Service.Idempotency = txnRedisRepo
+
+	// === CRM instrument referential validation ===
+	// CreateInstrument verifies the body-supplied ledger_id/account_id exist in
+	// the request org via a narrow adapter over the ledger query use case, so
+	// CRM never imports the query package. Set once on the shared CRM use case.
+	crmMgo.holderHandler.Service.LedgerAccounts = ledgerAccountReaderAdapter{query: queryUseCase}
+
 	// === Fee use cases ===
 	// Built from the fee Mongo slice + the ledger query.UseCase so fee
 	// account/segment/count reads run in-process. HTTP route mounting is

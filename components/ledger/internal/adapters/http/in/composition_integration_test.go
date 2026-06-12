@@ -143,7 +143,15 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	infra.instrumentRepo, err = crminstrument.NewMongoDBRepository(infra.mongoConn, cipher)
 	require.NoError(t, err)
 
-	infra.crmUC = &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: infra.instrumentRepo}
+	infra.crmUC = &crmservices.UseCase{
+		HolderRepo:     holderRepo,
+		InstrumentRepo: infra.instrumentRepo,
+		// The compensation/retry flow under test links a genuinely persisted
+		// ledger+account, so a both-exist referential reader mirrors reality
+		// without standing up the ledger query stack inside this Mongo-scoped
+		// integration test.
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
+	}
 
 	infra.instrumentCreator = instrumentCreator
 	if infra.instrumentCreator == nil {

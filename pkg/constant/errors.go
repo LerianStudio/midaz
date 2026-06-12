@@ -538,6 +538,8 @@ var (
 	ErrMethodNotAllowed                       = errors.New("0485")
 	ErrPendingTransactionLocked               = errors.New("0486")
 	ErrReservationTenantRequired              = errors.New("0487")
+	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
+	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
 )
 
 // List of CRM domain errors.

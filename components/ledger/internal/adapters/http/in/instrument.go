@@ -5,6 +5,8 @@
 package in
 
 import (
+	"encoding/json"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -33,6 +35,7 @@ type InstrumentHandler struct {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
+//	@Param			X-Idempotency-Key	header		string							false	"Idempotency key to safely retry the create; an identical retry returns the original instrument"
 //	@Param			organization_id		path		string							true	"Organization ID in UUID format"
 //	@Param			holder_id			path		string							true	"Holder ID in UUID format"
 //	@Param			instrument				body		mmodel.CreateInstrumentInput	true	"Instrument Input"
@@ -73,11 +76,35 @@ func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
+	claim, err := claimCRMIdempotency(ctx, c, handler.Service, payload, func(key string) string {
+		return services.InstrumentIdempotencyKey(organizationID.String(), holderID.String(), key)
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to claim instrument idempotency", err)
+
+		return http.WithError(c, err)
+	}
+
+	if claim.ReplayJSON != nil {
+		replay := &mmodel.Instrument{}
+		if err := json.Unmarshal([]byte(*claim.ReplayJSON), replay); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to deserialize replayed instrument", err)
+
+			return http.WithError(c, err)
+		}
+
+		return http.Created(c, replay)
+	}
+
 	out, err := handler.Service.CreateInstrument(ctx, organizationID.String(), holderID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create instrument", err)
 
 		return http.WithError(c, err)
+	}
+
+	if value, err := libCommons.StructToJSONString(out); err == nil {
+		handler.Service.SetCRMIdempotencyValue(ctx, claim.InternalKey, value, claim.TTL)
 	}
 
 	return http.Created(c, out)

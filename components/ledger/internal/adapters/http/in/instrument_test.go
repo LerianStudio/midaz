@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -42,11 +43,29 @@ func TestInstrumentEntityFieldContract(t *testing.T) {
 	assert.Equal(t, cn.ErrInstrumentNotFound.Error(), notFound.Code)
 }
 
+// stubInstrumentLedgerAccountReader satisfies services.LedgerAccountReader for
+// the handler-level CreateInstrument tests. CreateInstrument treats the reader
+// as a hard dependency, so every case must inject one; the booleans drive the
+// 422 referential branches at the wire layer.
+type stubInstrumentLedgerAccountReader struct {
+	ledgerExists  bool
+	accountExists bool
+}
+
+func (s stubInstrumentLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID) (bool, error) {
+	return s.ledgerExists, nil
+}
+
+func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
+	return s.accountExists, nil
+}
+
 func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 	tests := []struct {
 		name           string
 		jsonBody       string
 		setupMocks     func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID)
+		ledgerAccounts services.LedgerAccountReader
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -310,6 +329,68 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 				assert.Equal(t, cn.ErrRelatedPartyEndDateInvalid.Error(), errResp["code"])
 			},
 		},
+		{
+			name: "ledger reference not found returns 422",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002"
+			}`,
+			ledgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: false, accountExists: true},
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				document := "12345678901"
+				holderType := "individual"
+
+				holderRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, false).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &document,
+						Type:     &holderType,
+					}, nil).
+					Times(1)
+				// No instrumentRepo.Create expectation: the create must NOT run.
+			},
+			expectedStatus: 422,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrInstrumentLedgerReferenceNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "account reference not found returns 422",
+			jsonBody: `{
+				"ledgerId": "00000000-0000-0000-0000-000000000001",
+				"accountId": "00000000-0000-0000-0000-000000000002"
+			}`,
+			ledgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: false},
+			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
+				document := "12345678901"
+				holderType := "individual"
+
+				holderRepo.EXPECT().
+					Find(gomock.Any(), orgID, holderID, false).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &document,
+						Type:     &holderType,
+					}, nil).
+					Times(1)
+				// No instrumentRepo.Create expectation: the create must NOT run.
+			},
+			expectedStatus: 422,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrInstrumentAccountReferenceNotFound.Error(), errResp["code"])
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -325,9 +406,15 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			mockHolderRepo := holder.NewMockRepository(ctrl)
 			tt.setupMocks(mockInstrumentRepo, mockHolderRepo, orgID, holderID)
 
+			ledgerAccounts := tt.ledgerAccounts
+			if ledgerAccounts == nil {
+				ledgerAccounts = stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true}
+			}
+
 			uc := &services.UseCase{
 				InstrumentRepo: mockInstrumentRepo,
 				HolderRepo:     mockHolderRepo,
+				LedgerAccounts: ledgerAccounts,
 			}
 			handler := &InstrumentHandler{Service: uc}
 

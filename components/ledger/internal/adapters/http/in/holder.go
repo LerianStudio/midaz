@@ -5,12 +5,15 @@
 package in
 
 import (
+	"encoding/json"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -31,6 +34,7 @@ type HolderHandler struct {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
+//	@Param			X-Idempotency-Key	header		string						false	"Idempotency key to safely retry the create; an identical retry returns the original holder"
 //	@Param			organization_id		path		string						true	"Organization ID in UUID format"
 //	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
 //	@Success		201					{object}	mmodel.Holder				"Successfully created holder"
@@ -64,11 +68,35 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
+	claim, err := claimCRMIdempotency(ctx, c, handler.Service, payload, func(key string) string {
+		return services.HolderIdempotencyKey(organizationID.String(), key)
+	})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to claim holder idempotency", err)
+
+		return http.WithError(c, err)
+	}
+
+	if claim.ReplayJSON != nil {
+		replay := &mmodel.Holder{}
+		if err := json.Unmarshal([]byte(*claim.ReplayJSON), replay); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to deserialize replayed holder", err)
+
+			return http.WithError(c, err)
+		}
+
+		return http.Created(c, replay)
+	}
+
 	out, err := handler.Service.CreateHolder(ctx, organizationID.String(), payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create holder", err)
 
 		return http.WithError(c, err)
+	}
+
+	if value, err := libCommons.StructToJSONString(out); err == nil {
+		handler.Service.SetCRMIdempotencyValue(ctx, claim.InternalKey, value, claim.TTL)
 	}
 
 	return http.Created(c, out)

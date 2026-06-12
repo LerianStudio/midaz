@@ -20,6 +20,25 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// stubLedgerAccountReader is a hand-rolled LedgerAccountReader stub: the
+// referential check is a hard dependency of CreateInstrument, so every test
+// must inject one. The two booleans drive the not-found branches; the *Err
+// fields drive the transient/infrastructure branches.
+type stubLedgerAccountReader struct {
+	ledgerExists  bool
+	accountExists bool
+	ledgerErr     error
+	accountErr    error
+}
+
+func (s *stubLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID) (bool, error) {
+	return s.ledgerExists, s.ledgerErr
+}
+
+func (s *stubLedgerAccountReader) AccountExists(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
+	return s.accountExists, s.accountErr
+}
+
 func TestCreateAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -39,10 +58,15 @@ func TestCreateAlias(t *testing.T) {
 		InstrumentRepo: mockAliasRepo,
 	}
 
+	// Default reader: both references resolve, so the pre-existing success and
+	// holder/related-party cases exercise their original paths unchanged.
+	bothExist := &stubLedgerAccountReader{ledgerExists: true, accountExists: true}
+
 	testCases := []struct {
 		name           string
 		holderID       uuid.UUID
 		input          *mmodel.CreateInstrumentInput
+		reader         *stubLedgerAccountReader
 		mockSetup      func()
 		expectedErr    error
 		expectedResult *mmodel.Instrument
@@ -54,6 +78,7 @@ func TestCreateAlias(t *testing.T) {
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},
+			reader: bothExist,
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -89,6 +114,7 @@ func TestCreateAlias(t *testing.T) {
 					ParticipantDocument: &participantDoc,
 				},
 			},
+			reader: bothExist,
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -127,6 +153,7 @@ func TestCreateAlias(t *testing.T) {
 				LedgerID:  ledgerID,
 				AccountID: accountID,
 			},
+			reader: bothExist,
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -150,6 +177,7 @@ func TestCreateAlias(t *testing.T) {
 					},
 				},
 			},
+			reader: bothExist,
 			mockSetup: func() {
 				mockHolderRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -221,11 +249,92 @@ func TestCreateAlias(t *testing.T) {
 			expectedErr:    cn.ErrInvalidRelatedPartyRole,
 			expectedResult: nil,
 		},
+		{
+			name:     "Error when ledger reference does not exist (422, no Mongo write)",
+			holderID: holderID,
+			input: &mmodel.CreateInstrumentInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+			},
+			reader: &stubLedgerAccountReader{ledgerExists: false, accountExists: true},
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+				// No mockAliasRepo.Create expectation: the create must NOT run.
+			},
+			expectedErr:    cn.ErrInstrumentLedgerReferenceNotFound,
+			expectedResult: nil,
+		},
+		{
+			name:     "Error when account reference does not exist (422, no Mongo write)",
+			holderID: holderID,
+			input: &mmodel.CreateInstrumentInput{
+				LedgerID:  ledgerID,
+				AccountID: accountID,
+			},
+			reader: &stubLedgerAccountReader{ledgerExists: true, accountExists: false},
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+				// No mockAliasRepo.Create expectation: the create must NOT run.
+			},
+			expectedErr:    cn.ErrInstrumentAccountReferenceNotFound,
+			expectedResult: nil,
+		},
+		{
+			name:     "Error when ledger id body field is a malformed UUID (no Mongo write)",
+			holderID: holderID,
+			input: &mmodel.CreateInstrumentInput{
+				LedgerID:  "not-a-uuid",
+				AccountID: accountID,
+			},
+			reader: bothExist,
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+				// No mockAliasRepo.Create expectation: the create must NOT run.
+			},
+			expectedErr:    cn.ErrInvalidPathParameter,
+			expectedResult: nil,
+		},
+		{
+			name:     "Error when account id body field is a malformed UUID (no Mongo write)",
+			holderID: holderID,
+			input: &mmodel.CreateInstrumentInput{
+				LedgerID:  ledgerID,
+				AccountID: "not-a-uuid",
+			},
+			reader: bothExist,
+			mockSetup: func() {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{
+						ID:       &holderID,
+						Document: &holderDocument,
+					}, nil)
+				// No mockAliasRepo.Create expectation: the create must NOT run.
+			},
+			expectedErr:    cn.ErrInvalidPathParameter,
+			expectedResult: nil,
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			testCase.mockSetup()
+			uc.LedgerAccounts = testCase.reader
 
 			ctx := context.Background()
 			result, err := uc.CreateInstrument(ctx, uuid.New().String(), testCase.holderID, testCase.input)
@@ -240,6 +349,8 @@ func TestCreateAlias(t *testing.T) {
 						assert.Equal(t, testCase.expectedErr.Error(), conflictErr.Code)
 					} else if notFoundErr, ok := err.(pkg.EntityNotFoundError); ok {
 						assert.Equal(t, testCase.expectedErr.Error(), notFoundErr.Code)
+					} else if unprocessableErr, ok := err.(pkg.UnprocessableOperationError); ok {
+						assert.Equal(t, testCase.expectedErr.Error(), unprocessableErr.Code)
 					} else {
 						assert.Equal(t, testCase.expectedErr, err)
 					}
