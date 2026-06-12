@@ -1081,7 +1081,7 @@ func initHTTPServer(
 	// Note: NewValidationService internally constructs a default
 	// no-op metrics.NewMultiTenantMetrics(false, nil, nil); cross-package signature
 	// change would cascade into supervisor.go + 4 test sites in metrics_test.
-	validationService, err := services.NewValidationService(txBeginner, evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk) //nolint:contextcheck
+	validationService, err := services.NewValidationService(txBeginner, evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1093,7 +1093,7 @@ func initHTTPServer(
 	if mtMetrics != nil {
 		// Note: same NewMultiTenantMetrics cross-package issue
 		// as NewValidationService above. See note at L899.
-		validationService.SetMultiTenantMetrics(mtMetrics) //nolint:contextcheck
+		validationService.SetMultiTenantMetrics(mtMetrics)
 	}
 
 	// Init Transaction Validation service facade
@@ -1146,7 +1146,7 @@ func initHTTPServer(
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber
 	// uses its own request-scoped UserContext that's set per-request).
-	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{ //nolint:contextcheck
+	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
 		APIKey:            cfg.APIKey,
 		APIKeyEnabled:     cfg.APIKeyEnabled,
 		APIKeyLabel:       cfg.APIKeyLabel,
@@ -1175,7 +1175,7 @@ func initHTTPServer(
 	// handler closure that receives ctx per-request via c.UserContext();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
-	httpApp, err := in.NewRoutes(in.RoutesDeps{ //nolint:contextcheck
+	httpApp, err := in.NewRoutes(in.RoutesDeps{
 		Logger:                       logger,
 		Telemetry:                    telemetry,
 		HealthChecker:                healthChecker,
@@ -1313,7 +1313,7 @@ func buildMultiTenantStack(
 	// Out of scope here; the function's internal log line uses
 	// context.Background() but is guarded behind `enabled=true && factory=nil`
 	// (rare fallback path that should never fire in production).
-	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger) //nolint:contextcheck // see comment above
+	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
 	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
 	if err != nil {
@@ -1379,7 +1379,7 @@ func initMultiTenant(
 	// (per-tenant sync + cleanup) that run on their own goroutine schedules
 	// and own their own ctx lifetime; threading boot ctx in is conceptually
 	// wrong (the workers must outlive boot).
-	components, err := buildComponentsMT(cfg, logger, //nolint:contextcheck
+	components, err := buildComponentsMT(cfg, logger,
 		wiringDepsMT{
 			SyncRepo:             ruleSyncRepo,
 			UsageRepo:            limitDeps.usageCounterRepo,
@@ -1512,7 +1512,7 @@ func initSyncWorker(
 	// Note: gobreaker's CircuitBreaker wraps callback closures
 	// that execute per-call with their own ctx; boot ctx is the wrong lifecycle.
 	cbConfig := workers.DefaultSyncCircuitBreakerConfig()
-	cb := resilience.NewCircuitBreaker(cbConfig, logger) //nolint:contextcheck
+	cb := resilience.NewCircuitBreaker(cbConfig, logger)
 
 	// tenantID is empty in single-tenant mode; the supervisor passes the real tenantID in MT mode.
 	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, *syncWorkerConfig, logger, cb, nil, "")
@@ -1968,7 +1968,7 @@ func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observabili
 	// Note: NewPrometheusBackedFactory builds Prometheus
 	// HTTP-handler closures that serve scrape requests on their own ctx;
 	// boot ctx is the wrong lifecycle.
-	factory, _, err := observability.NewPrometheusBackedFactory(nil, logger) //nolint:contextcheck
+	factory, _, err := observability.NewPrometheusBackedFactory(nil, logger)
 	if err != nil {
 		if logger != nil {
 			logger.With(

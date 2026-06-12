@@ -283,7 +283,6 @@ func (app *Service) Shutdown(ctx context.Context) error {
 	if app.supervisor != nil {
 		// Shutdown is intentionally context-less: it blocks until every
 		// tenant's workers exit, which must not be cut short.
-		//nolint:contextcheck
 		app.supervisor.Shutdown()
 	}
 

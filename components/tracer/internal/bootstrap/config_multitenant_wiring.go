@@ -231,7 +231,6 @@ func buildComponentsMT(
 			// StopWorkers is deliberately context-less: it blocks until the
 			// tenant's background goroutines have exited, which is a shutdown
 			// step that must not be cut short by a cancelled event context.
-			//nolint:contextcheck
 			supervisor.StopWorkers(tenantID)
 		}),
 	)

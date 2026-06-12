@@ -118,6 +118,15 @@ linters:
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
       - path: (.+)\.go$
         text: parameter .* always receives
+      # Composition root: contextcheck flags the boot context not being threaded
+      # into long-lived resources (routes, workers, circuit breakers, scrape
+      # closures) and context-less shutdowns. Threading boot ctx there is wrong
+      # by lifecycle — those resources must outlive the boot context. Every such
+      # call site documents the rationale inline; contextcheck has no true
+      # positives to offer in this package.
+      - linters:
+          - contextcheck
+        path: internal/bootstrap/
     paths:
       - third_party$
       - builtin$
