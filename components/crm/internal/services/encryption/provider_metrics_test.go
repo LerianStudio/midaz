@@ -30,7 +30,7 @@ type scriptedUnwrapper struct {
 	calls      int
 }
 
-func (s *scriptedUnwrapper) UnwrapKeyset(_ context.Context, _ string, _ string) ([]byte, error) {
+func (s *scriptedUnwrapper) UnwrapKeyset(_ context.Context, _ string, _ string, _ string) ([]byte, error) {
 	s.calls++
 
 	if s.calls == 1 {

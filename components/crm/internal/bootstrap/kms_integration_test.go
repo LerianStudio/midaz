@@ -352,7 +352,7 @@ func TestIntegration_BuildVaultConfig_BYOCMode_UsesAppRole(t *testing.T) {
 func TestIntegration_VaultClient_Authentication(t *testing.T) {
 	// Arrange
 	vaultContainer := vaulttestutil.SetupContainer(t)
-	client := vaulttestutil.CreateClient(t, vaultContainer, "transit")
+	client := vaulttestutil.CreateClient(t, vaultContainer)
 
 	// Assert
 	assert.True(t, client.IsAuthenticated(), "client should be authenticated after login")
@@ -397,7 +397,7 @@ func TestIntegration_VaultClient_IsAuthenticated_AfterLogin(t *testing.T) {
 func TestIntegration_VaultChecker_WithRealClient(t *testing.T) {
 	// Arrange
 	vaultContainer := vaulttestutil.SetupContainer(t)
-	client := vaulttestutil.CreateClient(t, vaultContainer, "transit")
+	client := vaulttestutil.CreateClient(t, vaultContainer)
 
 	checker := NewVaultChecker("vault", client, vaultContainer.Address)
 
@@ -439,7 +439,7 @@ func TestIntegration_VaultChecker_TLSDetection_HTTPS(t *testing.T) {
 func TestIntegration_Readyz_WithVaultChecker(t *testing.T) {
 	// Arrange
 	vaultContainer := vaulttestutil.SetupContainer(t)
-	client := vaulttestutil.CreateClient(t, vaultContainer, "transit")
+	client := vaulttestutil.CreateClient(t, vaultContainer)
 
 	checkers := []DependencyChecker{
 		NewVaultChecker("vault", client, vaultContainer.Address),
@@ -469,7 +469,7 @@ func TestIntegration_Readyz_WithVaultChecker(t *testing.T) {
 func TestIntegration_Readyz_MixedCheckers_MongoAndVault(t *testing.T) {
 	// Arrange
 	vaultContainer := vaulttestutil.SetupContainer(t)
-	client := vaulttestutil.CreateClient(t, vaultContainer, "transit")
+	client := vaulttestutil.CreateClient(t, vaultContainer)
 
 	// Mix of VaultChecker (up) and NAChecker (n/a for mongo)
 	checkers := []DependencyChecker{

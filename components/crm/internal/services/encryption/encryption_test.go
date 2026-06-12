@@ -85,7 +85,7 @@ type serviceTestKeysetUnwrapper struct {
 	err        error
 }
 
-func (f *serviceTestKeysetUnwrapper) UnwrapKeyset(_ context.Context, _ string, wrappedKeyset string) ([]byte, error) {
+func (f *serviceTestKeysetUnwrapper) UnwrapKeyset(_ context.Context, _ string, _ string, wrappedKeyset string) ([]byte, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

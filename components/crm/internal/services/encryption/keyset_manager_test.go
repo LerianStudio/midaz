@@ -15,6 +15,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -58,13 +59,15 @@ type fakeKeysetUnwrapper struct {
 	macKeyset  []byte
 	err        error
 	calls      int
+	mountPaths []string // Records the mountPath received on each call.
 }
 
-func (f *fakeKeysetUnwrapper) UnwrapKeyset(_ context.Context, _ string, wrappedKeyset string) ([]byte, error) {
+func (f *fakeKeysetUnwrapper) UnwrapKeyset(_ context.Context, mountPath, _ string, wrappedKeyset string) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.calls++
+	f.mountPaths = append(f.mountPaths, mountPath)
 
 	if f.err != nil {
 		return nil, f.err
@@ -87,6 +90,16 @@ func (f *fakeKeysetUnwrapper) getCalls() int {
 	defer f.mu.Unlock()
 
 	return f.calls
+}
+
+func (f *fakeKeysetUnwrapper) getMountPaths() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]string, len(f.mountPaths))
+	copy(out, f.mountPaths)
+
+	return out
 }
 
 // generateTestKeysets creates real Tink keysets for testing.
@@ -1671,5 +1684,131 @@ func TestKeysetManager_fetchAndCache_MultiKeyMAC_StrictErrorMode(t *testing.T) {
 
 	if ok {
 		t.Error("cache entry should NOT exist after fetchAndCache failure")
+	}
+}
+
+// TestKeysetManager_GetPrimitives_UnwrapMount_DefaultTenant_Flat verifies that a stored
+// keyset with TenantID "default" resolves to the flat base mount ("transit") for both the
+// AEAD and MAC unwrap calls. The mount is derived from the STORED keyset.TenantID, not ctx.
+func TestKeysetManager_GetPrimitives_UnwrapMount_DefaultTenant_Flat(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			TenantID:          "default",
+			OrganizationID:    "org-flat",
+			KEKPath:           "crm/org-flat",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	config := KeysetManagerConfig{BaseMountPath: "transit"}
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-flat")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	mounts := unwrapper.getMountPaths()
+	if len(mounts) != 2 {
+		t.Fatalf("unwrapper mountPaths len = %d, want 2", len(mounts))
+	}
+
+	for i, got := range mounts {
+		if got != "transit" {
+			t.Errorf("unwrap call %d mountPath = %q, want %q", i, got, "transit")
+		}
+	}
+}
+
+// TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount verifies that a
+// stored keyset with a non-default TenantID resolves to a per-tenant sub-mount
+// "transit/<tenant>" for both AEAD and MAC unwrap calls, derived from the STORED tenant.
+func TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	const tenant = "11111111-2222-3333-4444-555555555555"
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			TenantID:          tenant,
+			OrganizationID:    "org-sub",
+			KEKPath:           "crm/org-sub",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	config := KeysetManagerConfig{BaseMountPath: "transit"}
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+	// ctx carries a DIFFERENT tenant to prove the mount comes from the stored keyset, not ctx.
+	ctx := tmcore.ContextWithTenantID(context.Background(), "ctx-tenant-should-be-ignored")
+
+	_, _, _, _, err := manager.GetPrimitives(ctx, "org-sub")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	want := "transit/" + tenant
+
+	mounts := unwrapper.getMountPaths()
+	if len(mounts) != 2 {
+		t.Fatalf("unwrapper mountPaths len = %d, want 2", len(mounts))
+	}
+
+	for i, got := range mounts {
+		if got != want {
+			t.Errorf("unwrap call %d mountPath = %q, want %q", i, got, want)
+		}
+	}
+}
+
+// TestKeysetManager_GetPrimitives_MountNotFound_FailsClosed verifies that when the
+// unwrapper returns vault.ErrMountNotFound, GetPrimitives propagates an error that is
+// errors.Is(vault.ErrMountNotFound) — fail-closed, no fallback to the base mount.
+func TestKeysetManager_GetPrimitives_MountNotFound_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			TenantID:          "11111111-2222-3333-4444-555555555555",
+			OrganizationID:    "org-no-mount",
+			KEKPath:           "crm/org-no-mount",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		err: vault.ErrMountNotFound,
+	}
+
+	config := KeysetManagerConfig{BaseMountPath: "transit"}
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-no-mount")
+	if err == nil {
+		t.Fatal("GetPrimitives() expected error, got nil")
+	}
+
+	if !errors.Is(err, vault.ErrMountNotFound) {
+		t.Errorf("GetPrimitives() error = %v, want errors.Is(vault.ErrMountNotFound)", err)
 	}
 }

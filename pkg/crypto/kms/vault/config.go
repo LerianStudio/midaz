@@ -23,10 +23,6 @@ type Config struct {
 	// Addr is the Vault server address (e.g., "https://vault.example.com:8200").
 	Addr string
 
-	// MountPath is the Transit secrets engine mount path (e.g., "crm-transit").
-	// Use a dedicated mount per application for namespace isolation.
-	MountPath string
-
 	// AuthMethod specifies which authentication method to use.
 	// Supported values: "approle", "token". Defaults to "approle" if empty.
 	AuthMethod AuthMethod
@@ -52,10 +48,6 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.Addr) == "" {
 		missing = append(missing, "addr")
-	}
-
-	if strings.TrimSpace(c.MountPath) == "" {
-		missing = append(missing, "mount_path")
 	}
 
 	if len(missing) > 0 {
@@ -94,7 +86,6 @@ func (c Config) EffectiveAuthMethod() AuthMethod {
 // IsEmpty returns true if all configuration fields are empty or contain only whitespace.
 func (c Config) IsEmpty() bool {
 	return strings.TrimSpace(c.Addr) == "" &&
-		strings.TrimSpace(c.MountPath) == "" &&
 		strings.TrimSpace(c.RoleID) == "" &&
 		strings.TrimSpace(c.SecretID) == "" &&
 		strings.TrimSpace(c.Token) == ""

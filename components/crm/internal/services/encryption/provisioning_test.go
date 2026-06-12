@@ -7,9 +7,11 @@ package encryption
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -144,6 +146,8 @@ type fakeKeysetGenerator struct {
 	macErr        error
 	aeadCalled    int
 	macCalled     int
+	aeadMountPath string // records the mountPath received by GenerateAEADKeyset
+	macMountPath  string // records the mountPath received by GenerateMACKeyset
 	nextKeyID     uint32
 	callSequencer int
 }
@@ -154,9 +158,10 @@ func newFakeKeysetGenerator() *fakeKeysetGenerator {
 	}
 }
 
-func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, mountPath, _ string) (tink.KeysetBundle, error) {
 	f.aeadCalled++
 	f.callSequencer++
+	f.aeadMountPath = mountPath
 
 	if f.aeadErr != nil {
 		return tink.KeysetBundle{}, f.aeadErr
@@ -190,9 +195,10 @@ func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, _ string) (t
 	}, nil
 }
 
-func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, mountPath, _ string) (tink.KeysetBundle, error) {
 	f.macCalled++
 	f.callSequencer++
+	f.macMountPath = mountPath
 
 	if f.macErr != nil {
 		return tink.KeysetBundle{}, f.macErr
@@ -358,6 +364,99 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	// Verify generators were called
 	assert.Equal(t, 1, keysetGenerator.aeadCalled)
 	assert.Equal(t, 1, keysetGenerator.macCalled)
+}
+
+func TestProvisioningService_Provision_SingleTenant_FlatMount(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetRepo := newFakeKeysetRepoForProv()
+	registryRepo := newFakeRegistryRepoForProv()
+	keysetGenerator := newFakeKeysetGenerator()
+
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+
+	req := ProvisionInput{
+		TenantID:       "default",
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Initial provisioning",
+	}
+
+	_, err := svc.Provision(ctx, req)
+	require.NoError(t, err)
+
+	// Single-tenant ("default") resolves to the flat base mount for both wrap calls.
+	assert.Equal(t, "transit", keysetGenerator.aeadMountPath, "AEAD wrap must use flat base mount for default tenant")
+	assert.Equal(t, "transit", keysetGenerator.macMountPath, "MAC wrap must use flat base mount for default tenant")
+
+	// The mount must NOT be stored on the keyset record (unwrap re-derives it).
+	savedKeyset := keysetRepo.keysets["org-456"]
+	require.NotNil(t, savedKeyset)
+	assert.Equal(t, "org-org-456", savedKeyset.KEKPath, "key name stays org-{id}, unchanged by mount resolution")
+}
+
+func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetRepo := newFakeKeysetRepoForProv()
+	registryRepo := newFakeRegistryRepoForProv()
+	keysetGenerator := newFakeKeysetGenerator()
+
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+
+	const tenantID = "11111111-2222-3333-4444-555555555555"
+
+	req := ProvisionInput{
+		TenantID:       tenantID,
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Initial provisioning",
+	}
+
+	_, err := svc.Provision(ctx, req)
+	require.NoError(t, err)
+
+	// Multi-tenant resolves to a per-tenant sub-mount for both wrap calls.
+	want := "transit/" + tenantID
+	assert.Equal(t, want, keysetGenerator.aeadMountPath, "AEAD wrap must use per-tenant sub-mount")
+	assert.Equal(t, want, keysetGenerator.macMountPath, "MAC wrap must use per-tenant sub-mount")
+
+	// Key name remains org-{id}; mount is not part of it and not stored on the record.
+	savedKeyset := keysetRepo.keysets["org-456"]
+	require.NotNil(t, savedKeyset)
+	assert.Equal(t, "org-org-456", savedKeyset.KEKPath)
+}
+
+func TestProvisioningService_Provision_MountNotFound_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	keysetRepo := newFakeKeysetRepoForProv()
+	registryRepo := newFakeRegistryRepoForProv()
+	keysetGenerator := newFakeKeysetGenerator()
+	keysetGenerator.aeadErr = fmt.Errorf("wrap aead: %w", vault.ErrMountNotFound)
+
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+
+	req := ProvisionInput{
+		TenantID:       "11111111-2222-3333-4444-555555555555",
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Initial provisioning",
+	}
+
+	_, err := svc.Provision(ctx, req)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, vault.ErrMountNotFound, "missing per-tenant mount must fail provisioning closed")
+
+	// No keyset/registry should be persisted on a failed-closed provision.
+	assert.Empty(t, keysetRepo.keysets, "no keyset should be saved when mount is missing")
+	assert.Empty(t, registryRepo.records, "no registry should be saved when mount is missing")
 }
 
 func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {

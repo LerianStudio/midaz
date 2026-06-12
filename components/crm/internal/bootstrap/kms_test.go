@@ -11,7 +11,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -319,7 +318,9 @@ func TestBuildVaultConfig(t *testing.T) {
 	assert.Equal(t, cfg.VaultAddr, vaultCfg.Addr)
 	assert.Equal(t, cfg.VaultRoleID, vaultCfg.RoleID)
 	assert.Equal(t, cfg.VaultSecretID, vaultCfg.SecretID)
-	assert.Equal(t, cfg.VaultMountPath, vaultCfg.MountPath)
+	// vault.Config no longer carries a MountPath: the base mount lives on the
+	// bootstrap Config (VaultMountPath) and is resolved per-tenant downstream,
+	// not at vault client construction time.
 }
 
 func TestResolveEncryptionMode_FromEnvironment(t *testing.T) {
@@ -391,58 +392,6 @@ func TestBuildVaultConfig_ReturnsVaultConfigType(t *testing.T) {
 
 	// Type assertion to verify the return type
 	var _ vault.Config = vaultCfg
-}
-
-func TestBuildTransitKeyName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		orgID          uuid.UUID
-		expectedResult string
-	}{
-		{
-			name:           "generates correct key name for organization",
-			orgID:          uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
-			expectedResult: "org/550e8400-e29b-41d4-a716-446655440000",
-		},
-		{
-			name:           "works with different organization ID",
-			orgID:          uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectedResult: "org/123e4567-e89b-12d3-a456-426614174000",
-		},
-		{
-			name:           "handles nil UUID (zero value)",
-			orgID:          uuid.Nil,
-			expectedResult: "org/00000000-0000-0000-0000-000000000000",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := buildTransitKeyName(tt.orgID)
-
-			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
-
-func TestBuildTransitKeyName_KeyNameConvention(t *testing.T) {
-	t.Parallel()
-
-	t.Run("key name follows convention: org/{org_id}", func(t *testing.T) {
-		t.Parallel()
-
-		orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
-
-		keyName := buildTransitKeyName(orgID)
-
-		assert.Equal(t, "org/550e8400-e29b-41d4-a716-446655440000", keyName)
-		assert.Contains(t, keyName, "org/")
-		assert.Contains(t, keyName, orgID.String())
-	})
 }
 
 func TestDefaultVaultDevToken(t *testing.T) {

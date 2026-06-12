@@ -13,6 +13,7 @@ import (
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -331,6 +332,63 @@ func TestWireEncryptionServices_DefaultsVaultMountPathToTransit(t *testing.T) {
 		"ProvisioningService must be wired with default vault mount path")
 }
 
+func TestResolveBaseMountPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		configured string
+		want       string
+	}{
+		{
+			name:       "empty falls back to default",
+			configured: "",
+			want:       defaultKEKMountPath,
+		},
+		{
+			name:       "whitespace-only falls back to default",
+			configured: "  ",
+			want:       defaultKEKMountPath,
+		},
+		{
+			name:       "slash-only falls back to default",
+			configured: "/",
+			want:       defaultKEKMountPath,
+		},
+		{
+			name:       "slashes and whitespace fall back to default",
+			configured: " // ",
+			want:       defaultKEKMountPath,
+		},
+		{
+			name:       "real value is preserved",
+			configured: "transit",
+			want:       "transit",
+		},
+		{
+			name:       "custom value is preserved",
+			configured: "crm-transit",
+			want:       "crm-transit",
+		},
+		{
+			name:       "surrounding whitespace is trimmed but value kept",
+			configured: "  transit  ",
+			want:       "transit",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := resolveBaseMountPath(tt.configured)
+			assert.Equal(t, tt.want, got,
+				"resolveBaseMountPath(%q) must resolve to %q (never blank or a leading-slash mount)",
+				tt.configured, tt.want)
+		})
+	}
+}
+
 // =============================================================================
 // Graceful Degradation Tests
 // =============================================================================
@@ -477,6 +535,165 @@ func (m *mockLegacyCrypto) Decrypt(_ *string) (*string, error) {
 
 func (m *mockLegacyCrypto) GenerateHash(_ *string) string {
 	return m.hashResult
+}
+
+// =============================================================================
+// keysetGeneratorAdapter Tests (base-mount forwarding)
+// =============================================================================
+
+// recordingKMSClient implements tink.KMSClient and records the mountPath it
+// receives, letting the test observe that the adapter forwards the per-call
+// mount verbatim through the production factory path.
+type recordingKMSClient struct {
+	gotMountPath string
+	gotKeyName   string
+}
+
+func (r *recordingKMSClient) Encrypt(_ context.Context, mountPath, keyName string, _ []byte) (string, error) {
+	r.gotMountPath = mountPath
+	r.gotKeyName = keyName
+
+	return "vault:v1:stub", nil
+}
+
+func (r *recordingKMSClient) Decrypt(_ context.Context, _, _ string, _ string) ([]byte, error) {
+	return []byte("stub"), nil
+}
+
+// TestKeysetGeneratorAdapter_ImplementsKeysetGenerator asserts the bootstrap
+// adapter satisfies the encryption.KeysetGenerator contract. This is the
+// compile-level RED that blocked the whole package after the E-1.4 refactor.
+func TestKeysetGeneratorAdapter_ImplementsKeysetGenerator(t *testing.T) {
+	t.Parallel()
+
+	var _ encryption.KeysetGenerator = (*keysetGeneratorAdapter)(nil)
+
+	adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(&recordingKMSClient{})}
+	assert.Implements(t, (*encryption.KeysetGenerator)(nil), adapter,
+		"keysetGeneratorAdapter must implement encryption.KeysetGenerator")
+}
+
+// TestKeysetGeneratorAdapter_ForwardsMountPath asserts the adapter forwards the
+// per-call mountPath (resolved per-tenant by the provisioning service) straight
+// to the tink.KeysetFactory, which forwards it verbatim to the KMS Encrypt call.
+func TestKeysetGeneratorAdapter_ForwardsMountPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AEAD forwards mountPath to KMS", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(kms)}
+
+		_, err := adapter.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "org-123")
+		require.NoError(t, err)
+
+		assert.Equal(t, "transit/tenant-x", kms.gotMountPath,
+			"adapter must forward the per-call mountPath to the KMS")
+		assert.Equal(t, "org-123", kms.gotKeyName)
+	})
+
+	t.Run("MAC forwards mountPath to KMS", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(kms)}
+
+		_, err := adapter.GenerateMACKeyset(context.Background(), "transit/tenant-y", "org-456")
+		require.NoError(t, err)
+
+		assert.Equal(t, "transit/tenant-y", kms.gotMountPath,
+			"adapter must forward the per-call mountPath to the KMS")
+		assert.Equal(t, "org-456", kms.gotKeyName)
+	})
+}
+
+// =============================================================================
+// Base Mount Injection Tests (production wireEncryptionServices)
+// =============================================================================
+
+// newWiringVaultClient builds a real, unauthenticated vault.Client suitable for
+// wiring tests. NewClient validates config and constructs the API client but
+// performs no network I/O until Login/Encrypt is called, so it is safe to use
+// in a unit test that only exercises construction/wiring.
+func newWiringVaultClient(t *testing.T) *vault.Client {
+	t.Helper()
+
+	client, err := vault.NewClient(vault.Config{
+		Addr:       "https://vault.example.com:8200",
+		AuthMethod: vault.AuthMethodToken,
+		Token:      "test-token",
+	})
+	require.NoError(t, err)
+
+	return client
+}
+
+// TestWireEncryptionServices_DefaultsBaseMountWhenUnset asserts the production
+// wiring computes the base mount with a safe default ("transit") when
+// VaultMountPath is unset/empty and wires services without error.
+func TestWireEncryptionServices_DefaultsBaseMountWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	result := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:           encryptionModeEnvelope,
+		vaultClient:    newWiringVaultClient(t),
+		keysetRepo:     &mockKeysetRepo{},
+		registryRepo:   &mockRegistryRepo{},
+		auditWriter:    stubAuditWriter{},
+		vaultMountPath: "", // unset -> base "transit"
+	})
+
+	require.NoError(t, result.err,
+		"wireEncryptionServices must default base mount safely when VaultMountPath is unset")
+	require.NotNil(t, result.provisioningService,
+		"ProvisioningService must be wired (base mount reaches KEKMountPath)")
+	require.NotNil(t, result.keysetManager,
+		"KeysetManager must be wired (base mount reaches BaseMountPath)")
+}
+
+// TestWireEncryptionServices_InjectsCustomBaseMount asserts a custom base mount
+// is accepted and the wiring succeeds, exercising the same injection path into
+// both the provisioning service (KEKMountPath) and the keyset manager
+// (BaseMountPath).
+func TestWireEncryptionServices_InjectsCustomBaseMount(t *testing.T) {
+	t.Parallel()
+
+	result := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:           encryptionModeEnvelope,
+		vaultClient:    newWiringVaultClient(t),
+		keysetRepo:     &mockKeysetRepo{},
+		registryRepo:   &mockRegistryRepo{},
+		auditWriter:    stubAuditWriter{},
+		vaultMountPath: "crm-transit",
+	})
+
+	require.NoError(t, result.err,
+		"wireEncryptionServices must accept a custom base mount")
+	require.NotNil(t, result.provisioningService,
+		"ProvisioningService must be wired with the custom base mount")
+	require.NotNil(t, result.keysetManager,
+		"KeysetManager must be wired with the custom base mount")
+}
+
+// TestWireEncryptionServices_TrimsWhitespaceBaseMount asserts a whitespace-only
+// VaultMountPath is treated as unset and defaults to "transit" without error.
+func TestWireEncryptionServices_TrimsWhitespaceBaseMount(t *testing.T) {
+	t.Parallel()
+
+	result := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:           encryptionModeEnvelope,
+		vaultClient:    newWiringVaultClient(t),
+		keysetRepo:     &mockKeysetRepo{},
+		registryRepo:   &mockRegistryRepo{},
+		auditWriter:    stubAuditWriter{},
+		vaultMountPath: "   ", // whitespace-only -> base "transit"
+	})
+
+	require.NoError(t, result.err,
+		"wireEncryptionServices must treat whitespace-only mount as unset and default safely")
+	require.NotNil(t, result.keysetManager,
+		"KeysetManager must be wired with the defaulted base mount")
 }
 
 // =============================================================================
@@ -653,13 +870,13 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 type mockEncryptionVaultClient struct{}
 
 // UnwrapKeyset satisfies the encryption.KeysetUnwrapper interface.
-func (m *mockEncryptionVaultClient) UnwrapKeyset(_ context.Context, _ string, _ string) ([]byte, error) {
+func (m *mockEncryptionVaultClient) UnwrapKeyset(_ context.Context, _, _, _ string) ([]byte, error) {
 	// Return a minimal valid Tink keyset handle bytes (placeholder)
 	return []byte("mock-keyset-bytes"), nil
 }
 
 // GenerateAEADKeyset satisfies the encryption.KeysetGenerator interface.
-func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _, _ string) (tink.KeysetBundle, error) {
 	return tink.KeysetBundle{
 		Wrapped: tink.WrappedKeyset{
 			WrappedData: "mock-wrapped-aead",
@@ -675,7 +892,7 @@ func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _ stri
 }
 
 // GenerateMACKeyset satisfies the encryption.KeysetGenerator interface.
-func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _ string) (tink.KeysetBundle, error) {
+func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _, _ string) (tink.KeysetBundle, error) {
 	return tink.KeysetBundle{
 		Wrapped: tink.WrappedKeyset{
 			WrappedData: "mock-wrapped-mac",

@@ -11,16 +11,24 @@ import (
 	"sync"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // KeysetUnwrapper defines the interface for unwrapping keysets.
 // Compatible with KeysetWrapper from pkg/crypto/tink.
+//
+// mountPath is the resolved Vault Transit mount for the keyset's tenant; it is
+// derived from the stored keyset tenant at unwrap time so reads are self-contained.
 type KeysetUnwrapper interface {
-	UnwrapKeyset(ctx context.Context, keyName string, wrappedKeyset string) ([]byte, error)
+	UnwrapKeyset(ctx context.Context, mountPath, keyName, wrappedKeyset string) ([]byte, error)
 }
 
 // CachedPrimitives holds the unwrapped AEAD and MAC primitives for an organization.
@@ -40,6 +48,11 @@ func (cp *CachedPrimitives) IsExpired() bool {
 // KeysetManagerConfig holds configuration for KeysetManager.
 type KeysetManagerConfig struct {
 	CacheTTL time.Duration // Default: 5 minutes
+
+	// BaseMountPath is the Vault Transit base mount used to resolve per-tenant
+	// sub-mounts at unwrap time. Empty defaults to "transit" so single-tenant
+	// deployments are unaffected.
+	BaseMountPath string
 }
 
 // DefaultKeysetManagerConfig returns the default configuration.
@@ -61,13 +74,14 @@ func DefaultKeysetManagerConfig() KeysetManagerConfig {
 // Cache keys are scoped by tenant to prevent cross-tenant cache collisions.
 // Format: "tenantID:organizationID"
 type KeysetManager struct {
-	keysetRepo  mongoEncryption.KeysetRepository
-	unwrapper   KeysetUnwrapper
-	provisioner ProvisioningService // Required: enables lazy provisioning on first access
-	metrics     *protectionMetrics
-	cacheTTL    time.Duration
-	cache       map[string]*CachedPrimitives // Key: "tenantID:organizationID"
-	mu          sync.RWMutex
+	keysetRepo    mongoEncryption.KeysetRepository
+	unwrapper     KeysetUnwrapper
+	provisioner   ProvisioningService // Required: enables lazy provisioning on first access
+	metrics       *protectionMetrics
+	cacheTTL      time.Duration
+	baseMountPath string                       // Vault Transit base mount for per-tenant resolution
+	cache         map[string]*CachedPrimitives // Key: "tenantID:organizationID"
+	mu            sync.RWMutex
 
 	// Per-tenant-organization locks to prevent concurrent fetches for the same tenant+org.
 	// This avoids cache stampede without blocking unrelated tenant-organizations.
@@ -92,18 +106,24 @@ func NewKeysetManager(
 		ttl = 5 * time.Minute
 	}
 
+	mountPath := config.BaseMountPath
+	if mountPath == "" {
+		mountPath = "transit"
+	}
+
 	if metrics == nil {
 		metrics = NewProtectionMetrics(nil)
 	}
 
 	return &KeysetManager{
-		keysetRepo:  keysetRepo,
-		unwrapper:   unwrapper,
-		provisioner: provisioner,
-		metrics:     metrics,
-		cacheTTL:    ttl,
-		cache:       make(map[string]*CachedPrimitives),
-		fetching:    make(map[string]*sync.Mutex),
+		keysetRepo:    keysetRepo,
+		unwrapper:     unwrapper,
+		provisioner:   provisioner,
+		metrics:       metrics,
+		cacheTTL:      ttl,
+		baseMountPath: mountPath,
+		cache:         make(map[string]*CachedPrimitives),
+		fetching:      make(map[string]*sync.Mutex),
 	}
 }
 
@@ -239,16 +259,31 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
+	// Resolve the Vault Transit mount from the STORED keyset tenant (not ctx) so
+	// reads are self-contained: flat base for single-tenant ("" or "default"),
+	// per-tenant sub-mount otherwise. The same mount serves both AEAD and MAC.
+	mount := resolveMount(km.baseMountPath, keyset.TenantID)
+
+	// app.protection.mount_path is the resolved mount, not a secret.
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+
+	ctx, span := tracer.Start(ctx, "service.protection.keyset_manager.unwrap")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
+
 	// Unwrap AEAD keyset. Provider is "vault" today (envelope encryption is
 	// Vault-only); this becomes dynamic when other KMS providers land.
 	// Provider operation timing is recorded even when the unwrap fails.
 	aeadStart := time.Now()
-	aeadBytes, err := km.unwrapper.UnwrapKeyset(ctx, keyset.KEKPath, keyset.WrappedKeyset)
+	aeadBytes, err := km.unwrapper.UnwrapKeyset(ctx, mount, keyset.KEKPath, keyset.WrappedKeyset)
 	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(aeadStart).Milliseconds())
 
 	if err != nil {
 		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapAEADFailed)
+		libOpenTelemetry.HandleSpanError(span, "failed to unwrap AEAD keyset", err)
 
+		// Wrap with %w so callers can errors.Is(vault.ErrMountNotFound) (fail-closed).
 		return nil, fmt.Errorf("failed to unwrap AEAD keyset: %w", err)
 	}
 
@@ -263,14 +298,17 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
-	// Unwrap MAC keyset. Provider operation timing is recorded even on failure.
+	// Unwrap MAC keyset using the same resolved mount. Provider operation timing
+	// is recorded even on failure.
 	macStart := time.Now()
-	macBytes, err := km.unwrapper.UnwrapKeyset(ctx, keyset.KEKPath, keyset.WrappedHMACKeyset)
+	macBytes, err := km.unwrapper.UnwrapKeyset(ctx, mount, keyset.KEKPath, keyset.WrappedHMACKeyset)
 	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(macStart).Milliseconds())
 
 	if err != nil {
 		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapMACFailed)
+		libOpenTelemetry.HandleSpanError(span, "failed to unwrap MAC keyset", err)
 
+		// Wrap with %w so callers can errors.Is(vault.ErrMountNotFound) (fail-closed).
 		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
 	}
 
