@@ -6,12 +6,13 @@ package encryption
 
 import "strings"
 
-// resolveMount derives the Vault Transit mount path for a tenant.
-// The base is normalized by trimming surrounding slashes. For empty or
-// "default" tenants it returns the flat base (single-tenant unchanged);
-// otherwise it returns a per-tenant sub-mount of the form base/tenantID.
+// resolveMount derives the Vault Transit mount for a tenant: flat base for
+// empty/"default" (single-tenant), else base/tenantID. Base and tenant are
+// trimmed of surrounding slashes/whitespace.
+
 func resolveMount(base, tenantID string) string {
 	normalized := strings.Trim(base, "/")
+	tenantID = strings.Trim(tenantID, "/ \t")
 
 	if tenantID == "" || tenantID == "default" {
 		return normalized

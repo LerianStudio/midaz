@@ -7,6 +7,7 @@ package encryption
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1164,6 +1165,53 @@ func TestKeysetManager_autoProvision_UsesTenantFromContext(t *testing.T) {
 	}
 }
 
+func TestKeysetManager_autoProvision_RejectsReservedTenantID(t *testing.T) {
+	t.Parallel()
+
+	// Multi-tenant mode: the tenant middleware populated a real, non-empty tenant
+	// id literally equal to "default" from the JWT. Resolving it to the flat-base
+	// mount would break KEK isolation, so auto-provisioning MUST be refused. The
+	// keyset is missing, so without the guard this would auto-provision under the
+	// flat base.
+	reader := &fakeKeysetRepo{
+		keyset: nil,
+		err:    constant.ErrKeysetNotFound,
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{}
+
+	provisioner := &fakeProvisioningService{}
+
+	manager := NewKeysetManager(reader, unwrapper, provisioner, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	// Non-empty tenant id of "default" supplied via context (multi-tenant).
+	ctx := tmcore.ContextWithTenantID(context.Background(), "default")
+
+	_, _, _, _, err := manager.GetPrimitives(ctx, "org-reserved")
+	if err == nil {
+		t.Fatal("GetPrimitives() expected error for reserved tenant id, got nil")
+	}
+
+	// The reserved-tenant rejection surfaces as the ErrReservedTenantID business
+	// error (code ENC-0013), %w-wrapped through fetchAndCache. The typed
+	// UnprocessableOperationError has no Unwrap, so assert on its code string,
+	// matching the handler test which checks the JSON "code" field.
+	if !strings.Contains(err.Error(), constant.ErrReservedTenantID.Error()) {
+		t.Errorf("GetPrimitives() error = %v, want error carrying code %q", err, constant.ErrReservedTenantID.Error())
+	}
+
+	// The provisioner MUST NOT be called: rejection happens before provisioning
+	// (fail-closed, no keyset written under the flat base).
+	if provisioner.getCalls() != 0 {
+		t.Errorf("GetPrimitives() provisioner calls = %d, want 0 (no provisioning under flat base)", provisioner.getCalls())
+	}
+
+	// The unwrapper MUST NOT be called either (no keyset to unwrap).
+	if unwrapper.getCalls() != 0 {
+		t.Errorf("GetPrimitives() unwrapper calls = %d, want 0", unwrapper.getCalls())
+	}
+}
+
 func TestKeysetManager_autoProvision_DefaultsTenantWhenMissing(t *testing.T) {
 	t.Parallel()
 
@@ -1810,5 +1858,162 @@ func TestKeysetManager_GetPrimitives_MountNotFound_FailsClosed(t *testing.T) {
 
 	if !errors.Is(err, vault.ErrMountNotFound) {
 		t.Errorf("GetPrimitives() error = %v, want errors.Is(vault.ErrMountNotFound)", err)
+	}
+}
+
+// TestKeysetManager_GetPrimitives_StoredMountWins verifies that when the fetched
+// keyset carries a stored KEKMountPath, unwrap uses that mount for BOTH AEAD and
+// MAC, even when the manager's BaseMountPath would derive a different value.
+func TestKeysetManager_GetPrimitives_StoredMountWins(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	const storedMount = "transit/tenant-x"
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			TenantID:          "tenant-x",
+			OrganizationID:    "org-stored",
+			KEKPath:           "crm/org-stored",
+			KEKMountPath:      storedMount,
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	// BaseMountPath deliberately differs from the stored mount's base.
+	config := KeysetManagerConfig{BaseMountPath: "other-base"}
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-stored")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	mounts := unwrapper.getMountPaths()
+	if len(mounts) != 2 {
+		t.Fatalf("unwrapper mountPaths len = %d, want 2", len(mounts))
+	}
+
+	for i, got := range mounts {
+		if got != storedMount {
+			t.Errorf("unwrap call %d mountPath = %q, want stored %q", i, got, storedMount)
+		}
+	}
+}
+
+// TestKeysetManager_GetPrimitives_ConfigBaseChanged_UsesStoredMount is the #3
+// regression: a keyset provisioned under "transit" must still unwrap under
+// "transit" even after KMS_VAULT_MOUNT_PATH (BaseMountPath) is changed to a new
+// value. Before the read-side fix, unwrap derived the mount from the live config
+// and would have targeted the CHANGED base, stranding existing keysets.
+func TestKeysetManager_GetPrimitives_ConfigBaseChanged_UsesStoredMount(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, macBytes := generateTestKeysets(t)
+
+	const provisionedMount = "transit"
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			TenantID:          "default",
+			OrganizationID:    "org-config-changed",
+			KEKPath:           "crm/org-config-changed",
+			KEKMountPath:      provisionedMount,
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-mac",
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	// Live config base changed after provisioning.
+	config := KeysetManagerConfig{BaseMountPath: "CHANGED-BASE"}
+	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-config-changed")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	mounts := unwrapper.getMountPaths()
+	if len(mounts) != 2 {
+		t.Fatalf("unwrapper mountPaths len = %d, want 2", len(mounts))
+	}
+
+	for i, got := range mounts {
+		if got != provisionedMount {
+			t.Errorf("unwrap call %d mountPath = %q, want stored %q (NOT derived from CHANGED-BASE)", i, got, provisionedMount)
+		}
+	}
+}
+
+// TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived verifies the
+// back-compat path: a keyset with no stored KEKMountPath derives the mount from the
+// manager BaseMountPath and the stored tenant. "default"/"" tenant -> flat base;
+// a real tenant -> per-tenant sub-mount.
+func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		tenantID string
+		want     string
+	}{
+		{name: "default tenant -> flat base", tenantID: "default", want: "transit"},
+		{name: "real tenant -> sub-mount", tenantID: "t1", want: "transit/t1"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			aeadBytes, macBytes := generateTestKeysets(t)
+
+			reader := &fakeKeysetRepo{
+				keyset: &mmodel.OrganizationKeyset{
+					TenantID:          tt.tenantID,
+					OrganizationID:    "org-legacy",
+					KEKPath:           "crm/org-legacy",
+					KEKMountPath:      "", // legacy record predating the stored mount
+					WrappedKeyset:     "wrapped-aead",
+					WrappedHMACKeyset: "wrapped-mac",
+				},
+			}
+
+			unwrapper := &fakeKeysetUnwrapper{
+				aeadKeyset: aeadBytes,
+				macKeyset:  macBytes,
+			}
+
+			config := KeysetManagerConfig{BaseMountPath: "transit"}
+			manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
+
+			_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-legacy")
+			if err != nil {
+				t.Fatalf("GetPrimitives() error = %v", err)
+			}
+
+			mounts := unwrapper.getMountPaths()
+			if len(mounts) != 2 {
+				t.Fatalf("unwrapper mountPaths len = %d, want 2", len(mounts))
+			}
+
+			for i, got := range mounts {
+				if got != tt.want {
+					t.Errorf("unwrap call %d mountPath = %q, want derived %q", i, got, tt.want)
+				}
+			}
+		})
 	}
 }

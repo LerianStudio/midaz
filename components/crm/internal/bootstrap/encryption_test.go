@@ -361,6 +361,16 @@ func TestResolveBaseMountPath(t *testing.T) {
 			want:       defaultKEKMountPath,
 		},
 		{
+			name:       "surrounding slashes are trimmed to the effective mount",
+			configured: "/transit/",
+			want:       "transit",
+		},
+		{
+			name:       "surrounding slashes and whitespace are trimmed to the effective mount",
+			configured: " /transit/ ",
+			want:       "transit",
+		},
+		{
 			name:       "real value is preserved",
 			configured: "transit",
 			want:       "transit",
@@ -629,71 +639,60 @@ func newWiringVaultClient(t *testing.T) *vault.Client {
 	return client
 }
 
-// TestWireEncryptionServices_DefaultsBaseMountWhenUnset asserts the production
-// wiring computes the base mount with a safe default ("transit") when
-// VaultMountPath is unset/empty and wires services without error.
-func TestWireEncryptionServices_DefaultsBaseMountWhenUnset(t *testing.T) {
-	t.Parallel()
-
-	result := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    newWiringVaultClient(t),
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		auditWriter:    stubAuditWriter{},
-		vaultMountPath: "", // unset -> base "transit"
-	})
-
-	require.NoError(t, result.err,
-		"wireEncryptionServices must default base mount safely when VaultMountPath is unset")
-	require.NotNil(t, result.provisioningService,
-		"ProvisioningService must be wired (base mount reaches KEKMountPath)")
-	require.NotNil(t, result.keysetManager,
-		"KeysetManager must be wired (base mount reaches BaseMountPath)")
-}
-
-// TestWireEncryptionServices_InjectsCustomBaseMount asserts a custom base mount
-// is accepted and the wiring succeeds, exercising the same injection path into
+// TestWireEncryptionServices_BaseMountResolution asserts the production wiring
+// resolves the configured VaultMountPath into the base mount and injects it into
 // both the provisioning service (KEKMountPath) and the keyset manager
-// (BaseMountPath).
-func TestWireEncryptionServices_InjectsCustomBaseMount(t *testing.T) {
+// (BaseMountPath). Each row varies only the configured VaultMountPath; the
+// resolution itself (default/trim/normalize) is unit-tested in
+// TestResolveBaseMountPath, so here we assert the wiring succeeds end-to-end for
+// every input shape that reaches production.
+func TestWireEncryptionServices_BaseMountResolution(t *testing.T) {
 	t.Parallel()
 
-	result := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    newWiringVaultClient(t),
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		auditWriter:    stubAuditWriter{},
-		vaultMountPath: "crm-transit",
-	})
+	tests := []struct {
+		name           string
+		vaultMountPath string
+	}{
+		{
+			name:           "unset defaults to transit",
+			vaultMountPath: "", // unset -> base "transit"
+		},
+		{
+			name:           "custom base mount is injected",
+			vaultMountPath: "crm-transit",
+		},
+		{
+			name:           "whitespace-only defaults to transit",
+			vaultMountPath: "   ", // whitespace-only -> base "transit"
+		},
+		{
+			name:           "slash-wrapped normalizes to transit",
+			vaultMountPath: "/transit/", // slash-wrapped -> base "transit"
+		},
+	}
 
-	require.NoError(t, result.err,
-		"wireEncryptionServices must accept a custom base mount")
-	require.NotNil(t, result.provisioningService,
-		"ProvisioningService must be wired with the custom base mount")
-	require.NotNil(t, result.keysetManager,
-		"KeysetManager must be wired with the custom base mount")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-// TestWireEncryptionServices_TrimsWhitespaceBaseMount asserts a whitespace-only
-// VaultMountPath is treated as unset and defaults to "transit" without error.
-func TestWireEncryptionServices_TrimsWhitespaceBaseMount(t *testing.T) {
-	t.Parallel()
+			result := wireEncryptionServices(wireEncryptionServicesInput{
+				mode:           encryptionModeEnvelope,
+				vaultClient:    newWiringVaultClient(t),
+				keysetRepo:     &mockKeysetRepo{},
+				registryRepo:   &mockRegistryRepo{},
+				auditWriter:    stubAuditWriter{},
+				vaultMountPath: tt.vaultMountPath,
+			})
 
-	result := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    newWiringVaultClient(t),
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		auditWriter:    stubAuditWriter{},
-		vaultMountPath: "   ", // whitespace-only -> base "transit"
-	})
-
-	require.NoError(t, result.err,
-		"wireEncryptionServices must treat whitespace-only mount as unset and default safely")
-	require.NotNil(t, result.keysetManager,
-		"KeysetManager must be wired with the defaulted base mount")
+			require.NoError(t, result.err,
+				"wireEncryptionServices must resolve VaultMountPath %q and wire without error",
+				tt.vaultMountPath)
+			require.NotNil(t, result.provisioningService,
+				"ProvisioningService must be wired (base mount reaches KEKMountPath)")
+			require.NotNil(t, result.keysetManager,
+				"KeysetManager must be wired (base mount reaches BaseMountPath)")
+		})
+	}
 }
 
 // =============================================================================

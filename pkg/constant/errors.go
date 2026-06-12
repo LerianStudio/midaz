@@ -263,4 +263,5 @@ var (
 	ErrProvisioningFailed           = errors.New("ENC-0010")
 	ErrAuditEventRequired           = errors.New("ENC-0011")
 	ErrAuditWriteFailed             = errors.New("ENC-0012")
+	ErrReservedTenantID             = errors.New("ENC-0013")
 )

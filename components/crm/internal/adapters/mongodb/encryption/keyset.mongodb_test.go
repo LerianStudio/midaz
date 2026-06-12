@@ -85,16 +85,29 @@ func TestKeysetMongoDBRepository_Save_ValidationError(t *testing.T) {
 			keyset: &mmodel.OrganizationKeyset{
 				OrganizationID: "org-a",
 				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "transit",
 				WrappedKeyset:  "",
 				KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 1},
 			},
 			wantErrMsg: "wrapped_keyset is required",
 		},
 		{
+			name: "empty kek_mount_path",
+			keyset: &mmodel.OrganizationKeyset{
+				OrganizationID: "org-a",
+				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "",
+				WrappedKeyset:  "vault:v1:dek",
+				KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 1},
+			},
+			wantErrMsg: "kek_mount_path is required",
+		},
+		{
 			name: "zero primary_key_id",
 			keyset: &mmodel.OrganizationKeyset{
 				OrganizationID: "org-a",
 				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "transit",
 				WrappedKeyset:  "vault:v1:dek",
 				KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 0},
 			},
@@ -318,6 +331,7 @@ func validTestKeyset() *mmodel.OrganizationKeyset {
 	return &mmodel.OrganizationKeyset{
 		OrganizationID:    "org-test",
 		KEKPath:           "transit/keys/crm-org-test",
+		KEKMountPath:      "transit",
 		WrappedKeyset:     "vault:v1:encrypted-dek",
 		WrappedHMACKeyset: "vault:v1:encrypted-hmac",
 		KeysetInfo: mmodel.KeysetInfo{

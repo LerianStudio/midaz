@@ -25,10 +25,22 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
 				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "transit",
 				WrappedKeyset:  "vault:v1:encrypted",
 				KeysetInfo:     KeysetInfo{PrimaryKeyID: 1},
 			},
 			wantErrMsg: "",
+		},
+		{
+			name: "empty kek_mount_path",
+			keyset: OrganizationKeyset{
+				OrganizationID: "org-a",
+				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "",
+				WrappedKeyset:  "vault:v1:encrypted",
+				KeysetInfo:     KeysetInfo{PrimaryKeyID: 1},
+			},
+			wantErrMsg: "kek_mount_path is required",
 		},
 		{
 			name: "empty organization_id",
@@ -55,6 +67,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
 				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "transit",
 				WrappedKeyset:  "",
 				KeysetInfo:     KeysetInfo{PrimaryKeyID: 1},
 			},
@@ -65,6 +78,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
 				KEKPath:        "transit/keys/test",
+				KEKMountPath:   "transit",
 				WrappedKeyset:  "vault:v1:encrypted",
 				KeysetInfo:     KeysetInfo{PrimaryKeyID: 0},
 			},
@@ -75,6 +89,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			keyset: OrganizationKeyset{
 				OrganizationID:    "org-a",
 				KEKPath:           "transit/keys/test",
+				KEKMountPath:      "transit",
 				WrappedKeyset:     "vault:v1:encrypted",
 				KeysetInfo:        KeysetInfo{PrimaryKeyID: 1},
 				WrappedHMACKeyset: "vault:v1:hmac-encrypted",
@@ -87,6 +102,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			keyset: OrganizationKeyset{
 				OrganizationID:    "org-a",
 				KEKPath:           "transit/keys/test",
+				KEKMountPath:      "transit",
 				WrappedKeyset:     "vault:v1:encrypted",
 				KeysetInfo:        KeysetInfo{PrimaryKeyID: 1},
 				WrappedHMACKeyset: "vault:v1:hmac-encrypted",
@@ -120,6 +136,7 @@ func TestOrganizationKeyset_SafeView(t *testing.T) {
 		TenantID:          "tenant-a",
 		OrganizationID:    "org-a",
 		KEKPath:           "transit/keys/test",
+		KEKMountPath:      "transit",
 		WrappedKeyset:     "vault:v1:secret-dek-material",
 		WrappedHMACKeyset: "vault:v1:secret-hmac-material",
 		KeysetInfo:        KeysetInfo{PrimaryKeyID: 1},
@@ -138,6 +155,7 @@ func TestOrganizationKeyset_SafeView(t *testing.T) {
 	assert.Equal(t, keyset.TenantID, safe.TenantID)
 	assert.Equal(t, keyset.OrganizationID, safe.OrganizationID)
 	assert.Equal(t, keyset.KEKPath, safe.KEKPath)
+	assert.Equal(t, keyset.KEKMountPath, safe.KEKMountPath, "non-secret mount path must remain visible in SafeView")
 	assert.Equal(t, keyset.KeysetInfo, safe.KeysetInfo)
 	assert.Equal(t, keyset.HMACKeysetInfo, safe.HMACKeysetInfo)
 	assert.Equal(t, keyset.Revision, safe.Revision)

@@ -25,8 +25,10 @@ import (
 // KeysetUnwrapper defines the interface for unwrapping keysets.
 // Compatible with KeysetWrapper from pkg/crypto/tink.
 //
-// mountPath is the resolved Vault Transit mount for the keyset's tenant; it is
-// derived from the stored keyset tenant at unwrap time so reads are self-contained.
+// mountPath is the resolved Vault Transit mount for the keyset. At unwrap time it
+// is read from the keyset's stored KEKMountPath (the wrap-time mount), falling back
+// to deriving it from the stored tenant only for legacy records, so reads are
+// self-contained and independent of live config.
 type KeysetUnwrapper interface {
 	UnwrapKeyset(ctx context.Context, mountPath, keyName, wrappedKeyset string) ([]byte, error)
 }
@@ -259,10 +261,12 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
-	// Resolve the Vault Transit mount from the STORED keyset tenant (not ctx) so
-	// reads are self-contained: flat base for single-tenant ("" or "default"),
-	// per-tenant sub-mount otherwise. The same mount serves both AEAD and MAC.
-	mount := resolveMount(km.baseMountPath, keyset.TenantID)
+	// Prefer the stored KEKMountPath so reads are config-independent; fall back to
+	// deriving from the stored tenant for legacy records.
+	mount := keyset.KEKMountPath
+	if mount == "" {
+		mount = resolveMount(km.baseMountPath, keyset.TenantID)
+	}
 
 	// app.protection.mount_path is the resolved mount, not a secret.
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
@@ -347,17 +351,20 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 	return cached, nil
 }
 
-// autoProvision provisions an organization using the injected provisioner.
-// Tenant ID is extracted from context, defaulting to "default" for single-tenant mode.
+// autoProvision provisions an organization using the injected provisioner. The tenant
+// is resolved via ResolveProvisionTenantID (rejects reserved "default" before
+// provisioning, fail-closed); an empty context maps to the single-tenant sentinel.
 func (km *KeysetManager) autoProvision(ctx context.Context, organizationID string) error {
 	if km.provisioner == nil {
 		return fmt.Errorf("provisioner not configured")
 	}
 
-	// Use ExtractTenantID which defaults to "default" for single-tenant mode
-	tenantID := ExtractTenantID(ctx)
+	tenantID, err := ResolveProvisionTenantID(ctx)
+	if err != nil {
+		return err
+	}
 
-	_, err := km.provisioner.Provision(ctx, ProvisionInput{
+	_, err = km.provisioner.Provision(ctx, ProvisionInput{
 		TenantID:       tenantID,
 		OrganizationID: organizationID,
 		Actor:          "system:auto-provision",

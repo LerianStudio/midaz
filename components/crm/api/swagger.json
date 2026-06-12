@@ -960,6 +960,12 @@
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -999,6 +1005,101 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ProvisioningStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/protection/audit": {
+            "get": {
+                "description": "Returns the protection audit events for an organization, filtered by action, actor, outcome, and time range, with cursor pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Protection"
+                ],
+                "summary": "List Protection Audit Events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default 20).",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor.",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: asc or desc (default desc).",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action.",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor.",
+                        "name": "actor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by outcome: success, failure, or already_exists.",
+                        "name": "outcome",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive lower time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive upper time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.auditEventsEnvelope"
                         }
                     },
                     "400": {
@@ -1740,6 +1841,61 @@
                 },
                 "page": {
                     "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.auditEventResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "actor": {
+                    "type": "string"
+                },
+                "from_status": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "to_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.auditEventsEnvelope": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapters_http_in.auditEventResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
                 },
                 "prev_cursor": {
                     "type": "string"

@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -31,6 +32,7 @@ func TestEncryption_Provision(t *testing.T) {
 	tests := []struct {
 		name           string
 		organizationID string
+		tenantID       string
 		jsonBody       string
 		setupMocks     func(mockService *MockProvisioningService, orgID string)
 		expectedStatus int
@@ -150,6 +152,61 @@ func TestEncryption_Provision(t *testing.T) {
 			expectedStatus: 500,
 			validateBody:   nil, // Error format handled by http.WithError middleware
 		},
+		{
+			// Multi-tenant mode: the tenant middleware populated a real, non-empty
+			// tenant id literally equal to "default" from the JWT. This collides
+			// with the single-tenant flat-base sentinel, so it MUST be rejected
+			// before reaching the provisioning service (no Provision call).
+			name:           "real tenant named default returns 422",
+			organizationID: uuid.New().String(),
+			tenantID:       "default",
+			jsonBody: `{
+				"actor": "admin@example.com",
+				"reason": "Initial encryption setup"
+			}`,
+			setupMocks: func(mockService *MockProvisioningService, orgID string) {
+				// No mock expectations: rejection happens before the service call.
+			},
+			expectedStatus: 422,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, constant.ErrReservedTenantID.Error(), errResp["code"],
+					"reserved tenant id rejection should map to ErrReservedTenantID code")
+			},
+		},
+		{
+			// Single-tenant sentinel path: no tenant middleware ran, so the
+			// context carries no tenant id (empty). The handler substitutes the
+			// "default" flat-base sentinel and provisioning proceeds normally.
+			name:           "single-tenant default sentinel still provisions",
+			organizationID: uuid.New().String(),
+			tenantID:       "", // empty context => single-tenant sentinel path
+			jsonBody: `{
+				"actor": "admin@example.com",
+				"reason": "Initial encryption setup"
+			}`,
+			setupMocks: func(mockService *MockProvisioningService, orgID string) {
+				mockService.EXPECT().
+					Provision(gomock.Any(), gomock.Cond(func(x any) bool {
+						req, ok := x.(encryption.ProvisionInput)
+						if !ok {
+							return false
+						}
+						return req.OrganizationID == orgID && req.TenantID == "default"
+					})).
+					Return(encryption.ProvisionResult{
+						OrganizationID: orgID,
+						KEKPath:        "transit/keys/org-" + orgID,
+						RegistryStatus: mmodel.RegistryStatusActive,
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 201,
+			validateBody:   nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -164,10 +221,18 @@ func TestEncryption_Provision(t *testing.T) {
 				ProvisioningService: mockService,
 			}
 
+			tenantID := tt.tenantID
+
 			app := fiber.New()
 			app.Post("/v1/organizations/:organization_id/encryption/provision",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
+					// Simulate the tenant middleware: in multi-tenant mode it
+					// stores a non-empty tenant id; in single-tenant mode it does
+					// not run, so the context carries no tenant id.
+					if tenantID != "" {
+						c.SetUserContext(tmcore.ContextWithTenantID(c.UserContext(), tenantID))
+					}
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.ProvisionEncryptionInput), handler.Provision),

@@ -391,10 +391,12 @@ func TestProvisioningService_Provision_SingleTenant_FlatMount(t *testing.T) {
 	assert.Equal(t, "transit", keysetGenerator.aeadMountPath, "AEAD wrap must use flat base mount for default tenant")
 	assert.Equal(t, "transit", keysetGenerator.macMountPath, "MAC wrap must use flat base mount for default tenant")
 
-	// The mount must NOT be stored on the keyset record (unwrap re-derives it).
+	// The resolved mount IS stored on the keyset record so unwrap is independent
+	// of live config; for the "default"/single-tenant case it is the flat base.
 	savedKeyset := keysetRepo.keysets["org-456"]
 	require.NotNil(t, savedKeyset)
 	assert.Equal(t, "org-org-456", savedKeyset.KEKPath, "key name stays org-{id}, unchanged by mount resolution")
+	assert.Equal(t, "transit", savedKeyset.KEKMountPath, "resolved flat-base mount must be persisted on the keyset")
 }
 
 func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
@@ -425,10 +427,12 @@ func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
 	assert.Equal(t, want, keysetGenerator.aeadMountPath, "AEAD wrap must use per-tenant sub-mount")
 	assert.Equal(t, want, keysetGenerator.macMountPath, "MAC wrap must use per-tenant sub-mount")
 
-	// Key name remains org-{id}; mount is not part of it and not stored on the record.
+	// Key name remains org-{id}; the resolved per-tenant sub-mount IS persisted on
+	// the record so unwrap does not depend on live KMS_VAULT_MOUNT_PATH config.
 	savedKeyset := keysetRepo.keysets["org-456"]
 	require.NotNil(t, savedKeyset)
 	assert.Equal(t, "org-org-456", savedKeyset.KEKPath)
+	assert.Equal(t, want, savedKeyset.KEKMountPath, "resolved per-tenant sub-mount must be persisted on the keyset")
 }
 
 func TestProvisioningService_Provision_MountNotFound_FailsClosed(t *testing.T) {

@@ -20,19 +20,19 @@ import (
 // defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
 const defaultKEKMountPath = "transit"
 
-// resolveBaseMountPath resolves the base Vault Transit mount from the configured
-// KMS_VAULT_MOUNT_PATH. Unset/empty values (including whitespace-only and
-// slash-only inputs such as "/") fall back to the safe default "transit" so
-// single-tenant deployments and missing config never crash or produce a
-// degenerate leading-slash mount. Per-tenant sub-mounts ({base}/{tenantID}) are
-// resolved downstream from this base. The returned base is never blank.
+// resolveBaseMountPath resolves the base Vault Transit mount, trimming surrounding
+// slashes/whitespace so the returned base equals the effective mount used downstream.
+// Empty/whitespace/slash-only input falls back to the default "transit"; never blank.
 func resolveBaseMountPath(configured string) string {
-	base := strings.TrimSpace(configured)
-	if strings.Trim(configured, "/ \t") == "" {
+	// One cutset for guard and returned value so they cannot drift.
+	const cut = "/ \t\n"
+
+	trimmed := strings.Trim(configured, cut)
+	if trimmed == "" {
 		return defaultKEKMountPath
 	}
 
-	return base
+	return trimmed
 }
 
 // wireEncryptionServicesInput contains all dependencies for wiring encryption services.

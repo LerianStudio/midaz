@@ -47,6 +47,7 @@ func createValidKeyset(organizationID string) *mmodel.OrganizationKeyset {
 	return &mmodel.OrganizationKeyset{
 		OrganizationID: organizationID,
 		KEKPath:        "transit/keys/crm-" + organizationID,
+		KEKMountPath:   "transit",
 		WrappedKeyset:  "vault:v1:encrypted-dek-" + uuid.New().String()[:8],
 		KeysetInfo: mmodel.KeysetInfo{
 			PrimaryKeyID: 1,
@@ -519,6 +520,7 @@ func TestIntegration_KeysetRepo_RoundTrip(t *testing.T) {
 
 	assert.Equal(t, original.OrganizationID, result.OrganizationID)
 	assert.Equal(t, original.KEKPath, result.KEKPath)
+	assert.Equal(t, original.KEKMountPath, result.KEKMountPath)
 	assert.Equal(t, original.WrappedKeyset, result.WrappedKeyset)
 	assert.Equal(t, original.WrappedHMACKeyset, result.WrappedHMACKeyset)
 	assert.Equal(t, original.KeysetInfo.PrimaryKeyID, result.KeysetInfo.PrimaryKeyID)

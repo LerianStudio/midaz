@@ -228,14 +228,11 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
-	// Generate KEK path (key NAME) for this organization. The mount is resolved
-	// separately from the request tenant: flat base for single-tenant ("" or
-	// "default"), per-tenant sub-mount otherwise. The key name is unchanged.
+	// KEK path is the key name; mount is resolved per-tenant (flat base for single-tenant).
 	kekPath := s.buildKEKPath(req.OrganizationID)
 	mount := resolveMount(s.kekMountPath, req.TenantID)
 
-	// app.protection.mount_path is the resolved mount, not a secret. Unwrap re-derives
-	// it from the stored tenant_id, so it is intentionally NOT persisted here.
+	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
 	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
 
 	// Generate AEAD keyset. The KMS wrap happens inside the generator; provider
@@ -276,6 +273,7 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		TenantID:          req.TenantID,
 		OrganizationID:    req.OrganizationID,
 		KEKPath:           kekPath,
+		KEKMountPath:      mount,
 		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
 		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
 		WrappedHMACKeyset: macBundle.Wrapped.WrappedData,

@@ -23,6 +23,7 @@ func TestKeysetFromEntity(t *testing.T) {
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
 		KEKPath:        "transit/keys/org-123",
+		KEKMountPath:   "transit/tenant-a",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: mmodel.KeysetInfo{
 			PrimaryKeyID: 2,
@@ -44,6 +45,7 @@ func TestKeysetFromEntity(t *testing.T) {
 	assert.Equal(t, entity.TenantID, model.TenantID)
 	assert.Equal(t, entity.OrganizationID, model.OrganizationID)
 	assert.Equal(t, entity.KEKPath, model.KEKPath)
+	assert.Equal(t, entity.KEKMountPath, model.KEKMountPath)
 	assert.Equal(t, entity.WrappedKeyset, model.WrappedKeyset)
 	assert.Equal(t, entity.KeysetInfo.PrimaryKeyID, model.KeysetInfo.PrimaryKeyID)
 	assert.Len(t, model.KeysetInfo.Keys, 2)
@@ -71,6 +73,7 @@ func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
 		KEKPath:        "transit/keys/org-123",
+		KEKMountPath:   "transit/tenant-a",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: KeysetInfoModel{
 			PrimaryKeyID: 2,
@@ -92,6 +95,7 @@ func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 	assert.Equal(t, model.TenantID, entity.TenantID)
 	assert.Equal(t, model.OrganizationID, entity.OrganizationID)
 	assert.Equal(t, model.KEKPath, entity.KEKPath)
+	assert.Equal(t, model.KEKMountPath, entity.KEKMountPath)
 	assert.Equal(t, model.WrappedKeyset, entity.WrappedKeyset)
 	assert.Equal(t, model.KeysetInfo.PrimaryKeyID, entity.KeysetInfo.PrimaryKeyID)
 	assert.Len(t, entity.KeysetInfo.Keys, 2)
@@ -120,6 +124,7 @@ func TestKeysetConversion_RoundTrip(t *testing.T) {
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
 		KEKPath:        "transit/keys/org-123",
+		KEKMountPath:   "transit/tenant-a",
 		WrappedKeyset:  "vault:v1:encrypted-dek",
 		KeysetInfo: mmodel.KeysetInfo{
 			PrimaryKeyID: 2,
@@ -141,6 +146,7 @@ func TestKeysetConversion_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.TenantID, recovered.TenantID)
 	assert.Equal(t, original.OrganizationID, recovered.OrganizationID)
 	assert.Equal(t, original.KEKPath, recovered.KEKPath)
+	assert.Equal(t, original.KEKMountPath, recovered.KEKMountPath)
 	assert.Equal(t, original.WrappedKeyset, recovered.WrappedKeyset)
 	assert.Equal(t, original.KeysetInfo.PrimaryKeyID, recovered.KeysetInfo.PrimaryKeyID)
 	assert.Equal(t, len(original.KeysetInfo.Keys), len(recovered.KeysetInfo.Keys))
