@@ -19,7 +19,7 @@
 | 1 | All 12 fee/billing routes are path-scoped on org; both bespoke fee middlewares deleted; handlers read org via `GetUUIDFromLocals`; dead FEE-0020 sentinel removed; route tests pass against the new shapes; binary builds and serves the new routes | 1.1, 1.2, 1.3 | ✅ Done |
 | 2 | Generated artifacts (Swagger/OpenAPI + Postman) reflect the path-scoped contract — **executes inside the Phase 1 commit** (see Known Constraints) | 2.1, 2.2 | ✅ Done (rode in the Phase 1 commit as planned) |
 | 3 | Prose docs aligned: `SCOPING.md` rewritten to zero header-scoped exceptions, `llms-full.txt` fee route inventory, `RBAC-NAMESPACES.md` cross-refs (keys unchanged) | 3.1 | ✅ Done |
-| 4 | Hardening follow-ons gated on named decisions: org-bound authz (shared decision with CRM Epic 4.1) | 4.1 | Parked on decision point |
+| 4 | Hardening follow-on: org-bound authz **rejected** (org is not a trust boundary — shared decision with CRM Epic 4.1). Phase 4 has no remaining work. | ~~4.1~~ | 4.1 Rejected (2026-06-12) |
 
 ### Execution Notes (2026-06-07)
 
@@ -281,13 +281,15 @@ Mind `err` scoping per handler (`:=` where fresh, `=` where an earlier read decl
 
 ---
 
-## Phase 4 — Hardening follow-ons (Epic-level, parked)
+## Phase 4 — Hardening follow-on (closed)
 
-### Epic 4.1: Org-binding authz check (shared decision with CRM Epic 4.1)
+### Epic 4.1: Org-binding authz check — REJECTED (2026-06-12)
 
-**Goal:** A principal authorized for `plugin-fees:packages:*` cannot operate on an org outside its grant — the same residual horizontal-privilege gap CRM Epic 4.1 tracks. Path validation guarantees a well-formed org, not an authorized one; today the tenant (JWT) is the trust boundary (auth-stabilization decision, 2026-06-06) and org is taken as caller-asserted within the tenant.
-**Dependencies:** the SAME plugin-auth decision point CRM Epic 4.1 is parked on (resource-instance authz vs per-org tenant grant). Whatever mechanism is chosen there applies to both surfaces in one stroke — do not design a fees-only variant.
-**Done when:** **Decision point** — plugin-auth confirms the org-binding mechanism. Until then, parked.
+**Status: Rejected — will not implement.** Shared decision with CRM Epic 4.1 (see `docs/plans/2026-06-06-crm-api-redesign.md` Epic 4.1 for the full rationale).
+
+**Rationale.** Organization is **not** a tenancy or trust boundary in midaz; the **tenant is** (durable decision, auth-stabilization 2026-06-06). Within a tenant a principal can and should reach all of its organizations, so binding the `plugin-fees:packages:*` grant to the path `organization_id` would break legitimate multi-org access. Cross-tenant is already contained by tenant-first DB resolution; intra-tenant per-org scoping, where a tenant wants it, is the tenant's own RBAC policy expressed via plugin-auth grants — not a hardcoded org-binding check in midaz's fee routes. The fees surface was always slated to inherit whatever CRM 4.1 decided "in one stroke"; CRM 4.1 is rejected, so this is too.
+
+**Phase 4 has no remaining work** for the fees surface. (Idempotency keys and referential validation — CRM Epics 4.2/4.3 — have no fees analogue: fee packages are not retry-duplicated entities in the same way, and they carry `ledger_id` as a body field whose referential hardening, if ever wanted, is a separate scoped decision, explicitly Out of Scope below.)
 
 ---
 

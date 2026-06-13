@@ -19,7 +19,7 @@
 | 1 | All CRM + composition routes are path-scoped on org; handlers read org as a validated path UUID; `X-Ledger-Id` removed; first-party tests pass against the new shapes; binary builds and serves the new routes | 1.1, 1.2, 1.3 | ✅ Done (`ca58e2e6f` allowlist, `370d6371b` migration) |
 | 2 | Generated artifacts (Swagger/OpenAPI + Postman) reflect the new path-scoped contract; Postman base URL fixed to unified `:3002` | 2.1, 2.2 | ✅ Done (pulled forward into the Phase 1 commit — see Execution Notes; `00959cd9c` unblocked the generator, `061e8a824` fixed holder id mapping) |
 | 3 | Prose docs reversed and aligned: `SCOPING.md` (R22 reversal, fees named as remaining exception), `llms-full.txt` route inventory, `RBAC-NAMESPACES.md` cross-refs | 3.1 | ✅ Done (docs commit follows Phase 1/2 commits) |
-| 4 | Hardening follow-ons, each gated on a named decision: org-bound authz (X1), idempotency keys on creates, instrument-create referential validation | 4.1, 4.2, 4.3 | Parked on decision points |
+| 4 | Hardening follow-ons: org-bound authz **rejected** (org is not a trust boundary — Epic 4.1); idempotency keys (4.2) and instrument referential validation (4.3) detailed and dispatch-ready | ~~4.1~~ · 4.2 · 4.3 | 4.1 Rejected (2026-06-12) · 4.2/4.3 Detailed |
 
 ### Execution Notes (2026-06-06)
 
@@ -313,30 +313,197 @@ Update the route registration in the test app to the full target path `/v1/organ
 
 ---
 
-## Phase 4 — Hardening follow-ons (Epic-level)
+## Phase 4 — Hardening follow-ons (Detailed)
 
-**Phase exit criteria:** Each follow-on is gated on a named decision point and does not block the Phase 1-3 clean break. None changes authz namespace/resource keys (X1 owns policy migration).
+**Phase exit criteria:** Epic 4.1 is closed as rejected (no code). Epics 4.2 and 4.3 ship behind their own commits, each independent of the other and of the Phase 1-3 clean break. Neither changes authz namespace/resource keys (`ApplicationName = "midaz"`, all `Authorize(...)` triples byte-identical). The fee money path (`components/ledger/internal/services/command/create_transaction_idempotency.go`) is NOT touched.
 
-### Epic 4.1: Org-binding authz check (coordinated with X1)
+> **Path note (post-move):** CRM moved from `components/crm/` to `components/ledger/internal/crm/` (seam-consolidation commit `fc194b6dc`). All Epic 4.2/4.3 file paths below use the current location. The original Epic scopes named the pre-move paths.
 
-**Goal:** Authorization for CRM routes binds the grant to the path `organization_id` so a principal authorized for `midaz:holders:*` cannot operate on an org outside its grant — closing the residual horizontal-privilege gap that path-validation alone does not fix.
-**Scope:** authz middleware integration for CRM routes; coordination with the X1 tenant-manager policy migration (`plugin-crm:* → midaz:{holders,instruments}:*`).
-**Dependencies:** Phase 1; the X1 policy migration (Fred-owned release gate); a decision point with plugin-auth on whether grants bind to org as a resource-instance dimension or via tenant scoping.
-**Done when:** **Decision point** — plugin-auth confirms the org-binding mechanism (resource-instance authz vs per-org tenant grant). After that decision, a request whose path org differs from the principal's authorized org is rejected; covered by tests. Until the decision, this epic is parked.
+### Epic 4.1: Org-binding authz check — REJECTED (2026-06-12)
+
+**Status: Rejected — will not implement.** The premise is wrong for midaz's trust model.
+
+**Rationale.** Organization is **not** a tenancy or trust boundary in midaz; the **tenant is** (durable decision, auth-stabilization 2026-06-06 — see [[auth-stabilization-executed]]). Within a tenant, a principal can and should reach all of its organizations. Concretely:
+
+- DB resolution is **tenant-first**: each tenant has an isolated PG/Mongo manager. Org is a *partition inside the tenant's store* (`holders_<org>`, `aliases_<org>` collections live inside the already-tenant-resolved DB).
+- **Cross-tenant is already contained:** a caller in tenant T who asserts an org belonging to tenant T' only ever reaches `holders_<orgT'>` *inside T's DB* — an empty/nonexistent collection. It cannot read T''s data. No org-binding check adds isolation here.
+- **Intra-tenant (1 tenant, N orgs) all-orgs access is the desired behavior.** Binding the grant to the path `organization_id` would actively break it.
+
+The one legitimate use case — a tenant wanting a principal scoped to a subset of its orgs — is **the tenant's own RBAC policy**, expressed through grants and enforced by plugin-auth (e.g. a grant of `midaz:holders:* on org X`), **not** a hardcoded org-binding check in midaz's route layer. This epic conflated "horizontal-privilege gap" (a real concept) with "midaz must enforce org as an authz dimension" (wrong — that is the tenant's policy to express and plugin-auth's to enforce). Fees Epic 4.1 shared this decision and is rejected with it.
+
+**Consequence for the rest of Phase 4:** Epic 4.3's old dependency on 4.1 ("org binding makes the referential check meaningful") is dropped — 4.3 validates references *within the path org*, which is already tenant-isolated, so it stands on its own data-integrity merit.
 
 ### Epic 4.2: Idempotency keys on CreateHolder / CreateInstrument
 
-**Goal:** `CreateHolder` and `CreateInstrument` accept an idempotency key (mirroring the transaction-create idempotency claim) so a client can safely retry on timeout without minting duplicates.
-**Scope:** CRM create handlers + use cases (`components/crm/services/create-holder.go`, `create-instrument.go`), idempotency claim store.
-**Dependencies:** Phase 1.
-**Done when:** **Decision point** — choose the idempotency backing (reuse the transaction idempotency mechanism vs a CRM-local claim) and the key header name. After that, a retried create with the same key returns the original result without a duplicate; covered by tests.
+**Goal:** `CreateHolder` and `CreateInstrument` accept a client idempotency key so a retry after a timeout returns the original result instead of minting a duplicate holder/instrument.
+
+**Scope:** `components/ledger/internal/crm/services/{create-holder.go,create-instrument.go}`, a new CRM idempotency port + key builders + claim/set use-case methods in `components/ledger/internal/crm/services/`, the two HTTP handlers (`components/ledger/internal/adapters/http/in/{holder.go,instrument.go}`), composition-root wiring (`components/ledger/internal/bootstrap/config.mongo.crm.go`).
+
+**Dependencies:** Phase 1 only.
+
+**Decisions (locked 2026-06-12):**
+1. **Backing = reuse the transaction Redis infrastructure, NOT the transaction use-case methods.** `CreateOrCheckTransactionIdempotency`/`SetTransactionIdempotencyValue` (`create_transaction_idempotency.go:44,100`) are typed to `transaction.Transaction`; generalizing them would touch the money path. Instead, depend on a narrow CRM-local port satisfied by the *same* concrete Redis repo (`components/ledger/internal/adapters/redis/transaction.RedisRepository`, which already exposes `SetNX(ctx,key,value,ttl)(bool,error)` / `Get(ctx,key)(string,error)` / `Set(ctx,key,value,ttl)error` — `consumer.redis.go:81-96`). The claim value is the created entity serialized as JSON, not a transaction.
+2. **Header = platform standard.** Reuse `X-Idempotency-Key` / `X-Idempotency-TTL` / `X-Idempotency-Replayed` (the lib-commons constants), read via the existing `http.GetIdempotencyKeyAndTTL(c)` (`pkg/net/http/httputils.go:484`). A CRM-specific header would be gratuitous inconsistency.
+3. **Keys CRM-namespaced** to avoid collision with transaction keys: `idempotency:crm:holder:{org}:{key}` and `idempotency:crm:instrument:{org}:{holderID}:{key}`. Holders are org-scoped (no ledger); instruments are scoped by their parent holder.
+4. **Empty client key → fall back to SHA-256 of the request body** (mirrors transaction behavior, `transaction_create.go:1026`).
+5. **Replay semantics mirror transaction:** a hit with a cached value replays the original entity with `X-Idempotency-Replayed: true`; a claimed-but-in-flight key (no cached value yet) returns the `ErrIdempotencyKey` business error.
+
+#### Task 4.2.1: CRM idempotency port, key builders, and generic claim/set methods
+
+- [ ] Done
+
+**Context:** The CRM `UseCase` (`components/ledger/internal/crm/services/`) currently holds only `HolderRepo`/`InstrumentRepo` (wired at `config.mongo.crm.go:196`). It has no Redis dependency. The transaction repo's `SetNX/Get/Set` (`consumer.redis.go:81-96`) are exactly the three operations a claim needs and are entity-agnostic.
+
+**Implementation vision:** In the CRM services package, define a narrow port (interfaces defined where used, per project rules):
+```go
+type IdempotencyRepo interface {
+    SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
+    Get(ctx context.Context, key string) (string, error)
+    Set(ctx context.Context, key, value string, ttl time.Duration) error
+}
+```
+Add an `Idempotency IdempotencyRepo` field to `crmservices.UseCase`. Add CRM key builders (a new `idempotency.go` in the CRM services package) producing the namespaced keys in Decision 3 — do NOT reuse `utils.IdempotencyInternalKey` (that emits the transaction `idempotency:{org:ledger:key}` shape). Add two generic methods: `CreateOrCheckCRMIdempotency(ctx, internalKey, hash string, ttl time.Duration) (*CRMIdempotencyResult, error)` (SetNX the hash; on a losing claim, `Get` the stored value — non-empty → `Replay` set, empty → return `ErrIdempotencyKey`) and `SetCRMIdempotencyValue(ctx, internalKey, valueJSON string, ttl time.Duration)`. `CRMIdempotencyResult` carries `Replay *string` (the cached entity JSON). Nil-guard: if `uc.Idempotency == nil`, `CreateOrCheckCRMIdempotency` returns a zero result (feature disabled = no claim), mirroring the streaming nil-emitter guard.
+
+**Files:**
+- Add: `components/ledger/internal/crm/services/idempotency.go`
+- Modify: the `UseCase` struct definition in `components/ledger/internal/crm/services/` (the file that declares it).
+
+**Verification:** `go build ./...` green. `go test ./components/ledger/internal/crm/...` green.
+
+**Done when:** the port, key builders, and claim/set methods exist; the `UseCase` carries an `Idempotency` field; build + CRM unit tests green.
+
+#### Task 4.2.2: Wire the Redis repo into the CRM UseCase at the composition root
+
+- [ ] Done
+
+**Context:** `buildCRMHandlers` / the CRM UseCase construction at `config.mongo.crm.go:196` injects only the two Mongo repos. The transaction Redis repo is already constructed elsewhere in `config.go` (it backs transaction idempotency). The CRM UseCase lives in the same binary.
+
+**Implementation vision:** Pass the existing concrete transaction Redis repo (it satisfies the narrow `IdempotencyRepo` port structurally) into the CRM `UseCase.Idempotency` field at its construction site. Do not build a second Redis client. If the construction order makes the repo unavailable at the CRM wiring point, hoist the existing repo's construction earlier — do not duplicate it.
+
+**Files:**
+- Modify: `components/ledger/internal/bootstrap/config.mongo.crm.go` (CRM UseCase construction ~`:196`).
+
+**Verification:** `go build ./...` green. A boot smoke (or the existing composition test) confirms the CRM UseCase has a non-nil `Idempotency`.
+
+**Done when:** the CRM UseCase is wired with the shared Redis repo; no duplicate Redis client; build green.
+
+#### Task 4.2.3: Orchestrate idempotency in CreateHolder and CreateInstrument
+
+- [ ] Done
+
+**Context:** `CreateHolder` handler (`holder.go:44`) → `uc.CreateHolder(ctx, org string, *CreateHolderInput)` (`create-holder.go:20`). `CreateInstrument` handler (`instrument.go:47`) → `uc.CreateInstrument(ctx, org string, holderID uuid.UUID, *CreateInstrumentInput)` (`create-instrument.go:20`). The transaction precedent orchestrates idempotency in the HTTP handler layer (`transaction_create.go:1001-1039`): extract key/ttl, check/claim, replay-or-create, store. Mirror that placement so fiber stays out of the use case.
+
+**Implementation vision:** Extract a shared handler helper (e.g. `applyCRMIdempotency[T any]` or a non-generic helper returning the cached JSON) to avoid duplicating the dance across the two handlers. In each create handler, after org is resolved: `key, ttl := http.GetIdempotencyKeyAndTTL(c)`; marshal the bound input to compute the body hash (fall back to it when `key == ""`); build the namespaced internal key (holder: org+key; instrument: org+holderID+key); call `uc.CreateOrCheckCRMIdempotency(...)`. If `res.Replay != nil`, unmarshal into `*mmodel.Holder` / `*mmodel.Instrument`, set `X-Idempotency-Replayed: true`, and return `http.Created(c, entity)`. Otherwise call the existing create path, then `uc.SetCRMIdempotencyValue(ctx, internalKey, marshal(entity), ttl)` before returning. Keep `CreateHolder`/`CreateInstrument` use-case signatures unchanged — the claim/set methods are separate calls, exactly like the transaction split. Add the `@Param X-Idempotency-Key header string false "..."` doc-comment to both create operations.
+
+**Files:**
+- Modify: `components/ledger/internal/adapters/http/in/holder.go` (CreateHolder, `:44`)
+- Modify: `components/ledger/internal/adapters/http/in/instrument.go` (CreateInstrument, `:47`)
+- Add (optional): a shared helper in the same package (e.g. `crm_idempotency.go`).
+
+**Verification:** `go build ./...` green. Doc-comment present on both create ops.
+
+**Done when:** both creates claim on entry and store on success; a replay returns the original entity with `X-Idempotency-Replayed: true`; an in-flight duplicate returns `ErrIdempotencyKey`.
+
+#### Task 4.2.4: Tests
+
+- [ ] Done
+
+**Context:** CRM HTTP handler tests live in `components/ledger/internal/adapters/http/in/{holder_test.go,instrument_test.go}`; CRM use-case tests in `components/ledger/internal/crm/services/`. The `IdempotencyRepo` port is trivially mockable (gomock or a hand-rolled fake map). Do not use `time.Now()` — use the suite's fixed-time/UUID helpers.
+
+**Implementation vision:** Use-case tests for `CreateOrCheckCRMIdempotency`/`SetCRMIdempotencyValue`: first call claims (SetNX→true, no replay); second call with the same key + a stored value replays it; same key with no stored value yet → `ErrIdempotencyKey`; nil `Idempotency` → no-claim passthrough. Handler tests: a second `CreateHolder`/`CreateInstrument` with the same `X-Idempotency-Key` returns the original entity and the `X-Idempotency-Replayed` header without a second repo write (assert the Mongo create mock is called once).
+
+**Files:**
+- Modify: `components/ledger/internal/crm/services/*_test.go`
+- Modify: `components/ledger/internal/adapters/http/in/{holder_test.go,instrument_test.go}`
+
+**Verification:** `go test ./components/ledger/internal/crm/... ./components/ledger/internal/adapters/http/in/ -run 'Holder|Instrument|Idempotency' -count=1` green.
+
+**Done when:** claim, replay, in-flight, and disabled-passthrough paths are covered for both entities; suite green.
 
 ### Epic 4.3: Instrument-create referential validation
 
-**Goal:** `CreateInstrument` verifies the referenced `ledger_id`/`account_id` actually exist within the caller's org/ledger before writing the org-partitioned instrument record, instead of trusting body strings.
-**Scope:** `components/crm/services/create-instrument.go` and the ledger/account lookup it would call.
-**Dependencies:** Phase 1; Epic 4.1 (org binding makes the referential check meaningful).
-**Done when:** **Decision point** — confirm the lookup path (cross-store read into the ledger account query) and the failure mode (422 vs 404). After that, creating an instrument against a non-existent ledger/account in the org is rejected; covered by tests.
+**Goal:** `CreateInstrument` verifies the body-supplied `ledger_id` and `account_id` actually exist within the path organization before writing the org-partitioned instrument record, instead of trusting the body strings (today it writes them unchecked — `create-instrument.go:48-49`).
+
+**Scope:** `components/ledger/internal/crm/services/create-instrument.go`, a new CRM `LedgerAccountReader` port + adapter over the ledger `query.UseCase`, composition-root wiring, two new error sentinels.
+
+**Dependencies:** Phase 1 only. (The old dependency on Epic 4.1 is dropped — see Epic 4.1 rejection. The org used is the path org, already tenant-isolated.)
+
+**Decisions (locked 2026-06-12):**
+1. **Lookup path = in-process query use cases via a narrow CRM port.** Reuse `query.UseCase.GetLedgerByID(ctx, org, id uuid.UUID)` (`get_id_ledger.go:25`) and `GetAccountByID(ctx, org, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID)` (`get_id_account.go:24`, pass `portfolioID = nil`). Wire them into CRM through a thin adapter mirroring `holderAccountsReaderAdapter` (`holder_wiring.go:55-79`) — do NOT have CRM import the ledger query use case directly.
+2. **Failure mode = 422 `UnprocessableOperationError`, NOT 404.** The addressed resource of the request — an instrument under a valid org+holder — is well-formed; a body-referenced ledger/account that doesn't exist is a *semantic precondition* failure on the create, which E3 (`docs/standards/error-handling.md`) maps to 422. A 404 would wrongly imply the instrument route itself was not found. (The underlying queries return `ErrLedgerIDNotFound`/`ErrAccountIDNotFound`, both 404-typed; the CRM layer must NOT surface those directly — it maps a not-found lookup into the new 422 referential sentinels.)
+3. **Order:** validate `ledger_id` first (`GetLedgerByID`), then `account_id` within that ledger (`GetAccountByID` needs the ledger). Holder existence is already checked (`create-instrument.go:96`).
+
+#### Task 4.3.1: Add the two referential sentinels
+
+- [ ] Done
+
+**Context:** Error sentinels are unique and defined only in `pkg/constant/errors.go`; the typed-struct/HTTP-status mapping lives in `pkg/errors.go`'s `ValidateBusinessError` errorMap. 422 maps to `UnprocessableOperationError`. The canonical registry is numeric; allocate the next free sequential codes (the post-consolidation next-free was `0500` per `docs/plans/2026-06-07-error-code-migration.md`; confirm the current high-water mark before allocating).
+
+**Implementation vision:** Add `ErrInstrumentLedgerReferenceNotFound` and `ErrInstrumentAccountReferenceNotFound` (next two sequential codes) to `pkg/constant/errors.go`, and map both to `UnprocessableOperationError` (422) in `pkg/errors.go`'s errorMap with descriptive titles/messages (the referenced ledger/account does not exist in this organization). Add `EntityInstrument` to `pkg/constant/entity.go` if not already present (confirm; CRM may already define it).
+
+**Files:**
+- Modify: `pkg/constant/errors.go`
+- Modify: `pkg/errors.go` (errorMap)
+- Modify (if needed): `pkg/constant/entity.go`
+
+**Verification:** `go build ./...` green. The two sentinels resolve through `ValidateBusinessError` to 422.
+
+**Done when:** both sentinels exist, are unique, and map to 422.
+
+#### Task 4.3.2: CRM LedgerAccountReader port + adapter + wiring
+
+- [ ] Done
+
+**Context:** The ledger `query.UseCase` is constructed at `config.go:815` with `LedgerRepo`/`AccountRepo`. The canonical way to expose a ledger query to another in-binary surface is a narrow adapter wrapping `*query.UseCase` (precedent: `holderAccountsReaderAdapter`, `holder_wiring.go:55-79`).
+
+**Implementation vision:** Define a `LedgerAccountReader` port in the CRM services package:
+```go
+type LedgerAccountReader interface {
+    LedgerExists(ctx context.Context, organizationID, ledgerID uuid.UUID) error
+    AccountExists(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error
+}
+```
+Add a `LedgerAccounts LedgerAccountReader` field to the CRM `UseCase`. Implement an adapter (new file alongside `holder_wiring.go`) wrapping `*query.UseCase`: `LedgerExists` calls `GetLedgerByID` and returns nil on success / the not-found error on miss; `AccountExists` calls `GetAccountByID(ctx, org, ledgerID, nil, accountID)`. Wire the adapter into the CRM UseCase at the composition root. (The mapping of the adapter's not-found into the 422 sentinels happens in the use case — Task 4.3.3 — so the adapter can return a sentinel-free not-found signal, or the use case inspects via `errors.Is`.)
+
+**Files:**
+- Add: `components/ledger/internal/crm/services/ledger_account_reader.go` (port)
+- Add: `components/ledger/internal/bootstrap/instrument_refs_wiring.go` (adapter, mirroring `holder_wiring.go`)
+- Modify: the CRM `UseCase` struct + `config.mongo.crm.go` wiring.
+
+**Verification:** `go build ./...` green; composition test confirms non-nil `LedgerAccounts`.
+
+**Done when:** CRM can check ledger/account existence in-process via the port; build green.
+
+#### Task 4.3.3: Add the referential check to CreateInstrument
+
+- [ ] Done
+
+**Context:** `CreateInstrument` (`create-instrument.go:20-114`) validates the holder (`:96`) then writes `LedgerID`/`AccountID` strings straight to Mongo (`:48-49`) with no existence check. `org` arrives as a string; parse to `uuid.UUID` for the lookups (the body `LedgerID`/`AccountID` are strings — parse + return a 400 `ErrInvalidPathParameter`-class validation error on malformed UUIDs, OR rely on the input DTO's existing UUID-format validation if present — confirm).
+
+**Implementation vision:** Before the Mongo write, after holder validation: parse `cai.LedgerID`/`cai.AccountID` to `uuid.UUID`; call `uc.LedgerAccounts.LedgerExists(ctx, orgUUID, ledgerUUID)` and, on success, `AccountExists(ctx, orgUUID, ledgerUUID, accountUUID)`. Map a not-found from the ledger check to `pkg.ValidateBusinessError(constant.ErrInstrumentLedgerReferenceNotFound, constant.EntityInstrument)` and from the account check to `ErrInstrumentAccountReferenceNotFound` (both 422). Use `HandleSpanBusinessErrorEvent` for these (business/4xx — span stays green, per T5). Nil-guard `uc.LedgerAccounts` only if the feature can be wired off; otherwise it is a hard dependency.
+
+**Files:**
+- Modify: `components/ledger/internal/crm/services/create-instrument.go`
+
+**Verification:** `go build ./...` green; `go test ./components/ledger/internal/crm/... -run Instrument -count=1` green.
+
+**Done when:** creating an instrument with a `ledger_id`/`account_id` absent from the path org returns 422 with the correct sentinel; a valid reference still creates; the holder check is unchanged.
+
+#### Task 4.3.4: Tests
+
+- [ ] Done
+
+**Context:** CRM use-case tests in `components/ledger/internal/crm/services/`. The `LedgerAccountReader` port is mockable. Failure-mode assertions must check the 422 mapping (not 404).
+
+**Implementation vision:** Table tests for `CreateInstrument`: (a) ledger missing → `ErrInstrumentLedgerReferenceNotFound`, no Mongo write; (b) ledger present, account missing → `ErrInstrumentAccountReferenceNotFound`, no Mongo write; (c) both present → instrument created; (d) malformed `ledger_id`/`account_id` body UUID → validation error. Assert the Mongo create mock is NOT called in the failure cases. A handler-level test asserts the 422 wire status.
+
+**Files:**
+- Modify: `components/ledger/internal/crm/services/create-instrument_test.go` (or the suite's instrument test file)
+- Modify (handler 422 assertion): `components/ledger/internal/adapters/http/in/instrument_test.go`
+
+**Verification:** `go test ./components/ledger/internal/crm/... ./components/ledger/internal/adapters/http/in/ -run Instrument -count=1` green.
+
+**Done when:** all four reference cases are covered, failures write nothing, and the 422 wire status is asserted.
 
 ---
 
@@ -351,9 +518,9 @@ Update the route registration in the test app to the full target path `/v1/organ
 
 ## Self-Review
 
-- **Spec coverage:** crm_design recommendations (Option A path-scope org, drop X-Ledger-Id from pure-CRM, validate org as UUID, keep ledger as body field/list filter) → Phase 1 (Epics 1.1-1.3). crm_blast_radius surfaces: handler source + @Param (Phase 1), generated Swagger/OpenAPI (Epic 2.1), Postman + base-URL (Epic 2.2), in-repo tests (Epic 1.3), prose docs (Phase 3). crm_design problems: tenant-isolation-on-unvalidated-header → Epic 1.1/1.2 (path UUID validation) + Epic 4.1 (authz binding); idempotency gap → Epic 4.2; instrument referential gap → Epic 4.3. Composition X-Ledger-Id subtlety → Tasks 1.1.3, 1.2.4, 1.3.4. No spec requirement left uncovered.
+- **Spec coverage:** crm_design recommendations (Option A path-scope org, drop X-Ledger-Id from pure-CRM, validate org as UUID, keep ledger as body field/list filter) → Phase 1 (Epics 1.1-1.3). crm_blast_radius surfaces: handler source + @Param (Phase 1), generated Swagger/OpenAPI (Epic 2.1), Postman + base-URL (Epic 2.2), in-repo tests (Epic 1.3), prose docs (Phase 3). crm_design problems: tenant-isolation-on-unvalidated-header → Epic 1.1/1.2 (path UUID validation; the residual "org-bound authz" idea was Epic 4.1, REJECTED 2026-06-12 — org is not a trust boundary, the tenant is); idempotency gap → Epic 4.2; instrument referential gap → Epic 4.3. Composition X-Ledger-Id subtlety → Tasks 1.1.3, 1.2.4, 1.3.4. No spec requirement left uncovered.
 - **Ground-truth corrections baked in:** instruments already nested (not top-level by-id); `related-parties` route exists today; `org/ledger` already in `UUIDPathParameters`; `instrument_id` allowlist gap caught and given a prerequisite task (1.1.1).
 - **Vagueness scan:** detailed tasks name exact files, line ranges, grep verifications, and per-handler `err`-scoping edge cases. No "appropriate"/"TBD"/unnamed edge cases in the detailed wave.
 - **Contract consistency:** the target route map is the single contract; every Phase-1 task and Phase 2/3 epic references it. Service signatures stay `organizationID string`; handlers pass `.String()` — stated identically across Tasks 1.2.1-1.2.4. Authz triples explicitly held constant everywhere.
-- **Phase boundaries:** Phase 1 ends with a building, test-green binary serving the new routes; Phase 2 ends with regenerated published artifacts; Phase 3 ends with consistent docs; Phase 4 epics are independently gated and parked on decision points.
+- **Phase boundaries:** Phase 1 ends with a building, test-green binary serving the new routes; Phase 2 ends with regenerated published artifacts; Phase 3 ends with consistent docs; Phase 4 closes Epic 4.1 as rejected (org is not a trust boundary) and details Epics 4.2 (idempotency) and 4.3 (referential validation) as independent, dispatch-ready commits.
 - **Verification plausibility:** all commands target real paths verified in this repo (`go build ./...`, scoped `go test` runs, greps against named files).
