@@ -48,7 +48,7 @@ type HolderHandler struct {
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_holder")
 	defer span.End()
@@ -97,6 +97,8 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 
 	if value, err := libCommons.StructToJSONString(out); err == nil {
 		handler.Service.SetCRMIdempotencyValue(ctx, claim.InternalKey, value, claim.TTL)
+	} else {
+		logger.Log(ctx, libLog.LevelWarn, "Holder created but idempotency replay value could not be stored; a retry with the same key will conflict", libLog.Err(err))
 	}
 
 	return http.Created(c, out)

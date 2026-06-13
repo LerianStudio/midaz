@@ -74,6 +74,10 @@ func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, internalKey,
 	ctx, span := tracer.Start(ctx, "service.create_or_check_crm_idempotency")
 	defer span.End()
 
+	// Claim the slot with an empty value: empty string is the load-bearing
+	// in-flight sentinel that the losing-claim branch below distinguishes from a
+	// stored entity. SetCRMIdempotencyValue only ever writes a non-empty JSON
+	// object, so an empty read always means "claimed but not yet completed".
 	success, err := uc.Idempotency.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to lock idempotency key in redis", err)

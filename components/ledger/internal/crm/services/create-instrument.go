@@ -106,7 +106,19 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 	instrument.Document = holder.Document
 	instrument.Type = holder.Type
 
-	if err = uc.validateInstrumentReferences(ctx, span, organizationID, cai.LedgerID, cai.AccountID); err != nil {
+	// organizationID is a route-validated path param already consumed by
+	// GetHolderByID above, so it is a well-formed UUID here; parse it at this
+	// boundary and hand the helper a uuid.UUID so the helper stays focused on
+	// the genuinely untrusted body references.
+	organizationUUID, err := uuid.Parse(organizationID)
+	if err != nil {
+		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "organizationId")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid organization id for instrument", bErr)
+
+		return nil, bErr
+	}
+
+	if err = uc.validateInstrumentReferences(ctx, span, organizationUUID, cai.LedgerID, cai.AccountID); err != nil {
 		return nil, err
 	}
 
@@ -122,20 +134,14 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 
 // validateInstrumentReferences verifies the body-supplied ledger and account
 // exist within the request organization before the instrument is persisted.
-// Malformed UUIDs return a 400-class validation error; a non-existent ledger or
-// account returns the 422 referential sentinel (NOT the query layer's 404, since
-// the addressed instrument route is well-formed — only its references are
-// invalid). Validation order is ledger first, then account within that ledger,
-// because the account lookup is ledger-partitioned.
-func (uc *UseCase) validateInstrumentReferences(ctx context.Context, span trace.Span, organizationID, ledgerIDStr, accountIDStr string) error {
-	organizationUUID, err := uuid.Parse(organizationID)
-	if err != nil {
-		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "organizationId")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid organization id for instrument references", bErr)
-
-		return bErr
-	}
-
+// Malformed body UUIDs return a 400-class validation error; a non-existent
+// ledger or account returns the 422 referential sentinel (NOT the query layer's
+// 404, since the addressed instrument route is well-formed — only its
+// references are invalid). Validation order is ledger first, then account within
+// that ledger, because the account lookup is ledger-partitioned. The
+// organization is passed pre-parsed because it is a route-validated path param,
+// not untrusted body input.
+func (uc *UseCase) validateInstrumentReferences(ctx context.Context, span trace.Span, organizationUUID uuid.UUID, ledgerIDStr, accountIDStr string) error {
 	ledgerUUID, err := uuid.Parse(ledgerIDStr)
 	if err != nil {
 		bErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityInstrument, "ledgerId")
