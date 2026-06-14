@@ -1,6 +1,6 @@
 # Development Dockerfile - uses Alpine for shell access and healthcheck support
 # For production, use Dockerfile (distroless)
-FROM golang:1.26.3-alpine AS builder
+FROM golang:1.26.4-alpine AS builder
 
 WORKDIR /tracer-app
 

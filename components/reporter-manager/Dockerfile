@@ -5,7 +5,7 @@
 # name stable lets the existing Helm chart (.manager image key) stay untouched —
 # devops owns any later rename. There is no Go source here; it lives one level up.
 
-FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine AS builder
 
 WORKDIR /reporter-app
 

@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine AS builder
 
 WORKDIR /tracer-app
 
@@ -17,13 +17,23 @@ ARG TARGETOS
 ARG TARGETARCH
 SHELL ["/bin/ash", "-e", "-o", "pipefail", "-c"]
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -a -tags netgo \
+    go build -tags netgo \
     -ldflags '-s -w -extldflags "-static"' \
     -o /app/tracer components/tracer/cmd/app/main.go
 
 # Production image using distroless for minimal attack surface (Ring Standards)
 # Note: distroless has no shell - use orchestrator health checks (Kubernetes probes)
 FROM gcr.io/distroless/static-debian12:nonroot AS prod
+
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+
+LABEL org.opencontainers.image.source="https://github.com/LerianStudio/midaz"
+LABEL org.opencontainers.image.description="Midaz Tracer (real-time transaction validation + fraud prevention)"
+LABEL org.opencontainers.image.vendor="Lerian Studio"
+LABEL org.opencontainers.image.licenses="Elastic-2.0"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
 WORKDIR /app
 

@@ -17,7 +17,17 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     -ldflags '-s -w -extldflags "-static"' \
     -o /app components/ledger/cmd/app/main.go
 
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12:nonroot
+
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+
+LABEL org.opencontainers.image.source="https://github.com/LerianStudio/midaz"
+LABEL org.opencontainers.image.description="Midaz Ledger (unified binary: onboarding + transaction + CRM + fees)"
+LABEL org.opencontainers.image.vendor="Lerian Studio"
+LABEL org.opencontainers.image.licenses="Elastic-2.0"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
 COPY --from=builder /app /app
 COPY --from=builder /ledger-app/components/ledger/migrations/onboarding /components/ledger/migrations/onboarding
