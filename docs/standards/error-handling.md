@@ -26,7 +26,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 **Rationale.** A bare type switch (`switch e := err.(type)`) would match a concrete error but not a wrapped one. As long as business errors are returned unwrapped, the switch would be correct — but `errors.As` removes the sharp edge where a `%w` wrap of a business error degrades to a generic 500, without changing the contract callers rely on.
 
-**Canonical example.** `pkg/net/http/errors.go:21-110` — `WithError`, the single boundary. Every typed arm resolves via `errors.As` (e.g. the `pkg.ResponseError` arm at `:67-69`); anything that falls through lands on `pkg.ValidateInternalError(err, "")` at `:110` (generic 500).
+**Canonical example.** `pkg/net/http/errors.go:26-110` — `WithError`, the single boundary. Every typed arm resolves via `errors.As` (e.g. the `pkg.ResponseError` arm at `:72-75`); anything that falls through lands on `pkg.ValidateInternalError(err, "")` at `:110` (generic 500).
 
 **Enforcement.** `custom-lint` (flag direct `c.Status(...).JSON(...)` and `fiber.Map` error responses in `http/in` handler packages that bypass `WithError`); `contract-test` for the `errors.As` resolution.
 
@@ -44,6 +44,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 | Business-rule violation (semantic) | 422 |
 | Authentication failure | 401 |
 | Authorization failure | 403 |
+| Failed precondition | 500 |
 | Infrastructure failure | 500 / 503 |
 
 **Re-typing (D2 outcome).** Business-rule violations that were typed as `400`-`ValidationError` are re-typed to `422`-`UnprocessableOperationError` per the table — e.g. `ErrTransactionValueMismatch` is now an `UnprocessableOperationError` (`pkg/errors.go:873`). The re-typing landed inside the v4 breaking window; new code follows the table from day one.
@@ -58,7 +59,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 ## E4 — Sentinels
 
-**Rule.** One numeric sentinel registry in `pkg/constant/errors.go`. Sentinels are `error` values (`errors.New("0073")`-style numeric codes) referenced everywhere by their constant identifier — NEVER by string literal at mapping or classification sites. The prefixed wire-code families (`FEE-`, `TRC-`, `TPL-`, `REP-`) are retired (D1 outcome): every family is folded into the canonical numeric registry, and prefixed code literals are banned.
+**Rule.** One numeric sentinel registry in `pkg/constant/errors.go`. Sentinels are `error` values (`errors.New("0073")`-style numeric codes) referenced everywhere by their constant identifier — NEVER by string literal at mapping or classification sites. The prefixed wire-code families (`FEE-`, `TRC-`, `TPL-`, `REP-`) are retired (D1 outcome): every family is folded into the canonical numeric registry, and prefixed code literals are banned. The `CRM-` family is the one surviving prefixed family — 16 live sentinels in `pkg/constant/errors.go` (e.g. `ErrHolderNotFound = errors.New("CRM-0006")`) — pending its own fold-in; it remains a registered, referenced-by-constant set, not an exception to the constant-identifier rule.
 
 **Rationale.** A string literal at a mapping site (`"TRC-0003"`) cannot be found by reference search, cannot be renamed safely, and decouples the wire code from any compile-time check that it exists in the registry. Referencing the constant makes the registry the single source of truth and makes every emission site greppable.
 
@@ -74,7 +75,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 **Rationale.** A driver not-found that escapes the adapter is a 404 rendered as a 500 — a correctness bug visible to clients. The two sanctioned shapes (map-at-adapter, or generic-sentinel-mapped-at-use-case) both guarantee the client sees 404; the unguarded raw return does not.
 
-**Canonical example.** `pkg/reporter/mongodb/template/template.mongodb.go:97` (`FindByID`) maps driver not-found to the platform sentinel at the adapter boundary via `mapTemplateNotFound(err)` (`:130`); the helper at `:568-574` converts `mongo.ErrNoDocuments` into `pkg.ValidateBusinessError(ErrEntityNotFound, EntityTemplate, ...)` → `EntityNotFoundError` → 404. The use-case caller `components/reporter-manager/internal/services/update-template-by-id.go:220` (`getTemplateStateForUpdate`) guards the result with `errors.As(err, &EntityNotFoundError{})` (`:224`) and re-maps to the entity-specific 404, so a missing template renders 404, not 500. A raw driver not-found reaching `WithError` is the rejected shape.
+**Canonical example.** `pkg/reporter/mongodb/template/template.mongodb.go:97` (`FindByID`) maps driver not-found to the platform sentinel at the adapter boundary via `mapTemplateNotFound(err)` (`:130`); the helper at `:568-574` converts `mongo.ErrNoDocuments` into `pkg.ValidateBusinessError(ErrEntityNotFound, EntityTemplate, ...)` → `EntityNotFoundError` → 404. The use-case caller `components/reporter/internal/manager/services/update-template-by-id.go:219` (`getTemplateStateForUpdate`) guards the result with `errors.As(err, &EntityNotFoundError{})` (`:224`) and re-maps to the entity-specific 404, so a missing template renders 404, not 500. A raw driver not-found reaching `WithError` is the rejected shape.
 
 **Enforcement.** `custom-lint` (flag repository methods that can return `sql.ErrNoRows`/`mongo.ErrNoDocuments` without mapping); `contract-test` (assert a missing-entity read renders 404, not 500).
 
@@ -114,7 +115,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 **Rationale.** Raw error strings leak internal structure (table names, file paths, driver internals, tenant identifiers) to clients and downstream metadata readers. A classified code is stable, safe to expose, and machine-branchable.
 
-**Canonical example.** `pkg/net/http/withRecover.go:42` — the panic recovery renders a fixed generic envelope (`code/title/message` at `:69-73`) with no raw error text, the target shape for all unmapped errors. Persisted-metadata side: `components/reporter-worker/internal/services/generate-report.go:217` (`reportErrorMetadata`, called at `:204`) writes only a classified `error_code` (`:220`, `:226`, `:229`) and a fixed human label — no raw `err.Error()` reaches the stored metadata. Writing raw error text into a client-readable field is the rejected shape.
+**Canonical example.** `pkg/net/http/withRecover.go:42` — the panic recovery renders a fixed generic envelope (`code/title/message` at `:69-73`) with no raw error text, the target shape for all unmapped errors. Persisted-metadata side: `components/reporter/internal/worker/services/generate-report.go:204` (`reportErrorMetadata`, called at `:191`) writes only a classified `error_code` (`:207`, `:213`, `:216`) and a fixed human label — no raw `err.Error()` reaches the stored metadata. Writing raw error text into a client-readable field is the rejected shape.
 
 **Enforcement.** `custom-lint` (flag `err.Error()` flowing into JSON response fields or persisted client-readable metadata); `contract-test` (assert 500 envelopes carry no raw error text).
 
@@ -138,7 +139,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 **Rationale.** `Nack(requeue=true)` on a deterministically-failing message redelivers it immediately and forever — CPU burn, log flood, and head-of-line blocking. Classification plus bounded retry plus DLX is the only posture that bounds the work and preserves the poison message for inspection. The Redis skip-in-place variant (F21) is the same failure mode without a queue: poison records re-attempted every cycle, unbounded growth, no counter, no DLQ, no alert.
 
-**Canonical example.** The classify-retry-DLQ posture lives in the shared engine `pkg/rabbitmq/retry.go:79` (`HandleFailure`) — non-retryable → DLQ (`:81-87`), retry exhaustion → DLQ (`:93-100`), transient → backoff + republish (`:107-138`), with `NackToDLQ` (`:144`) doing the `Nack(requeue=false)`. The reporter wraps it: `components/reporter-worker/internal/adapters/rabbitmq/retry_manager.go:63` (`HandleFailure`) builds the engine with the reporter's tenant-aware republish hook and its classifier (`pkg/reporter/rabbitmq/error_classifier.go` — `IsRetryable` `:60`, `IsPermanentTenantError` `:91`, `ClassifyFailureReason` `:117`). HMAC hard-fail is enforced at `components/reporter-worker/internal/services/data-pipeline.go:81` (`verifyHMACOrReject`: missing or failed signature → reject, only an unconfigured key skips). Partial-result reports carry the explicit `PartialStatus` (`pkg/reporter/constant/report-status.go`) with per-section classified `error_code` (E9). A blanket `Nack(requeue=true)` with no classification — the former ledger consumer pattern — is the rejected shape; no such site remains.
+**Canonical example.** The classify-retry-DLQ posture lives in the shared engine `pkg/rabbitmq/retry.go:67` (`HandleFailure`) — non-retryable → DLQ (`:68-78`), retry exhaustion → DLQ (`:80-91`), transient → backoff + republish (`:93-138`), with `NackToDLQ` (`:143`) doing the `Nack(requeue=false)`. The reporter wraps it: `components/reporter/internal/worker/adapters/rabbitmq/retry_manager.go:59` (`HandleFailure`) builds the engine with the reporter's tenant-aware republish hook and its classifier (`pkg/reporter/rabbitmq/error_classifier.go` — `IsRetryable` `:60`, `IsPermanentTenantError` `:91`, `ClassifyFailureReason` `:117`). CRM filter hashing is fail-closed: `TransformFilters` (`components/reporter/internal/worker/services/crm/crm.go:92`) HMAC-hashes filter values with the configured key, and an empty/unconfigured key is a fail-closed precondition error (`:86`) — not a silent skip. Partial-result reports carry the explicit `PartialStatus` (`pkg/reporter/constant/report-status.go`) with per-section classified `error_code` (E9). A blanket `Nack(requeue=true)` with no classification — the former ledger consumer pattern — is the rejected shape; no such site remains.
 
 **Enforcement.** `custom-lint` (flag `Nack(*, true)` outside an explicit, classified retry path); `contract-test` for the HMAC hard-fail and PARTIAL-status postures; `review-only` for the Redis-path F21 remediation.
 

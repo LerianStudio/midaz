@@ -1,7 +1,7 @@
 # Project Structure Overview
 
 This guide covers the project structure after the monorepo consolidation. The codebase is a
-single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.26.3, single root `go.mod` — no
+single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.26.4, single root `go.mod` — no
 `go.work`, no `replace`) following hexagonal architecture with Command Query Responsibility
 Segregation (CQRS).
 
@@ -66,7 +66,7 @@ MIDAZ
  |   |---   reporter-manager       # Dockerfile stub (distroless image anchor, RUN_MODE=api)
  |   |---   reporter-worker        # Dockerfile stub (alpine+Chromium image anchor, RUN_MODE=worker)
  |   image
- |   pkg                           # shared libraries (root)
+ |   pkg                           # shared libraries (root, non-exhaustive)
  |   |---   constant
  |   |---   gold
  |   |---   mbootstrap
@@ -136,8 +136,8 @@ The entire CRM HTTP surface lives in the ledger tree under
 `holder.go`, `holder_accounts.go`, and `instrument.go` handlers. CRM endpoints are folded into
 the ledger Swagger spec (`components/ledger/api`); there is no separate CRM OpenAPI spec.
 
-CRM scopes requests by the `X-Organization-Id` HTTP header (not path-based org hierarchy) — see
-`docs/api/SCOPING.md` (R22). CRM error responses now carry canonical midaz codes; the legacy
+CRM scopes requests by the `:organization_id` URL path parameter (path-based org hierarchy; R22
+reversed pre-GA) — see `docs/api/SCOPING.md`. CRM error responses now carry canonical midaz codes; the legacy
 `CRM-00xx` transform shim was removed (PD-2). The 16 surviving CRM domain sentinels live in
 `pkg/constant/errors.go`.
 
@@ -178,12 +178,13 @@ SeaweedFS S3 config (`s3.json`, `init-bucket.sh`) lives under `./components/infr
 
 #### Shared Packages (`./pkg`)
 
-Cross-component Go libraries (root module):
+Cross-component Go libraries (root module; non-exhaustive — additional packages such as
+`buildinfo`, `proto`, and `rabbitmq` also live here):
 
 | Package | Purpose |
 |---------|---------|
 | `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.) |
-| `pkg/constant` | Error codes (`errors.go`, ledger `0001`–`0178` + 16 `CRM-00xx`), entity/action/module constants |
+| `pkg/constant` | Error codes (`errors.go`, ledger numeric sentinels (`0001`+) + 16 `CRM-00xx`), entity/action/module constants |
 | `pkg/gold` | ANTLR4 Gold DSL grammar + parser for transactions |
 | `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |
 | `pkg/net` | HTTP middleware, pagination, protected-route helpers |
@@ -198,7 +199,7 @@ Cross-component Go libraries (root module):
 
 > Logging, telemetry, tracing, panic recovery, HTTP toolkit, and tenant-manager symbols
 > (`libLog`, `libHTTP`, etc.) come from the external libraries
-> `github.com/LerianStudio/lib-commons/v5` (v5.4.1) and
+> `github.com/LerianStudio/lib-commons/v5` (v5.5.0) and
 > `github.com/LerianStudio/lib-observability` (v1.0.1) — they are **not** subpackages of `./pkg`.
 
 #### Miscellaneous

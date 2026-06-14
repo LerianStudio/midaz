@@ -120,8 +120,7 @@ The E2E tests spin up a complete test environment using [testcontainers-go](http
 |  +-------------+      +----------+                            |
 |  +------------+                                               |
 |  |  MongoDB   |                                               |
-|  | (plugin_   |                                               |
-|  |  crm)      |                                               |
+|  | (crm)      |                                               |
 |  +------------+                                               |
 |   (Data Sources)                                              |
 |                                                                |

@@ -101,11 +101,11 @@ under five distinct namespace literals across the monorepo:
 
 | Namespace | Deploy unit | Resources (verified) | Source (file:line) |
 |-----------|-------------|----------------------|--------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go:26` (`midazName = "midaz"`); `crm_routes.go:20` (`const ApplicationName = "midaz"`) for `holders`/`instruments` |
-| `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go:27` (`routingName = "routing"`, helper `protectedRouting` at `:231`) |
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go:19` (`midazName = "midaz"`); `crm_routes.go:20` (`const ApplicationName = "midaz"`) for `holders`/`instruments` |
+| `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go:20` (`routingName = "routing"`, helper `protectedRouting` at `:187`) |
 | `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go:19` (`feesApplicationName = "plugin-fees"`) |
-| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go:7` (`const ApplicationName = "tracer"`); wired via `bootstrap/config.go:1127` → `AppName`, consumed at `middleware/auth_guard.go:86` |
-| `reporter` | reporter-manager (`:4005`) | `templates`, `reports`, `deadlines`, `data-source`, `metrics` | `pkg/reporter/constant/app.go:7` (`const ApplicationName = "reporter"`); routes at `components/reporter-manager/internal/adapters/http/in/routes.go:71+` |
+| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go:7` (`const ApplicationName = "tracer"`); wired via `bootstrap/config.go:1154` → `AppName`, consumed at `middleware/auth_guard.go:87` |
+| `reporter` | reporter-manager (`:4005`) | `templates`, `reports`, `deadlines`, `data-source`, `metrics` | `pkg/reporter/constant/app.go:7` (`const ApplicationName = "reporter"`); routes at `components/reporter/internal/manager/adapters/http/in/routes.go` |
 
 > **Audit-ref check:** every ref in the Epic 3.3 brief is accurate as written — `tracer` at
 > `pkg/constant/app.go:7`, `reporter` at `pkg/reporter/constant/app.go:7`, `routing` splitting

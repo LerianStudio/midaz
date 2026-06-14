@@ -101,12 +101,14 @@ By making a contribution to this project, I certify that:
     this project or the open source license(s) involved.
 ```
 
-Then you just add a line to every git commit message:
+To certify the DCO, add a sign-off line to every git commit message:
 
+```
 Signed-off-by: Joe Smith <joe.smith@example.com>
-Use your real name. Pseudonyms or anonymous contributions are not accepted.
+```
 
-If you set your user.name and user.email git configs, you can sign your commit automatically with git commit -s.
+* Use your real name. Pseudonyms or anonymous contributions are not accepted.
+* If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with `git commit -s`.
 
 Following these guidelines helps keep Midaz welcoming and efficient for everyone.
 

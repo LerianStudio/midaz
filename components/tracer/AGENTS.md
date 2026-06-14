@@ -6,7 +6,7 @@ Universal entry point for any AI coding agent working on the Tracer codebase.
 
 **Tracer** is a real-time transaction validation and fraud prevention API built by Lerian Studio. It provides instant ALLOW/DENY/REVIEW decisions for financial transactions using CEL rule expressions, multi-scope spending limits, and an immutable audit trail with hash chain verification for SOX/GLBA compliance.
 
-- **Language**: Go 1.26.3 (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v4`, toolchain go1.26.4 — tracer has no own go.mod)
+- **Language**: Go 1.26.4 (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v4` — tracer has no own go.mod)
 - **Architecture**: Hexagonal Architecture (Ports & Adapters) + CQRS
 - **Database**: PostgreSQL 17
 - **Rule Engine**: Google CEL (cel-go v0.28.1) with in-memory cache
@@ -52,7 +52,7 @@ internal/
 ├── testutil/          # Shared test helpers
 pkg/
 ├── model/             # Domain entities (Rule, Limit, Validation, Scope, AuditEvent)
-├── constant/          # Error codes (TRC-XXXX), pagination defaults
+├── constant/          # pagination/app constants (error codes live in root pkg/constant)
 ├── clock/             # Clock interface (Real + Fixed for MOCK_TIME)
 └── resilience/        # Circuit breaker (sony/gobreaker wrapper)
 ```
@@ -70,7 +70,7 @@ pkg/
 | `make lint` | golangci-lint v2 with auto-fix |
 | `make sec` | gosec + govulncheck |
 | `make generate` | go generate (mocks) |
-| `make generate-docs` (repo root) | Regenerate Swagger docs for all three REST services (ledger, tracer, reporter-manager) |
+| `make generate-docs` (repo root) | Regenerate Swagger docs for all three REST services (ledger, tracer, reporter) |
 | `make migrate` | Apply database migrations |
 | `make up` / `make down` | Docker Compose lifecycle |
 
@@ -129,7 +129,7 @@ Always start with tracking + span. Enrich logger with trace context.
 
 - Conventional commit format in PR titles
 - Run `make lint && make test-unit && make sec` before pushing
-- Run `make generate-docs` from the repo root if the API changed (regenerates ledger, tracer, and reporter-manager together)
+- Run `make generate-docs` from the repo root if the API changed (regenerates ledger, tracer, and reporter together)
 - All code, comments, and docs in English
 
 ## Key Files to Read
@@ -143,8 +143,7 @@ Always start with tracking + span. Enrich logger with trace context.
 | 4 | `.env.example` | All configuration variables |
 | 5 | `.golangci.yml` | Linter rules |
 | 6 | `internal/bootstrap/config.go` | Composition root — how everything is wired |
-| 7 | `pkg/constant/errors.go` | All error codes (TRC-XXXX) |
-| 8 | `api/swagger.json` | Full API specification |
+| 7 | `api/swagger.json` | Full API specification |
 
 ## What NOT to Do
 

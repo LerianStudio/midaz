@@ -31,9 +31,9 @@ go test -tags fuzz ./tests/reporter/fuzzy/...
 go test -tags fuzz -fuzz=FuzzTemplate_InvalidTags -fuzztime=30s ./tests/reporter/fuzzy
 ```
 
-> Note: `make test-fuzz` only discovers Fuzz* targets under `./components` and
-> `./pkg`; it does not scan `./tests`, so it does NOT run this reporter suite.
-> Invoke `go test` directly as shown above.
+> Note: `make test-fuzz` now discovers and runs this suite (it scans
+> `./components ./pkg ./tests`, with the larger FUZZTIME_FUZZY budget); direct
+> `go test` is still fine for a single target.
 
 ## Test Files
 - `fuzz-template-invalid-tags_test.go` - Non-existent fields/tables

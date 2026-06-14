@@ -1,6 +1,6 @@
 # Contributing to itestkit
 
-This guide explains how to evolve the framework, infra, and addons for itestkit. It follows the architecture described in `pkg/itestkit/README.md` and prioritizes real infrastructure, isolation, reproducibility, and chaos.
+This guide explains how to evolve the framework, infra, and addons for itestkit. It follows the architecture described in `pkg/reporter/itestkit/README.md` and prioritizes real infrastructure, isolation, reproducibility, and chaos.
 
 ## Architecture principles
 
@@ -13,7 +13,7 @@ This guide explains how to evolve the framework, infra, and addons for itestkit.
 ## Package map
 
 ```
-pkg/itestkit/
+pkg/reporter/itestkit/
   README.md
   infra.go              // Infra, NamedInfra
   suite.go              // Builder, Suite, Env
@@ -30,13 +30,15 @@ pkg/itestkit/
     rabbitmq/
     mssql/
     oracle/
+    seaweedfs/
+    minio/
   addons/
     e2ekit/
     metricskit/
     queuekit/
 ```
 
-## Evolving the core (pkg/itestkit)
+## Evolving the core (pkg/reporter/itestkit)
 
 - `Infra` and `NamedInfra` in `infra.go`: implement `InfraKind()` and `InfraName()` to avoid duplicates; default `Name` should be "default".
 - `Builder`/`Suite`/`Env` in `suite.go`: `Build()` creates the environment and `Terminate()` shuts down in reverse order; keep `Builder` pure and side-effect free.
@@ -50,9 +52,9 @@ pkg/itestkit/
 - New providers: create `chaos_<provider>.go`, implement the contract, and add selection via `ChaosConfig` without breaking the default.
 - Proxy names must be stable. For generic containers use `<prefix>-<container>-<port>`. For infra with one port, use `<prefix>-<name>` (or include the port if it is part of the standard) and document it in the README.
 
-## Evolving infra (pkg/itestkit/infra/<name>)
+## Evolving infra (pkg/reporter/itestkit/infra/<name>)
 
-1. Create the package in `pkg/itestkit/infra/<name>` with `<name>.go`, `<name>_options.go`, and tests in `<name>_test.go`.
+1. Create the package in `pkg/reporter/itestkit/infra/<name>` with `<name>.go`, `<name>_options.go`, and tests in `<name>_test.go`.
 2. Define `<Name>Config` with `Name`, `Image`, credentials, `EnableProxy`, `ProxyName`, and `Options`.
 3. In `New<Name>Infra`, apply defaults (image, credentials, `Name=default`, `ProxyName` with a clear prefix).
 4. In `Start`, initialize the container (prefer `testcontainers-go/modules` when available), get `Host` and `MappedPort`, build the `Upstream`, and create a proxy if `EnableProxy` and `env.Chaos != nil`.
@@ -60,19 +62,19 @@ pkg/itestkit/
 6. Implement `Terminate`, `InfraKind`, and `InfraName` to enable duplicate validation in the `Builder`.
 7. In `<name>_options.go`, use the pattern `type <Name>Option func(*<name>Options)` with `runOpts []testcontainers.ContainerCustomizer` to allow customization.
 8. Write basic tests with `context.WithTimeout` and real connectivity validation; use `t.Skip` when the environment requires it.
-9. Update `pkg/itestkit/README.md` with the new infra (architecture and examples).
+9. Update `pkg/reporter/itestkit/README.md` with the new infra (architecture and examples).
 
-## Evolving addons (pkg/itestkit/addons/<addon>)
+## Evolving addons (pkg/reporter/itestkit/addons/<addon>)
 
-1. Create the package in `pkg/itestkit/addons/<addon>` and keep dependency on the core only when needed.
+1. Create the package in `pkg/reporter/itestkit/addons/<addon>` and keep dependency on the core only when needed.
 2. Prefer a fluent API (builder) with safe defaults; avoid side effects before `Run()`/`Start()`.
 3. For container-based addons, offer `WaitStrategy` and failure logs (like `e2ekit`).
 4. For metrics/observability addons, provide small, thread-safe interfaces (like `metricskit`).
-5. Add tests and examples and update `pkg/itestkit/README.md`.
+5. Add tests and examples and update `pkg/reporter/itestkit/README.md`.
 
 ## Tests and validation
 
-- Recommended: `go test ./pkg/itestkit/...`
+- Recommended: `go test ./pkg/reporter/itestkit/...`
 - Infra tests depend on Docker; use timeouts and deterministic waits.
 
 ## PR checklist

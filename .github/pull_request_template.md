@@ -10,6 +10,9 @@
 - [ ] Onboarding
 - [ ] Transaction
 - [ ] CRM
+- [ ] Tracer
+- [ ] Reporter
+- [ ] Fees
 - [ ] Tests
 
 ## Checklist

@@ -6,7 +6,7 @@
 >
 > **Helm charts and Kubernetes manifests are intentionally NOT in this repository** — they are owned
 > by the infra team in a downstream repo. This repo has no `helm/`, `k8s/`, or `deploy/` directory
-> (confirmed: `components/` holds only `crm`, `infra`, `ledger`, `reporter`, `reporter-manager`,
+> (confirmed: `components/` holds only `infra`, `ledger`, `reporter`, `reporter-manager`,
 > `reporter-worker`, `tracer`). Everything below is either (a) a **fact** grounded in code, config,
 > Dockerfiles, or compose files in *this* repo — cited inline — or (b) a **RECOMMENDATION** for the
 > infra team, explicitly labeled, grounded in the real runtime constraints rather than in any
@@ -35,7 +35,7 @@ ledger alone, or add tracer and/or reporter as distinct products.
 
 | Tier | Image / build context | Binary source | Base image | Port(s) | License | Notes |
 |---|---|---|---|---|---|---|
-| **Ledger** (unified) | `components/ledger/Dockerfile` | `components/ledger/cmd/app/main.go` (`Dockerfile:19`) | distroless `static-debian12` (default tag), run as nonroot via `USER nonroot:nonroot` (`Dockerfile:28`), static `CGO_ENABLED=0 -tags netgo` (`Dockerfile:13-31`) | `:3002` (`EXPOSE 3002`, `Dockerfile:26`) | Elastic-2.0 | One binary serving onboarding + transaction + CRM (holders/instruments) + fees; routes register under the `midaz` authz namespace via `protectedMidaz(...)` (`routes.go:65+`). No embedded `HEALTHCHECK` — relies on orchestrator probes. |
+| **Ledger** (unified) | `components/ledger/Dockerfile` | `components/ledger/cmd/app/main.go` (`Dockerfile:19`) | distroless `static-debian12` (default tag), run as nonroot via `USER nonroot:nonroot` (`Dockerfile:28`), static `CGO_ENABLED=0 -tags netgo` (`Dockerfile:13-31`) | `:3002` (`EXPOSE 3002`, `Dockerfile:26`) | Elastic-2.0 | One binary serving onboarding + transaction + CRM (holders/instruments) + fees; routes register under the `midaz` authz namespace via `protectedMidaz(...)` (`routes.go`). No embedded `HEALTHCHECK` — relies on orchestrator probes. |
 | **Tracer** | `components/tracer/Dockerfile` | `components/tracer/cmd/app/main.go` | distroless `static-debian12:nonroot`, `GOMEMLIMIT=1800MiB` baked (`Dockerfile`) | `:4020` REST seam (`EXPOSE 4020`); optional gRPC seam on a separate port (see §6) | Elastic-2.0 | A separate `Dockerfile.dev` uses `alpine:3.23` with a `wget` `HEALTHCHECK` against `/readyz` on `SERVER_PORT` (`Dockerfile.dev`). |
 | **Reporter — API** | `components/reporter-manager/Dockerfile` → image `midaz-reporter-manager` | `components/reporter/cmd/app/main.go` (one binary) | distroless `static-debian12:nonroot`, `ENV RUN_MODE=api` | `:4005` (`EXPOSE 4005`) | Elastic-2.0 | REST surface. No Chromium. |
 | **Reporter — Worker** | `components/reporter-worker/Dockerfile` → image `midaz-reporter-worker` | `components/reporter/cmd/app/main.go` (same binary) | `alpine:3.23` + headless Chromium (`apk add chromium nss freetype …`, `CHROMEDP_USE_SYSTEM_CHROME=true`), `ENV RUN_MODE=worker` | `:4006` (`EXPOSE 4006`) | Elastic-2.0 | Health/readyz only — async RabbitMQ consumer rendering PDFs (see §7). Distroless cannot host the Chromium userland, so this image is deliberately fat. |

@@ -1,6 +1,6 @@
 # Telemetry Standard
 
-This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code), `components/tracer`, `components/reporter-manager`, and `components/reporter-worker`. It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
+This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code), `components/tracer`, and `components/reporter` (unified RUN_MODE binary; code under `internal/{manager,worker}`). It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
 
 Two rules — **T5** (span-error helper by class) and **T8** (single-point logging) — are defined **only here** and referenced by `error-handling.md`. They are not restated there; do not duplicate them.
 
@@ -78,7 +78,7 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 **Rationale:** Interpolating into the message destroys field-level queryability and is the single largest violation class in the codebase (~1,450 sites). Constant messages with typed fields keep logs aggregatable and parseable, and stop accidental interpolation of sensitive values into the message string (see T9).
 
-**Canonical example:** [`pkg/rabbitmq/retry.go:93`](../../pkg/rabbitmq/retry.go) — constant message `"Max retries exceeded, sending to DLQ"` with `log.Int(...)`, `log.String(...)`, `log.Err(err)` fields (lines 93–97), in the shared retry engine that reporter-worker delegates to. reporter and tracer have zero `fmt.Sprintf`-in-logger violations.
+**Canonical example:** [`pkg/rabbitmq/retry.go:81`](../../pkg/rabbitmq/retry.go) — constant message `"Max retries exceeded, sending to DLQ"` with `log.Int(...)`, `log.String(...)`, `log.Err(err)` fields (lines 81–86), in the shared retry engine that reporter-worker delegates to. reporter and tracer have zero `fmt.Sprintf`-in-logger violations.
 
 **Enforcement:** `custom-lint` — flag `fmt.Sprintf`/`fmt.Sprintln` as an argument to `logger.Log`/`logger.Info`/etc., and any `.Infof(`/`.Errorf(`/`.Warnf(`/`.Debugf(` logger method.
 
@@ -96,7 +96,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** The audit found inverted discipline (ledger-http: 192 Info vs 9 Debug) where per-request narration drowns the rare milestones that Info is meant to surface and duplicates information already captured by spans. A closed Info list keeps production logs scannable and makes per-request noise a mechanical violation.
 
-**Canonical example:** [`components/reporter-worker/internal/bootstrap/service.go:153`](../../components/reporter-worker/internal/bootstrap/service.go) — `app.Info("Flushing telemetry...")` is a genuine one-time shutdown milestone (the only sanctioned Info shape).
+**Canonical example:** [`components/reporter/internal/worker/bootstrap/service.go:166`](../../components/reporter/internal/worker/bootstrap/service.go) — `app.Info("Flushing telemetry...")` is a genuine one-time shutdown milestone (the only sanctioned Info shape).
 
 **Enforcement:** `custom-lint` — flag Info-level calls whose message matches `^(Initiating|Retrieving|Trying to|Successfully|Starting)\b` outside bootstrap packages.
 
@@ -138,7 +138,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** A bare `context.Background()` severs the goroutine's work from the request trace, making async side-effects (idempotency writes, audit emits) invisible in the parent trace and unattributable when they fail. `WithoutCancel` preserves trace and values while correctly detaching the request's cancellation.
 
-**Counter-example (forbidden bare Background):** [`components/ledger/internal/adapters/http/in/transaction_create.go:1368`](../../components/ledger/internal/adapters/http/in/transaction_create.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines on lines 1370–1372, dropping the trace.
+**Counter-example (forbidden bare Background):** [`components/ledger/internal/adapters/http/in/transaction_create.go:1371`](../../components/ledger/internal/adapters/http/in/transaction_create.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines on lines 1373–1375, dropping the trace.
 
 **Enforcement:** `custom-lint` — flag `context.Background()` used as the seed for a `go` statement's context; broker inject/extract presence is `review-only`.
 
@@ -150,7 +150,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** Unbounded label cardinality is the classic way to blow up a Prometheus backend; bounding labels at the emission point and routing all new metrics through one factory keeps the metric surface governable. Probe traffic generates a span and metric per k8s probe — high-volume, zero-information — so excluding probe routes removes pure noise and cost. Swallowed emit errors hide a broken metrics pipeline.
 
-**Canonical example (bounded-label allowlist — the model):** [`components/tracer/internal/observability/recorder.go:38`](../../components/tracer/internal/observability/recorder.go) — `allowedDeps` / `allowedStatuses` bounded sets (lines 37–50) drop any out-of-set label value at the emission point. The allowlist discipline survives tracer's migration to MetricsFactory; the emission mechanism does not.
+**Canonical example (bounded-label allowlist — the model):** [`components/tracer/internal/observability/recorder.go:38`](../../components/tracer/internal/observability/recorder.go) — `allowedDeps` / `allowedStatuses` bounded sets (lines 37–49) drop any out-of-set label value at the emission point. The allowlist discipline survives tracer's migration to MetricsFactory; the emission mechanism does not.
 
 **Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.0.1/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
 
@@ -169,7 +169,7 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 
 ### reporter
 
-`component = "reporter"`. Shared by both the reporter-manager (HTTP use cases) and reporter-worker (RabbitMQ-consumer use cases); the families aggregate across both binaries. Operation-name constants live in `components/reporter-manager/internal/services/metrics.go` and `components/reporter-worker/internal/services/metrics.go`.
+`component = "reporter"`. Shared by both the reporter-manager (HTTP use cases) and reporter-worker (RabbitMQ-consumer use cases); the families aggregate across both binaries. Operation-name constants live in `components/reporter/internal/manager/services/metrics.go` and `components/reporter/internal/worker/services/metrics.go`.
 
 | operation | binary | use-case entrypoint |
 | --- | --- | --- |
@@ -290,9 +290,9 @@ The `MetricsFactory` is wired at each bootstrap from `telemetry.MetricsFactory` 
 
 **Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for all three services; reporter-worker is the cleanest reference.
 
-**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:394`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 409.
+**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:415`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 430.
 
-**Canonical example (flush last):** [`components/reporter-worker/internal/bootstrap/service.go:151`](../../components/reporter-worker/internal/bootstrap/service.go) — `// Flush telemetry (must be last to capture shutdown spans)` followed by `ShutdownTelemetry()` (lines 151–155).
+**Canonical example (flush last):** [`components/reporter/internal/worker/bootstrap/service.go:164`](../../components/reporter/internal/worker/bootstrap/service.go) — `// Flush telemetry (must be last to capture shutdown spans)` followed by `ShutdownTelemetry()` (lines 164–168).
 
 **Enforcement:** `review-only` — teardown ordering is sequence-dependent and not mechanically gateable; verify at review of bootstrap changes.
 

@@ -57,7 +57,7 @@ Use this template when creating new migrations. Copy and fill out for each signi
 
 ### Deployment Sequence
 
-1. [ ] Apply migration via `make up` or `make up-backend`
+1. [ ] Apply migration via `make up` or `make migrate`
 2. [ ] Deploy application
 3. [ ] Monitor errors for 24h
 4. [ ] (If expand) Schedule CONTRACT migration for [date]
@@ -151,7 +151,7 @@ ALTER TABLE account DROP COLUMN IF EXISTS preferences;
 
 ### Deployment Sequence
 
-1. [x] Apply migration via `make up` or `make up-backend`
+1. [x] Apply migration via `make up` or `make migrate`
 2. [ ] Deploy application v2.5.0
 3. [ ] Monitor errors for 24h
 

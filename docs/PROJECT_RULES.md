@@ -1,6 +1,6 @@
 # Midaz Project Rules
 
-> **Auto-generated from codebase exploration on 2026-02-02, updated 2026-03-02**
+> **Auto-generated from codebase exploration on 2026-02-02, updated 2026-06-13**
 > This document captures the coding standards, architectural patterns, and conventions discovered in the Midaz source-available ledger project.
 
 ---
@@ -190,7 +190,7 @@ func validateFromBalances() {}   // Unexported
 
 // Variables: camelCase
 ctx := context.Background()
-logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 // Constants: PascalCase for exported errors
 var ErrDuplicateLedger = errors.New("0001")
@@ -230,7 +230,7 @@ import (
 
 ```go
 func (uc *UseCase) CreateTransaction(ctx context.Context, input *mmodel.CreateTransactionInput) (*mmodel.Transaction, error) {
-    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+    logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
     ctx, span := tracer.Start(ctx, "command.create_transaction")
     defer span.End()
 
@@ -245,7 +245,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, input *mmodel.CreateTr
 
 ```go
 // Extract tracking from context
-logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 // Create span for operation
 ctx, span := tracer.Start(ctx, "layer.operation_name")
@@ -273,7 +273,7 @@ if err != nil {
 
 **Location:** `pkg/constant/errors.go`
 
-Core errors use 4-digit numeric codes (0001-0178, with a gap at 0130). CRM-specific errors use a `CRM-` prefix (CRM-0006 to CRM-0029, non-contiguous):
+Core errors use 4-digit numeric codes (0001 onward, non-contiguous). CRM-specific errors use a `CRM-` prefix (CRM-0006 to CRM-0029, non-contiguous):
 
 ```go
 var (
@@ -461,7 +461,7 @@ type TransactionHandler struct {
 // With body parsing
 func (h *TransactionHandler) CreateTransaction(p any, c *fiber.Ctx) error {
     ctx := c.UserContext()
-    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+    logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
     ctx, span := tracer.Start(ctx, "handler.create_transaction")
     defer span.End()
 
@@ -825,7 +825,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -869,7 +869,7 @@ ENTRYPOINT ["/app"]
 
 Required checks before merge:
 1. CodeQL security analysis
-2. golangci-lint v2.4.0 (must pass, 5m timeout)
+2. golangci-lint v2.12.2 (must pass, 5m timeout)
 3. gosec + govulncheck security scanning
 4. Unit tests (must pass, 85% coverage threshold enforced)
 5. Migration linting (if migrations changed)
@@ -1127,4 +1127,4 @@ Multi-tenancy is provided by `lib-commons/v5`:
 - **Error Catalog:** https://docs.lerian.studio/midaz/api-reference/resources/errors-list
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
-- **Go Version:** 1.26.3 (toolchain go1.26.4)
+- **Go Version:** 1.26.4 (go.mod `go 1.26.4`)

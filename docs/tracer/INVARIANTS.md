@@ -86,13 +86,24 @@ are why several migrations are held to the renumbering invariant below.
 
 - **Append-only.** Never update or delete audit-event records. The log is immutable by design;
   there is no mutation path and none may be added.
-- **Hash chain.** Each audit event chains a SHA-256 hash over the prior event (`pkg/hash/`,
-  pgcrypto in the DB). `GET /v1/audit-events/{id}/verify` re-walks the chain to prove
-  integrity; this is the compliance proof and must keep working across upgrades.
-- **Async write (fire-and-forget).** Audit writes MUST NOT block the validation response. Emit
-  on a goroutine with `context.Background()` (the request context may be cancelled), and log
-  failures with structured fields including `request.id` for correlation. Synchronous audit
-  writes are a forbidden practice.
+- **Hash chain.** Each audit event chains a SHA-256 hash over the prior event, computed
+  DB-side: the `calculate_audit_event_hash()` trigger function (migration `000001`) runs
+  `encode(sha256(hash_input::bytea), 'hex')`, backed by the `pgcrypto` extension enabled in
+  migration `000004`. There is no application-side SHA-256 (`pkg/hash/` holds only an FNV-1a
+  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{id}/verify`
+  re-walks the chain to prove integrity; this is the compliance proof and must keep working
+  across upgrades.
+- **Synchronous, compliance-blocking write.** Audit persistence is SYNCHRONOUS, not
+  fire-and-forget — the SOX/GLBA audit trail is guaranteed before the validation response is
+  sent. On the `ALLOW` path the event is persisted inside the validation DB transaction
+  (`persistAuditEventWithTx`, `internal/services/validation_service.go`); on the other paths it
+  is a best-effort synchronous write outside the tx (`persistAuditEvent`). Detachment from
+  request cancellation is achieved with `context.WithTimeout(context.WithoutCancel(ctx), ...)`,
+  NEVER a background goroutine and NEVER a bare `context.Background()` — `WithoutCancel`
+  preserves trace/values while a bounded timeout guarantees the write completes regardless of
+  client-side cancellation (see the "Design Decision: Synchronous Persistence" comment above
+  `persistTransactionValidation` in `validation_service.go`). Failures log structured fields
+  including `request.id` for correlation.
 
 ---
 
@@ -112,7 +123,7 @@ must respect:
 | Limit check | 5ms | 10ms |
 | Audit write | async | N/A |
 | Response build | 1ms | 2ms |
-| **Total** | **34ms** | **80ms** |
+| **Total** | **29ms** | **59ms** |
 
 Targets: validation p50 < 35ms, p99 < 80ms (max 100ms); expression evaluation < 1ms (max 5ms);
 rule query (all active) < 5ms (max 10ms).
@@ -156,8 +167,8 @@ CREATE TABLE schema_migrations_functions (
 ### Migration Renumbering Invariant (MANDATORY)
 
 This is the invariant cited by migrations `000004`, `000005`, `000010` and by the integration
-tests `tests/integration/09_bootstrap_migrations_test.go` and
-`tests/integration/10_upgrade_path_test.go`. It is load-bearing.
+tests `components/tracer/tests/integration/09_bootstrap_migrations_test.go` and
+`components/tracer/tests/integration/10_upgrade_path_test.go`. It is load-bearing.
 
 Any migration file that is renamed or renumbered MUST contain SQL that is strictly idempotent:
 `CREATE ... IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, `ALTER TABLE ... ADD COLUMN IF NOT

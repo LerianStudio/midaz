@@ -2,26 +2,26 @@
 
 ## What Is This?
 
-Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships four deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, the unified Reporter (one codebase deployed split via `RUN_MODE=api|worker`), and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
+Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships four deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, the unified Reporter (one codebase deployed split via `RUN_MODE=api|worker|all`), and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
 
 ## Quick Facts
 
 | Aspect | Detail |
 |--------|--------|
-| Language | Go 1.26.3 (toolchain go1.26.4) |
+| Language | Go 1.26.4 |
 | Module | `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`) |
 | License | Elastic License 2.0 |
 | Architecture | Hexagonal + CQRS |
 | HTTP Framework | Fiber v2 |
 | Databases | PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey |
-| lib-commons | `github.com/LerianStudio/lib-commons/v5` (+ `lib-observability`) |
-| Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter (one image, `RUN_MODE=api` :4005 / `RUN_MODE=worker` :4006), Infra (Docker Compose) |
+| lib-commons | `github.com/LerianStudio/lib-commons/v5` v5.5.0 (+ `lib-observability` v1.0.1) |
+| Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Reporter (one image, `RUN_MODE=api|worker|all`; api :4005 / worker :4006), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
 > `transaction_create.go`). Tracer and Reporter are separate Go services; Reporter is one
-> codebase (`components/reporter`) deployed split via `RUN_MODE=api|worker`.
+> codebase (`components/reporter`) deployed split via `RUN_MODE=api|worker|all`.
 
 ## Get Running
 
@@ -62,7 +62,7 @@ components/reporter/   → Unified reporter codebase (one image, RUN_MODE=api|wo
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
-  constant/errors.go  → Error codes (ledger 0001–0178, 16 CRM-00xx)
+  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 16 CRM-00xx)
   errors.go           → Typed error structs
   gold/               → Transaction DSL parser (ANTLR4)
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)

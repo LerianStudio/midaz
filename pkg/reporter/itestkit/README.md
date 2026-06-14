@@ -19,8 +19,8 @@ import (
     "context"
     "testing"
 
-    "github.com/your-org/itestkit"
-    "github.com/your-org/itestkit/infra/postgres"
+    "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit"
+    "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/postgres"
 )
 
 func TestWithPostgres(t *testing.T) {
@@ -66,7 +66,8 @@ itestkit
 │   ├── rabbitmq    → RabbitMQ
 │   ├── mssql       → Microsoft SQL Server
 │   ├── oracle      → Oracle Database
-│   └── seaweedfs   → SeaweedFS (distributed file system)
+│   ├── seaweedfs   → SeaweedFS (distributed file system)
+│   └── minio       → MinIO (S3-compatible object storage)
 └── addons/
     ├── e2ekit      → End-to-end testing addon
     ├── metricskit  → Chaos metrics and assertions
@@ -134,7 +135,7 @@ The framework provides optional pre-built infrastructure in sub-packages. The co
 ### PostgreSQL
 
 ```go
-import "github.com/your-org/itestkit/infra/postgres"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/postgres"
 
 pgInfra := postgres.NewPostgresInfra(postgres.PostgresConfig{
     Name:        "mydb",           // optional, defaults to "postgres"
@@ -154,7 +155,7 @@ dsn, _ := pgInfra.DSN()
 ### RabbitMQ
 
 ```go
-import "github.com/your-org/itestkit/infra/rabbitmq"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/rabbitmq"
 
 rmqInfra := rabbitmq.NewRabbitInfra(rabbitmq.RabbitConfig{
     Name:        "broker",
@@ -270,7 +271,7 @@ rabbitmqctl hash_password "your_password"
 ### Redis
 
 ```go
-import "github.com/your-org/itestkit/infra/redis"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/redis"
 
 redisInfra := redis.NewRedisInfra(redis.RedisConfig{
     Name:        "cache",
@@ -287,7 +288,7 @@ url, _ := redisInfra.URL()    // "redis://:secret@localhost:32782"
 ### MySQL
 
 ```go
-import "github.com/your-org/itestkit/infra/mysql"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/mysql"
 
 mysqlInfra := mysql.NewMySQLInfra(mysql.MySQLConfig{
     Name:        "mydb",
@@ -306,7 +307,7 @@ dsn, _ := mysqlInfra.DSN()
 ### MongoDB
 
 ```go
-import "github.com/your-org/itestkit/infra/mongodb"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/mongodb"
 
 mongoInfra := mongodb.NewMongoDBInfra(mongodb.MongoDBConfig{
     Name:        "docstore",
@@ -325,7 +326,7 @@ uri, _ := mongoInfra.URI()
 ### Microsoft SQL Server
 
 ```go
-import "github.com/your-org/itestkit/infra/mssql"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/mssql"
 
 mssqlInfra := mssql.NewMSSQLInfra(mssql.MSSQLConfig{
     Name:        "sqlserver",
@@ -343,7 +344,7 @@ dsn, _ := mssqlInfra.DSN()
 ### Oracle Database
 
 ```go
-import "github.com/your-org/itestkit/infra/oracle"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/oracle"
 
 oracleInfra := oracle.NewOracleInfra(oracle.OracleConfig{
     Name:        "oradb",
@@ -363,7 +364,7 @@ godrorDSN, _ := oracleInfra.GoDRORDSN() // system/testpass@localhost:32786/XE
 ### SeaweedFS
 
 ```go
-import "github.com/your-org/itestkit/infra/seaweedfs"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/infra/seaweedfs"
 
 seaweedInfra := seaweedfs.NewSeaweedFSInfra(seaweedfs.SeaweedFSConfig{
     Name:  "storage",
@@ -493,7 +494,7 @@ Examples:
 The `e2ekit` addon runs your application inside a container, enabling true end-to-end tests.
 
 ```go
-import "github.com/your-org/itestkit/addons/e2ekit"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/addons/e2ekit"
 
 // Start your application container
 app, err := e2ekit.New(t).
@@ -602,7 +603,7 @@ The `metricskit` addon provides observability and assertions for chaos engineeri
 ### Installation
 
 ```go
-import "github.com/your-org/itestkit/addons/metricskit"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/addons/metricskit"
 ```
 
 ### Basic Usage
@@ -936,7 +937,7 @@ The `queuekit` addon provides generic message queue consumption for E2E tests wi
 ### Installation
 
 ```go
-import "github.com/your-org/itestkit/addons/queuekit"
+import "github.com/LerianStudio/midaz/v4/pkg/reporter/itestkit/addons/queuekit"
 ```
 
 ### Basic Usage

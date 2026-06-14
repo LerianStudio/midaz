@@ -2,7 +2,7 @@
 
 > Real-time transaction validation and fraud prevention API for financial systems
 
-[![Go Version](https://img.shields.io/badge/Go-1.26.3+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26.4+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](LICENSE)
 
@@ -242,7 +242,6 @@ tracer/
 │
 ├── internal/
 │   ├── bootstrap/             # Dependency injection setup
-│   │   ├── container.go       # Wire dependencies
 │   │   └── config.go          # Environment configuration
 │   │
 │   ├── services/              # 🎯 BUSINESS LOGIC (Domain Layer)
@@ -279,7 +278,6 @@ tracer/
 │   │   └── transaction.go    # Transaction types & enums
 │   │
 │   └── constant/             # Shared constants
-│       ├── errors.go         # Error codes (TRC-XXXX)
 │       └── pagination.go     # Pagination defaults
 │
 ├── migrations/               # Database migrations
@@ -292,7 +290,7 @@ tracer/
 
 | Layer                | Technology                  | Purpose                                   |
 |----------------------|-----------------------------|-------------------------------------------|
-| **Language**         | Go 1.26.3                   | Performance, concurrency, static typing   |
+| **Language**         | Go 1.26.4                   | Performance, concurrency, static typing   |
 | **HTTP Framework**   | Fiber v2.52.13              | Fast, Express-like API framework          |
 | **Database**         | PostgreSQL 17               | ACID transactions, JSON support           |
 | **Expression Engine**| CEL (google/cel-go v0.28.1) | Type-safe rule evaluation                 |
@@ -309,7 +307,7 @@ tracer/
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.26.3+ (for local development)
+- Go 1.26.4+ (for local development)
 - Make (optional, for convenience commands)
 
 ### 1. Clone & Setup
@@ -436,7 +434,7 @@ make migrate            # Apply migrations (when available)
 make migrate-down       # Rollback last migration
 
 # Documentation
-# API docs are generated from the repo root: make generate-docs (covers ledger, tracer, reporter-manager)
+# API docs are generated from the repo root: make generate-docs (covers ledger, tracer, reporter)
 
 # Help
 make help               # Show all available commands

@@ -22,9 +22,9 @@ Validate end-to-end workflows and component interactions.
 go test -tags integration ./tests/reporter/integration/...
 ```
 
-> Note: `make test-integration` only discovers `*_integration_test.go` files
-> under `./components` and `./pkg`; it does not scan `./tests`, so it does NOT
-> run this reporter suite. Invoke `go test` directly as shown above.
+> Note: `make test-integration` now scans `./tests` and runs this suite
+> (matched by the `//go:build integration` tag). Invoke `go test` directly as
+> shown above to run a single target.
 
 ## Test Categories
 - **Template CRUD** - Create, Read, Update, Delete operations
