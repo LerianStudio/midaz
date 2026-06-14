@@ -11,8 +11,8 @@ SERVICE_NAME := infra-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
-# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
-GOLANGCI_LINT_VERSION := v2.12.2
+# Tool versions (GOLANGCI_LINT_VERSION, GOSEC_VERSION, ...) come from the shared
+# mk/quality.mk + mk/security.mk fragments included below — single source of truth.
 
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
@@ -39,7 +39,7 @@ help:
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make build                       - Build the component (no-op)"
 	@echo "  make clean                       - Clean build artifacts"
-	@echo "  make check-tests                 - Verify test coverage"
+	@echo "  make coverage-summary            - Verify test coverage"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run golangci-lint (read-only gate)"
@@ -84,12 +84,18 @@ test:
 # Test Coverage Commands
 #-------------------------------------------------------
 
-.PHONY: check-tests
-check-tests:
+.PHONY: coverage-summary
+coverage-summary:
 	$(call title1,"Verifying test coverage")
 	@if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running test coverage check...$(NC)"; \
-		go test -coverprofile=coverage.tmp ./... > /dev/null 2>&1; \
+		go test -coverprofile=coverage.tmp ./...; \
+		test_exit=$$?; \
+		if [ $$test_exit -ne 0 ]; then \
+			echo "$(RED)$(BOLD)[error]$(NC) Tests failed (exit code $$test_exit). Run 'make test' for details.$(RED) ❌$(NC)"; \
+			rm -f coverage.tmp; \
+			exit 1; \
+		fi; \
 		if [ -f coverage.tmp ]; then \
 			coverage=$$(go tool cover -func=coverage.tmp | grep total | awk '{print $$3}'); \
 			echo "$(CYAN)Test coverage: $(GREEN)$$coverage$(NC)"; \
@@ -127,7 +133,7 @@ dev-setup:
 		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
 	@$(MAKE) tidy
-	@$(MAKE) check-tests
+	@$(MAKE) coverage-summary
 	@$(MAKE) sec
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"

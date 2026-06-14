@@ -15,8 +15,8 @@ TEST_REPORTS_DIR ?= ./reports
 # Tracer points at the shared infra Postgres (no standalone tracer-postgres).
 POSTGRES_SERVICE ?= midaz-postgres-primary
 
-# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
-GOLANGCI_LINT_VERSION := v2.12.2
+# Tool versions (GOLANGCI_LINT_VERSION, GOSEC_VERSION, ...) come from the shared
+# mk/quality.mk + mk/security.mk fragments included below — single source of truth.
 
 # Ensure build/output directories exist
 $(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
@@ -149,41 +149,10 @@ verify-api-docs:
 	@sh ./scripts/verify-api-docs.sh
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
 
-#-------------------------------------------------------
-# Git Hook Commands
-#-------------------------------------------------------
-
-.PHONY: setup-git-hooks
-setup-git-hooks:
-	$(call title1,"Installing and configuring git hooks")
-	@sh ./scripts/setup-git-hooks.sh
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Git hooks installed successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: check-hooks
-check-hooks:
-	$(call title1,"Verifying git hooks installation status")
-	@err=0; \
-	for hook_dir in .githooks/*; do \
-		hook_name=$$(basename $$hook_dir); \
-		if [ ! -f ".git/hooks/$$hook_name" ]; then \
-			echo "$(RED)Git hook $$hook_name is not installed$(NC)"; \
-			err=1; \
-		else \
-			echo "$(GREEN)Git hook $$hook_name is installed$(NC)"; \
-		fi; \
-	done; \
-	if [ $$err -eq 0 ]; then \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) All git hooks are properly installed$(GREEN) ✔️$(NC)"; \
-	else \
-		echo "$(RED)$(BOLD)[error]$(NC) Some git hooks are missing. Run 'make setup-git-hooks' to fix.$(RED) ❌$(NC)"; \
-		exit 1; \
-	fi
-
-.PHONY: check-envs
-check-envs:
-	$(call title1,"Checking if github hooks are installed and secret env files are not exposed")
-	@sh ./scripts/check-envs.sh
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment check completed$(GREEN) ✔️$(NC)"
+# Git hooks are a monorepo-wide concern: the root Makefile's setup-git-hooks
+# target runs `git config core.hooksPath .githooks`, which applies repo-wide and
+# covers tracer. The per-component fork (setup-git-hooks/check-hooks/check-envs)
+# was a pre-monorepo remnant and has been removed.
 
 #-------------------------------------------------------
 # Setup / Developer Helper Commands
@@ -216,7 +185,7 @@ dev-setup:
 		go install go.uber.org/mock/mockgen@v0.6.0; \
 	fi
 	@if ! command -v gosec >/dev/null 2>&1; then \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
 	fi
 	@$(MAKE) set-env
 	@$(MAKE) tidy

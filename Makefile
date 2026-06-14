@@ -20,10 +20,11 @@ PKG_DIR := ./pkg
 # by the service-lifecycle targets.
 GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR) $(REPORTER_DIR)
 
-# Pinned tool versions — single source of truth (P8-T01).
-# Keep in sync with .github/workflows/go-combined-analysis.yml.
-GO_VERSION := 1.26.4
-GOLANGCI_LINT_VERSION := v2.12.2
+# Pinned golangci-lint version for the root-only lint recipes (tests/ + pkg/ legs
+# and dev-setup), which do NOT include mk/quality.mk. Components inherit the
+# shared default from mk/quality.mk instead. Keep in sync with
+# .github/workflows/go-combined-analysis.yml.
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # Shared color/title vocabulary + docker-compose detection.
 MK_DIR := $(abspath mk)
@@ -32,29 +33,13 @@ include $(MK_DIR)/utils.mk
 
 # Legacy banner macro retained for the root targets and mk/tests.mk, which
 # call $(print_title). New shared fragments use $(title1) from mk/utils.mk.
+# check_command and check_env_files now live in mk/utils.mk so every includer
+# (root AND each component) inherits them.
 define print_title
 	@echo ""
 	@echo "------------------------------------------"
 	@echo "   📝 $(1)  "
 	@echo "------------------------------------------"
-endef
-
-# Check if a command is available
-define check_command
-	@if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "Error: $(1) is not installed"; \
-		echo "To install: $(2)"; \
-		exit 1; \
-	fi
-endef
-
-# Warn about any missing .env files across all components + infra
-define check_env_files
-	@for dir in $(INFRA_DIR) $(GO_COMPONENTS); do \
-		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
-			echo "Warning: $$dir/.env file is missing. Consider running 'make set-env'."; \
-		fi; \
-	done
 endef
 
 # Shell utility functions

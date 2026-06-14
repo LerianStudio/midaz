@@ -4,7 +4,6 @@
 # whole monorepo shares one terminal vocabulary.
 
 # ANSI color codes
-BLUE := \033[36m
 NC := \033[0m
 BOLD := \033[1m
 RED := \033[31m

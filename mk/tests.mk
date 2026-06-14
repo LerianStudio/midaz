@@ -1,8 +1,18 @@
 # ------------------------------------------------------
-# Test configuration (extracted from root Makefile)
+# Monorepo test orchestration (root)
+# ------------------------------------------------------
+# The shared, parameterized test scaffolding (test-unit, test-integration,
+# coverage-integration, test-bench, test-all, wait-for-services) lives in
+# mk/test-go.mk. This file sets the root-level knobs and keeps the monorepo-only
+# orchestration: the `test` entrypoint, the CHAOS-aware integration discovery,
+# ci-tests, test-fuzz, test-property, test-reporter-chaos, test-chaos-system, and
+# the godog e2e alias.
 # ------------------------------------------------------
 TEST_LEDGER_URL ?= http://localhost:3000
 TEST_HEALTH_WAIT ?= 60
+
+# Health endpoint for the shared wait-for-services target (mk/test-go.mk).
+TEST_HEALTH_URL ?= $(TEST_LEDGER_URL)
 
 # Optional auth configuration (passed through to tests)
 TEST_AUTH_URL ?=
@@ -46,66 +56,20 @@ FUZZPARALLEL_FUZZY ?= 4
 FUZZWALL ?= 180
 FUZZWALL_FUZZY ?= 600
 
-# Integration test filter
-# RUN: specific test name pattern (e.g., TestIntegration_AliasRepo_Create)
-# PKG: specific package to test (e.g., ./components/ledger/...)
-# Usage: make test-integration RUN=TestIntegration_AliasRepo_Create
-#        make test-integration PKG=./components/ledger/...
-#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/ledger/... CHAOS=1
-RUN ?=
-PKG ?=
+# Integration env prefix consumed by mk/test-go.mk: the root integration suite is
+# CHAOS-aware, so it threads CHAOS through to the test process. The trailing space
+# is preserved via $(space) so the assembled command matches the pre-extraction
+# `CHAOS=$(CHAOS) gotestsum ...` exactly.
+empty :=
+space := $(empty) $(empty)
+INTEG_TEST_ENV := CHAOS=$(CHAOS)$(space)
 
-# Computed run pattern: uses RUN if set, otherwise defaults to '^TestIntegration'
-ifeq ($(RUN),)
-  RUN_PATTERN := ^TestIntegration
-else
-  RUN_PATTERN := $(RUN)
-endif
-
-# Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race)
-# Usage: make test-integration LOW_RESOURCE=1
-#        make coverage-integration LOW_RESOURCE=1
-LOW_RESOURCE ?= 0
-
-# Computed flags for low-resource mode
-ifeq ($(LOW_RESOURCE),1)
-  LOW_RES_P_FLAG := -p 1
-  LOW_RES_PARALLEL_FLAG := -parallel 1
-  LOW_RES_RACE_FLAG :=
-else
-  LOW_RES_P_FLAG :=
-  LOW_RES_PARALLEL_FLAG :=
-  LOW_RES_RACE_FLAG := -race
-endif
-
-# macOS ld64 workaround removed: -ld_classic is deprecated and produces warnings
-# on modern Xcode toolchains. The original LC_DYSYMTAB warnings it suppressed
-# are no longer emitted by recent Go + linker versions.
-GO_TEST_LDFLAGS :=
-
-define wait_for_services
-	echo "Waiting for services to become healthy..."
-	bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
-	  if curl -fsS $(TEST_LEDGER_URL)/health >/dev/null 2>&1; then \
-	    echo "Services are up"; exit 0; \
-	  fi; \
-	  sleep 1; \
-	done; echo "[error] Services not healthy after $(TEST_HEALTH_WAIT)s"; exit 1'
-endef
-
-.PHONY: wait-for-services
-wait-for-services:
-	$(call wait_for_services)
-
-
-# ------------------------------------------------------
-# Test tooling configuration
-# ------------------------------------------------------
-
-TEST_REPORTS_DIR ?= ./reports
-GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
-RETRY_ON_FAIL ?= 0
-
+# Pull in the shared scaffolding (test-unit, test-integration,
+# coverage-integration, test-bench, test-all, wait-for-services). Knobs above
+# (TEST_HEALTH_URL, INTEG_TEST_ENV) and the default discovery/chaos macros there
+# reproduce the monorepo-wide behavior. Root keeps -race for integration (the
+# fragment's INTEG_RACE_FLAG default) and the default //go:build-grep discovery.
+include $(MK_DIR)/test-go.mk
 
 #-------------------------------------------------------
 # Core Commands
@@ -115,37 +79,9 @@ RETRY_ON_FAIL ?= 0
 test:
 	@sh ./scripts/run-tests.sh
 
-
 #-------------------------------------------------------
-# Test Suite Aliases
-#-------------------------------------------------------
-
-# Unit tests
-.PHONY: test-unit
-test-unit:
-	$(call print_title,Running Go unit tests)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
-	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No unit test packages found (outside ./tests)**"; \
-	else \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running unit tests with gotestsum"; \
-	    gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
-	  fi; \
-	fi
-
 # System-level chaos tests (full stack with docker-compose)
+#-------------------------------------------------------
 # Starts the complete backend stack, runs chaos tests, then tears down.
 .PHONY: test-chaos-system
 test-chaos-system:
@@ -328,91 +264,6 @@ test-fuzz:
 	  echo "Fuzz testing complete. Check testdata/fuzz/ for corpus."; \
 	fi
 
-# Benchmark tests
-# Run performance benchmarks for critical code paths.
-# Usage:
-#   make test-bench                          # Run all benchmarks
-#   make test-bench BENCH=OperateBalances    # Run specific benchmark pattern
-#   make test-bench BENCH_PKG=./pkg/transaction/...  # Run benchmarks in specific package
-BENCH ?= .
-BENCH_PKG ?= ./...
-
-.PHONY: test-bench
-test-bench:
-	$(call print_title,Running Go benchmark tests)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@echo "Benchmark pattern: $(BENCH)"
-	@echo "Package: $(BENCH_PKG)"
-	@go test -bench=$(BENCH) -benchmem -run=^$$ $(BENCH_PKG)
-
-# Integration tests with testcontainers (no coverage)
-# These tests use the `integration` build tag and testcontainers-go to spin up
-# ephemeral containers. No external Docker stack is required.
-#
-# NOTE: Integration tests always run with -p=1 (packages sequentially) because
-# testcontainers can overwhelm Docker when creating many containers in parallel.
-# This prevents transient failures like "port not found" or container timeouts.
-#
-# Requirements:
-#   - Test files must follow the naming convention: *_integration_test.go
-#   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
-#   - Chaos tests use TestIntegration_Chaos_ prefix (e.g., TestIntegration_Chaos_Redis_NetworkPartition)
-#
-# Chaos tests (CHAOS=1):
-#   Chaos tests are included in integration test files but skip themselves by default.
-#   To run chaos tests alongside integration tests, set CHAOS=1:
-#     make test-integration CHAOS=1
-#   This enables network chaos injection, container restarts, and other failure scenarios.
-.PHONY: test-integration
-test-integration:
-	$(call print_title,Running integration tests with testcontainers)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
-	if [ -n "$(PKG)" ]; then \
-	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list -tags=integration $(PKG) 2>/dev/null | tr '\n' ' '); \
-	else \
-	  echo "Finding packages with //go:build integration files..."; \
-	  dirs=$$(grep -rl '^//go:build integration' --include='*_test.go' ./components ./pkg ./tests 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list -tags=integration $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	fi; \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No integration test packages found"; \
-	else \
-	  echo "Packages: $$pkgs"; \
-	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
-	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
-	  fi; \
-	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
-	  else \
-	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
-	  fi; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running testcontainers integration tests with gotestsum"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname -- \
-	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname -- \
-	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '$(RUN_PATTERN)' $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' $$pkgs; \
-	  fi; \
-	fi
-
 # Property-based tests (`property` build tag).
 # These suites compile only under -tags=property and use testcontainers, so no
 # external Docker stack is required. Discovery defaults to ./tests/reporter/property
@@ -490,15 +341,15 @@ test-reporter-chaos:
 SERVER_ADDRESS ?=
 GODOG_TAGS ?=
 
-.PHONY: test-bdd
-test-bdd:
+.PHONY: test-e2e
+test-e2e:
 	$(call print_title,Running tracer godog/cucumber BDD e2e suite)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@set -e; \
 	if [ -z "$(SERVER_ADDRESS)" ]; then \
 	  echo "ERROR: SERVER_ADDRESS is not set."; \
 	  echo "The godog BDD suite is end-to-end and needs a running tracer service + shared Postgres."; \
-	  echo "Bring tracer up, then: make test-bdd SERVER_ADDRESS=http://localhost:<tracer-port>"; \
+	  echo "Bring tracer up, then: make test-e2e SERVER_ADDRESS=http://localhost:<tracer-port>"; \
 	  exit 1; \
 	fi; \
 	echo "Targeting tracer service at: $(SERVER_ADDRESS)"; \
@@ -506,88 +357,10 @@ test-bdd:
 	  go test -tags e2e -v -count=1 $(GO_TEST_LDFLAGS) \
 	  ./components/tracer/tests/end2end/...
 
-# Integration tests with testcontainers (with coverage, uses covermode=atomic)
-#
-# NOTE: Integration tests always run with -p=1 (packages sequentially) because
-# testcontainers can overwhelm Docker when creating many containers in parallel.
-# This prevents transient failures like "port not found" or container timeouts.
-#
-# Chaos tests (CHAOS=1):
-#   Chaos tests (TestIntegration_Chaos_*) skip themselves by default.
-#   To include chaos tests in coverage, set CHAOS=1:
-#     make coverage-integration CHAOS=1
-.PHONY: coverage-integration
-coverage-integration:
-	$(call print_title,Running integration tests with testcontainers (coverage enabled))
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	if [ -n "$(PKG)" ]; then \
-	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list -tags=integration $(PKG) 2>/dev/null | tr '\n' ' '); \
-	else \
-	  echo "Finding packages with //go:build integration files..."; \
-	  dirs=$$(grep -rl '^//go:build integration' --include='*_test.go' ./components ./pkg ./tests 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u | tr '\n' ' '); \
-	  pkgs=$$(if [ -n "$$dirs" ]; then go list -tags=integration $$dirs 2>/dev/null | tr '\n' ' '; fi); \
-	fi; \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No integration test packages found"; \
-	else \
-	  echo "Packages: $$pkgs"; \
-	  echo "Running packages sequentially (-p=1) to avoid Docker container conflicts"; \
-	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
-	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
-	  fi; \
-	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
-	  else \
-	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
-	  fi; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname -- \
-	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	      $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname -- \
-	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	          $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
-	      $$pkgs; \
-	  fi; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/integration_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
-	fi
-
-# Run all coverage targets
-.PHONY: coverage
-coverage:
-	$(call print_title,Running all coverage targets)
-	$(MAKE) coverage-unit
-	$(MAKE) coverage-integration
-
-# Run all tests (excludes native fuzz engine which runs indefinitely)
-# To include chaos tests: make test-all CHAOS=1
-.PHONY: test-all
-test-all:
-	$(call print_title,Running all tests)
-	$(call print_title,Running unit tests)
-	$(MAKE) test-unit
-	$(call print_title,Running integration tests)
-	$(MAKE) test-integration
+# Backward-compatible alias: test-bdd was the old name for the godog e2e suite.
+# Canonicalized on test-e2e (matches tracer + go-combined-analysis.yml comment).
+.PHONY: test-bdd
+test-bdd: test-e2e
 
 # Full CI test matrix — one command, one exit code.
 #
@@ -607,7 +380,7 @@ test-all:
 #
 # OPT-IN legs NOT in the default path (each needs a live service/stack, so they
 # are non-deterministic in a bare CI runner and must be invoked explicitly):
-#   - make test-bdd SERVER_ADDRESS=...  tracer godog e2e suite (needs a running tracer + Postgres)
+#   - make test-e2e SERVER_ADDRESS=...  tracer godog e2e suite (needs a running tracer + Postgres)
 #   - make test-chaos-system            system chaos suite (brings the full docker-compose stack up/down)
 #   - make test-fuzz                    native fuzz engine (time-boxed mutation runs, not a pass/fail gate)
 .PHONY: ci-tests
@@ -618,3 +391,14 @@ ci-tests:
 	$(MAKE) test-integration; \
 	$(MAKE) test-property; \
 	$(MAKE) test-reporter-chaos
+
+#-------------------------------------------------------
+# Coverage aggregator
+#-------------------------------------------------------
+# Root coverage = coverage-unit (mk/coverage-unit.mk) + coverage-integration
+# (mk/test-go.mk).
+.PHONY: coverage
+coverage:
+	$(call print_title,Running all coverage targets)
+	$(MAKE) coverage-unit
+	$(MAKE) coverage-integration

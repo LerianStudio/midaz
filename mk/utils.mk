@@ -39,3 +39,27 @@ endef
 define title2
 	@$(call border, "🔍 $(1)")
 endef
+
+# Check if a command is available, with an install hint on failure.
+# Usage: $(call check_command,go,"Install Go from https://golang.org/doc/install")
+# Lives here (not the root Makefile) so any includer — root AND every component —
+# inherits it; mk/tests.mk relies on it.
+define check_command
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		echo "Error: $(1) is not installed"; \
+		echo "To install: $(2)"; \
+		exit 1; \
+	fi
+endef
+
+# Warn about any missing .env files across all components + infra.
+# Iterates $(INFRA_DIR) $(GO_COMPONENTS), which the root Makefile defines; in a
+# component context those are empty and the loop is a harmless no-op (no component
+# target calls this — only root service-lifecycle targets do).
+define check_env_files
+	@for dir in $(INFRA_DIR) $(GO_COMPONENTS); do \
+		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
+			echo "Warning: $$dir/.env file is missing. Consider running 'make set-env'."; \
+		fi; \
+	done
+endef

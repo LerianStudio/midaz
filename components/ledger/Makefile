@@ -11,8 +11,8 @@ SERVICE_NAME := ledger-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
-# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
-GOLANGCI_LINT_VERSION := v2.12.2
+# Tool versions (GOLANGCI_LINT_VERSION, GOSEC_VERSION, ...) come from the shared
+# mk/quality.mk + mk/security.mk fragments included below — single source of truth.
 
 # Ensure build/output directories exist
 $(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
