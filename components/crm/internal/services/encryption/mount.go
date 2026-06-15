@@ -7,16 +7,18 @@ package encryption
 import "strings"
 
 // resolveMount derives the Vault Transit mount for a tenant: flat base for
-// empty/"default" (single-tenant), else base/tenantID. Base and tenant are
-// trimmed of surrounding slashes/whitespace.
-
+// empty/"default" (single-tenant), else base/tenantID.
+//
+// Contract: base MUST already be normalized by resolveBaseMountPath (the single
+// base-mount normalizer, in bootstrap). resolveMount uses base verbatim and only
+// resolves the tenant segment, defensively trimming surrounding slashes/whitespace
+// off the tenant. The strings import remains in use for that tenant trim.
 func resolveMount(base, tenantID string) string {
-	normalized := strings.Trim(base, "/")
 	tenantID = strings.Trim(tenantID, "/ \t")
 
 	if tenantID == "" || tenantID == "default" {
-		return normalized
+		return base
 	}
 
-	return normalized + "/" + tenantID
+	return base + "/" + tenantID
 }

@@ -385,6 +385,11 @@ func TestResolveBaseMountPath(t *testing.T) {
 			configured: "  transit  ",
 			want:       "transit",
 		},
+		{
+			name:       "surrounding newlines and slashes are trimmed to the effective mount",
+			configured: "\n/transit/\n",
+			want:       "transit",
+		},
 	}
 
 	for _, tt := range tests {

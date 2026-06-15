@@ -11,6 +11,10 @@ import (
 func TestResolveMount(t *testing.T) {
 	t.Parallel()
 
+	// Contract: base is ALWAYS pre-normalized by resolveBaseMountPath (the single
+	// base-mount normalizer in bootstrap). resolveMount uses base verbatim and only
+	// resolves/defensively trims the tenant segment. Base-normalization coverage
+	// lives in TestResolveBaseMountPath, not here.
 	tests := []struct {
 		name     string
 		base     string
@@ -30,22 +34,22 @@ func TestResolveMount(t *testing.T) {
 			want:     "transit",
 		},
 		{
-			name:     "real tenant returns sub-mount",
+			name:     "clean base with uuid tenant returns sub-mount",
 			base:     "transit",
 			tenantID: "9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
 			want:     "transit/9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
 		},
 		{
-			name:     "normalizes surrounding slashes with empty tenant",
-			base:     "/transit/",
-			tenantID: "",
-			want:     "transit",
+			name:     "custom clean base with uuid tenant returns sub-mount",
+			base:     "crm-transit",
+			tenantID: "9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
+			want:     "crm-transit/9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
 		},
 		{
-			name:     "normalizes surrounding slashes with real tenant",
+			name:     "slash-wrapped base is NOT normalized by resolveMount (moved to resolveBaseMountPath)",
 			base:     "/transit/",
 			tenantID: "9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
-			want:     "transit/9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
+			want:     "/transit//9b2e4c1a-7f60-4d3e-8a21-1c5b0e7d9f44",
 		},
 		{
 			name:     "padded default sentinel resolves to flat base",

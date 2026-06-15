@@ -20,9 +20,12 @@ import (
 // defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
 const defaultKEKMountPath = "transit"
 
-// resolveBaseMountPath resolves the base Vault Transit mount, trimming surrounding
-// slashes/whitespace so the returned base equals the effective mount used downstream.
-// Empty/whitespace/slash-only input falls back to the default "transit"; never blank.
+// resolveBaseMountPath is the SINGLE base-mount normalizer: base normalization
+// lives here, not in resolveMount. It resolves the base Vault Transit mount,
+// trimming surrounding slashes/whitespace so the returned base equals the effective
+// mount used downstream. Empty/whitespace/slash-only input falls back to the default
+// "transit"; never blank. Callers inject the result as the pre-normalized base that
+// resolveMount consumes verbatim.
 func resolveBaseMountPath(configured string) string {
 	// One cutset for guard and returned value so they cannot drift.
 	const cut = "/ \t\n"
