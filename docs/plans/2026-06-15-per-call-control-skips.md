@@ -18,7 +18,7 @@
 |-------|-----------|-------|--------|
 | 1 | Two-key gate proven end-to-end on **tracer**: honored skip makes zero gRPC Reserve at create **and** at PENDING commit/cancel, unauthorized skip → 422, absent skip unchanged, gate adds no DB read | 1.1, 1.2, 1.3 | ✅ Done (`eb2879f0a`) |
 | 2 | **Fees** skip: honored skip makes zero Mongo package lookup + zero fee computation; fee seam re-ordered (settings hoisted above it) with structural test re-blessed | 2.1, 2.2 | ✅ Done (`5fcb7423b`) |
-| 3 | **Holder/CRM** skip on account creation: honored skip makes zero `HolderReader.Exists` call; only bites when `requireHolder=true` | 3.1, 3.2 | Epic-level |
+| 3 | **Holder/CRM** skip on account creation: honored skip makes zero `HolderReader.Exists` call; only bites when `requireHolder=true` | 3.1, 3.2 | ✅ Done (`c649ff79b`) |
 | 4 | **Audit + hardening (release gate):** honored skips persisted to typed columns + streaming event across the full wire path; OpenAPI/llms-full/docs; cross-surface integration suite | 4.1, 4.2, 4.3 | Epic-level |
 
 ---
@@ -205,7 +205,7 @@ func ResolveSkipFor(control string, requested, allowed bool) (honored bool, err 
 **Scope:** `pkg/mmodel/account.go` (+ test).
 **Dependencies:** Phase 1 (resolver/sentinel)
 **Done when:** `CreateAccountInput.Skip` parses from the body; absent → nil → no behavior change; the field is documented as effective only when `requireHolder=true`.
-**Status:** Pending
+**Status:** Done (`c649ff79b`) — `AccountSkip{Holder}` on `CreateAccountInput`; also mirrored onto `CreateHolderAccountInput` (composite holder-account-open runs the same use case) — `TestCompositionMirrorsCreateAccountInput` forced the call; surfaced to Fred for veto.
 
 ### Epic 3.2: Holder short-circuit before the CRM `Exists` call
 
@@ -213,7 +213,7 @@ func ResolveSkipFor(control string, requested, allowed bool) (honored bool, err 
 **Scope:** `components/ledger/internal/services/command/create_account.go` — including a refactor of `requireHolderEnabled` (`:278-289`), which today returns a bare bool and **discards `settings.Overrides.AllowHolderSkip`** (so the one-liner below cannot compute `honoredHolderSkip` without it).
 **Dependencies:** Epic 3.1; the settings opt-in (Epic 1.1); `pkg/skip` (Epic 1.2)
 **Done when:** `requireHolderEnabled` is refactored to surface BOTH keys from its single cached read (return `(requireHolder, allowHolderSkip bool)`, or return the parsed `*mmodel.LedgerSettings`); at `create_account.go:60`, `honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)` — on err return the 422 (mirror the `applyHolderValidation` error branch at `:62-67`) — then `requireHolder = requireHolder && !honoredHolderSkip`, so `applyHolderValidation` (`:296`) short-circuits before `HolderReader.Exists` (`:310`); a mock `HolderReader` test asserts `Exists` is called **zero** times when the skip is honored and `requireHolder=true`, with `GetParsedLedgerSettings` called exactly once on that path; `skip.holder` without opt-in → 422; with `requireHolder=false`, skip is a no-op (CRM already not called); absent skip is unchanged.
-**Status:** Pending
+**Status:** Done (`c649ff79b`) — `requireHolderEnabled` renamed `resolveHolderRequirement`, returns `(requireHolder, allowHolderSkip)` from one read; honored skip folds into `requireHolder` so the existing guard short-circuits before `Exists`; `applyHolderValidation` unchanged.
 
 ---
 
