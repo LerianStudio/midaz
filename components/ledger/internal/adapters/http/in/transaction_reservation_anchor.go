@@ -94,9 +94,13 @@ func (handler *TransactionHandler) reserveTransaction(
 	accountID string,
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
+	honoredTracerSkip bool,
 ) reservationOutcome {
-	// off, unconfigured, or no client injected: the create path is unchanged.
-	if handler.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" {
+	// off, unconfigured, no client injected, or an honored per-call tracer skip:
+	// the create path is unchanged and no reserve request is built or sent. An
+	// honored skip wins over advisory/enforce — the operator explicitly allowed
+	// the caller to opt out.
+	if handler.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
@@ -293,11 +297,13 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 // transaction id — the reserve handle from create-pending does not survive the
 // separate commit request — so the tracer flips every RESERVED reservation the
 // transaction holds, addressed by transaction id. Gated on the per-ledger tracer
-// settings (off / nil reserver → no call); same best-effort, non-blocking posture
-// as the by-id transport: a failure is logged at Warn, span-recorded, and never
-// propagated, with the TTL reaper as the durability backstop.
-func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID) {
-	if !handler.tracerReservationEnabled(settings) {
+// settings (off / nil reserver → no call) and on an honored per-call tracer skip
+// (so a skip honored at create removes the gRPC cost here rather than relocating
+// it to commit); same best-effort, non-blocking posture as the by-id transport: a
+// failure is logged at Warn, span-recorded, and never propagated, with the TTL
+// reaper as the durability backstop.
+func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
+	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
 	}
 
@@ -309,8 +315,8 @@ func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.
 // releaseReservationsByTransaction returns a transaction's held reservations at
 // /cancel (F3-T15, PENDING abort phase). Same transaction-id addressing, gating,
 // and non-blocking posture as confirmReservationsByTransaction.
-func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID) {
-	if !handler.tracerReservationEnabled(settings) {
+func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
+	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
 	}
 

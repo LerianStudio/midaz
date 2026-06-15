@@ -781,6 +781,209 @@ func TestDeepMergeSettings(t *testing.T) {
 	}
 }
 
+// TestSettingsDefaultOverridePolicyIsAllFalse asserts the override opt-ins default to false
+// on both the typed defaults and their map form, so no control is skippable without an explicit opt-in.
+func TestSettingsDefaultOverridePolicyIsAllFalse(t *testing.T) {
+	settings := DefaultLedgerSettings()
+	assert.False(t, settings.Overrides.AllowFeeSkip, "AllowFeeSkip must default to false")
+	assert.False(t, settings.Overrides.AllowTracerSkip, "AllowTracerSkip must default to false")
+	assert.False(t, settings.Overrides.AllowHolderSkip, "AllowHolderSkip must default to false")
+
+	overrides, ok := DefaultLedgerSettingsMap()["overrides"].(map[string]any)
+	require.True(t, ok, "overrides section must exist in default map")
+	assert.Equal(t, false, overrides["allowFeeSkip"])
+	assert.Equal(t, false, overrides["allowTracerSkip"])
+	assert.Equal(t, false, overrides["allowHolderSkip"])
+}
+
+// TestSettingsParseOverridePolicy covers parsing of the overrides group: full object,
+// each partial single-flag case (others stay false), empty/absent → all false, and
+// wrong-type values falling back to the all-false default.
+func TestSettingsParseOverridePolicy(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		expected OverridePolicy
+	}{
+		{
+			name:     "absent overrides group returns all false",
+			input:    map[string]any{},
+			expected: defaultOverridePolicy,
+		},
+		{
+			name: "empty overrides group returns all false",
+			input: map[string]any{
+				"overrides": map[string]any{},
+			},
+			expected: defaultOverridePolicy,
+		},
+		{
+			name: "all opt-ins true",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowFeeSkip":    true,
+					"allowTracerSkip": true,
+					"allowHolderSkip": true,
+				},
+			},
+			expected: OverridePolicy{AllowFeeSkip: true, AllowTracerSkip: true, AllowHolderSkip: true},
+		},
+		{
+			name: "only allowFeeSkip true leaves others false",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowFeeSkip": true,
+				},
+			},
+			expected: OverridePolicy{AllowFeeSkip: true},
+		},
+		{
+			name: "only allowTracerSkip true leaves others false",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowTracerSkip": true,
+				},
+			},
+			expected: OverridePolicy{AllowTracerSkip: true},
+		},
+		{
+			name: "only allowHolderSkip true leaves others false",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowHolderSkip": true,
+				},
+			},
+			expected: OverridePolicy{AllowHolderSkip: true},
+		},
+		{
+			name: "overrides not a map returns all false",
+			input: map[string]any{
+				"overrides": "not a map",
+			},
+			expected: defaultOverridePolicy,
+		},
+		{
+			name: "wrong type for allowFeeSkip uses default",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowFeeSkip":    "not a bool",
+					"allowTracerSkip": true,
+				},
+			},
+			expected: OverridePolicy{AllowTracerSkip: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseLedgerSettings(tt.input)
+			assert.Equal(t, tt.expected, result.Overrides)
+		})
+	}
+}
+
+// TestSettingsValidateOverridePolicy asserts the overrides group validates as a bool-only
+// object: correct bools pass, an unknown nested key is rejected with ErrUnknownSettingsField,
+// and a non-bool value is rejected as a type error.
+func TestSettingsValidateOverridePolicy(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       map[string]any
+		wantErr     bool
+		errContains string
+		wantErrCode string
+	}{
+		{
+			name: "valid overrides accepted",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowFeeSkip":    true,
+					"allowTracerSkip": false,
+					"allowHolderSkip": true,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "partial overrides accepted",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowTracerSkip": true,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "null overrides value is valid",
+			input: map[string]any{
+				"overrides": nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "unknown overrides nested key rejected",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowEverything": true,
+				},
+			},
+			wantErr:     true,
+			errContains: "overrides.allowEverything",
+			wantErrCode: "0147",
+		},
+		{
+			name: "non-bool override value rejected as type error",
+			input: map[string]any{
+				"overrides": map[string]any{
+					"allowFeeSkip": "yes",
+				},
+			},
+			wantErr:     true,
+			errContains: "overrides.allowFeeSkip",
+			wantErrCode: "0148",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSettings(tt.input)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				if tt.wantErrCode != "" {
+					var vErr pkg.ValidationError
+					require.True(t, errors.As(err, &vErr), "expected ValidationError type, got %T", err)
+					assert.Equal(t, tt.wantErrCode, vErr.Code, "expected error code %q, got %q", tt.wantErrCode, vErr.Code)
+				}
+
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestSettingsOverridePolicyRoundTrip guards the create path (POST /ledgers runs through
+// LedgerSettingsToMap): a typed LedgerSettings with overrides set must survive
+// LedgerSettingsToMap -> ParseLedgerSettings without losing any opt-in. A drop here would
+// silently discard CreateLedgerInput.Settings.Overrides.
+func TestSettingsOverridePolicyRoundTrip(t *testing.T) {
+	original := LedgerSettings{
+		Accounting: defaultAccountingValidation,
+		Tracer:     defaultTracerSettings,
+		Overrides:  OverridePolicy{AllowFeeSkip: true},
+	}
+
+	roundTripped := ParseLedgerSettings(LedgerSettingsToMap(original))
+
+	assert.Equal(t, original, roundTripped, "typed->map->typed round-trip must preserve overrides")
+	assert.True(t, roundTripped.Overrides.AllowFeeSkip, "AllowFeeSkip must survive the round-trip")
+	assert.False(t, roundTripped.Overrides.AllowTracerSkip, "unset AllowTracerSkip must stay false")
+	assert.False(t, roundTripped.Overrides.AllowHolderSkip, "unset AllowHolderSkip must stay false")
+}
+
 // TestSettingsSchema_NoDuplicateNestedFieldNames validates that settingsSchema has no duplicate
 // nested field names across different parent keys. If two parent keys define the same nested
 // field name, knownNestedFieldNames would have nondeterministic behavior due to map iteration order.

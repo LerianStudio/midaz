@@ -1248,6 +1248,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Instrument Account Reference Not Found",
 			Message:    "The account referenced by this instrument does not exist in the referenced ledger. Please provide an accountId that belongs to the ledger and try again.",
 		},
+		constant.ErrSkipNotPermitted: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrSkipNotPermitted.Error(),
+			Title:      "Skip Not Permitted",
+			Message:    fmt.Sprintf("The %v skip requested for this operation is not permitted on this ledger. Enable the matching ledger override to allow it, or remove the skip from your request.", args...),
+		},
 		constant.ErrRelatedPartyNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrRelatedPartyNotFound.Error(),

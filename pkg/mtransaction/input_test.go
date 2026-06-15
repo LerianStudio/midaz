@@ -451,3 +451,107 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildTransaction_SkipPropagation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		skip *TransactionSkip
+	}{
+		{name: "absent skip stays nil", skip: nil},
+		{name: "both flags set", skip: &TransactionSkip{Fees: true, Tracer: true}},
+		{name: "fees only", skip: &TransactionSkip{Fees: true}},
+		{name: "tracer only", skip: &TransactionSkip{Tracer: true}},
+		{name: "zero-value pointer", skip: &TransactionSkip{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := CreateTransactionInput{Skip: tt.skip}
+
+			result := input.BuildTransaction()
+
+			require.NotNil(t, result)
+			assert.Same(t, tt.skip, result.Skip, "BuildTransaction must copy the Skip pointer verbatim")
+
+			if tt.skip == nil {
+				assert.Nil(t, result.Skip)
+			} else {
+				require.NotNil(t, result.Skip)
+				assert.Equal(t, tt.skip.Fees, result.Skip.Fees)
+				assert.Equal(t, tt.skip.Tracer, result.Skip.Tracer)
+			}
+		})
+	}
+}
+
+func TestBuildInflowEntry_SkipPropagation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		skip *TransactionSkip
+	}{
+		{name: "absent skip stays nil", skip: nil},
+		{name: "both flags set", skip: &TransactionSkip{Fees: true, Tracer: true}},
+		{name: "tracer only", skip: &TransactionSkip{Tracer: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := CreateTransactionInflowInput{Skip: tt.skip}
+
+			result := input.BuildInflowEntry()
+
+			require.NotNil(t, result)
+			assert.Same(t, tt.skip, result.Skip, "BuildInflowEntry must copy the Skip pointer verbatim")
+
+			if tt.skip == nil {
+				assert.Nil(t, result.Skip)
+			} else {
+				require.NotNil(t, result.Skip)
+				assert.Equal(t, tt.skip.Fees, result.Skip.Fees)
+				assert.Equal(t, tt.skip.Tracer, result.Skip.Tracer)
+			}
+		})
+	}
+}
+
+func TestBuildOutflowEntry_SkipPropagation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		skip *TransactionSkip
+	}{
+		{name: "absent skip stays nil", skip: nil},
+		{name: "both flags set", skip: &TransactionSkip{Fees: true, Tracer: true}},
+		{name: "fees only", skip: &TransactionSkip{Fees: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := CreateTransactionOutflowInput{Skip: tt.skip}
+
+			result := input.BuildOutflowEntry()
+
+			require.NotNil(t, result)
+			assert.Same(t, tt.skip, result.Skip, "BuildOutflowEntry must copy the Skip pointer verbatim")
+
+			if tt.skip == nil {
+				assert.Nil(t, result.Skip)
+			} else {
+				require.NotNil(t, result.Skip)
+				assert.Equal(t, tt.skip.Fees, result.Skip.Fees)
+				assert.Equal(t, tt.skip.Tracer, result.Skip.Tracer)
+			}
+		})
+	}
+}

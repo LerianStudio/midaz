@@ -102,7 +102,7 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := handler.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Empty(t, out.Handle.ReservationIDs)
@@ -114,7 +114,7 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := handler.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Equal(t, 0, reserver.reserveCalls, "mode=off must not call the tracer")
@@ -126,10 +126,52 @@ func TestReserveTransaction_OffOrNilReserver_Proceeds(t *testing.T) {
 
 		out := handler.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{}, uuid.New(),
-			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+			decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 		assert.Equal(t, reservationProceed, out.Kind)
 		assert.Equal(t, 0, reserver.reserveCalls)
+	})
+}
+
+// TestReserveTransaction_HonoredSkip_Proceeds proves the per-call tracer skip:
+// an honored skip short-circuits the reserve anchor — zero gRPC Reserve, outcome
+// proceed, empty handle — even under enforce/advisory, where the reserve would
+// otherwise fire. The skip wins over the mode because the operator opted in.
+func TestReserveTransaction_HonoredSkip_Proceeds(t *testing.T) {
+	tracerCtx, sp, logger := anchorDeps()
+
+	cases := []struct {
+		name     string
+		settings mmodel.TracerSettings
+	}{
+		{"enforce", mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed}},
+		{"advisory", mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name+" honored skip makes zero Reserve", func(t *testing.T) {
+			reserver := &stubReserver{result: &tracer.ReserveResult{Denied: true}}
+			handler := &TransactionHandler{TracerReserver: reserver}
+
+			out := handler.reserveTransaction(tracerCtx, sp, logger, tc.settings, uuid.New(),
+				decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, true)
+
+			assert.Equal(t, reservationProceed, out.Kind, "honored skip must proceed without gating")
+			assert.Equal(t, 0, reserver.reserveCalls, "honored skip must NOT call the tracer Reserve")
+			assert.Empty(t, out.Handle.ReservationIDs, "an honored skip holds no reservation")
+		})
+	}
+
+	t.Run("absent skip still reserves under enforce", func(t *testing.T) {
+		reserver := &stubReserver{result: &tracer.ReserveResult{Denied: false, ReservationIDs: []uuid.UUID{uuid.New()}}}
+		handler := &TransactionHandler{TracerReserver: reserver}
+
+		out := handler.reserveTransaction(tracerCtx, sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
+
+		assert.Equal(t, reservationProceed, out.Kind)
+		assert.Equal(t, 1, reserver.reserveCalls, "without a skip the reserve fires exactly once, as today")
 	})
 }
 
@@ -142,7 +184,7 @@ func TestReserveTransaction_EnforceAllow_Proceeds(t *testing.T) {
 
 	out := handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	assert.Equal(t, reservationProceed, out.Kind)
 	assert.Equal(t, 1, reserver.reserveCalls)
@@ -157,7 +199,7 @@ func TestReserveTransaction_EnforceDeny_Rejects(t *testing.T) {
 
 	out := handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 	require.Error(t, out.Err)
@@ -176,7 +218,7 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 
 		out := handler.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 		assert.Equal(t, reservationProceed, out.Kind, "advisory must never block, even on deny")
 		assert.Equal(t, 1, reserver.reserveCalls, "advisory still calls the tracer")
@@ -188,7 +230,7 @@ func TestReserveTransaction_Advisory_NeverBlocks(t *testing.T) {
 
 		out := handler.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 		assert.Equal(t, reservationProceed, out.Kind, "advisory ignores availability failures")
 	})
@@ -202,7 +244,7 @@ func TestReserveTransaction_FailOpen_SkipsAndProceeds(t *testing.T) {
 
 	out := handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must proceed when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs)
@@ -216,7 +258,7 @@ func TestReserveTransaction_FailClosed_Rejects(t *testing.T) {
 
 	out := handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	require.Equal(t, reservationReject, out.Kind, "fail-closed must reject when the tracer is unavailable")
 	require.Error(t, out.Err)
@@ -235,7 +277,7 @@ func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {
 
 	handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLLongLived)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLLongLived, false)
 
 	assert.True(t, capturing.lastReq.LongLived,
 		"PENDING reservations must carry the long-lived TTL hint")
@@ -245,7 +287,7 @@ func TestReserveTransaction_LongLivedHint_OnPending(t *testing.T) {
 	// Default TTL must NOT carry the hint.
 	handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	assert.False(t, capturing.lastReq.LongLived, "direct transactions must not carry the long-lived hint")
 }
@@ -260,7 +302,7 @@ func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
 
 	handler.reserveTransaction(tracerCtx, sp, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		txID, decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault)
+		txID, decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	req := capturing.lastReq
 	assert.Equal(t, txID, req.TransactionID)
@@ -374,7 +416,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		handler := &TransactionHandler{TracerReserver: reserver}
 
-		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID)
+		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns)
 		assert.Empty(t, reserver.releasedTxns)
@@ -386,7 +428,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		handler := &TransactionHandler{TracerReserver: reserver}
 
 		handler.confirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}, txID)
+			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns)
 	})
@@ -396,7 +438,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		handler := &TransactionHandler{TracerReserver: reserver}
 
 		handler.confirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New())
+			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), false)
 
 		assert.Empty(t, reserver.confirmedTxns, "mode=off must not confirm")
 	})
@@ -405,14 +447,14 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		handler := &TransactionHandler{TracerReserver: reserver}
 
-		handler.confirmReservationsByTransaction(ctx, sp, logger, mmodel.TracerSettings{}, uuid.New())
+		handler.confirmReservationsByTransaction(ctx, sp, logger, mmodel.TracerSettings{}, uuid.New(), false)
 
 		assert.Empty(t, reserver.confirmedTxns)
 	})
 
 	t.Run("nil reserver is a no-op", func(t *testing.T) {
 		handler := &TransactionHandler{TracerReserver: nil}
-		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New())
+		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), false)
 		// no panic, nothing to assert beyond not crashing
 	})
 
@@ -423,9 +465,18 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 
 		// The contract is that the request still succeeds: the helper returns
 		// nothing, swallows the error, and the caller proceeds.
-		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID)
+		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns, "the transition is attempted despite transport failure")
+	})
+
+	t.Run("honored skip does not confirm even under enforce", func(t *testing.T) {
+		reserver := &stubReserver{}
+		handler := &TransactionHandler{TracerReserver: reserver}
+
+		handler.confirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), true)
+
+		assert.Empty(t, reserver.confirmedTxns, "an honored tracer skip must make zero ConfirmByTransaction")
 	})
 }
 
@@ -439,7 +490,7 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		handler := &TransactionHandler{TracerReserver: reserver}
 
-		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID)
+		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.releasedTxns)
 		assert.Empty(t, reserver.confirmedTxns)
@@ -450,14 +501,14 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		handler := &TransactionHandler{TracerReserver: reserver}
 
 		handler.releaseReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New())
+			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), false)
 
 		assert.Empty(t, reserver.releasedTxns)
 	})
 
 	t.Run("nil reserver is a no-op", func(t *testing.T) {
 		handler := &TransactionHandler{TracerReserver: nil}
-		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New())
+		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), false)
 	})
 
 	t.Run("transport failure does not propagate", func(t *testing.T) {
@@ -465,9 +516,18 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{releaseByTxnErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
 		handler := &TransactionHandler{TracerReserver: reserver}
 
-		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID)
+		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.releasedTxns, "the transition is attempted despite transport failure")
+	})
+
+	t.Run("honored skip does not release even under enforce", func(t *testing.T) {
+		reserver := &stubReserver{}
+		handler := &TransactionHandler{TracerReserver: reserver}
+
+		handler.releaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), true)
+
+		assert.Empty(t, reserver.releasedTxns, "an honored tracer skip must make zero ReleaseByTransaction")
 	})
 }
 

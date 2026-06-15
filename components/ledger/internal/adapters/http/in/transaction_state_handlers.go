@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -434,6 +435,14 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
+	// Re-resolve the per-call tracer skip from the persisted body so an honored
+	// create-time skip also short-circuits the by-transaction confirm/release
+	// below, instead of relocating the gRPC cost from create to this transition.
+	// Authorization was already enforced at create, so a no-longer-permitted skip
+	// (the opt-in was revoked between create and commit) is treated as
+	// not-honored here — the error is intentionally discarded, never a 422.
+	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", tran.Body.Skip != nil && tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
+
 	action := constant.ActionCommit
 	if transactionStatus == constant.CANCELED {
 		action = constant.ActionCancel
@@ -521,9 +530,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	// at create-pending keeps these reservations alive until this transition.
 	switch transactionStatus {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID())
+		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID())
+		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), honoredTracerSkip)
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After

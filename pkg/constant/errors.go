@@ -540,6 +540,7 @@ var (
 	ErrReservationTenantRequired              = errors.New("0487")
 	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
 	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
+	ErrSkipNotPermitted                       = errors.New("0490")
 )
 
 // List of CRM domain errors.

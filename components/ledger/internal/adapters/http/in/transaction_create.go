@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -1136,6 +1137,20 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Resolve the per-call tracer skip once, off the settings just read (no extra
+	// I/O). An honored skip short-circuits the reserve anchor below; a skip
+	// requested without the per-ledger opt-in is a 422 — release the idempotency
+	// key and reject, mirroring the fee error path above.
+	honoredTracerSkip, err := skip.ResolveSkipFor("tracer", transactionInput.Skip != nil && transactionInput.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
+	if err != nil {
+		handleSpanByErrorClass(span, "Tracer skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Tracer skip not permitted", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
 	if ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
@@ -1230,7 +1245,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// is confirmed on success / released on abort at the post-commit transport.
 	reservation := handler.reserveTransaction(ctx, span, logger, ledgerSettings.Tracer, transactionID,
 		transactionInput.Send.Value, transactionInput.Send.Asset, firstSourceAccountID(validate.Sources, balances),
-		transactionDate, reservationTTLForStatus(transactionStatus))
+		transactionDate, reservationTTLForStatus(transactionStatus), honoredTracerSkip)
 	if reservation.Kind == reservationReject {
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())

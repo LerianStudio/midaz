@@ -28,6 +28,11 @@ import (
 //	    "mode": "off",
 //	    "failPosture": "open",
 //	    "timeoutMs": 250
+//	  },
+//	  "overrides": {
+//	    "allowFeeSkip": false,
+//	    "allowTracerSkip": false,
+//	    "allowHolderSkip": false
 //	  }
 //	}
 type LedgerSettings struct {
@@ -36,6 +41,10 @@ type LedgerSettings struct {
 
 	// Tracer contains the per-ledger tracer-integration settings.
 	Tracer TracerSettings `json:"tracer"`
+
+	// Overrides contains the per-ledger opt-ins that permit callers to skip
+	// individual controls (fees, tracer, holder) on a per-request basis.
+	Overrides OverridePolicy `json:"overrides"`
 } //	@name LedgerSettings
 
 // AccountingValidation represents the accounting-related validation settings.
@@ -63,6 +72,32 @@ var defaultAccountingValidation = AccountingValidation{
 	ValidateAccountType: false,
 	ValidateRoutes:      false,
 	RequireHolder:       false,
+}
+
+// OverridePolicy represents the per-ledger opt-ins that permit a caller to skip
+// individual controls on a per-request basis. A skip is honored only when both
+// this operator opt-in and the caller's request flag are set; absent an opt-in,
+// a requested skip is rejected. All opt-ins are false by default.
+type OverridePolicy struct {
+	// AllowFeeSkip permits callers to skip fee computation on a transaction.
+	// Default: false (callers cannot skip fees).
+	AllowFeeSkip bool `json:"allowFeeSkip" example:"false"`
+
+	// AllowTracerSkip permits callers to skip the tracer reserve on a transaction.
+	// Default: false (callers cannot skip the tracer).
+	AllowTracerSkip bool `json:"allowTracerSkip" example:"false"`
+
+	// AllowHolderSkip permits callers to skip the holder existence check on account creation.
+	// Default: false (callers cannot skip the holder check).
+	AllowHolderSkip bool `json:"allowHolderSkip" example:"false"`
+} //	@name OverridePolicy
+
+// defaultOverridePolicy is the canonical source of default override opt-ins.
+// All opt-ins are false by default so no control can be skipped without an explicit opt-in.
+var defaultOverridePolicy = OverridePolicy{
+	AllowFeeSkip:    false,
+	AllowTracerSkip: false,
+	AllowHolderSkip: false,
 }
 
 // TracerSettings represents the per-ledger tracer-integration settings.
@@ -130,6 +165,7 @@ func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
 		Accounting: defaultAccountingValidation,
 		Tracer:     defaultTracerSettings,
+		Overrides:  defaultOverridePolicy,
 	}
 }
 
@@ -148,6 +184,11 @@ func DefaultLedgerSettingsMap() map[string]any {
 			"failPosture": defaultTracerSettings.FailPosture,
 			"timeoutMs":   defaultTracerSettings.TimeoutMs,
 		},
+		"overrides": map[string]any{
+			"allowFeeSkip":    defaultOverridePolicy.AllowFeeSkip,
+			"allowTracerSkip": defaultOverridePolicy.AllowTracerSkip,
+			"allowHolderSkip": defaultOverridePolicy.AllowHolderSkip,
+		},
 	}
 }
 
@@ -164,6 +205,11 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 			"mode":        s.Tracer.Mode,
 			"failPosture": s.Tracer.FailPosture,
 			"timeoutMs":   s.Tracer.TimeoutMs,
+		},
+		"overrides": map[string]any{
+			"allowFeeSkip":    s.Overrides.AllowFeeSkip,
+			"allowTracerSkip": s.Overrides.AllowTracerSkip,
+			"allowHolderSkip": s.Overrides.AllowHolderSkip,
 		},
 	}
 }
@@ -217,6 +263,20 @@ func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 		}
 	}
 
+	if overridesMap, ok := settings["overrides"].(map[string]any); ok {
+		if allowFeeSkip, ok := overridesMap["allowFeeSkip"].(bool); ok {
+			result.Overrides.AllowFeeSkip = allowFeeSkip
+		}
+
+		if allowTracerSkip, ok := overridesMap["allowTracerSkip"].(bool); ok {
+			result.Overrides.AllowTracerSkip = allowTracerSkip
+		}
+
+		if allowHolderSkip, ok := overridesMap["allowHolderSkip"].(bool); ok {
+			result.Overrides.AllowHolderSkip = allowHolderSkip
+		}
+	}
+
 	return result
 }
 
@@ -255,6 +315,11 @@ var settingsSchema = map[string]map[string]string{
 		"mode":        "string",
 		"failPosture": "string",
 		"timeoutMs":   "number",
+	},
+	"overrides": {
+		"allowFeeSkip":    "bool",
+		"allowTracerSkip": "bool",
+		"allowHolderSkip": "bool",
 	},
 }
 
