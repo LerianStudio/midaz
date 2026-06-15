@@ -47,6 +47,8 @@ type TransactionPostgreSQLModel struct {
 	DeletedAt                sql.NullTime              // Deletion timestamp (if soft-deleted)
 	Route                    *string                   // Deprecated: legacy route identifier. Use RouteID instead.
 	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
+	FeesSkipped              bool                      // Honored per-call fee skip (audit trail)
+	TracerSkipped            bool                      // Honored per-call tracer skip (audit trail)
 	Metadata                 map[string]any            // Additional custom attributes
 }
 
@@ -177,6 +179,14 @@ type Transaction struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
+	// Whether an honored per-call fee skip bypassed the fee engine for this transaction
+	// example: false
+	FeesSkipped bool `json:"feesSkipped" example:"false"`
+
+	// Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction
+	// example: false
+	TracerSkipped bool `json:"tracerSkipped" example:"false"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -222,6 +232,8 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
+		FeesSkipped:              t.FeesSkipped,
+		TracerSkipped:            t.TracerSkipped,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -264,6 +276,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
+		FeesSkipped:              transaction.FeesSkipped,
+		TracerSkipped:            transaction.TracerSkipped,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
 	}

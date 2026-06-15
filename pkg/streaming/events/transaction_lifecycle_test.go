@@ -195,7 +195,7 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 
 	for _, key := range []string{
 		"id", "organizationId", "ledgerId", "status", "amount",
-		"assetCode", "operations", "createdAt", "updatedAt",
+		"assetCode", "operations", "feesSkipped", "tracerSkipped", "createdAt", "updatedAt",
 	} {
 		_, ok := generic[key]
 		assert.Truef(t, ok, "wire payload must include %q", key)

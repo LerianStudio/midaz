@@ -53,6 +53,8 @@ var transactionColumnList = []string{
 	"deleted_at",
 	"route",
 	"route_id",
+	"fees_skipped",
+	"tracer_skipped",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -72,6 +74,8 @@ var transactionColumnListPrefixed = []string{
 	"t.deleted_at",
 	"t.route",
 	"t.route_id",
+	"t.fees_skipped",
+	"t.tracer_skipped",
 }
 
 // operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
@@ -200,7 +204,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -221,6 +225,8 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.DeletedAt,
 		record.Route,
 		record.RouteID,
+		record.FeesSkipped,
+		record.TracerSkipped,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -344,7 +350,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Transaction has 15 columns, so 1000 rows = 15,000 parameters (under 65,535 limit)
+	// Transaction has 18 columns, so 1000 rows = 18,000 parameters (under 65,535 limit)
 	const chunkSize = 1000
 
 	for i := 0; i < len(transactions); i += chunkSize {
@@ -423,6 +429,8 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.DeletedAt,
 			record.Route,
 			record.RouteID,
+			record.FeesSkipped,
+			record.TracerSkipped,
 		)
 	}
 
@@ -755,6 +763,8 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.DeletedAt,
 			&transaction.Route,
 			&transaction.RouteID,
+			&transaction.FeesSkipped,
+			&transaction.TracerSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -862,6 +872,8 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.DeletedAt,
 			&transaction.Route,
 			&transaction.RouteID,
+			&transaction.FeesSkipped,
+			&transaction.TracerSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -944,6 +956,8 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.DeletedAt,
 		&transaction.Route,
 		&transaction.RouteID,
+		&transaction.FeesSkipped,
+		&transaction.TracerSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
@@ -1025,6 +1039,8 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.DeletedAt,
 		&transaction.Route,
 		&transaction.RouteID,
+		&transaction.FeesSkipped,
+		&transaction.TracerSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
@@ -1243,6 +1259,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.DeletedAt,
 			&tran.Route,
 			&tran.RouteID,
+			&tran.FeesSkipped,
+			&tran.TracerSkipped,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1426,6 +1444,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.DeletedAt,
 			&tran.Route,
 			&tran.RouteID,
+			&tran.FeesSkipped,
+			&tran.TracerSkipped,
 			&opID,
 			&opTransactionID,
 			&opDescription,

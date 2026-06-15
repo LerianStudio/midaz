@@ -156,6 +156,8 @@ type TransactionPayload struct {
 	RouteID                  *string           `json:"routeId,omitempty"`
 	Operations               []json.RawMessage `json:"operations"`
 	Metadata                 map[string]any    `json:"metadata,omitempty"`
+	FeesSkipped              bool              `json:"feesSkipped"`
+	TracerSkipped            bool              `json:"tracerSkipped"`
 	CreatedAt                string            `json:"createdAt"`
 	UpdatedAt                string            `json:"updatedAt"`
 }
@@ -186,6 +188,8 @@ type TransactionSource struct {
 	RouteID                  *string
 	Operations               []json.RawMessage
 	Metadata                 map[string]any
+	FeesSkipped              bool
+	TracerSkipped            bool
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }
@@ -215,6 +219,8 @@ func newTransactionPayload(src TransactionSource) TransactionPayload {
 		RouteID:                  src.RouteID,
 		Operations:               src.Operations,
 		Metadata:                 src.Metadata,
+		FeesSkipped:              src.FeesSkipped,
+		TracerSkipped:            src.TracerSkipped,
 		CreatedAt:                src.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:                src.UpdatedAt.Format(time.RFC3339),
 	}

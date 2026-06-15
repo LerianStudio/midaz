@@ -1100,6 +1100,14 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Record the resolved skips as system observations (not request inputs): they
+	// reflect what the two-key gate actually honored, and they are persisted to the
+	// transaction row below for the durable audit trail.
+	span.SetAttributes(
+		attribute.Bool("app.transaction.fees_skipped", honoredFeeSkip),
+		attribute.Bool("app.transaction.tracer_skipped", honoredTracerSkip),
+	)
+
 	// Fee seam: drive the in-process fee engine over the validated transaction,
 	// mutating transactionInput.Send.* (fee legs + moved Send.Value on
 	// deductible fees). No-op on isRevert (the reverse transaction already
@@ -1340,6 +1348,8 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		UpdatedAt:                time.Now(),
 		Route:                    transactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  transactionInput.RouteID,
+		FeesSkipped:              honoredFeeSkip,
+		TracerSkipped:            honoredTracerSkip,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
 			Code:        transactionStatus,
