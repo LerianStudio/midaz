@@ -42,6 +42,8 @@ type seamMetrics struct {
 	secondValidatePos   int  // statement-list index of the second validate ValidateSendSourceAndDistribute (-1)
 	redisSeedPos        int  // statement-list index of SendTransactionToRedisQueue (-1)
 	writeTransactionPos int  // statement-list index of WriteTransaction (-1)
+	getSettingsCount    int  // `GetParsedLedgerSettings` call occurrences
+	getSettingsPos      int  // statement-list index of GetParsedLedgerSettings (-1 if absent)
 	preFeeSnapshot      bool // a non-validate var bound from validate before the seam (snapshot copy)
 }
 
@@ -71,7 +73,7 @@ func analyzeSeamFunc(t *testing.T, src, funcName string) seamMetrics {
 		t.Fatalf("function %q not found or has no body", funcName)
 	}
 
-	m := seamMetrics{applyFeesPos: -1, secondValidatePos: -1, redisSeedPos: -1, writeTransactionPos: -1}
+	m := seamMetrics{applyFeesPos: -1, secondValidatePos: -1, redisSeedPos: -1, writeTransactionPos: -1, getSettingsPos: -1}
 
 	for i, stmt := range fn.Body.List {
 		// validate :=  /  validate =  detection (top-level only — a fork or a
@@ -98,6 +100,14 @@ func analyzeSeamFunc(t *testing.T, src, funcName string) seamMetrics {
 			// The second validate is the one whose result is reassigned (= not :=).
 			if as, ok := stmt.(*ast.AssignStmt); ok && as.Tok == token.ASSIGN && assignsIdent(as, "validate") {
 				m.secondValidatePos = i
+			}
+		}
+
+		if stmtCallsMethod(stmt, "GetParsedLedgerSettings") {
+			m.getSettingsCount++
+
+			if m.getSettingsPos == -1 {
+				m.getSettingsPos = i
 			}
 		}
 
@@ -237,6 +247,58 @@ func TestFeeSeamStructure_SeamPrecedesRedisSeed(t *testing.T) {
 
 	if m.applyFeesPos >= m.secondValidatePos {
 		t.Errorf("Gate 2: applyFees (pos %d) must precede the second validate (pos %d)", m.applyFeesPos, m.secondValidatePos)
+	}
+}
+
+// TestFeeSeamStructure_SingleSettingsReadBeforeSeam asserts the ledger settings
+// are read exactly once and that read precedes the fee seam — so the per-call
+// skip resolution rides the single cached read and an honored fee skip can
+// short-circuit applyFees before its package lookup, with no extra I/O.
+func TestFeeSeamStructure_SingleSettingsReadBeforeSeam(t *testing.T) {
+	src := readSeamSource(t)
+
+	m := analyzeSeamFunc(t, src, seamFuncName)
+
+	if m.getSettingsCount != 1 {
+		t.Errorf("expected exactly one GetParsedLedgerSettings call, got %d", m.getSettingsCount)
+	}
+
+	if m.getSettingsPos == -1 {
+		t.Fatal("GetParsedLedgerSettings call not found in executeCreateTransaction")
+	}
+
+	if m.applyFeesPos == -1 {
+		t.Fatal("applyFees call not found in executeCreateTransaction")
+	}
+
+	if m.getSettingsPos >= m.applyFeesPos {
+		t.Errorf("settings read (pos %d) must precede applyFees (pos %d) so the fee skip resolves off the cached read",
+			m.getSettingsPos, m.applyFeesPos)
+	}
+}
+
+// TestFeeSeamStructure_SettingsGateBites proves the single-read gate fails when
+// a second GetParsedLedgerSettings call sneaks back in (the duplicated read the
+// hoist removed).
+func TestFeeSeamStructure_SettingsGateBites(t *testing.T) {
+	doubleRead := `package in
+func executeCreateTransaction() {
+	validate, err := ValidateSendSourceAndDistribute()
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings()
+	_ = handler.applyFees()
+	validate, err = ValidateSendSourceAndDistribute()
+	ledgerSettings, err = handler.Query.GetParsedLedgerSettings() // BUG: second read
+	_ = handler.Command.SendTransactionToRedisQueue(validate)
+	_ = handler.Command.WriteTransaction(validate)
+}`
+
+	m := analyzeSeamFunc(t, doubleRead, seamFuncName)
+	if m.getSettingsCount == 1 {
+		t.Error("settings gate failed to bite: a second GetParsedLedgerSettings call was not detected (expected != 1)")
+	}
+
+	if m.getSettingsCount != 2 {
+		t.Errorf("settings gate fixture sanity: expected 2 GetParsedLedgerSettings calls in the fixture, got %d", m.getSettingsCount)
 	}
 }
 

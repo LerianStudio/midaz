@@ -1058,17 +1058,61 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
+	// Ledger settings (Redis cache-aside) are read once here, above the fee seam.
+	// They carry the per-call skip opt-ins (Overrides), so resolving the skips
+	// off this single read keeps the gate free of extra I/O and lets an honored
+	// fee skip bypass the engine entirely — before any package lookup.
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
+	// Resolve the per-call fee skip once, off the settings just read (no extra
+	// I/O). An honored skip short-circuits applyFees below before the fee package
+	// lookup; a skip requested without the per-ledger opt-in is a 422 — release
+	// the idempotency key and reject.
+	honoredFeeSkip, err := skip.ResolveSkipFor("fees", transactionInput.Skip != nil && transactionInput.Skip.Fees, ledgerSettings.Overrides.AllowFeeSkip)
+	if err != nil {
+		handleSpanByErrorClass(span, "Fee skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Fee skip not permitted", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
+	// Resolve the per-call tracer skip once, off the same settings read. An
+	// honored skip short-circuits the reserve anchor below; a skip requested
+	// without the per-ledger opt-in is a 422 — release the idempotency key and
+	// reject, mirroring the fee skip path above.
+	honoredTracerSkip, err := skip.ResolveSkipFor("tracer", transactionInput.Skip != nil && transactionInput.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
+	if err != nil {
+		handleSpanByErrorClass(span, "Tracer skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Tracer skip not permitted", libLog.Err(err))
+
+		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
+
+		return http.WithError(c, err)
+	}
+
 	// Fee seam: drive the in-process fee engine over the validated transaction,
 	// mutating transactionInput.Send.* (fee legs + moved Send.Value on
 	// deductible fees). No-op on isRevert (the reverse transaction already
-	// carries reversed fee legs from TransactionRevert). Runs BEFORE
-	// GetParsedLedgerSettings so the single validate reassignment below happens
-	// upstream of PropagateRouteValidation: that mutator then decorates the
-	// post-fee validate, and every downstream consumer reads the same pointer.
-	// applyFees resolves the tenant's fee DB internally, only once it has decided
-	// fees actually apply (reverts/annotations short-circuit before that), so the
-	// MT tenant resolution rides inside the same gate as the fee computation.
-	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED); err != nil {
+	// carries reversed fee legs from TransactionRevert) and on an honored fee
+	// skip (which bypasses the engine before its package lookup). The settings
+	// read + skip resolution above precede this seam; the seam still runs before
+	// the single validate reassignment below, which is upstream of
+	// PropagateRouteValidation — that mutator decorates the post-fee validate,
+	// and every downstream consumer reads the same pointer. applyFees resolves
+	// the tenant's fee DB internally, only once it has decided fees actually
+	// apply, so the MT tenant resolution rides inside the same gate as the fee
+	// computation.
+	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED, honoredFeeSkip); err != nil {
 		handleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 
@@ -1125,30 +1169,6 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
-	}
-
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, params.OrganizationID, params.LedgerID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-
-		return http.WithError(c, err)
-	}
-
-	// Resolve the per-call tracer skip once, off the settings just read (no extra
-	// I/O). An honored skip short-circuits the reserve anchor below; a skip
-	// requested without the per-ledger opt-in is a 422 — release the idempotency
-	// key and reject, mirroring the fee error path above.
-	honoredTracerSkip, err := skip.ResolveSkipFor("tracer", transactionInput.Skip != nil && transactionInput.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
-	if err != nil {
-		handleSpanByErrorClass(span, "Tracer skip not permitted", err)
-		logger.Log(ctx, libLog.LevelWarn, "Tracer skip not permitted", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-
-		return http.WithError(c, err)
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {

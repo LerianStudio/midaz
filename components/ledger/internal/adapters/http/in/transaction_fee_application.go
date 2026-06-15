@@ -60,12 +60,21 @@ type FeeApplier interface {
 // (there is no FeesEnabled flag), so the nil branch never fires in production —
 // it only keeps the seam inert for tests that construct a handler without a fee
 // use case.
+//
+// An honored per-call fee skip (honoredFeeSkip=true, the two keys having already
+// agreed at the resolution point upstream) bypasses the entire engine: no package
+// lookup, no tenant resolution, no send mutation. The transaction posts as
+// authored.
 func (handler *TransactionHandler) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
-	isRevert, isAnnotation bool,
+	isRevert, isAnnotation, honoredFeeSkip bool,
 ) error {
+	if honoredFeeSkip {
+		return nil
+	}
+
 	if isRevert || isAnnotation || handler.FeeApplier == nil {
 		return nil
 	}

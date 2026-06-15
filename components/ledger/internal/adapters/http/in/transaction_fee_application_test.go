@@ -67,7 +67,7 @@ func TestApplyFees_NoOpOnRevert(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, true /* isRevert */, false /* isAnnotation */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the revert path (no re-charge)")
@@ -83,7 +83,7 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false /* isRevert */, true /* isAnnotation */)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
@@ -95,10 +95,41 @@ func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
+}
+
+func TestApplyFees_NoOpWhenSkipHonored(t *testing.T) {
+	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
+		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
+	}}
+	handler := &TransactionHandler{FeeApplier: applier}
+
+	input := baseTransaction()
+
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, true /* honoredFeeSkip */)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, applier.calls,
+		"an honored fee skip must bypass the engine entirely — zero CalculateFee, hence zero FindByOrganizationIDAndLedgerID package lookup")
+	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
+}
+
+func TestApplyFees_SkipHonoredTouchesNoFeeDependency(t *testing.T) {
+	// nil FeeApplier AND nil FeesMongoManager: an honored skip must return before
+	// reaching either, proving the bypass touches no fee dependency (no engine
+	// call, no tenant Mongo resolution). A non-skip path would nil-deref the
+	// applier or fall through to resolution; this returns nil cleanly.
+	handler := &TransactionHandler{FeeApplier: nil, FeesMongoManager: nil, MultiTenantEnabled: true}
+
+	input := baseTransaction()
+
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, true /* honoredFeeSkip */)
+
+	require.NoError(t, err)
+	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
 }
 
 func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
@@ -120,7 +151,7 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false, false)
+	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -141,7 +172,7 @@ func TestApplyFees_PropagatesBusinessError(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
+	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false, false /* honoredFeeSkip */)
 
 	require.Error(t, err)
 
