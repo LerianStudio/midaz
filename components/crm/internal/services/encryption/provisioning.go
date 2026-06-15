@@ -12,11 +12,15 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // defaultAuditActor is the ActorID recorded when the provision request omits an
@@ -40,10 +44,12 @@ const (
 const EntityOrganizationEncryption = "OrganizationEncryption"
 
 // KeysetGenerator defines the interface for generating and wrapping keysets.
-// Compatible with pkg/crypto/tink.KeysetFactory.
+// Compatible with pkg/crypto/tink.KeysetFactory. mountPath is the resolved Vault
+// Transit mount (flat base for single-tenant, base/tenant for multi-tenant);
+// keyName is the per-organization KEK key name (org-{id}).
 type KeysetGenerator interface {
-	GenerateAEADKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error)
-	GenerateMACKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error)
+	GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
+	GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
 }
 
 // ProvisioningConfig holds configuration for the ProvisioningService.
@@ -188,6 +194,13 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 // point so the exported Provision can emit exactly one audit event. The helpers
 // return their own outcome; this method never emits.
 func (s *provisioningService) provision(ctx context.Context, req ProvisionInput) (ProvisionResult, mmodel.AuditOutcome, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+
+	ctx, span := tracer.Start(ctx, "service.protection.provision")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.organization_id", req.OrganizationID))
+
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
@@ -195,6 +208,8 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 
 	// Validate request
 	if err := req.Validate(); err != nil {
+		libOpenTelemetry.HandleSpanError(span, "invalid provision request", err)
+
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, fmt.Errorf("invalid provision request: %w", err)
 	}
 
@@ -213,8 +228,12 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
-	// Generate KEK path for this organization
+	// KEK path is the key name; mount is resolved per-tenant (flat base for single-tenant).
 	kekPath := s.buildKEKPath(req.OrganizationID)
+	mount := resolveMount(s.kekMountPath, req.TenantID)
+
+	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
+	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
 
 	// Generate AEAD keyset. The KMS wrap happens inside the generator; provider
 	// timing is measured here at the service boundary (pkg/crypto/tink MUST NOT
@@ -222,13 +241,13 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	// becomes dynamic when other KMS providers land. Timing is recorded even on
 	// failure.
 	aeadWrapStart := time.Now()
-	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, kekPath)
+	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, mount, kekPath)
 	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(aeadWrapStart).Milliseconds())
 
 	if err != nil {
 		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapAEADFailed)
 
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
 	}
 
 	// Check context before generating MAC keyset
@@ -239,13 +258,13 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	// Generate MAC keyset. Provider timing is measured here at the service
 	// boundary and recorded even on failure.
 	macWrapStart := time.Now()
-	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, kekPath)
+	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, mount, kekPath)
 	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(macWrapStart).Milliseconds())
 
 	if err != nil {
 		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapMACFailed)
 
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
 	}
 
 	// Build organization keyset
@@ -254,6 +273,7 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		TenantID:          req.TenantID,
 		OrganizationID:    req.OrganizationID,
 		KEKPath:           kekPath,
+		KEKMountPath:      mount,
 		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
 		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
 		WrappedHMACKeyset: macBundle.Wrapped.WrappedData,
@@ -515,6 +535,26 @@ func (s *provisioningService) IsActive(ctx context.Context, organizationID strin
 	}
 
 	return *status == mmodel.RegistryStatusActive, nil
+}
+
+// wrapProvisionError maps a keyset wrap failure to the provisioning error.
+//
+// A missing per-tenant Vault Transit mount (vault.ErrMountNotFound) must fail
+// provisioning closed: it is surfaced clearly and kept Is-comparable via %w so
+// callers can distinguish "tenant not bootstrapped" from a generic failure. Any
+// other wrap failure maps to the opaque provisioning business error, which never
+// exposes internal technical detail to API clients.
+func (s *provisioningService) wrapProvisionError(span trace.Span, err error) error {
+	if errors.Is(err, vault.ErrMountNotFound) {
+		wrapped := fmt.Errorf("provision: tenant transit mount missing: %w", err)
+		libOpenTelemetry.HandleSpanError(span, "tenant transit mount missing", wrapped)
+
+		return wrapped
+	}
+
+	libOpenTelemetry.HandleSpanError(span, "failed to wrap keyset", err)
+
+	return pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 }
 
 // buildKEKPath constructs the KEK key name for an organization.

@@ -20,6 +20,24 @@ import (
 // defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
 const defaultKEKMountPath = "transit"
 
+// resolveBaseMountPath is the SINGLE base-mount normalizer: base normalization
+// lives here, not in resolveMount. It resolves the base Vault Transit mount,
+// trimming surrounding slashes/whitespace so the returned base equals the effective
+// mount used downstream. Empty/whitespace/slash-only input falls back to the default
+// "transit"; never blank. Callers inject the result as the pre-normalized base that
+// resolveMount consumes verbatim.
+func resolveBaseMountPath(configured string) string {
+	// One cutset for guard and returned value so they cannot drift.
+	const cut = "/ \t\n"
+
+	trimmed := strings.Trim(configured, cut)
+	if trimmed == "" {
+		return defaultKEKMountPath
+	}
+
+	return trimmed
+}
+
 // wireEncryptionServicesInput contains all dependencies for wiring encryption services.
 // For testing with mocks, use testWireEncryptionServicesWithMocks in encryption_test.go.
 type wireEncryptionServicesInput struct {
@@ -114,11 +132,8 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		}
 	}
 
-	// Resolve Vault mount path with default
-	vaultMountPath := input.vaultMountPath
-	if vaultMountPath == "" {
-		vaultMountPath = defaultKEKMountPath
-	}
+	// Resolve the base Vault Transit mount once (see resolveBaseMountPath).
+	baseMountPath := resolveBaseMountPath(input.vaultMountPath)
 
 	// Wire ProtectionStateResolver with RegistryRepository
 	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo, pm)
@@ -136,18 +151,22 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		input.keysetRepo,
 		input.registryRepo,
 		&keysetGeneratorAdapter{factory: keysetFactory},
-		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		encryption.ProvisioningConfig{KEKMountPath: baseMountPath},
 		input.auditWriter,
 		pm,
 	)
 
-	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService
-	// Tenant ID for auto-provisioning is obtained from context
+	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService.
+	// Tenant ID for auto-provisioning is obtained from context. The base mount is
+	// injected so per-tenant sub-mounts resolve consistently with provisioning.
+	keysetManagerConfig := encryption.DefaultKeysetManagerConfig()
+	keysetManagerConfig.BaseMountPath = baseMountPath
+
 	keysetManager := encryption.NewKeysetManager(
 		input.keysetRepo,
 		keysetWrapper,
 		provisioningService,
-		encryption.DefaultKeysetManagerConfig(),
+		keysetManagerConfig,
 		pm,
 	)
 
@@ -180,11 +199,13 @@ type keysetGeneratorAdapter struct {
 }
 
 // GenerateAEADKeyset generates a new AEAD keyset and wraps it with the KMS.
-func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error) {
-	return a.factory.GenerateAEADKeyset(ctx, keyName)
+// The per-tenant mountPath is forwarded verbatim to the underlying factory.
+func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
+	return a.factory.GenerateAEADKeyset(ctx, mountPath, keyName)
 }
 
 // GenerateMACKeyset generates a new MAC keyset and wraps it with the KMS.
-func (a *keysetGeneratorAdapter) GenerateMACKeyset(ctx context.Context, keyName string) (tink.KeysetBundle, error) {
-	return a.factory.GenerateMACKeyset(ctx, keyName)
+// The per-tenant mountPath is forwarded verbatim to the underlying factory.
+func (a *keysetGeneratorAdapter) GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
+	return a.factory.GenerateMACKeyset(ctx, mountPath, keyName)
 }

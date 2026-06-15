@@ -13,7 +13,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
-	"github.com/google/uuid"
 )
 
 // KMSResult contains the results of KMS initialization.
@@ -66,8 +65,13 @@ func initVaultClient(ctx context.Context, cfg *Config, logger libLog.Logger) (*v
 		return nil, fmt.Errorf("failed to authenticate with vault: %w", err)
 	}
 
+	// Log the RESOLVED base mount (the same base bootstrap injects into
+	// provisioning/keyset_manager), not the raw config value. KMS_VAULT_MOUNT_PATH
+	// is optional, so the raw value is frequently empty/misleading; resolve it to
+	// the safe default so the logged base always matches what is actually wired
+	// downstream and is never blank.
 	logger.Log(ctx, libLog.LevelInfo, "Vault client initialized",
-		libLog.String("mount_path", cfg.VaultMountPath))
+		libLog.String("base_mount_path", resolveBaseMountPath(cfg.VaultMountPath)))
 
 	return client, nil
 }
@@ -140,7 +144,6 @@ func buildVaultConfig(cfg *Config) vault.Config {
 		Addr:       cfg.VaultAddr,
 		RoleID:     cfg.VaultRoleID,
 		SecretID:   cfg.VaultSecretID,
-		MountPath:  cfg.VaultMountPath,
 		Token:      token,
 		AuthMethod: authMethod,
 	}
@@ -167,15 +170,4 @@ func resolveVaultAuth(deploymentMode string, hasAppRole bool) (vault.AuthMethod,
 
 	// Local/development: always use hardcoded root token
 	return vault.AuthMethodToken, DefaultVaultDevToken
-}
-
-// buildTransitKeyName constructs the transit key name for an organization.
-// Key name convention: org/{organization_id}
-// Example: org/550e8400-e29b-41d4-a716-446655440000
-//
-// Keys are auto-created on first use per organization in Vault Transit.
-//
-//nolint:unused // Prepared for Phase 1 envelope encryption; will be used when Vault operations are implemented.
-func buildTransitKeyName(organizationID uuid.UUID) string {
-	return fmt.Sprintf("org/%s", organizationID.String())
 }

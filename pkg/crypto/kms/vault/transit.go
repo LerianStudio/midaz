@@ -7,20 +7,31 @@ package vault
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/hashicorp/vault/api"
 )
 
 // Encrypt encrypts plaintext using the Vault Transit secrets engine.
+// The mountPath selects the Transit mount for the request (e.g. "transit"
+// or "transit/tenant-x") and must be non-empty.
 // The keyName should follow the convention: org/{organization_id}
 // Keys are auto-created on first use if the AppRole has create permissions.
 //
 // Returns the ciphertext in Vault's format: vault:v1:base64-encoded-ciphertext
-func (c *Client) Encrypt(ctx context.Context, keyName string, plaintext []byte) (string, error) {
+func (c *Client) Encrypt(ctx context.Context, mountPath, keyName string, plaintext []byte) (string, error) {
+	if mountPath == "" {
+		return "", fmt.Errorf("vault: empty mount path for key %q", keyName)
+	}
+
 	if err := c.ensureAuthenticated(ctx); err != nil {
 		return "", fmt.Errorf("authentication failed: %w", err)
 	}
 
-	ciphertext, err := c.encryptInternal(ctx, keyName, plaintext)
+	ciphertext, err := c.encryptInternal(ctx, mountPath, keyName, plaintext)
 	if err != nil {
 		// Re-authenticate and retry once on permission denied (token expired)
 		if isPermissionDenied(err) {
@@ -28,18 +39,25 @@ func (c *Client) Encrypt(ctx context.Context, keyName string, plaintext []byte) 
 				return "", fmt.Errorf("re-authentication failed: %w", reAuthErr)
 			}
 
-			return c.encryptInternal(ctx, keyName, plaintext)
+			ciphertext, err = c.encryptInternal(ctx, mountPath, keyName, plaintext)
+			if err != nil {
+				return "", c.mapMountErr(mountPath, err)
+			}
+
+			return ciphertext, nil
 		}
 
-		return "", err
+		// Fail closed when the Transit mount is absent: surface a typed error
+		// instead of falling back to a different mount.
+		return "", c.mapMountErr(mountPath, err)
 	}
 
 	return ciphertext, nil
 }
 
 // encryptInternal performs the actual encryption call to Vault.
-func (c *Client) encryptInternal(ctx context.Context, keyName string, plaintext []byte) (string, error) {
-	path := fmt.Sprintf("%s/encrypt/%s", c.config.MountPath, keyName)
+func (c *Client) encryptInternal(ctx context.Context, mountPath, keyName string, plaintext []byte) (string, error) {
+	path := fmt.Sprintf("%s/encrypt/%s", mountPath, keyName)
 
 	data := map[string]any{
 		"plaintext": base64.StdEncoding.EncodeToString(plaintext),
@@ -63,15 +81,21 @@ func (c *Client) encryptInternal(ctx context.Context, keyName string, plaintext 
 }
 
 // Decrypt decrypts ciphertext using the Vault Transit secrets engine.
+// The mountPath selects the Transit mount for the request (e.g. "transit"
+// or "transit/tenant-x") and must be non-empty.
 // The ciphertext must be in Vault's format: vault:v1:base64-encoded-ciphertext
 //
 // Returns the original plaintext bytes.
-func (c *Client) Decrypt(ctx context.Context, keyName string, ciphertext string) ([]byte, error) {
+func (c *Client) Decrypt(ctx context.Context, mountPath, keyName, ciphertext string) ([]byte, error) {
+	if mountPath == "" {
+		return nil, fmt.Errorf("vault: empty mount path for key %q", keyName)
+	}
+
 	if err := c.ensureAuthenticated(ctx); err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
-	plaintext, err := c.decryptInternal(ctx, keyName, ciphertext)
+	plaintext, err := c.decryptInternal(ctx, mountPath, keyName, ciphertext)
 	if err != nil {
 		// Re-authenticate and retry once on permission denied (token expired)
 		if isPermissionDenied(err) {
@@ -79,18 +103,25 @@ func (c *Client) Decrypt(ctx context.Context, keyName string, ciphertext string)
 				return nil, fmt.Errorf("re-authentication failed: %w", reAuthErr)
 			}
 
-			return c.decryptInternal(ctx, keyName, ciphertext)
+			plaintext, err = c.decryptInternal(ctx, mountPath, keyName, ciphertext)
+			if err != nil {
+				return nil, c.mapMountErr(mountPath, err)
+			}
+
+			return plaintext, nil
 		}
 
-		return nil, err
+		// Fail closed when the Transit mount is absent: surface a typed error
+		// instead of falling back to a different mount.
+		return nil, c.mapMountErr(mountPath, err)
 	}
 
 	return plaintext, nil
 }
 
 // decryptInternal performs the actual decryption call to Vault.
-func (c *Client) decryptInternal(ctx context.Context, keyName string, ciphertext string) ([]byte, error) {
-	path := fmt.Sprintf("%s/decrypt/%s", c.config.MountPath, keyName)
+func (c *Client) decryptInternal(ctx context.Context, mountPath, keyName, ciphertext string) ([]byte, error) {
+	path := fmt.Sprintf("%s/decrypt/%s", mountPath, keyName)
 
 	data := map[string]any{
 		"ciphertext": ciphertext,
@@ -116,4 +147,37 @@ func (c *Client) decryptInternal(ctx context.Context, keyName string, ciphertext
 	}
 
 	return plaintext, nil
+}
+
+// mapMountErr translates a missing-Transit-mount error into the typed
+// ErrMountNotFound (wrapped with the mount path for context), so callers can
+// match it with errors.Is and fail closed. Non-mount errors pass through
+// unchanged.
+func (c *Client) mapMountErr(mountPath string, err error) error {
+	if isMountNotFound(err) {
+		return fmt.Errorf("%w: %s", ErrMountNotFound, mountPath)
+	}
+
+	return err
+}
+
+// isMountNotFound reports whether err indicates that the targeted Transit mount
+// does not exist. Vault surfaces a missing mount as an HTTP 404 *api.ResponseError,
+// with a body that varies across versions ("no handler for route ..." on newer
+// builds, "unsupported path" on older ones). The substring check is a
+// belt-and-suspenders fallback for clients that do not expose the typed error.
+func isMountNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var respErr *api.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+
+	msg := strings.ToLower(err.Error())
+
+	return strings.Contains(msg, "no handler for route") ||
+		strings.Contains(msg, "unsupported path")
 }

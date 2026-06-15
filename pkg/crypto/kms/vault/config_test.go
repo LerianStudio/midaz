@@ -24,7 +24,6 @@ func TestConfig_Validate_AppRole(t *testing.T) {
 			name: "valid approle config with explicit method",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "secret-456",
@@ -34,10 +33,9 @@ func TestConfig_Validate_AppRole(t *testing.T) {
 		{
 			name: "valid approle config with default method (empty)",
 			config: Config{
-				Addr:      "https://vault.example.com:8200",
-				MountPath: "transit",
-				RoleID:    "role-123",
-				SecretID:  "secret-456",
+				Addr:     "https://vault.example.com:8200",
+				RoleID:   "role-123",
+				SecretID: "secret-456",
 			},
 			expectError: false,
 		},
@@ -45,7 +43,6 @@ func TestConfig_Validate_AppRole(t *testing.T) {
 			name: "missing addr returns error",
 			config: Config{
 				Addr:       "",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "secret-456",
@@ -54,22 +51,9 @@ func TestConfig_Validate_AppRole(t *testing.T) {
 			errorContains: "addr",
 		},
 		{
-			name: "missing mount_path returns error",
-			config: Config{
-				Addr:       "https://vault.example.com:8200",
-				MountPath:  "",
-				AuthMethod: AuthMethodAppRole,
-				RoleID:     "role-123",
-				SecretID:   "secret-456",
-			},
-			expectError:   true,
-			errorContains: "mount_path",
-		},
-		{
 			name: "missing role_id returns error",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "",
 				SecretID:   "secret-456",
@@ -81,7 +65,6 @@ func TestConfig_Validate_AppRole(t *testing.T) {
 			name: "missing secret_id returns error",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "",
@@ -120,7 +103,6 @@ func TestConfig_Validate_Token(t *testing.T) {
 			name: "valid token config",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodToken,
 				Token:      "hvs.test-token-123",
 			},
@@ -130,7 +112,6 @@ func TestConfig_Validate_Token(t *testing.T) {
 			name: "token auth missing token returns error",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodToken,
 				Token:      "",
 			},
@@ -141,7 +122,6 @@ func TestConfig_Validate_Token(t *testing.T) {
 			name: "token auth with whitespace-only token returns error",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodToken,
 				Token:      "   ",
 			},
@@ -171,7 +151,6 @@ func TestConfig_Validate_InvalidAuthMethod(t *testing.T) {
 
 	config := Config{
 		Addr:       "https://vault.example.com:8200",
-		MountPath:  "transit",
 		AuthMethod: "invalid",
 		RoleID:     "role-123",
 		SecretID:   "secret-456",
@@ -235,11 +214,10 @@ func TestConfig_IsEmpty(t *testing.T) {
 		{
 			name: "config with only whitespace returns true",
 			config: Config{
-				Addr:      "   ",
-				MountPath: "   ",
-				RoleID:    "   ",
-				SecretID:  "   ",
-				Token:     "   ",
+				Addr:     "   ",
+				RoleID:   "   ",
+				SecretID: "   ",
+				Token:    "   ",
 			},
 			expected: true,
 		},
@@ -261,7 +239,6 @@ func TestConfig_IsEmpty(t *testing.T) {
 			name: "fully populated approle config returns false",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "secret-456",
@@ -272,7 +249,6 @@ func TestConfig_IsEmpty(t *testing.T) {
 			name: "fully populated token config returns false",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodToken,
 				Token:      "hvs.token",
 			},

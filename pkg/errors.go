@@ -1436,6 +1436,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
 			Err:        constant.ErrAuditEventRequired,
 		},
+		constant.ErrReservedTenantID: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservedTenantID.Error(),
+			Title:      "Reserved Tenant ID",
+			Message:    "The tenant id \"default\" is reserved for internal single-tenant use and cannot be used as a tenant identifier. Please use a different tenant id and try again.",
+			Err:        constant.ErrReservedTenantID,
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -6,8 +6,12 @@ package encryption
 
 import (
 	"context"
+	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // EncryptionContext provides the context for field encryption operations.
@@ -19,12 +23,32 @@ type EncryptionContext struct {
 }
 
 // ExtractTenantID extracts tenant ID from context or returns "default" for single-tenant mode.
+// "default" is a reserved sentinel mapping to the flat-base mount; externally supplied
+// "default" is rejected at the provisioning boundary to avoid collision.
 func ExtractTenantID(ctx context.Context) string {
 	if tenantID := tmcore.GetTenantIDContext(ctx); tenantID != "" {
 		return tenantID
 	}
 
 	return "default"
+}
+
+// ResolveProvisionTenantID resolves the tenant id for provisioning. It rejects an
+// externally-supplied "default" (the reserved single-tenant sentinel) with
+// ErrReservedTenantID; an empty context maps to the "default" sentinel. Shared by the
+// HTTP handler and lazy autoProvision so the rule is single-sourced.
+func ResolveProvisionTenantID(ctx context.Context) (string, error) {
+	raw := strings.Trim(tmcore.GetTenantIDContext(ctx), "/ \t")
+
+	if raw == "default" {
+		return "", pkg.ValidateBusinessError(constant.ErrReservedTenantID, EntityOrganizationEncryption)
+	}
+
+	if raw == "" {
+		return "default", nil
+	}
+
+	return raw, nil
 }
 
 // FieldEncryptor provides field-level encryption for repository adapters.

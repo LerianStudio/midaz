@@ -27,7 +27,6 @@ func TestNewClient(t *testing.T) {
 			name: "valid approle config creates client",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "secret-456",
@@ -38,7 +37,6 @@ func TestNewClient(t *testing.T) {
 			name: "valid token config creates client",
 			config: Config{
 				Addr:       "https://vault.example.com:8200",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodToken,
 				Token:      "hvs.test-token",
 			},
@@ -48,7 +46,6 @@ func TestNewClient(t *testing.T) {
 			name: "invalid config returns error",
 			config: Config{
 				Addr:       "",
-				MountPath:  "transit",
 				AuthMethod: AuthMethodAppRole,
 				RoleID:     "role-123",
 				SecretID:   "secret-456",
@@ -101,7 +98,6 @@ func TestClient_Login_AppRole(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       server.URL,
-			MountPath:  "transit",
 			AuthMethod: AuthMethodAppRole,
 			RoleID:     "role-123",
 			SecretID:   "secret-456",
@@ -127,7 +123,6 @@ func TestClient_Login_AppRole(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       server.URL,
-			MountPath:  "transit",
 			AuthMethod: AuthMethodAppRole,
 			RoleID:     "invalid-role",
 			SecretID:   "invalid-secret",
@@ -151,7 +146,6 @@ func TestClient_Login_AppRole(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       server.URL,
-			MountPath:  "transit",
 			AuthMethod: AuthMethodAppRole,
 			RoleID:     "role-123",
 			SecretID:   "secret-456",
@@ -174,7 +168,6 @@ func TestClient_Login_Token(t *testing.T) {
 		// Token auth doesn't make any HTTP calls during login
 		client, err := NewClient(Config{
 			Addr:       "https://vault.example.com:8200",
-			MountPath:  "transit",
 			AuthMethod: AuthMethodToken,
 			Token:      "hvs.test-token-123",
 		})
@@ -195,7 +188,6 @@ func TestClient_AuthMethod(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       "https://vault.example.com:8200",
-			MountPath:  "transit",
 			AuthMethod: AuthMethodAppRole,
 			RoleID:     "role-123",
 			SecretID:   "secret-456",
@@ -210,7 +202,6 @@ func TestClient_AuthMethod(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       "https://vault.example.com:8200",
-			MountPath:  "transit",
 			AuthMethod: AuthMethodToken,
 			Token:      "hvs.test-token",
 		})
@@ -223,10 +214,9 @@ func TestClient_AuthMethod(t *testing.T) {
 		t.Parallel()
 
 		client, err := NewClient(Config{
-			Addr:      "https://vault.example.com:8200",
-			MountPath: "transit",
-			RoleID:    "role-123",
-			SecretID:  "secret-456",
+			Addr:     "https://vault.example.com:8200",
+			RoleID:   "role-123",
+			SecretID: "secret-456",
 		})
 		require.NoError(t, err)
 
@@ -254,7 +244,6 @@ func TestClient_Close(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       server.URL,
-			MountPath:  "transit",
 			AuthMethod: AuthMethodAppRole,
 			RoleID:     "role-123",
 			SecretID:   "secret-456",
@@ -276,7 +265,6 @@ func TestClient_Close(t *testing.T) {
 
 		client, err := NewClient(Config{
 			Addr:       "https://vault.example.com:8200",
-			MountPath:  "transit",
 			AuthMethod: AuthMethodToken,
 			Token:      "hvs.test-token",
 		})
@@ -291,21 +279,6 @@ func TestClient_Close(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, client.isLoggedIn)
 	})
-}
-
-func TestClient_MountPath(t *testing.T) {
-	t.Parallel()
-
-	client, err := NewClient(Config{
-		Addr:       "https://vault.example.com:8200",
-		MountPath:  "crm-transit",
-		AuthMethod: AuthMethodAppRole,
-		RoleID:     "role-123",
-		SecretID:   "secret-456",
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, "crm-transit", client.MountPath())
 }
 
 func TestIsPermissionDenied(t *testing.T) {

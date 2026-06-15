@@ -167,11 +167,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// MountPath returns the configured Transit secrets engine mount path.
-func (c *Client) MountPath() string {
-	return c.config.MountPath
-}
-
 // AuthMethod returns the effective authentication method being used.
 func (c *Client) AuthMethod() AuthMethod {
 	return c.config.EffectiveAuthMethod()

@@ -15,19 +15,23 @@ import (
 )
 
 // mockKMSClient implements KMSClient for testing.
+// It records the mountPath received on the most recent Encrypt/Decrypt call
+// so tests can assert that the mountPath is forwarded verbatim.
 type mockKMSClient struct {
-	mountPath  string
 	encryptErr error
 	decryptErr error
+
+	gotEncryptMount string
+	gotDecryptMount string
 }
 
 func newMockKMSClient() *mockKMSClient {
-	return &mockKMSClient{
-		mountPath: "transit",
-	}
+	return &mockKMSClient{}
 }
 
-func (m *mockKMSClient) Encrypt(_ context.Context, _ string, plaintext []byte) (string, error) {
+func (m *mockKMSClient) Encrypt(_ context.Context, mountPath, _ string, plaintext []byte) (string, error) {
+	m.gotEncryptMount = mountPath
+
 	if m.encryptErr != nil {
 		return "", m.encryptErr
 	}
@@ -39,7 +43,9 @@ func (m *mockKMSClient) Encrypt(_ context.Context, _ string, plaintext []byte) (
 	return ciphertext, nil
 }
 
-func (m *mockKMSClient) Decrypt(_ context.Context, _ string, ciphertext string) ([]byte, error) {
+func (m *mockKMSClient) Decrypt(_ context.Context, mountPath, _ string, ciphertext string) ([]byte, error) {
+	m.gotDecryptMount = mountPath
+
 	if m.decryptErr != nil {
 		return nil, m.decryptErr
 	}
@@ -58,10 +64,6 @@ func (m *mockKMSClient) Decrypt(_ context.Context, _ string, ciphertext string) 
 	return decoded, nil
 }
 
-func (m *mockKMSClient) MountPath() string {
-	return m.mountPath
-}
-
 func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 	t.Parallel()
 
@@ -73,10 +75,22 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 
 		keyset := []byte("serialized keyset data")
 
-		wrapped, err := wrapper.WrapKeyset(context.Background(), "my-key", keyset)
+		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", keyset)
 
 		require.NoError(t, err)
 		assert.Contains(t, wrapped, "vault:v1:")
+	})
+
+	t.Run("forwards mountPath verbatim to KMS", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		wrapper := NewKeysetWrapper(kms)
+
+		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte("keyset"))
+
+		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on empty keyset", func(t *testing.T) {
@@ -85,7 +99,7 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.WrapKeyset(context.Background(), "my-key", []byte{})
+		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte{})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty keyset")
@@ -98,7 +112,7 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.WrapKeyset(context.Background(), "my-key", []byte("keyset"))
+		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte("keyset"))
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "KMS")
@@ -117,14 +131,26 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		originalKeyset := []byte("original keyset data")
 
 		// Wrap first
-		wrapped, err := wrapper.WrapKeyset(context.Background(), "my-key", originalKeyset)
+		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", originalKeyset)
 		require.NoError(t, err)
 
 		// Unwrap
-		unwrapped, err := wrapper.UnwrapKeyset(context.Background(), "my-key", wrapped)
+		unwrapped, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", wrapped)
 
 		require.NoError(t, err)
 		assert.Equal(t, originalKeyset, unwrapped)
+	})
+
+	t.Run("forwards mountPath verbatim to KMS", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		wrapper := NewKeysetWrapper(kms)
+
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "vault:v1:c29tZWRhdGE=")
+
+		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
 	})
 
 	t.Run("fails on empty ciphertext", func(t *testing.T) {
@@ -133,7 +159,7 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.UnwrapKeyset(context.Background(), "my-key", "")
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty ciphertext")
@@ -146,23 +172,11 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		kms.decryptErr = fmt.Errorf("permission denied")
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.UnwrapKeyset(context.Background(), "my-key", "vault:v1:somedata")
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "vault:v1:somedata")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "KMS")
 	})
-}
-
-func TestKeysetWrapper_MountPath(t *testing.T) {
-	t.Parallel()
-
-	kms := newMockKMSClient()
-	kms.mountPath = "crm-transit"
-	wrapper := NewKeysetWrapper(kms)
-
-	path := wrapper.MountPath()
-
-	assert.Equal(t, "crm-transit", path)
 }
 
 func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
@@ -174,7 +188,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateAEADKeyset(context.Background(), "test-key")
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
@@ -183,6 +197,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
 		assert.Equal(t, KeyTypeAES256GCM, bundle.Wrapped.Info.Keys[0].Type)
 		assert.False(t, bundle.Wrapped.LegacyKeyImported)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on KMS encryption error", func(t *testing.T) {
@@ -192,7 +207,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateAEADKeyset(context.Background(), "test-key")
+		_, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.Error(t, err)
 	})
@@ -207,7 +222,7 @@ func TestKeysetFactory_GenerateMACKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMACKeyset(context.Background(), "test-key")
+		bundle, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
@@ -216,6 +231,7 @@ func TestKeysetFactory_GenerateMACKeyset(t *testing.T) {
 		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
 		assert.Equal(t, KeyTypeHMACSHA256, bundle.Wrapped.Info.Keys[0].Type)
 		assert.False(t, bundle.Wrapped.LegacyKeyImported)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on KMS encryption error", func(t *testing.T) {
@@ -225,7 +241,7 @@ func TestKeysetFactory_GenerateMACKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMACKeyset(context.Background(), "test-key")
+		_, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.Error(t, err)
 	})
@@ -241,12 +257,13 @@ func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate keyset first
-		bundle, err := factory.GenerateAEADKeyset(context.Background(), "test-key")
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
 		require.NoError(t, err)
 
 		// Unwrap AEAD keyset
-		primitive, err := factory.UnwrapAEAD(context.Background(), "test-key", bundle.Wrapped)
+		primitive, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
 		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
 
 		// Test that primitive works
 		plaintext := []byte("test encryption")
@@ -270,7 +287,7 @@ func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
 
 		kms.decryptErr = fmt.Errorf("permission denied")
 
-		_, err := factory.UnwrapAEAD(context.Background(), "test-key", wrapped)
+		_, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", wrapped)
 
 		require.Error(t, err)
 	})
@@ -286,12 +303,13 @@ func TestKeysetFactory_UnwrapMAC(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate keyset first
-		bundle, err := factory.GenerateMACKeyset(context.Background(), "test-key")
+		bundle, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
 		require.NoError(t, err)
 
 		// Unwrap MAC keyset
-		primitive, err := factory.UnwrapMAC(context.Background(), "test-key", bundle.Wrapped)
+		primitive, err := factory.UnwrapMAC(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
 		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
 
 		// Test that primitive works
 		data := []byte("data to mac")
@@ -314,7 +332,7 @@ func TestKeysetFactory_UnwrapMAC(t *testing.T) {
 
 		kms.decryptErr = fmt.Errorf("permission denied")
 
-		_, err := factory.UnwrapMAC(context.Background(), "test-key", wrapped)
+		_, err := factory.UnwrapMAC(context.Background(), "transit/tenant-x", "test-key", wrapped)
 
 		require.Error(t, err)
 	})
@@ -329,7 +347,6 @@ func TestKeysetFactory_Wrapper(t *testing.T) {
 	wrapper := factory.Wrapper()
 
 	assert.NotNil(t, wrapper)
-	assert.Equal(t, "transit", wrapper.MountPath())
 }
 
 func TestKeysetFactory_EndToEnd(t *testing.T) {
@@ -341,13 +358,14 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		// Generate AEAD keyset with caller-defined key name
+		// Generate AEAD keyset with caller-defined mount and key name
+		mountPath := "transit/tenant-abc"
 		keyName := "tenant/abc/entity/123"
-		bundle, err := factory.GenerateAEADKeyset(context.Background(), keyName)
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 
 		// Unwrap and use for encryption
-		aeadPrimitive, err := factory.UnwrapAEAD(context.Background(), keyName, bundle.Wrapped)
+		aeadPrimitive, err := factory.UnwrapAEAD(context.Background(), mountPath, keyName, bundle.Wrapped)
 		require.NoError(t, err)
 
 		// Encrypt sensitive data
@@ -360,7 +378,7 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		// Simulate storage and retrieval...
 
 		// Unwrap AEAD again (simulating different request)
-		aeadPrimitive2, err := factory.UnwrapAEAD(context.Background(), keyName, bundle.Wrapped)
+		aeadPrimitive2, err := factory.UnwrapAEAD(context.Background(), mountPath, keyName, bundle.Wrapped)
 		require.NoError(t, err)
 
 		// Decrypt
@@ -376,12 +394,13 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate MAC keyset
+		mountPath := "transit/tenant-abc"
 		keyName := "tenant/abc/entity/123"
-		bundle, err := factory.GenerateMACKeyset(context.Background(), keyName)
+		bundle, err := factory.GenerateMACKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 
 		// Unwrap MAC for search tokens
-		macPrimitive, err := factory.UnwrapMAC(context.Background(), keyName, bundle.Wrapped)
+		macPrimitive, err := factory.UnwrapMAC(context.Background(), mountPath, keyName, bundle.Wrapped)
 		require.NoError(t, err)
 
 		// Generate search token for email

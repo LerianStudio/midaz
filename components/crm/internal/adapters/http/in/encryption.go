@@ -5,7 +5,6 @@
 package in
 
 import (
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -36,6 +35,7 @@ type EncryptionHandler struct {
 //	@Success		201					{object}	mmodel.ProvisionEncryptionResponse
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		409					{object}	pkg.HTTPError
+//	@Failure		422					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
 //	@Router			/v1/organizations/{organization_id}/encryption/provision [post]
 func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
@@ -69,10 +69,23 @@ func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	// Get tenant ID from context (defaults to "default" for single-tenant mode)
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" {
-		tenantID = "default"
+	// Resolve tenant ID through the shared guard.
+	//
+	// In single-tenant mode the tenant middleware does not run, so the context
+	// carries no tenant id (empty) and the helper substitutes the reserved
+	// "default" flat-base sentinel. In multi-tenant mode the middleware always
+	// populates a non-empty tenant id from the JWT; a real tenant literally named
+	// "default" would collide with the single-tenant sentinel and resolve to the
+	// flat base mount, breaking tenant isolation, so the helper rejects it with
+	// ErrReservedTenantID. The lazy autoProvision path uses the same helper, so
+	// both ingress points share one source of truth.
+	tenantID, err := encryption.ResolveProvisionTenantID(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "reserved tenant id supplied", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "reserved tenant id supplied")
+
+		return http.WithError(c, err)
 	}
 
 	input := encryption.ProvisionInput{

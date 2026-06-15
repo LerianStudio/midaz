@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -80,13 +81,12 @@ func SetupContainer(t *testing.T) *ContainerResult {
 }
 
 // CreateClient creates a Vault client connected to the test container.
-func CreateClient(t *testing.T, container *ContainerResult, mountPath string) *vault.Client {
+func CreateClient(t *testing.T, container *ContainerResult) *vault.Client {
 	t.Helper()
 
 	cfg := vault.Config{
 		Addr:       container.Address,
 		Token:      container.Token,
-		MountPath:  mountPath,
 		AuthMethod: vault.AuthMethodToken,
 	}
 
@@ -106,32 +106,26 @@ func CreateClient(t *testing.T, container *ContainerResult, mountPath string) *v
 	return client
 }
 
-// EnableTransitEngine enables the Transit secrets engine at the specified path.
-func EnableTransitEngine(t *testing.T, container *ContainerResult, mountPath string) {
+// EnableTransitMount enables a Transit secrets engine at mountPath in the test
+// container's Vault. Callers enable a single path per call (e.g. "transit" or
+// "transit/<tenantUUID>"); mounting the same path twice is an error in Vault.
+// It builds its own raw api.Client from the container address and root token so
+// it does not depend on the vault.Client unexported internals. No cleanup is
+// registered: the container teardown from SetupContainer disposes the Vault.
+func EnableTransitMount(t *testing.T, container *ContainerResult, mountPath string) {
 	t.Helper()
+
+	client, err := vaultapi.NewClient(&vaultapi.Config{Address: container.Address})
+	if err != nil {
+		t.Fatalf("failed to create vault api client: %v", err)
+	}
+
+	client.SetToken(container.Token)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Create a temporary client to enable the engine
-	cfg := vault.Config{
-		Addr:       container.Address,
-		Token:      container.Token,
-		MountPath:  mountPath,
-		AuthMethod: vault.AuthMethodToken,
+	if err := client.Sys().MountWithContext(ctx, mountPath, &vaultapi.MountInput{Type: "transit"}); err != nil {
+		t.Fatalf("failed to enable transit mount at %q: %v", mountPath, err)
 	}
-
-	client, err := vault.NewClient(cfg)
-	if err != nil {
-		t.Fatalf("failed to create vault client for transit setup: %v", err)
-	}
-
-	if err := client.Login(ctx); err != nil {
-		t.Fatalf("failed to login for transit setup: %v", err)
-	}
-
-	// Note: In dev mode, Transit is not enabled by default.
-	// For full integration tests, you would need to enable it via the API.
-	// This is left as a placeholder for future enhancement.
-	_ = ctx
 }

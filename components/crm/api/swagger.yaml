@@ -568,6 +568,42 @@ definitions:
       prev_cursor:
         type: string
     type: object
+  internal_adapters_http_in.auditEventResponse:
+    properties:
+      action:
+        type: string
+      actor:
+        type: string
+      from_status:
+        type: string
+      id:
+        type: string
+      outcome:
+        type: string
+      reason:
+        type: string
+      request_id:
+        type: string
+      timestamp:
+        type: string
+      to_status:
+        type: string
+    type: object
+  internal_adapters_http_in.auditEventsEnvelope:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_adapters_http_in.auditEventResponse'
+        type: array
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      organization_id:
+        type: string
+      prev_cursor:
+        type: string
+    type: object
   pkg.HTTPError:
     properties:
       code:
@@ -1260,6 +1296,10 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
         "500":
           description: Internal Server Error
           schema:
@@ -1300,6 +1340,71 @@ paths:
       summary: Get Provisioning Status
       tags:
       - Encryption
+  /v1/organizations/{organization_id}/protection/audit:
+    get:
+      description: Returns the protection audit events for an organization, filtered
+        by action, actor, outcome, and time range, with cursor pagination.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Maximum number of events to return (default 20).
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor.
+        in: query
+        name: cursor
+        type: string
+      - description: 'Sort order: asc or desc (default desc).'
+        in: query
+        name: sort_order
+        type: string
+      - description: Filter by action.
+        in: query
+        name: action
+        type: string
+      - description: Filter by actor.
+        in: query
+        name: actor
+        type: string
+      - description: 'Filter by outcome: success, failure, or already_exists.'
+        in: query
+        name: outcome
+        type: string
+      - description: Inclusive lower time bound (yyyy-mm-dd or RFC3339).
+        in: query
+        name: start_date
+        type: string
+      - description: Inclusive upper time bound (yyyy-mm-dd or RFC3339).
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapters_http_in.auditEventsEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: List Protection Audit Events
+      tags:
+      - Protection
 schemes:
 - http
 securityDefinitions:

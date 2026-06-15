@@ -16,18 +16,15 @@ import (
 // Implementations must handle authentication and connection management internally.
 // Callers should not need to manage KMS credentials after client construction.
 type KMSClient interface {
-	// Encrypt encrypts plaintext using the key identified by keyName.
-	// The keyName format is provider-specific and determined by the caller.
+	// Encrypt encrypts plaintext using the key identified by keyName under the
+	// given mountPath. Both mountPath and keyName are provider-specific and
+	// determined by the caller.
 	// Returns the ciphertext in provider-specific format (e.g., "vault:v1:..." for Vault).
-	Encrypt(ctx context.Context, keyName string, plaintext []byte) (string, error)
+	Encrypt(ctx context.Context, mountPath, keyName string, plaintext []byte) (string, error)
 
-	// Decrypt decrypts ciphertext using the key identified by keyName.
-	// The ciphertext format is provider-specific.
-	Decrypt(ctx context.Context, keyName string, ciphertext string) ([]byte, error)
-
-	// MountPath returns the KMS mount path (e.g., "transit" for Vault Transit).
-	// Used by callers to construct full key paths if needed.
-	MountPath() string
+	// Decrypt decrypts ciphertext using the key identified by keyName under the
+	// given mountPath. The ciphertext format is provider-specific.
+	Decrypt(ctx context.Context, mountPath, keyName string, ciphertext string) ([]byte, error)
 }
 
 // KeysetWrapper handles wrapping and unwrapping of Tink keysets using a KMS.
@@ -47,14 +44,16 @@ func NewKeysetWrapper(kms KMSClient) *KeysetWrapper {
 }
 
 // WrapKeyset encrypts a serialized keyset using the KMS.
-// The keyName format is determined by the caller (e.g., "tenant/org-123", "keys/mykey").
+// The mountPath and keyName are determined by the caller (e.g., mount
+// "transit/tenant-x" with key "tenant/org-123"). They are forwarded verbatim
+// to the KMS; this wrapper performs no mount resolution.
 // Returns the wrapped keyset in provider-specific ciphertext format.
-func (w *KeysetWrapper) WrapKeyset(ctx context.Context, keyName string, keyset []byte) (string, error) {
+func (w *KeysetWrapper) WrapKeyset(ctx context.Context, mountPath, keyName string, keyset []byte) (string, error) {
 	if len(keyset) == 0 {
 		return "", fmt.Errorf("cannot wrap empty keyset")
 	}
 
-	ciphertext, err := w.kms.Encrypt(ctx, keyName, keyset)
+	ciphertext, err := w.kms.Encrypt(ctx, mountPath, keyName, keyset)
 	if err != nil {
 		return "", fmt.Errorf("failed to wrap keyset with KMS: %w", err)
 	}
@@ -63,25 +62,20 @@ func (w *KeysetWrapper) WrapKeyset(ctx context.Context, keyName string, keyset [
 }
 
 // UnwrapKeyset decrypts a wrapped keyset using the KMS.
-// The keyName must match the key used during wrapping.
+// The mountPath and keyName must match those used during wrapping; both are
+// forwarded verbatim to the KMS.
 // Returns the serialized keyset bytes that can be parsed into primitives.
-func (w *KeysetWrapper) UnwrapKeyset(ctx context.Context, keyName string, wrappedKeyset string) ([]byte, error) {
+func (w *KeysetWrapper) UnwrapKeyset(ctx context.Context, mountPath, keyName string, wrappedKeyset string) ([]byte, error) {
 	if wrappedKeyset == "" {
 		return nil, fmt.Errorf("cannot unwrap empty ciphertext")
 	}
 
-	plaintext, err := w.kms.Decrypt(ctx, keyName, wrappedKeyset)
+	plaintext, err := w.kms.Decrypt(ctx, mountPath, keyName, wrappedKeyset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap keyset with KMS: %w", err)
 	}
 
 	return plaintext, nil
-}
-
-// MountPath returns the KMS mount path from the underlying client.
-// Useful for callers that need to construct full key paths.
-func (w *KeysetWrapper) MountPath() string {
-	return w.kms.MountPath()
 }
 
 // KeysetBundle contains a generated keyset with its wrapped form and metadata.
@@ -120,9 +114,10 @@ func NewKeysetFactory(kms KMSClient) *KeysetFactory {
 }
 
 // GenerateAEADKeyset creates a new AES256-GCM keyset and wraps it with the KMS.
-// The keyName is caller-defined and should follow the caller's naming convention.
+// The mountPath and keyName are caller-defined and should follow the caller's
+// naming convention; both are forwarded verbatim to the wrapper.
 // Returns a bundle containing both the wrapped keyset and raw bytes for immediate use.
-func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, keyName string) (KeysetBundle, error) {
+func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
 	handle, rawKeyset, err := f.aeadGenerator.Generate()
 	if err != nil {
 		return KeysetBundle{}, fmt.Errorf("failed to generate AEAD keyset: %w", err)
@@ -133,7 +128,7 @@ func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, keyName string) 
 		return KeysetBundle{}, fmt.Errorf("failed to extract AEAD keyset info: %w", err)
 	}
 
-	wrappedData, err := f.wrapper.WrapKeyset(ctx, keyName, rawKeyset)
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
 	if err != nil {
 		return KeysetBundle{}, fmt.Errorf("failed to wrap AEAD keyset: %w", err)
 	}
@@ -145,9 +140,10 @@ func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, keyName string) 
 }
 
 // GenerateMACKeyset creates a new HMAC-SHA256 keyset and wraps it with the KMS.
-// The keyName is caller-defined and should follow the caller's naming convention.
+// The mountPath and keyName are caller-defined and should follow the caller's
+// naming convention; both are forwarded verbatim to the wrapper.
 // Returns a bundle containing both the wrapped keyset and raw bytes for immediate use.
-func (f *KeysetFactory) GenerateMACKeyset(ctx context.Context, keyName string) (KeysetBundle, error) {
+func (f *KeysetFactory) GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
 	handle, rawKeyset, err := f.macGenerator.Generate()
 	if err != nil {
 		return KeysetBundle{}, fmt.Errorf("failed to generate MAC keyset: %w", err)
@@ -158,7 +154,7 @@ func (f *KeysetFactory) GenerateMACKeyset(ctx context.Context, keyName string) (
 		return KeysetBundle{}, fmt.Errorf("failed to extract MAC keyset info: %w", err)
 	}
 
-	wrappedData, err := f.wrapper.WrapKeyset(ctx, keyName, rawKeyset)
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
 	if err != nil {
 		return KeysetBundle{}, fmt.Errorf("failed to wrap MAC keyset: %w", err)
 	}
@@ -170,9 +166,9 @@ func (f *KeysetFactory) GenerateMACKeyset(ctx context.Context, keyName string) (
 }
 
 // UnwrapAEAD unwraps a keyset and returns an AEAD primitive ready for use.
-// The keyName must match the key used during wrapping.
-func (f *KeysetFactory) UnwrapAEAD(ctx context.Context, keyName string, wrapped WrappedKeyset) (*AEADPrimitive, error) {
-	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, keyName, wrapped.WrappedData)
+// The mountPath and keyName must match those used during wrapping.
+func (f *KeysetFactory) UnwrapAEAD(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*AEADPrimitive, error) {
+	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, mountPath, keyName, wrapped.WrappedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap AEAD keyset: %w", err)
 	}
@@ -186,9 +182,9 @@ func (f *KeysetFactory) UnwrapAEAD(ctx context.Context, keyName string, wrapped 
 }
 
 // UnwrapMAC unwraps a keyset and returns a MAC primitive ready for use.
-// The keyName must match the key used during wrapping.
-func (f *KeysetFactory) UnwrapMAC(ctx context.Context, keyName string, wrapped WrappedKeyset) (*MACPrimitive, error) {
-	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, keyName, wrapped.WrappedData)
+// The mountPath and keyName must match those used during wrapping.
+func (f *KeysetFactory) UnwrapMAC(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*MACPrimitive, error) {
+	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, mountPath, keyName, wrapped.WrappedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
 	}
