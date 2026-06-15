@@ -17,7 +17,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Two-key gate proven end-to-end on **tracer**: honored skip makes zero gRPC Reserve at create **and** at PENDING commit/cancel, unauthorized skip → 422, absent skip unchanged, gate adds no DB read | 1.1, 1.2, 1.3 | ✅ Done (`eb2879f0a`) |
-| 2 | **Fees** skip: honored skip makes zero Mongo package lookup + zero fee computation; fee seam re-ordered (settings hoisted above it) with structural test re-blessed | 2.1, 2.2 | Epic-level |
+| 2 | **Fees** skip: honored skip makes zero Mongo package lookup + zero fee computation; fee seam re-ordered (settings hoisted above it) with structural test re-blessed | 2.1, 2.2 | ✅ Done (`5fcb7423b`) |
 | 3 | **Holder/CRM** skip on account creation: honored skip makes zero `HolderReader.Exists` call; only bites when `requireHolder=true` | 3.1, 3.2 | Epic-level |
 | 4 | **Audit + hardening (release gate):** honored skips persisted to typed columns + streaming event across the full wire path; OpenAPI/llms-full/docs; cross-surface integration suite | 4.1, 4.2, 4.3 | Epic-level |
 
@@ -180,8 +180,10 @@ func ResolveSkipFor(control string, requested, allowed bool) (honored bool, err 
 **Goal:** `GetParsedLedgerSettings` is read **exactly once** near the top of `executeCreateTransaction` (e.g. right after the idempotency claim ~`:1040`) and threaded by pointer to the fee seam and the former `:1129` consumer (the `:1129` read is **DELETED**, not duplicated); skip resolution (tracer + fees) moves to this single upstream point.
 **Scope:** `components/ledger/internal/adapters/http/in/transaction_create.go`, `transaction_fee_seam_structure_test.go`.
 **Dependencies:** Phase 1 (resolver + tracer resolution exist; this relocates them)
-**Done when:** settings are fetched **exactly once** per request (old `:1129` call removed, no second read). The hoist is unconditional and safe — the seam-ordering comment at `transaction_create.go:1063-1066` pins the `validate` reassignment (`:1101`) relative to `PropagateRouteValidation` (`:1139-1141`, which only reads `ledgerSettings.Accounting.ValidateRoutes`), NOT where settings are fetched. **A second settings read is forbidden, not a fallback** (the prior fallback's trigger was a phantom — the structural test tracks no settings ordering). `transaction_fee_seam_structure_test.go` passes AND is EXTENDED to guard the invariant: add a `getSettingsCount` metric to `seamMetrics` counting AST calls to `GetParsedLedgerSettings` in `executeCreateTransaction`, assert it equals exactly 1 (with a `*_Bites` fixture proving the gate fails at 2). Tracer-skip behavior from Phase 1 is unchanged after the move.
-**Status:** Pending
+**Status (execution):** Done (`5fcb7423b`). Settings read hoisted to `transaction_create.go:1065` (single read; old `:1130` deleted), fee + tracer resolves now at `:1079`/`:1093` above the seam; `applyFees` gained `honoredFeeSkip` with a first-statement `return nil` bypass. Structural test gained `getSettingsCount==1` + `getSettingsPos<applyFeesPos` with a 2-read bite fixture. Fee short-circuit proven directly via a fake `FeeApplier` (zero `CalculateFee` calls). Bonus: relocating the tracer resolve upstream fixed the Phase-1 carry (tracer 422 now precedes fee compute).
+
+**Done when:** settings are fetched **exactly once** per request (old `:1130` call removed, no second read). The hoist is unconditional and safe — the seam-ordering comment at `transaction_create.go:1063-1066` pins the `validate` reassignment (`:1101`) relative to `PropagateRouteValidation` (`:1139-1141`, which only reads `ledgerSettings.Accounting.ValidateRoutes`), NOT where settings are fetched. **A second settings read is forbidden, not a fallback** (the prior fallback's trigger was a phantom — the structural test tracks no settings ordering). `transaction_fee_seam_structure_test.go` passes AND is EXTENDED to guard the invariant: add a `getSettingsCount` metric to `seamMetrics` counting AST calls to `GetParsedLedgerSettings` in `executeCreateTransaction`, assert it equals exactly 1 (with a `*_Bites` fixture proving the gate fails at 2). Tracer-skip behavior from Phase 1 is unchanged after the move.
+**Status:** Done (`5fcb7423b`)
 
 ### Epic 2.2: Fee short-circuit before the Mongo package lookup
 
@@ -189,7 +191,7 @@ func ResolveSkipFor(control string, requested, allowed bool) (honored bool, err 
 **Scope:** `components/ledger/internal/adapters/http/in/transaction_fee_application.go`, `transaction_create.go` (pass `honoredFeeSkip`), tests.
 **Dependencies:** Epic 2.1
 **Done when:** a test with a fee-package-bearing org asserts the package repo `FindByOrganizationIDAndLedgerID` (`services/fees/calculate-fee.go:60`) is called **zero** times when the skip is honored, and the posted transaction carries no fee legs; `skip.fees` without opt-in → 422; annotation/revert remain inherent no-ops (skip.fees there changes nothing); absent skip applies fees exactly as today.
-**Status:** Pending
+**Status:** Done (`5fcb7423b`) — short-circuit proven at the `applyFees` seam (zero `CalculateFee`); runtime zero-Mongo-lookup assertion deferred to Epic 4.2 testcontainer, consistent with Phase 1.
 
 ---
 
