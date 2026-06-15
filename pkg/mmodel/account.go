@@ -270,6 +270,11 @@ type Account struct {
 	// Indicates if the account is blocked
 	Blocked *bool `json:"blocked"`
 
+	// Whether an honored per-call holder skip bypassed the holder existence check
+	// when this account was created
+	// example: false
+	HolderCheckSkipped bool `json:"holderCheckSkipped" example:"false"`
+
 	// Timestamp when the account was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time

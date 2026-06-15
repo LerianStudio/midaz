@@ -65,6 +65,10 @@ type AccountCreatedPayload struct {
 	// the request.
 	Blocked *bool `json:"blocked"`
 
+	// HolderCheckSkipped records whether an honored per-call holder skip
+	// bypassed the holder existence check when this account was created.
+	HolderCheckSkipped bool `json:"holderCheckSkipped"`
+
 	// RFC3339-formatted timestamps. Producer formats once at the emit
 	// site; consumers parse with time.Parse(time.RFC3339, ...).
 	CreatedAt string `json:"createdAt"`
@@ -104,9 +108,10 @@ func NewAccountCreated(acc *mmodel.Account) AccountCreatedPayload {
 			Code:        acc.Status.Code,
 			Description: acc.Status.Description,
 		},
-		Blocked:   acc.Blocked,
-		CreatedAt: acc.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: acc.UpdatedAt.Format(time.RFC3339),
+		Blocked:            acc.Blocked,
+		HolderCheckSkipped: acc.HolderCheckSkipped,
+		CreatedAt:          acc.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          acc.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

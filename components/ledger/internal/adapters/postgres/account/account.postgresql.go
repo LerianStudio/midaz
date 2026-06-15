@@ -50,6 +50,7 @@ var accountColumnList = []string{
 	"updated_at",
 	"deleted_at",
 	"blocked",
+	"holder_check_skipped",
 }
 
 // Repository provides an interface for operations related to account entities.
@@ -154,6 +155,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 			"updated_at",
 			"deleted_at",
 			"blocked",
+			"holder_check_skipped",
 		).
 		Values(
 			record.ID,
@@ -174,6 +176,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 			record.UpdatedAt,
 			record.DeletedAt,
 			record.Blocked,
+			record.HolderCheckSkipped,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -350,6 +353,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -430,6 +434,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 		&acc.Blocked,
+		&acc.HolderCheckSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -508,6 +513,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 		&acc.Blocked,
+		&acc.HolderCheckSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -587,6 +593,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 		&acc.Blocked,
+		&acc.HolderCheckSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, constant.EntityAccount)
@@ -733,6 +740,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -817,6 +825,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1067,6 +1076,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1150,6 +1160,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 

@@ -70,6 +70,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	requireHolder = requireHolder && !honoredHolderSkip
 
+	// Record the honored skip as a system observation (not a request input): it
+	// reflects what the two-key holder gate actually honored, and it is persisted
+	// to the account row below for the durable audit trail.
+	span.SetAttributes(attribute.Bool("app.account.holder_check_skipped", honoredHolderSkip))
+
 	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
 		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
@@ -164,22 +169,23 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	now := time.Now()
 
 	account := &mmodel.Account{
-		ID:              accountID.String(),
-		AssetCode:       cai.AssetCode,
-		Alias:           alias,
-		Name:            cai.Name,
-		Type:            cai.Type,
-		Blocked:         &blocked,
-		ParentAccountID: cai.ParentAccountID,
-		SegmentID:       cai.SegmentID,
-		OrganizationID:  organizationID.String(),
-		PortfolioID:     cai.PortfolioID,
-		LedgerID:        ledgerID.String(),
-		EntityID:        cai.EntityID,
-		HolderID:        holderID,
-		Status:          status,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:                 accountID.String(),
+		AssetCode:          cai.AssetCode,
+		Alias:              alias,
+		Name:               cai.Name,
+		Type:               cai.Type,
+		Blocked:            &blocked,
+		ParentAccountID:    cai.ParentAccountID,
+		SegmentID:          cai.SegmentID,
+		OrganizationID:     organizationID.String(),
+		PortfolioID:        cai.PortfolioID,
+		LedgerID:           ledgerID.String(),
+		EntityID:           cai.EntityID,
+		HolderID:           holderID,
+		Status:             status,
+		HolderCheckSkipped: honoredHolderSkip,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
