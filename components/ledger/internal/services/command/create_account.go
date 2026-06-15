@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -57,7 +58,17 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	requireHolder := uc.requireHolderEnabled(ctx, organizationID, ledgerID)
+	requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+
+	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder skip not permitted", libLog.Err(err))
+
+		return nil, err
+	}
+
+	requireHolder = requireHolder && !honoredHolderSkip
 
 	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
@@ -271,21 +282,23 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	return status
 }
 
-// requireHolderEnabled reads the cached RequireHolder flag for a ledger.
-// It uses the cached settings reader port (not the uncached LedgerRepo.GetSettings)
-// and falls back to false when the reader is unwired or returns an error, keeping
-// account creation permissive by default.
-func (uc *UseCase) requireHolderEnabled(ctx context.Context, organizationID, ledgerID uuid.UUID) bool {
+// resolveHolderRequirement reads the cached holder gate keys for a ledger in a
+// single settings read: whether holder validation is required and whether the
+// per-call holder skip is opted in. It uses the cached settings reader port (not
+// the uncached LedgerRepo.GetSettings) and falls back to (false, false) when the
+// reader is unwired or returns an error, keeping account creation permissive by
+// default.
+func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID, ledgerID uuid.UUID) (requireHolder, allowHolderSkip bool) {
 	if uc.SettingsReader == nil {
-		return false
+		return false, false
 	}
 
 	settings, err := uc.SettingsReader.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		return false
+		return false, false
 	}
 
-	return settings.Accounting.RequireHolder
+	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip
 }
 
 // applyHolderValidation enforces that an explicitly supplied holder exists.

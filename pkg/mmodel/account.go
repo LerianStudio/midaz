@@ -95,7 +95,26 @@ type CreateAccountInput struct {
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+
+	// Per-call control skips. A skip is effective only when the ledger requires the
+	// matching control (e.g. requireHolder=true) AND the ledger's matching override
+	// opt-in is enabled; an unauthorized skip is rejected with HTTP 422.
+	// required: false
+	Skip *AccountSkip `json:"skip,omitempty"`
 } //	@name	CreateAccountInput
+
+// AccountSkip carries the per-call control skips honored on the account create path.
+//
+// swagger:model AccountSkip
+//
+//	@Description	Per-call control skips for account creation. Each flag is effective only when the ledger both requires the control and opts into the skip via its override policy; otherwise the request is rejected with HTTP 422.
+type AccountSkip struct {
+	// Skip the holder existence check on account creation. Effective only when the
+	// ledger requires holder validation and AllowHolderSkip is enabled.
+	// required: false
+	// default: false
+	Holder bool `json:"holder,omitempty" example:"false"`
+} //	@name	AccountSkip
 
 // UpdateAccountInput is a struct designed to encapsulate request update payload data.
 //

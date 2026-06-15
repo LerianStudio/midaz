@@ -23,19 +23,26 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// stubSettingsReader is a hand-rolled SettingsReader stub for the RequireHolder gate.
+// stubSettingsReader is a hand-rolled SettingsReader stub for the holder gate.
+// calls counts GetParsedLedgerSettings invocations so a test can assert the
+// account path performs exactly one settings read (the zero-overhead invariant).
 type stubSettingsReader struct {
-	requireHolder bool
-	err           error
+	requireHolder   bool
+	allowHolderSkip bool
+	err             error
+	calls           int
 }
 
-func (s stubSettingsReader) GetParsedLedgerSettings(_ context.Context, _, _ uuid.UUID) (mmodel.LedgerSettings, error) {
+func (s *stubSettingsReader) GetParsedLedgerSettings(_ context.Context, _, _ uuid.UUID) (mmodel.LedgerSettings, error) {
+	s.calls++
+
 	if s.err != nil {
 		return mmodel.LedgerSettings{}, s.err
 	}
 
 	settings := mmodel.DefaultLedgerSettings()
 	settings.Accounting.RequireHolder = s.requireHolder
+	settings.Overrides.AllowHolderSkip = s.allowHolderSkip
 
 	return settings, nil
 }
@@ -287,26 +294,143 @@ func TestCreateAccountRequireHolderReaderError(t *testing.T) {
 	assert.Equal(t, 1, holderReader.calls)
 }
 
-// TestRequireHolderEnabledFallback proves the cached read degrades to permissive
-// (false) when the settings reader is unwired or errors.
-func TestRequireHolderEnabledFallback(t *testing.T) {
+// TestCreateAccountHolderSkip covers the Phase 3 per-call holder skip. The two-key
+// rule: a skip is honored only when the caller requests it AND the ledger opts in
+// via AllowHolderSkip; a requested-but-not-allowed skip is rejected 422
+// (ErrSkipNotPermitted) regardless of requireHolder, because the resolver is
+// requireHolder-agnostic. A honored skip bypasses HolderReader.Exists entirely,
+// and the gate must ride the existing single settings read (no second read).
+func TestCreateAccountHolderSkip(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	explicitHolder := uuid.New().String()
+
+	skipTrue := &mmodel.AccountSkip{Holder: true}
+
+	tests := []struct {
+		name              string
+		requireHolder     bool
+		allowHolderSkip   bool
+		input             *mmodel.CreateAccountInput
+		holderExists      bool
+		expectSkipDenied  bool
+		expectHolderCalls int
+	}{
+		{
+			name:            "honored skip: require true, allow true, requested -> Exists bypassed, account created",
+			requireHolder:   true,
+			allowHolderSkip: true,
+			input: &mmodel.CreateAccountInput{
+				Name: "A", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder, Skip: skipTrue,
+			},
+			holderExists:      false,
+			expectHolderCalls: 0,
+		},
+		{
+			name:            "unauthorized skip: requested but not allowed -> 422 ErrSkipNotPermitted, Exists never reached",
+			requireHolder:   true,
+			allowHolderSkip: false,
+			input: &mmodel.CreateAccountInput{
+				Name: "B", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder, Skip: skipTrue,
+			},
+			holderExists:      true,
+			expectSkipDenied:  true,
+			expectHolderCalls: 0,
+		},
+		{
+			name:            "requireHolder false + skip requested-but-not-allowed still 422 (resolver is requireHolder-agnostic)",
+			requireHolder:   false,
+			allowHolderSkip: false,
+			input: &mmodel.CreateAccountInput{
+				Name: "C", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder, Skip: skipTrue,
+			},
+			holderExists:      false,
+			expectSkipDenied:  true,
+			expectHolderCalls: 0,
+		},
+		{
+			name:            "requireHolder false + skip not requested -> no-op, no existence check (CRM already off)",
+			requireHolder:   false,
+			allowHolderSkip: false,
+			input: &mmodel.CreateAccountInput{
+				Name: "D", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder,
+			},
+			holderExists:      false,
+			expectHolderCalls: 0,
+		},
+		{
+			name:            "absent skip + require true + holder set -> existence check runs unchanged",
+			requireHolder:   true,
+			allowHolderSkip: true,
+			input: &mmodel.CreateAccountInput{
+				Name: "E", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder,
+			},
+			holderExists:      true,
+			expectHolderCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			var captured *mmodel.Account
+			uc, holderReader, settingsReader := setupHolderAccountTest(ctrl, &captured)
+			settingsReader.requireHolder = tt.requireHolder
+			settingsReader.allowHolderSkip = tt.allowHolderSkip
+			holderReader.exists = tt.holderExists
+
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test")
+
+			if tt.expectSkipDenied {
+				require.Error(t, err)
+
+				var unprocessable pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessable)
+				assert.Equal(t, constant.ErrSkipNotPermitted.Error(), unprocessable.Code)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, acc)
+			}
+
+			assert.Equal(t, tt.expectHolderCalls, holderReader.calls)
+			// Zero-overhead invariant: the skip gate rides the single settings read.
+			assert.Equal(t, 1, settingsReader.calls, "account path must read settings exactly once")
+		})
+	}
+}
+
+// TestResolveHolderRequirementFallback proves the cached read degrades to
+// permissive (false, false) when the settings reader is unwired or errors, and
+// surfaces both holder gate keys from a single settings read on success.
+func TestResolveHolderRequirementFallback(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
-	t.Run("nil reader -> false", func(t *testing.T) {
+	t.Run("nil reader -> false, false", func(t *testing.T) {
 		uc := &UseCase{}
-		assert.False(t, uc.requireHolderEnabled(ctx, organizationID, ledgerID))
+		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		assert.False(t, requireHolder)
+		assert.False(t, allowHolderSkip)
 	})
 
-	t.Run("reader error -> false", func(t *testing.T) {
+	t.Run("reader error -> false, false", func(t *testing.T) {
 		uc := &UseCase{SettingsReader: &stubSettingsReader{err: errors.New("boom")}}
-		assert.False(t, uc.requireHolderEnabled(ctx, organizationID, ledgerID))
+		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		assert.False(t, requireHolder)
+		assert.False(t, allowHolderSkip)
 	})
 
-	t.Run("reader true -> true", func(t *testing.T) {
-		uc := &UseCase{SettingsReader: &stubSettingsReader{requireHolder: true}}
-		assert.True(t, uc.requireHolderEnabled(ctx, organizationID, ledgerID))
+	t.Run("reader surfaces both keys from one read", func(t *testing.T) {
+		reader := &stubSettingsReader{requireHolder: true, allowHolderSkip: true}
+		uc := &UseCase{SettingsReader: reader}
+		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		assert.True(t, requireHolder)
+		assert.True(t, allowHolderSkip)
+		assert.Equal(t, 1, reader.calls, "must read settings exactly once")
 	})
 }
 
