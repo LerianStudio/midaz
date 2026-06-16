@@ -182,7 +182,14 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 	require.NoError(t, err)
 	instrumentRepo, err := crminstrument.NewMongoDBRepository(nil, cipher)
 	require.NoError(t, err)
-	crmUC := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
+	crmUC := &crmservices.UseCase{
+		HolderRepo:     holderRepo,
+		InstrumentRepo: instrumentRepo,
+		// Instrument referential validation reads LedgerAccounts; the composition
+		// POSTs link a genuinely persisted ledger+account, so the both-exist stub
+		// mirrors reality, matching the sibling composition tests.
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
+	}
 
 	compositionHandler := &CompositionHandler{Service: composition.NewService(commandUC, crmUC)}
 
