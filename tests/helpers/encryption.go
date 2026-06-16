@@ -21,29 +21,31 @@ type TinkKeysetFixture struct {
 }
 
 // GenerateTinkKeysets creates real Tink keysets for tests.
-func GenerateTinkKeysets(t testing.TB) TinkKeysetFixture {
-	t.Helper()
+func GenerateTinkKeysets(tb testing.TB) TinkKeysetFixture {
+	tb.Helper()
 
 	aeadGen := tink.NewAEADKeysetGenerator()
+
 	aeadHandle, aeadBytes, err := aeadGen.Generate()
 	if err != nil {
-		t.Fatalf("failed to generate AEAD keyset: %v", err)
+		tb.Fatalf("failed to generate AEAD keyset: %v", err)
 	}
 
 	aeadInfo, err := aeadGen.ExtractInfo(aeadHandle)
 	if err != nil {
-		t.Fatalf("failed to extract AEAD keyset info: %v", err)
+		tb.Fatalf("failed to extract AEAD keyset info: %v", err)
 	}
 
 	prfGen := tink.NewPRFKeysetGenerator()
+
 	prfHandle, prfBytes, err := prfGen.Generate()
 	if err != nil {
-		t.Fatalf("failed to generate PRF keyset: %v", err)
+		tb.Fatalf("failed to generate PRF keyset: %v", err)
 	}
 
 	prfInfo, err := prfGen.ExtractInfo(prfHandle)
 	if err != nil {
-		t.Fatalf("failed to extract PRF keyset info: %v", err)
+		tb.Fatalf("failed to extract PRF keyset info: %v", err)
 	}
 
 	return TinkKeysetFixture{
