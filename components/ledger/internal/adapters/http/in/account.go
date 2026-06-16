@@ -32,7 +32,7 @@ type AccountHandler struct {
 // CreateAccount is a method that creates account information.
 //
 //	@Summary		Create a new account
-//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.
+//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories. An optional 'skip' object (see AccountSkip) carries per-call control opt-outs; skip.holder requests bypassing the holder existence check. A skip is honored only when the request asks (skip.holder=true) AND the ledger opts into it via overrides.allowHolderSkip=true; a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of accounting.requireHolder (which only governs whether the holder existence check would otherwise run).
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
@@ -40,13 +40,14 @@ type AccountHandler struct {
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata"
+//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, optional parent account, portfolio, segment, metadata, and an optional per-call skip object"
 //	@Success		201				{object}	mmodel.Account				"Successfully created account"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error				"Organization, ledger, parent account, portfolio, or segment not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same alias already exists"
+//	@Failure		422				{object}	mmodel.Error				"Unprocessable entity: a per-call skip was requested but the ledger override is not enabled (error 0490, ErrSkipNotPermitted)"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {

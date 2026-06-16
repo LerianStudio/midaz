@@ -1032,6 +1032,12 @@ paths:
         name: X-Request-Id
         schema:
           type: string
+      - description: Idempotency key to safely retry the create; an identical retry
+          returns the original holder
+        in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
       - description: Organization ID in UUID format
         in: path
         name: organization_id
@@ -1105,6 +1111,12 @@ paths:
       - description: Request ID for tracing
         in: header
         name: X-Request-Id
+        schema:
+          type: string
+      - description: Idempotency key to safely retry the create; an identical retry
+          returns the original instrument
+        in: header
+        name: X-Idempotency-Key
         schema:
           type: string
       - description: Organization ID in UUID format
@@ -2875,7 +2887,13 @@ paths:
     post:
       description: "Creates a new account within the specified ledger. Accounts represent\
         \ individual financial entities like bank accounts, credit cards, or expense\
-        \ categories."
+        \ categories. An optional 'skip' object (see AccountSkip) carries per-call\
+        \ control opt-outs; skip.holder requests bypassing the holder existence check.\
+        \ A skip is honored only when the request asks (skip.holder=true) AND the\
+        \ ledger opts into it via overrides.allowHolderSkip=true; a skip requested\
+        \ without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted)\
+        \ regardless of accounting.requireHolder (which only governs whether the holder\
+        \ existence check would otherwise run)."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -2899,8 +2917,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateAccountInput'
-        description: "Account details including name, type, asset code, and optional\
-          \ parent account, portfolio, segment, and metadata"
+        description: "Account details including name, type, asset code, optional parent\
+          \ account, portfolio, segment, metadata, and an optional per-call skip object"
         required: true
       responses:
         "201":
@@ -2940,6 +2958,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: "Conflict: Account with the same alias already exists"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Unprocessable entity: a per-call skip was requested but the\
+            \ ledger override is not enabled (error 0490, ErrSkipNotPermitted)"
         "500":
           content:
             application/json:
@@ -6423,7 +6448,12 @@ paths:
         \ not specified in the update. Example: updating only 'accounting.validateRoutes'\
         \ preserves the existing 'accounting.validateAccountType' value. Allowed fields:\
         \ accounting.validateAccountType (boolean), accounting.validateRoutes (boolean),\
-        \ accounting.requireHolder (boolean)."
+        \ accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default\
+        \ false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip\
+        \ (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits\
+        \ callers to skip the matching per-call control (fee/tracer on transaction\
+        \ creation, holder on account creation); all default false so no control can\
+        \ be skipped without an explicit opt-in."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -6449,7 +6479,8 @@ paths:
               type: object
         description: "Settings to merge with existing settings. Only known fields\
           \ allowed: accounting.validateAccountType (bool), accounting.validateRoutes\
-          \ (bool), accounting.requireHolder (bool)"
+          \ (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool),\
+          \ overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)"
         required: true
       responses:
         "200":
@@ -7032,8 +7063,9 @@ paths:
     post:
       deprecated: true
       description: "Uploads a Gold DSL (.casl) multipart file that is parsed, validated,\
-        \ then executed as a transaction. DEPRECATED: use POST /transactions/json\
-        \ instead. Sunset 2026-08-01."
+        \ then executed as a transaction. The DSL grammar carries no per-call skip,\
+        \ so fee and tracer controls always run on this path. DEPRECATED: use POST\
+        \ /transactions/json instead. Sunset 2026-08-01."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -7123,7 +7155,12 @@ paths:
     post:
       description: "Creates a transaction where funds flow INTO destination accounts\
         \ without an explicit source; the source is auto-resolved to the external/system\
-        \ account. Use for external receipts, deposits, and credits."
+        \ account. Use for external receipts, deposits, and credits. An optional 'skip'\
+        \ object (see TransactionSkip) carries per-call control opt-outs: skip.fees\
+        \ bypasses fee computation and skip.tracer bypasses the tracer reserve. A\
+        \ skip is honored only when the ledger opts into it via the matching override\
+        \ (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without\
+        \ the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted)."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -7218,7 +7255,14 @@ paths:
         \ source accounts (send.source.from) and destination accounts (send.distribute.to).\
         \ Both sides of the ledger entry must be provided. Supports pending-hold semantics\
         \ via the 'pending' flag, idempotency via the Idempotency-Key header, and\
-        \ optional fee application."
+        \ optional fee application. An optional 'skip' object (see TransactionSkip)\
+        \ carries per-call control opt-outs: skip.fees bypasses fee computation and\
+        \ skip.tracer bypasses the tracer reserve. A skip is honored only when the\
+        \ ledger opts into it via the matching override (overrides.allowFeeSkip /\
+        \ overrides.allowTracerSkip); a skip requested without the override is rejected\
+        \ with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay\
+        \ the first transaction's outcome is returned and a replayer's differing skip\
+        \ is ignored."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -7400,7 +7444,12 @@ paths:
     post:
       description: "Creates a transaction where funds flow OUT of source accounts\
         \ without an explicit destination; the destination is auto-resolved. Use for\
-        \ withdrawals, payments, and debits."
+        \ withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip)\
+        \ carries per-call control opt-outs: skip.fees bypasses fee computation and\
+        \ skip.tracer bypasses the tracer reserve. A skip is honored only when the\
+        \ ledger opts into it via the matching override (overrides.allowFeeSkip /\
+        \ overrides.allowTracerSkip); a skip requested without the override is rejected\
+        \ with HTTP 422 (error 0490, ErrSkipNotPermitted)."
       parameters:
       - description: Request ID for tracing
         in: header
@@ -8566,6 +8615,7 @@ components:
         metadata:
           key: "{}"
         assetCode: USD
+        holderCheckSkipped: false
         entityId: EXT-ACC-12345
         type: deposit
         holderId: 00000000-0000-0000-0000-000000000000
@@ -8627,6 +8677,13 @@ components:
           example: EXT-ACC-12345
           maxLength: 256
           type: string
+        holderCheckSkipped:
+          description: |-
+            Whether an honored per-call holder skip bypassed the holder existence check
+            when this account was created
+            example: false
+          example: false
+          type: boolean
         holderId:
           description: |-
             ID of the holder that formally owns this account (UUID format)
@@ -8730,6 +8787,22 @@ components:
           description: "The rule condition for account selection. String for alias\
             \ type (e.g. \"@cash_account\"), array for account_type."
           type: object
+      type: object
+    AccountSkip:
+      description: Per-call control skips for account creation. Each flag is honored
+        only when the request sets it AND the ledger opts into it via its override
+        policy (overrides.allow*Skip); a skip requested without the matching override
+        is rejected with HTTP 422.
+      properties:
+        holder:
+          description: |-
+            Skip the holder existence check on account creation. Honored only when this
+            flag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected
+            with HTTP 422 otherwise. Independent of accounting.requireHolder.
+            required: false
+            default: false
+          example: false
+          type: boolean
       type: object
     AccountTarget:
       description: "AccountTarget identifies which accounts a maintenance billing\
@@ -9813,18 +9886,19 @@ components:
         \ are identified by a unique ID, can have aliases for easy reference, and\
         \ are associated with a specific asset type."
       example:
-        parentAccountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         metadata:
           key: "{}"
         assetCode: USD
+        entityId: EXT-ACC-12345
+        skip: "{}"
+        type: deposit
+        holderId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        parentAccountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         blocked: true
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Corporate Checking Account
         alias: '@treasury_checking'
-        entityId: EXT-ACC-12345
-        type: deposit
-        holderId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         status: "{}"
       properties:
         alias:
@@ -9906,6 +9980,15 @@ components:
             format: uuid
           format: uuid
           type: string
+        skip:
+          allOf:
+          - $ref: '#/components/schemas/AccountSkip'
+          description: |-
+            Per-call control skips. A skip is honored only when the request sets it AND the
+            ledger opts into it via its matching override (overrides.allow*Skip); a skip
+            requested without the override is rejected with HTTP 422.
+            required: false
+          type: object
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -10680,6 +10763,7 @@ components:
         route: 00000000-0000-0000-0000-000000000000
         routeId: 00000000-0000-0000-0000-000000000000
         description: New Transaction
+        skip: "{}"
         transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: FUNDING
         send: "{}"
@@ -10738,6 +10822,13 @@ components:
             Send operation details including distribution only (no source)
             required: true
           type: object
+        skip:
+          allOf:
+          - $ref: '#/components/schemas/TransactionSkip'
+          description: Per-call control opt-outs. Each flag is honored only when the
+            matching per-ledger override is enabled; otherwise the request is rejected
+            with 422.
+          type: object
         transactionDate:
           description: |-
             TransactionDate Period from transaction creation date until now
@@ -10761,6 +10852,7 @@ components:
         routeId: 00000000-0000-0000-0000-000000000000
         pending: true
         description: New Transaction
+        skip: "{}"
         transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: FUNDING
         send: "{}"
@@ -10826,6 +10918,13 @@ components:
             Send operation details including source and distribution
             required: true
           type: object
+        skip:
+          allOf:
+          - $ref: '#/components/schemas/TransactionSkip'
+          description: Per-call control opt-outs. Each flag is honored only when the
+            matching per-ledger override is enabled; otherwise the request is rejected
+            with 422.
+          type: object
         transactionDate:
           description: |-
             TransactionDate Period from transaction creation date until now
@@ -10849,6 +10948,7 @@ components:
         routeId: 00000000-0000-0000-0000-000000000000
         pending: true
         description: New Outflow Transaction
+        skip: "{}"
         transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: WITHDRAWAL
         send: "{}"
@@ -10913,6 +11013,13 @@ components:
           description: |-
             Send operation details including source only (no distribution)
             required: true
+          type: object
+        skip:
+          allOf:
+          - $ref: '#/components/schemas/TransactionSkip'
+          description: Per-call control opt-outs. Each flag is honored only when the
+            matching per-ledger override is enabled; otherwise the request is rejected
+            with 422.
           type: object
         transactionDate:
           description: |-
@@ -12024,12 +12131,20 @@ components:
     LedgerSettings:
       example:
         accounting: "{}"
+        overrides: "{}"
         tracer: "{}"
       properties:
         accounting:
           allOf:
           - $ref: '#/components/schemas/AccountingValidation'
           description: Accounting contains validation settings for accounting operations.
+          type: object
+        overrides:
+          allOf:
+          - $ref: '#/components/schemas/OverridePolicy'
+          description: |-
+            Overrides contains the per-ledger opt-ins that permit callers to skip
+            individual controls (fees, tracer, holder) on a per-request basis.
           type: object
         tracer:
           allOf:
@@ -12630,6 +12745,27 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+      type: object
+    OverridePolicy:
+      properties:
+        allowFeeSkip:
+          description: |-
+            AllowFeeSkip permits callers to skip fee computation on a transaction.
+            Default: false (callers cannot skip fees).
+          example: false
+          type: boolean
+        allowHolderSkip:
+          description: |-
+            AllowHolderSkip permits callers to skip the holder existence check on account creation.
+            Default: false (callers cannot skip the holder check).
+          example: false
+          type: boolean
+        allowTracerSkip:
+          description: |-
+            AllowTracerSkip permits callers to skip the tracer reserve on a transaction.
+            Default: false (callers cannot skip the tracer).
+          example: false
+          type: boolean
       type: object
     Package:
       example:
@@ -13298,6 +13434,7 @@ components:
         metadata:
           key: "{}"
         assetCode: BRL
+        tracerSkipped: false
         destination:
         - '@person2'
         description: Transaction description
@@ -13366,6 +13503,7 @@ components:
           status: "{}"
         route: 00000000-0000-0000-0000-000000000000
         routeId: 00000000-0000-0000-0000-000000000000
+        feesSkipped: false
         id: 00000000-0000-0000-0000-000000000000
         status: "{}"
         updatedAt: 2021-01-01T00:00:00Z
@@ -13429,6 +13567,12 @@ components:
           items:
             type: string
           type: array
+        feesSkipped:
+          description: |-
+            Whether an honored per-call fee skip bypassed the fee engine for this transaction
+            example: false
+          example: false
+          type: boolean
         id:
           description: |-
             Unique identifier for the transaction
@@ -13504,6 +13648,12 @@ components:
           - $ref: '#/components/schemas/Status'
           description: Transaction status information
           type: object
+        tracerSkipped:
+          description: |-
+            Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction
+            example: false
+          example: false
+          type: boolean
         updatedAt:
           description: |-
             Timestamp when the transaction was last updated
@@ -13642,6 +13792,18 @@ components:
           description: The timestamp when the transaction route was last updated.
           example: 2025-01-01T00:00:00Z
           type: string
+      type: object
+    TransactionSkip:
+      description: TransactionSkip requests per-call control opt-outs. Each flag is
+        honored only when the matching per-ledger override is enabled; otherwise the
+        request is rejected with 422.
+      properties:
+        fees:
+          example: false
+          type: boolean
+        tracer:
+          example: false
+          type: boolean
       type: object
     UpdateAccountInput:
       description: "Request payload for updating an existing account. All fields are\
@@ -14462,6 +14624,7 @@ components:
         - metadata:
             key: "{}"
           assetCode: USD
+          holderCheckSkipped: false
           entityId: EXT-ACC-12345
           type: deposit
           holderId: 00000000-0000-0000-0000-000000000000
@@ -14481,6 +14644,7 @@ components:
         - metadata:
             key: "{}"
           assetCode: USD
+          holderCheckSkipped: false
           entityId: EXT-ACC-12345
           type: deposit
           holderId: 00000000-0000-0000-0000-000000000000
@@ -15045,6 +15209,7 @@ components:
           metadata:
             key: "{}"
           assetCode: BRL
+          tracerSkipped: false
           destination:
           - '@person2'
           description: Transaction description
@@ -15113,6 +15278,7 @@ components:
             status: "{}"
           route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
+          feesSkipped: false
           id: 00000000-0000-0000-0000-000000000000
           status: "{}"
           updatedAt: 2021-01-01T00:00:00Z
@@ -15120,6 +15286,7 @@ components:
           metadata:
             key: "{}"
           assetCode: BRL
+          tracerSkipped: false
           destination:
           - '@person2'
           description: Transaction description
@@ -15188,6 +15355,7 @@ components:
             status: "{}"
           route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
+          feesSkipped: false
           id: 00000000-0000-0000-0000-000000000000
           status: "{}"
           updatedAt: 2021-01-01T00:00:00Z

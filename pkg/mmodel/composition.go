@@ -85,9 +85,9 @@ type CreateHolderAccountInput struct {
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 
-	// Per-call control skips. A skip is effective only when the ledger requires the
-	// matching control (e.g. requireHolder=true) AND the ledger's matching override
-	// opt-in is enabled; an unauthorized skip is rejected with HTTP 422.
+	// Per-call control skips. A skip is honored only when the request sets it AND the
+	// ledger opts into it via its matching override (overrides.allow*Skip); a skip
+	// requested without the override is rejected with HTTP 422.
 	// required: false
 	Skip *AccountSkip `json:"skip,omitempty"`
 

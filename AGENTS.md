@@ -81,6 +81,18 @@ pkg/
 7. **IDs**: `uuid.UUID` type, not strings
 8. **HTTP methods**: Use `http.MethodGet` constants, never string literals
 
+## Per-Call Control Skips
+
+Callers can opt out of individual controls per request under a **two-key gate**: a skip is
+honored only when the request asks (a `skip` object on the create body) AND the ledger opts
+in via `settings.Overrides.Allow{Fee,Tracer,Holder}Skip` (all default `false`). An
+unauthorized skip returns **HTTP 422** (`ErrSkipNotPermitted`, `0490`). Resolver:
+`pkg/skip.ResolveSkipFor`. Controls: `fees`/`tracer` on transaction create, `holder` on
+account create. Honored skips persist to audit columns (`transaction.fees_skipped`,
+`transaction.tracer_skipped`, `account.holder_check_skipped`). Invariant: an honored skip
+adds **zero** downstream work (short-circuits before the control's lookup); reverts always
+re-run the tracer; DSL carries no skip; idempotency replay returns the first outcome.
+
 ## Key Files to Read First
 
 | File | Why |

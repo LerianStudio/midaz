@@ -1802,6 +1802,14 @@
             }
           },
           {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original holder",
+            "in": "header",
+            "name": "X-Idempotency-Key",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Organization ID in UUID format",
             "in": "path",
             "name": "organization_id",
@@ -1922,6 +1930,14 @@
             "description": "Request ID for tracing",
             "in": "header",
             "name": "X-Request-Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original instrument",
+            "in": "header",
+            "name": "X-Idempotency-Key",
             "schema": {
               "type": "string"
             }
@@ -4813,7 +4829,7 @@
         ]
       },
       "post": {
-        "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
+        "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories. An optional 'skip' object (see AccountSkip) carries per-call control opt-outs; skip.holder requests bypassing the holder existence check. A skip is honored only when the request asks (skip.holder=true) AND the ledger opts into it via overrides.allowHolderSkip=true; a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of accounting.requireHolder (which only governs whether the holder existence check would otherwise run).",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -4850,7 +4866,7 @@
               }
             }
           },
-          "description": "Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata",
+          "description": "Account details including name, type, asset code, optional parent account, portfolio, segment, metadata, and an optional per-call skip object",
           "required": true
         },
         "responses": {
@@ -4913,6 +4929,16 @@
               }
             },
             "description": "Conflict: Account with the same alias already exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable entity: a per-call skip was requested but the ledger override is not enabled (error 0490, ErrSkipNotPermitted)"
           },
           "500": {
             "content": {
@@ -10690,7 +10716,7 @@
         ]
       },
       "patch": {
-        "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean).",
+        "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits callers to skip the matching per-call control (fee/tracer on transaction creation, holder on account creation); all default false so no control can be skipped without an explicit opt-in.",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -10727,7 +10753,7 @@
               }
             }
           },
-          "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool)",
+          "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool), overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)",
           "required": true
         },
         "responses": {
@@ -11706,7 +11732,7 @@
       ],
       "post": {
         "deprecated": true,
-        "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
+        "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. The DSL grammar carries no per-call skip, so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -11858,7 +11884,7 @@
         }
       ],
       "post": {
-        "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits.",
+        "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -12012,7 +12038,7 @@
         }
       ],
       "post": {
-        "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application.",
+        "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay the first transaction's outcome is returned and a replayer's differing skip is ignored.",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -12313,7 +12339,7 @@
         }
       ],
       "post": {
-        "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits.",
+        "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
         "parameters": [
           {
             "description": "Request ID for tracing",
@@ -19648,6 +19674,7 @@
             "key": "{}"
           },
           "assetCode": "USD",
+          "holderCheckSkipped": false,
           "entityId": "EXT-ACC-12345",
           "type": "deposit",
           "holderId": "00000000-0000-0000-0000-000000000000",
@@ -19699,6 +19726,11 @@
             "example": "EXT-ACC-12345",
             "maxLength": 256,
             "type": "string"
+          },
+          "holderCheckSkipped": {
+            "description": "Whether an honored per-call holder skip bypassed the holder existence check\nwhen this account was created\nexample: false",
+            "example": false,
+            "type": "boolean"
           },
           "holderId": {
             "description": "ID of the holder that formally owns this account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -19789,6 +19821,17 @@
           "validIf": {
             "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type.",
             "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "AccountSkip": {
+        "description": "Per-call control skips for account creation. Each flag is honored only when the request sets it AND the ledger opts into it via its override policy (overrides.allow*Skip); a skip requested without the matching override is rejected with HTTP 422.",
+        "properties": {
+          "holder": {
+            "description": "Skip the holder existence check on account creation. Honored only when this\nflag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected\nwith HTTP 422 otherwise. Independent of accounting.requireHolder.\nrequired: false\ndefault: false",
+            "example": false,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -20947,19 +20990,20 @@
       "CreateAccountInput": {
         "description": "Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.",
         "example": {
-          "parentAccountId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
           "metadata": {
             "key": "{}"
           },
           "assetCode": "USD",
+          "entityId": "EXT-ACC-12345",
+          "skip": "{}",
+          "type": "deposit",
+          "holderId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+          "parentAccountId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
           "portfolioId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
           "blocked": true,
           "segmentId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
           "name": "Corporate Checking Account",
           "alias": "@treasury_checking",
-          "entityId": "EXT-ACC-12345",
-          "type": "deposit",
-          "holderId": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
           "status": "{}"
         },
         "properties": {
@@ -21017,6 +21061,15 @@
             "description": "ID of the segment this account belongs to (optional)\nrequired: false\nformat: uuid",
             "format": "uuid",
             "type": "string"
+          },
+          "skip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountSkip"
+              }
+            ],
+            "description": "Per-call control skips. A skip is honored only when the request sets it AND the\nledger opts into it via its matching override (overrides.allow*Skip); a skip\nrequested without the override is rejected with HTTP 422.\nrequired: false",
+            "type": "object"
           },
           "status": {
             "allOf": [
@@ -21840,6 +21893,7 @@
           "route": "00000000-0000-0000-0000-000000000000",
           "routeId": "00000000-0000-0000-0000-000000000000",
           "description": "New Transaction",
+          "skip": "{}",
           "transactionDate": "2021-01-01T00:00:00Z",
           "chartOfAccountsGroupName": "FUNDING",
           "send": "{}"
@@ -21891,6 +21945,15 @@
             "description": "Send operation details including distribution only (no source)\nrequired: true",
             "type": "object"
           },
+          "skip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionSkip"
+              }
+            ],
+            "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+            "type": "object"
+          },
           "transactionDate": {
             "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
             "example": "2021-01-01T00:00:00Z",
@@ -21914,6 +21977,7 @@
           "routeId": "00000000-0000-0000-0000-000000000000",
           "pending": true,
           "description": "New Transaction",
+          "skip": "{}",
           "transactionDate": "2021-01-01T00:00:00Z",
           "chartOfAccountsGroupName": "FUNDING",
           "send": "{}"
@@ -21971,6 +22035,15 @@
             "description": "Send operation details including source and distribution\nrequired: true",
             "type": "object"
           },
+          "skip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionSkip"
+              }
+            ],
+            "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+            "type": "object"
+          },
           "transactionDate": {
             "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
             "example": "2021-01-01T00:00:00Z",
@@ -21994,6 +22067,7 @@
           "routeId": "00000000-0000-0000-0000-000000000000",
           "pending": true,
           "description": "New Outflow Transaction",
+          "skip": "{}",
           "transactionDate": "2021-01-01T00:00:00Z",
           "chartOfAccountsGroupName": "WITHDRAWAL",
           "send": "{}"
@@ -22049,6 +22123,15 @@
               }
             ],
             "description": "Send operation details including source only (no distribution)\nrequired: true",
+            "type": "object"
+          },
+          "skip": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionSkip"
+              }
+            ],
+            "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
             "type": "object"
           },
           "transactionDate": {
@@ -23355,6 +23438,7 @@
       "LedgerSettings": {
         "example": {
           "accounting": "{}",
+          "overrides": "{}",
           "tracer": "{}"
         },
         "properties": {
@@ -23365,6 +23449,15 @@
               }
             ],
             "description": "Accounting contains validation settings for accounting operations.",
+            "type": "object"
+          },
+          "overrides": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OverridePolicy"
+              }
+            ],
+            "description": "Overrides contains the per-ledger opt-ins that permit callers to skip\nindividual controls (fees, tracer, holder) on a per-request basis.",
             "type": "object"
           },
           "tracer": {
@@ -23943,6 +24036,26 @@
             "example": "2021-01-01T00:00:00Z",
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OverridePolicy": {
+        "properties": {
+          "allowFeeSkip": {
+            "description": "AllowFeeSkip permits callers to skip fee computation on a transaction.\nDefault: false (callers cannot skip fees).",
+            "example": false,
+            "type": "boolean"
+          },
+          "allowHolderSkip": {
+            "description": "AllowHolderSkip permits callers to skip the holder existence check on account creation.\nDefault: false (callers cannot skip the holder check).",
+            "example": false,
+            "type": "boolean"
+          },
+          "allowTracerSkip": {
+            "description": "AllowTracerSkip permits callers to skip the tracer reserve on a transaction.\nDefault: false (callers cannot skip the tracer).",
+            "example": false,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -24731,6 +24844,7 @@
             "key": "{}"
           },
           "assetCode": "BRL",
+          "tracerSkipped": false,
           "destination": [
             "@person2"
           ],
@@ -24808,6 +24922,7 @@
           ],
           "route": "00000000-0000-0000-0000-000000000000",
           "routeId": "00000000-0000-0000-0000-000000000000",
+          "feesSkipped": false,
           "id": "00000000-0000-0000-0000-000000000000",
           "status": "{}",
           "updatedAt": "2021-01-01T00:00:00Z"
@@ -24859,6 +24974,11 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "feesSkipped": {
+            "description": "Whether an honored per-call fee skip bypassed the fee engine for this transaction\nexample: false",
+            "example": false,
+            "type": "boolean"
           },
           "id": {
             "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -24928,6 +25048,11 @@
             ],
             "description": "Transaction status information",
             "type": "object"
+          },
+          "tracerSkipped": {
+            "description": "Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction\nexample: false",
+            "example": false,
+            "type": "boolean"
           },
           "updatedAt": {
             "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -25093,6 +25218,20 @@
             "description": "The timestamp when the transaction route was last updated.",
             "example": "2025-01-01T00:00:00Z",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TransactionSkip": {
+        "description": "TransactionSkip requests per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+        "properties": {
+          "fees": {
+            "example": false,
+            "type": "boolean"
+          },
+          "tracer": {
+            "example": false,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -26068,6 +26207,7 @@
                 "key": "{}"
               },
               "assetCode": "USD",
+              "holderCheckSkipped": false,
               "entityId": "EXT-ACC-12345",
               "type": "deposit",
               "holderId": "00000000-0000-0000-0000-000000000000",
@@ -26090,6 +26230,7 @@
                 "key": "{}"
               },
               "assetCode": "USD",
+              "holderCheckSkipped": false,
               "entityId": "EXT-ACC-12345",
               "type": "deposit",
               "holderId": "00000000-0000-0000-0000-000000000000",
@@ -26869,6 +27010,7 @@
                 "key": "{}"
               },
               "assetCode": "BRL",
+              "tracerSkipped": false,
               "destination": [
                 "@person2"
               ],
@@ -26946,6 +27088,7 @@
               ],
               "route": "00000000-0000-0000-0000-000000000000",
               "routeId": "00000000-0000-0000-0000-000000000000",
+              "feesSkipped": false,
               "id": "00000000-0000-0000-0000-000000000000",
               "status": "{}",
               "updatedAt": "2021-01-01T00:00:00Z"
@@ -26956,6 +27099,7 @@
                 "key": "{}"
               },
               "assetCode": "BRL",
+              "tracerSkipped": false,
               "destination": [
                 "@person2"
               ],
@@ -27033,6 +27177,7 @@
               ],
               "route": "00000000-0000-0000-0000-000000000000",
               "routeId": "00000000-0000-0000-0000-000000000000",
+              "feesSkipped": false,
               "id": "00000000-0000-0000-0000-000000000000",
               "status": "{}",
               "updatedAt": "2021-01-01T00:00:00Z"

@@ -51,6 +51,13 @@ definitions:
         example: EXT-ACC-12345
         maxLength: 256
         type: string
+      holderCheckSkipped:
+        description: |-
+          Whether an honored per-call holder skip bypassed the holder existence check
+          when this account was created
+          example: false
+        example: false
+        type: boolean
       holderId:
         description: |-
           ID of the holder that formally owns this account (UUID format)
@@ -151,6 +158,22 @@ definitions:
       validIf:
         description: The rule condition for account selection. String for alias type
           (e.g. "@cash_account"), array for account_type.
+    type: object
+  AccountSkip:
+    description: Per-call control skips for account creation. Each flag is honored
+      only when the request sets it AND the ledger opts into it via its override policy
+      (overrides.allow*Skip); a skip requested without the matching override is rejected
+      with HTTP 422.
+    properties:
+      holder:
+        description: |-
+          Skip the holder existence check on account creation. Honored only when this
+          flag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected
+          with HTTP 422 otherwise. Independent of accounting.requireHolder.
+          required: false
+          default: false
+        example: false
+        type: boolean
     type: object
   AccountTarget:
     description: AccountTarget identifies which accounts a maintenance billing package
@@ -1126,6 +1149,14 @@ definitions:
           format: uuid
         format: uuid
         type: string
+      skip:
+        allOf:
+        - $ref: '#/definitions/AccountSkip'
+        description: |-
+          Per-call control skips. A skip is honored only when the request sets it AND the
+          ledger opts into it via its matching override (overrides.allow*Skip); a skip
+          requested without the override is rejected with HTTP 422.
+          required: false
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -1787,6 +1818,12 @@ definitions:
         description: |-
           Send operation details including distribution only (no source)
           required: true
+      skip:
+        allOf:
+        - $ref: '#/definitions/TransactionSkip'
+        description: Per-call control opt-outs. Each flag is honored only when the
+          matching per-ledger override is enabled; otherwise the request is rejected
+          with 422.
       transactionDate:
         description: |-
           TransactionDate Period from transaction creation date until now
@@ -1862,6 +1899,12 @@ definitions:
         description: |-
           Send operation details including source and distribution
           required: true
+      skip:
+        allOf:
+        - $ref: '#/definitions/TransactionSkip'
+        description: Per-call control opt-outs. Each flag is honored only when the
+          matching per-ledger override is enabled; otherwise the request is rejected
+          with 422.
       transactionDate:
         description: |-
           TransactionDate Period from transaction creation date until now
@@ -1937,6 +1980,12 @@ definitions:
         description: |-
           Send operation details including source only (no distribution)
           required: true
+      skip:
+        allOf:
+        - $ref: '#/definitions/TransactionSkip'
+        description: Per-call control opt-outs. Each flag is honored only when the
+          matching per-ledger override is enabled; otherwise the request is rejected
+          with 422.
       transactionDate:
         description: |-
           TransactionDate Period from transaction creation date until now
@@ -2568,6 +2617,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingValidation'
         description: Accounting contains validation settings for accounting operations.
+      overrides:
+        allOf:
+        - $ref: '#/definitions/OverridePolicy'
+        description: |-
+          Overrides contains the per-ledger opt-ins that permit callers to skip
+          individual controls (fees, tracer, holder) on a per-request basis.
       tracer:
         allOf:
         - $ref: '#/definitions/TracerSettings'
@@ -3090,6 +3145,27 @@ definitions:
         format: date-time
         type: string
     type: object
+  OverridePolicy:
+    properties:
+      allowFeeSkip:
+        description: |-
+          AllowFeeSkip permits callers to skip fee computation on a transaction.
+          Default: false (callers cannot skip fees).
+        example: false
+        type: boolean
+      allowHolderSkip:
+        description: |-
+          AllowHolderSkip permits callers to skip the holder existence check on account creation.
+          Default: false (callers cannot skip the holder check).
+        example: false
+        type: boolean
+      allowTracerSkip:
+        description: |-
+          AllowTracerSkip permits callers to skip the tracer reserve on a transaction.
+          Default: false (callers cannot skip the tracer).
+        example: false
+        type: boolean
+    type: object
   Package:
     properties:
       createdAt:
@@ -3599,6 +3675,12 @@ definitions:
         items:
           type: string
         type: array
+      feesSkipped:
+        description: |-
+          Whether an honored per-call fee skip bypassed the fee engine for this transaction
+          example: false
+        example: false
+        type: boolean
       id:
         description: |-
           Unique identifier for the transaction
@@ -3672,6 +3754,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/Status'
         description: Transaction status information
+      tracerSkipped:
+        description: |-
+          Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction
+          example: false
+        example: false
+        type: boolean
       updatedAt:
         description: |-
           Timestamp when the transaction was last updated
@@ -3766,6 +3854,18 @@ definitions:
         description: The timestamp when the transaction route was last updated.
         example: "2025-01-01T00:00:00Z"
         type: string
+    type: object
+  TransactionSkip:
+    description: TransactionSkip requests per-call control opt-outs. Each flag is
+      honored only when the matching per-ledger override is enabled; otherwise the
+      request is rejected with 422.
+    properties:
+      fees:
+        example: false
+        type: boolean
+      tracer:
+        example: false
+        type: boolean
     type: object
   UpdateAccountInput:
     description: Request payload for updating an existing account. All fields are
@@ -5034,6 +5134,11 @@ paths:
         in: header
         name: X-Request-Id
         type: string
+      - description: Idempotency key to safely retry the create; an identical retry
+          returns the original holder
+        in: header
+        name: X-Idempotency-Key
+        type: string
       - description: Organization ID in UUID format
         in: path
         name: organization_id
@@ -5094,6 +5199,11 @@ paths:
       - description: Request ID for tracing
         in: header
         name: X-Request-Id
+        type: string
+      - description: Idempotency key to safely retry the create; an identical retry
+          returns the original instrument
+        in: header
+        name: X-Idempotency-Key
         type: string
       - description: Organization ID in UUID format
         in: path
@@ -6523,7 +6633,13 @@ paths:
       - application/json
       description: Creates a new account within the specified ledger. Accounts represent
         individual financial entities like bank accounts, credit cards, or expense
-        categories.
+        categories. An optional 'skip' object (see AccountSkip) carries per-call control
+        opt-outs; skip.holder requests bypassing the holder existence check. A skip
+        is honored only when the request asks (skip.holder=true) AND the ledger opts
+        into it via overrides.allowHolderSkip=true; a skip requested without the override
+        is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of
+        accounting.requireHolder (which only governs whether the holder existence
+        check would otherwise run).
       parameters:
       - description: Request ID for tracing
         in: header
@@ -6539,8 +6655,8 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Account details including name, type, asset code, and optional
-          parent account, portfolio, segment, and metadata
+      - description: Account details including name, type, asset code, optional parent
+          account, portfolio, segment, metadata, and an optional per-call skip object
         in: body
         name: account
         required: true
@@ -6572,6 +6688,11 @@ paths:
             $ref: '#/definitions/Error'
         "409":
           description: 'Conflict: Account with the same alias already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: 'Unprocessable entity: a per-call skip was requested but the
+            ledger override is not enabled (error 0490, ErrSkipNotPermitted)'
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -9457,7 +9578,12 @@ paths:
         not specified in the update. Example: updating only ''accounting.validateRoutes''
         preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
         accounting.validateAccountType (boolean), accounting.validateRoutes (boolean),
-        accounting.requireHolder (boolean).'
+        accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default
+        false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip
+        (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits
+        callers to skip the matching per-call control (fee/tracer on transaction creation,
+        holder on account creation); all default false so no control can be skipped
+        without an explicit opt-in.'
       parameters:
       - description: Request ID for tracing
         in: header
@@ -9475,7 +9601,8 @@ paths:
         type: string
       - description: 'Settings to merge with existing settings. Only known fields
           allowed: accounting.validateAccountType (bool), accounting.validateRoutes
-          (bool), accounting.requireHolder (bool)'
+          (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool),
+          overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)'
         in: body
         name: settings
         required: true
@@ -10363,8 +10490,9 @@ paths:
       - multipart/form-data
       deprecated: true
       description: 'Uploads a Gold DSL (.casl) multipart file that is parsed, validated,
-        then executed as a transaction. DEPRECATED: use POST /transactions/json instead.
-        Sunset 2026-08-01.'
+        then executed as a transaction. The DSL grammar carries no per-call skip,
+        so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json
+        instead. Sunset 2026-08-01.'
       parameters:
       - description: Request ID for tracing
         in: header
@@ -10434,9 +10562,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a transaction where funds flow INTO destination accounts
+      description: 'Creates a transaction where funds flow INTO destination accounts
         without an explicit source; the source is auto-resolved to the external/system
-        account. Use for external receipts, deposits, and credits.
+        account. Use for external receipts, deposits, and credits. An optional ''skip''
+        object (see TransactionSkip) carries per-call control opt-outs: skip.fees
+        bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip
+        is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip
+        / overrides.allowTracerSkip); a skip requested without the override is rejected
+        with HTTP 422 (error 0490, ErrSkipNotPermitted).'
       parameters:
       - description: Request ID for tracing
         in: header
@@ -10508,11 +10641,17 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a full double-entry transaction by specifying explicit
+      description: 'Creates a full double-entry transaction by specifying explicit
         source accounts (send.source.from) and destination accounts (send.distribute.to).
         Both sides of the ledger entry must be provided. Supports pending-hold semantics
-        via the 'pending' flag, idempotency via the Idempotency-Key header, and optional
-        fee application.
+        via the ''pending'' flag, idempotency via the Idempotency-Key header, and
+        optional fee application. An optional ''skip'' object (see TransactionSkip)
+        carries per-call control opt-outs: skip.fees bypasses fee computation and
+        skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger
+        opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip);
+        a skip requested without the override is rejected with HTTP 422 (error 0490,
+        ErrSkipNotPermitted). On an idempotency replay the first transaction''s outcome
+        is returned and a replayer''s differing skip is ignored.'
       parameters:
       - description: Request ID for tracing
         in: header
@@ -10656,9 +10795,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a transaction where funds flow OUT of source accounts without
-        an explicit destination; the destination is auto-resolved. Use for withdrawals,
-        payments, and debits.
+      description: 'Creates a transaction where funds flow OUT of source accounts
+        without an explicit destination; the destination is auto-resolved. Use for
+        withdrawals, payments, and debits. An optional ''skip'' object (see TransactionSkip)
+        carries per-call control opt-outs: skip.fees bypasses fee computation and
+        skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger
+        opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip);
+        a skip requested without the override is rejected with HTTP 422 (error 0490,
+        ErrSkipNotPermitted).'
       parameters:
       - description: Request ID for tracing
         in: header

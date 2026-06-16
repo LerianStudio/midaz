@@ -1262,6 +1262,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Idempotency key to safely retry the create; an identical retry returns the original holder",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
@@ -1346,6 +1352,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Request ID for tracing",
                         "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key to safely retry the create; an identical retry returns the original instrument",
+                        "name": "X-Idempotency-Key",
                         "in": "header"
                     },
                     {
@@ -3527,7 +3539,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
+                "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories. An optional 'skip' object (see AccountSkip) carries per-call control opt-outs; skip.holder requests bypassing the holder existence check. A skip is honored only when the request asks (skip.holder=true) AND the ledger opts into it via overrides.allowHolderSkip=true; a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of accounting.requireHolder (which only governs whether the holder existence check would otherwise run).",
                 "consumes": [
                     "application/json"
                 ],
@@ -3560,7 +3572,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata",
+                        "description": "Account details including name, type, asset code, optional parent account, portfolio, segment, metadata, and an optional per-call skip object",
                         "name": "account",
                         "in": "body",
                         "required": true,
@@ -3602,6 +3614,12 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict: Account with the same alias already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable entity: a per-call skip was requested but the ledger override is not enabled (error 0490, ErrSkipNotPermitted)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7926,7 +7944,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean).",
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits callers to skip the matching per-call control (fee/tracer on transaction creation, holder on account creation); all default false so no control can be skipped without an explicit opt-in.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7959,7 +7977,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool)",
+                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool), overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)",
                         "name": "settings",
                         "in": "body",
                         "required": true,
@@ -8705,7 +8723,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
+                "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. The DSL grammar carries no per-call skip, so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -8811,7 +8829,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits.",
+                "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
                 "consumes": [
                     "application/json"
                 ],
@@ -8918,7 +8936,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application.",
+                "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay the first transaction's outcome is returned and a replayer's differing skip is ignored.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9131,7 +9149,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits.",
+                "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
                 "consumes": [
                     "application/json"
                 ],
@@ -10583,6 +10601,11 @@ const docTemplate = `{
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
                 },
+                "holderCheckSkipped": {
+                    "description": "Whether an honored per-call holder skip bypassed the holder existence check\nwhen this account was created\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
                 "holderId": {
                     "description": "ID of the holder that formally owns this account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -10668,6 +10691,17 @@ const docTemplate = `{
                 },
                 "validIf": {
                     "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
+                }
+            }
+        },
+        "AccountSkip": {
+            "description": "Per-call control skips for account creation. Each flag is honored only when the request sets it AND the ledger opts into it via its override policy (overrides.allow*Skip); a skip requested without the matching override is rejected with HTTP 422.",
+            "type": "object",
+            "properties": {
+                "holder": {
+                    "description": "Skip the holder existence check on account creation. Honored only when this\nflag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected\nwith HTTP 422 otherwise. Independent of accounting.requireHolder.\nrequired: false\ndefault: false",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
@@ -11654,6 +11688,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "skip": {
+                    "description": "Per-call control skips. A skip is honored only when the request sets it AND the\nledger opts into it via its matching override (overrides.allow*Skip); a skip\nrequested without the override is rejected with HTTP 422.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountSkip"
+                        }
+                    ]
+                },
                 "status": {
                     "description": "Current operating status of the account\nrequired: false",
                     "allOf": [
@@ -12310,6 +12352,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
+                        }
+                    ]
+                },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
                     "type": "string",
@@ -12374,6 +12424,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
+                        }
+                    ]
+                },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
                     "type": "string",
@@ -12435,6 +12493,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/SendOutflow"
+                        }
+                    ]
+                },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
                         }
                     ]
                 },
@@ -13119,6 +13185,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "overrides": {
+                    "description": "Overrides contains the per-ledger opt-ins that permit callers to skip\nindividual controls (fees, tracer, holder) on a per-request basis.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OverridePolicy"
+                        }
+                    ]
+                },
                 "tracer": {
                     "description": "Tracer contains the per-ledger tracer-integration settings.",
                     "allOf": [
@@ -13608,6 +13682,26 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "OverridePolicy": {
+            "type": "object",
+            "properties": {
+                "allowFeeSkip": {
+                    "description": "AllowFeeSkip permits callers to skip fee computation on a transaction.\nDefault: false (callers cannot skip fees).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "allowHolderSkip": {
+                    "description": "AllowHolderSkip permits callers to skip the holder existence check on account creation.\nDefault: false (callers cannot skip the holder check).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "allowTracerSkip": {
+                    "description": "AllowTracerSkip permits callers to skip the tracer reserve on a transaction.\nDefault: false (callers cannot skip the tracer).",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
@@ -14164,6 +14258,11 @@ const docTemplate = `{
                         "@person2"
                     ]
                 },
+                "feesSkipped": {
+                    "description": "Whether an honored per-call fee skip bypassed the fee engine for this transaction\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
                 "id": {
                     "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -14229,6 +14328,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/Status"
                         }
                     ]
+                },
+                "tracerSkipped": {
+                    "description": "Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "updatedAt": {
                     "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -14341,6 +14445,20 @@ const docTemplate = `{
                     "description": "The timestamp when the transaction route was last updated.",
                     "type": "string",
                     "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
+        "TransactionSkip": {
+            "description": "TransactionSkip requests per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+            "type": "object",
+            "properties": {
+                "fees": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "tracer": {
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },

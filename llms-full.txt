@@ -1017,7 +1017,38 @@ When `MULTI_TENANT_ENABLED=true`:
    `MONGO_FEES_*`) add their own namespaced Mongo tenant clients within the ledger binary
    (resolution via the lib-commons v5 tenant-manager)
 
-## 10. Gold DSL
+## 10. Per-Call Control Skips
+
+Callers can opt out of individual processing controls on a single request, but only
+under a two-key gate. A skip is honored **only when both** keys are set:
+
+1. The request asks for it (a `skip` object on the create body), **AND**
+2. The ledger opts into it via `settings.overrides.allow*Skip` (all default `false`).
+
+If the request asks but the per-ledger override is not enabled, the request is rejected
+with **HTTP 422** (`ErrSkipNotPermitted`, error code `0490` → `UnprocessableOperationError`).
+The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
+
+| Control | Surface | Request flag | Ledger opt-in | Audit column |
+|---|---|---|---|---|
+| Fees | transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Holder | account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+
+Honored skips are persisted to audit columns (domain fields
+`mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
+and surface on the `transaction.*` and `account.created` streaming payloads.
+
+**Non-goals / invariants:**
+- A **revert always re-runs the tracer**; the reverse transaction does NOT inherit the
+  parent's tracer skip.
+- **DSL transactions carry no skip** — the Gold grammar has no skip, so fee and tracer
+  controls always run on that path.
+- **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
+- An **honored skip adds zero downstream work** — it short-circuits before the control's
+  package lookup; it never replaces the control with a more expensive code path.
+
+## 11. Gold DSL
 
 The Gold DSL (`pkg/gold/`) is an ANTLR4-based domain-specific language for defining transactions:
 
@@ -1031,7 +1062,7 @@ Grammar: `pkg/gold/Transaction.g4`
 Parser: `pkg/gold/parser/`
 Transaction builder: `pkg/gold/transaction/`
 
-## 11. Testing
+## 12. Testing
 
 ### Test Types
 - **Unit tests**: `*_test.go` files alongside source

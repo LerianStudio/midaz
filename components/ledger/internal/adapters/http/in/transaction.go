@@ -47,7 +47,7 @@ type TransactionHandler struct {
 // CreateTransactionJSON method that create transaction using JSON
 //
 //	@Summary		Create a Transaction using JSON
-//	@Description	Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application.
+//	@Description	Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay the first transaction's outcome is returned and a replayer's differing skip is ignored.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
@@ -129,7 +129,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 // CreateTransactionInflow method that creates a transaction without specifying a source
 //
 //	@Summary		Create a Transaction without passing from source
-//	@Description	Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits.
+//	@Description	Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
@@ -170,7 +170,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
 //
 //	@Summary		Create a Transaction without passing to distribution
-//	@Description	Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits.
+//	@Description	Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
@@ -211,7 +211,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 // CreateTransactionDSL method that create transaction using DSL
 //
 //	@Summary		Create a Transaction using DSL
-//	@Description	Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.
+//	@Description	Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. The DSL grammar carries no per-call skip, so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.
 //	@Deprecated		true
 //	@Tags			Transactions
 //	@Accept			mpfd
