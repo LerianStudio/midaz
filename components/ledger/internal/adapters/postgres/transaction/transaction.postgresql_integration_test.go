@@ -1392,6 +1392,139 @@ func TestIntegration_Transaction_SoftDelete_Excluded(t *testing.T) {
 }
 
 // =============================================================================
+// EPIC 4.2: PER-CALL SKIP AUDIT ROUND-TRIP (fees_skipped / tracer_skipped)
+// =============================================================================
+//
+// Runtime proof that the honored per-call skip flags survive a real squirrel
+// INSERT and read back through the variadic Scan column order on TWO distinct
+// scan sites: the single-row Find and the list-derived FindAll. A column-order
+// regression in either INSERT or SELECT/Scan corrupts these flags silently;
+// unit tests cannot catch it because they do not exercise PostgreSQL.
+//
+// Out of integration scope here (already unit-covered, NOT re-proven at this
+// level): the gate's zero-downstream-call invariant (no Mongo / gRPC-Reserve /
+// CRM-Exists) and the settings-read-count==1 invariant. Those are exhaustively
+// asserted by:
+//   - TestApplyFees_NoOpWhenSkipHonored and
+//     TestApplyFees_SkipHonoredTouchesNoFeeDependency
+//     (components/ledger/internal/adapters/http/in/transaction_fee_application_test.go)
+//     -> honored fee skip means zero fakeFeeApplier.CalculateFee calls.
+//   - TestCreateAccountHolderSkip
+//     (components/ledger/internal/services/command/create_account_holder_test.go)
+//     -> honored holder skip means holderReader.calls==0 and
+//        settingsReader.calls==1 (the gate rides the single settings read).
+//   - TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422
+//     (pkg/skip/skip_test.go) -> two-key gate truth table + unauthorized 422.
+
+// TestIntegration_Transaction_SkipAudit_RoundTrip proves that FeesSkipped and
+// TracerSkipped persist through repo.Create (squirrel INSERT) and read back true
+// via BOTH repo.Find (single-row scan) and repo.FindAll (list scan), with a
+// false control transaction confirming the flags are not spuriously set.
+func TestIntegration_Transaction_SkipAudit_RoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Skipped transaction: both audit flags honored.
+	skippedTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Skip audit - both honored",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		FeesSkipped:    true,
+		TracerSkipped:  true,
+	}
+
+	createdSkipped, err := infra.repo.Create(ctx, skippedTx)
+	require.NoError(t, err, "Create with skip flags should succeed")
+	assert.True(t, createdSkipped.FeesSkipped, "Create should echo fees_skipped=true")
+	assert.True(t, createdSkipped.TracerSkipped, "Create should echo tracer_skipped=true")
+
+	// False control: neither flag set.
+	controlTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Skip audit - false control",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		// FeesSkipped and TracerSkipped left at zero value (false).
+	}
+
+	createdControl, err := infra.repo.Create(ctx, controlTx)
+	require.NoError(t, err, "Create control should succeed")
+	assert.False(t, createdControl.FeesSkipped, "control fees_skipped should be false")
+	assert.False(t, createdControl.TracerSkipped, "control tracer_skipped should be false")
+
+	t.Run("Find single-row scan reads both flags back", func(t *testing.T) {
+		foundSkipped, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, createdSkipped.ID))
+		require.NoError(t, err)
+		assert.True(t, foundSkipped.FeesSkipped, "Find: skipped tx fees_skipped should round-trip true")
+		assert.True(t, foundSkipped.TracerSkipped, "Find: skipped tx tracer_skipped should round-trip true")
+
+		foundControl, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, createdControl.ID))
+		require.NoError(t, err)
+		assert.False(t, foundControl.FeesSkipped, "Find: control fees_skipped should round-trip false")
+		assert.False(t, foundControl.TracerSkipped, "Find: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("FindAll list scan reads both flags back", func(t *testing.T) {
+		// FindAll exercises a DIFFERENT Scan call site than Find, so the variadic
+		// column order is proven independently here.
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		listedSkipped, ok := byID[createdSkipped.ID]
+		require.True(t, ok, "FindAll should return the skipped transaction")
+		assert.True(t, listedSkipped.FeesSkipped, "FindAll: skipped tx fees_skipped should round-trip true")
+		assert.True(t, listedSkipped.TracerSkipped, "FindAll: skipped tx tracer_skipped should round-trip true")
+
+		listedControl, ok := byID[createdControl.ID]
+		require.True(t, ok, "FindAll should return the control transaction")
+		assert.False(t, listedControl.FeesSkipped, "FindAll: control fees_skipped should round-trip false")
+		assert.False(t, listedControl.TracerSkipped, "FindAll: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("ListByIDs list scan reads both flags back", func(t *testing.T) {
+		// ListByIDs is a third, independent Scan site over the same column list.
+		transactions, err := infra.repo.ListByIDs(ctx, infra.orgID, infra.ledgerID,
+			[]uuid.UUID{parseID(t, createdSkipped.ID), parseID(t, createdControl.ID)})
+		require.NoError(t, err)
+		require.Len(t, transactions, 2)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		assert.True(t, byID[createdSkipped.ID].FeesSkipped, "ListByIDs: skipped tx fees_skipped should round-trip true")
+		assert.True(t, byID[createdSkipped.ID].TracerSkipped, "ListByIDs: skipped tx tracer_skipped should round-trip true")
+		assert.False(t, byID[createdControl.ID].FeesSkipped, "ListByIDs: control fees_skipped should round-trip false")
+		assert.False(t, byID[createdControl.ID].TracerSkipped, "ListByIDs: control tracer_skipped should round-trip false")
+	})
+
+	// NOTE: the join-scan readers (FindWithOperations / FindOrListAllWithOperations)
+	// use an INNER JOIN against the operation table, so a transaction with no
+	// operations returns no rows for those methods. Exercising their skip-audit
+	// scan order would require seeding full operation fixtures (balances,
+	// operations, asset/account rows) that are out of scope for this audit-flag
+	// proof; the Find / FindAll / ListByIDs sites above already cover the two
+	// structurally distinct scan paths (single-row and list). Skipped here.
+}
+
+// =============================================================================
 // IS-1: getDB returns valid DB handle from real PostgreSQL (static fallback)
 // =============================================================================
 

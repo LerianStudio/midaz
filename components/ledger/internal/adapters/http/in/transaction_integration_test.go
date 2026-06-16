@@ -2395,6 +2395,158 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
 }
 
+// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the
+// EPIC 4.2 runtime proof that the Redis-backed idempotency replay returns the FIRST
+// transaction's outcome regardless of the replayer's body — specifically, a skip
+// object set only on the second request is IGNORED.
+//
+// Direction (deliberate, no-seed): the FIRST request carries NO skip object, so it
+// needs no per-ledger override and persists fees_skipped=false. The SECOND request
+// reuses the same idempotency key but adds skip.fees=true. If the replayer's body
+// were honored, the second request would hit the two-key skip gate and — because
+// this ledger has no Allow*Skip override seeded — return 422 ErrSkipNotPermitted
+// ("0490"). Instead it must replay the first outcome: HTTP 201, same transaction id,
+// X-Idempotency-Replayed=true, and feesSkipped=false. The 201-not-422 result is
+// itself proof the replayer's skip never reached the gate.
+//
+// Out of integration scope here (already unit-covered): the gate's
+// zero-downstream-call and settings-read-count==1 invariants
+// (TestApplyFees_NoOpWhenSkipHonored / TestApplyFees_SkipHonoredTouchesNoFeeDependency
+// in transaction_fee_application_test.go; TestCreateAccountHolderSkip in
+// services/command/create_account_holder_test.go; the two-key truth table in
+// pkg/skip/skip_test.go TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422).
+func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Note: cannot use t.Parallel() because setupTestInfra uses t.Setenv.
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	sourceAlias := "@source-idem-skip"
+	destAlias := "@dest-idem-skip"
+
+	initialBalance := decimal.NewFromInt(1000)
+	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
+	sourceBalanceParams.Alias = sourceAlias
+	sourceBalanceParams.AssetCode = "USD"
+	sourceBalanceParams.Available = initialBalance
+	sourceBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
+
+	destBalanceParams := postgrestestutil.DefaultBalanceParams()
+	destBalanceParams.Alias = destAlias
+	destBalanceParams.AssetCode = "USD"
+	destBalanceParams.Available = decimal.Zero
+	destBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
+
+	// First request: NO skip object -> needs no override, persists fees_skipped=false.
+	firstBody := fmt.Sprintf(`{
+		"send": {
+			"asset": "USD",
+			"value": "50",
+			"source": {
+				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	// Second request: SAME idempotency key, but adds skip.fees=true.
+	secondBody := fmt.Sprintf(`{
+		"skip": {"fees": true},
+		"send": {
+			"asset": "USD",
+			"value": "50",
+			"source": {
+				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	idempotencyKey := "idem-skip-" + uuid.New().String()
+
+	// First POST.
+	req1 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(firstBody))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Idempotency", idempotencyKey)
+	req1.Header.Set("X-TTL", "60")
+
+	resp1, err := infra.app.Test(req1, -1)
+	require.NoError(t, err, "first request should not fail")
+
+	body1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err, "should read first response body")
+	require.Equal(t, 201, resp1.StatusCode,
+		"first request (no skip) should return 201, got %d: %s", resp1.StatusCode, string(body1))
+
+	var result1 map[string]any
+	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+	assert.Equal(t, false, result1["feesSkipped"],
+		"first transaction should persist feesSkipped=false (no skip requested)")
+
+	// Wait for the async goroutine to write the idempotency outcome to Redis.
+	time.Sleep(200 * time.Millisecond)
+
+	// Second POST: same key, replayer adds skip.fees=true.
+	req2 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(secondBody))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Idempotency", idempotencyKey)
+	req2.Header.Set("X-TTL", "60")
+
+	resp2, err := infra.app.Test(req2, -1)
+	require.NoError(t, err, "second request should not fail")
+
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err, "should read second response body")
+
+	// MANDATORY assertion: the replay returns the FIRST outcome, the replayer's
+	// differing skip is IGNORED. A 422 here would mean the skip gate ran on the
+	// replay (it must not); a 201 with feesSkipped=true would mean the second
+	// body leaked into the replayed result (it must not).
+	require.Equal(t, 201, resp2.StatusCode,
+		"replay must return 201 (first outcome), NOT 422 from the replayer's skip gate; got %d: %s",
+		resp2.StatusCode, string(body2))
+
+	replayed2 := resp2.Header.Get("X-Idempotency-Replayed")
+	assert.Equal(t, "true", replayed2,
+		"second request should be flagged as a replay, got %q", replayed2)
+
+	var result2 map[string]any
+	require.NoError(t, json.Unmarshal(body2, &result2), "second response should be valid JSON")
+
+	assert.Equal(t, result1["id"], result2["id"],
+		"replay must return the same transaction id as the first request")
+	assert.Equal(t, false, result2["feesSkipped"],
+		"replay must return the FIRST transaction's audit state (feesSkipped=false); the replayer's skip.fees=true is ignored")
+
+	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
+	txID, err := uuid.Parse(result1["id"].(string))
+	require.NoError(t, err, "transaction ID should be valid UUID")
+
+	var dbFeesSkipped, dbTracerSkipped bool
+	err = infra.pgContainer.DB.QueryRow(
+		`SELECT fees_skipped, tracer_skipped FROM transaction WHERE id = $1`, txID,
+	).Scan(&dbFeesSkipped, &dbTracerSkipped)
+	require.NoError(t, err, "should read persisted skip-audit columns")
+	assert.False(t, dbFeesSkipped, "persisted fees_skipped must be false (first outcome, replayer skip ignored)")
+	assert.False(t, dbTracerSkipped, "persisted tracer_skipped must be false")
+}
+
 // TestIntegration_Property_Transaction_Amounts tests that various transaction amount values
 // are handled gracefully without causing 5xx errors. This validates edge cases like
 // negative, zero, very large, and high-precision decimal amounts.

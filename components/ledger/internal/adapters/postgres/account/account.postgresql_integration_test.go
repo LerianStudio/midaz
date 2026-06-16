@@ -2141,6 +2141,113 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 }
 
 // ============================================================================
+// EPIC 4.2: PER-CALL SKIP AUDIT ROUND-TRIP (holder_check_skipped)
+// ============================================================================
+//
+// Runtime proof that the honored holder-check skip flag survives a real squirrel
+// INSERT (column alignment) and reads back true through TWO distinct Scan sites:
+// the single-row Find and the list-derived ListByIDs. A column-order regression
+// in either the INSERT VALUES list or a SELECT/Scan corrupts the flag silently;
+// unit tests cannot catch it because they do not exercise PostgreSQL.
+//
+// Out of integration scope here (already unit-covered, NOT re-proven at this
+// level): the gate's zero-downstream-call invariant (holder existence check
+// never reached) and the settings-read-count==1 invariant. Those are asserted by:
+//   - TestCreateAccountHolderSkip
+//     (components/ledger/internal/services/command/create_account_holder_test.go)
+//     -> honored holder skip means holderReader.calls==0 and
+//        settingsReader.calls==1 (the skip gate rides the single settings read).
+//   - TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422
+//     (pkg/skip/skip_test.go) -> two-key gate truth table + unauthorized 422.
+
+// TestIntegration_AccountRepository_SkipAudit_RoundTrip proves that
+// HolderCheckSkipped persists through repo.Create (squirrel INSERT) and reads
+// back true via BOTH repo.Find (single-row scan) and repo.ListByIDs (list scan),
+// with a false control account confirming the flag is not spuriously set.
+func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Skipped account: holder check skip honored.
+	skippedAlias := fmt.Sprintf("@skip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdSkipped, err := repo.Create(ctx, &mmodel.Account{
+		Name:               "Skip Audit Honored",
+		AssetCode:          "USD",
+		OrganizationID:     orgID.String(),
+		LedgerID:           ledgerID.String(),
+		Status:             mmodel.Status{Code: "ACTIVE"},
+		Alias:              &skippedAlias,
+		Type:               "deposit",
+		Blocked:            &blocked,
+		HolderCheckSkipped: true,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	require.NoError(t, err, "Create with holder_check_skipped should succeed")
+	assert.True(t, createdSkipped.HolderCheckSkipped, "Create should echo holder_check_skipped=true")
+
+	// False control: skip flag not set.
+	controlAlias := fmt.Sprintf("@noskip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdControl, err := repo.Create(ctx, &mmodel.Account{
+		Name:           "Skip Audit Control",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &controlAlias,
+		Type:           "deposit",
+		Blocked:        &blocked,
+		// HolderCheckSkipped left at zero value (false).
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	require.NoError(t, err, "Create control should succeed")
+	assert.False(t, createdControl.HolderCheckSkipped, "control holder_check_skipped should be false")
+
+	skippedID, err := uuid.Parse(createdSkipped.ID)
+	require.NoError(t, err)
+	controlID, err := uuid.Parse(createdControl.ID)
+	require.NoError(t, err)
+
+	t.Run("Find single-row scan reads the flag back", func(t *testing.T) {
+		foundSkipped, err := repo.Find(ctx, orgID, ledgerID, nil, skippedID)
+		require.NoError(t, err)
+		assert.True(t, foundSkipped.HolderCheckSkipped, "Find: skipped account holder_check_skipped should round-trip true")
+
+		foundControl, err := repo.Find(ctx, orgID, ledgerID, nil, controlID)
+		require.NoError(t, err)
+		assert.False(t, foundControl.HolderCheckSkipped, "Find: control holder_check_skipped should round-trip false")
+	})
+
+	t.Run("ListByIDs list scan reads the flag back", func(t *testing.T) {
+		// ListByIDs exercises a DIFFERENT Scan call site than Find, so the
+		// list-derived column order is proven independently here.
+		accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{skippedID, controlID})
+		require.NoError(t, err)
+		require.Len(t, accounts, 2)
+
+		byID := make(map[string]*mmodel.Account, len(accounts))
+		for i := range accounts {
+			byID[accounts[i].ID] = accounts[i]
+		}
+
+		require.Contains(t, byID, createdSkipped.ID)
+		require.Contains(t, byID, createdControl.ID)
+		assert.True(t, byID[createdSkipped.ID].HolderCheckSkipped, "ListByIDs: skipped account holder_check_skipped should round-trip true")
+		assert.False(t, byID[createdControl.ID].HolderCheckSkipped, "ListByIDs: control holder_check_skipped should round-trip false")
+	})
+}
+
+// ============================================================================
 // HolderID Round-Trip and Filter Tests (F1-T03, F1-T12)
 // ============================================================================
 

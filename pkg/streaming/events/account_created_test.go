@@ -171,20 +171,43 @@ func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	// Re-unmarshal as a generic map so we can assert key presence
+	// Re-unmarshal as a generic map so we can assert the key set
 	// without coupling to struct tag ordering.
 	var generic map[string]any
 	require.NoError(t, json.Unmarshal(data, &generic))
 
-	// Required keys present.
-	for _, key := range []string{
-		"id", "organizationId", "ledgerId",
-		"name", "assetCode", "type",
-		"portfolioId", "segmentId", "parentAccountId",
-		"entityId", "holderId", "alias",
-		"status", "blocked", "holderCheckSkipped",
-		"createdAt", "updatedAt",
-	} {
+	// Fail-closed exact-set: the marshaled key set must EQUAL this
+	// expected set. An unexpected new top-level key fails here just as a
+	// missing one does, so additive drift cannot slip onto the wire
+	// unnoticed.
+	expectedKeys := map[string]struct{}{
+		"id":                 {},
+		"organizationId":     {},
+		"ledgerId":           {},
+		"name":               {},
+		"assetCode":          {},
+		"type":               {},
+		"portfolioId":        {},
+		"segmentId":          {},
+		"parentAccountId":    {},
+		"entityId":           {},
+		"holderId":           {},
+		"alias":              {},
+		"status":             {},
+		"blocked":            {},
+		"holderCheckSkipped": {},
+		"createdAt":          {},
+		"updatedAt":          {},
+	}
+
+	// No unexpected key (fail-closed): every actual key must be expected.
+	for key := range generic {
+		_, ok := expectedKeys[key]
+		assert.Truef(t, ok, "wire payload has unexpected top-level key %q (drift?)", key)
+	}
+
+	// No missing key: every expected key must be present.
+	for key := range expectedKeys {
 		_, ok := generic[key]
 		assert.Truef(t, ok, "wire payload must include %q", key)
 	}

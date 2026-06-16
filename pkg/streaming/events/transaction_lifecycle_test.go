@@ -193,13 +193,45 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 	var generic map[string]any
 	require.NoError(t, json.Unmarshal(data, &generic))
 
-	for _, key := range []string{
-		"id", "organizationId", "ledgerId", "status", "amount",
-		"assetCode", "operations", "feesSkipped", "tracerSkipped", "createdAt", "updatedAt",
-	} {
+	// Fail-closed exact-set for the minimal posted payload: the marshaled
+	// key set must EQUAL this expected set. The minimal source leaves
+	// parentTransactionId, routeId and metadata unset (all omitempty), so
+	// they are absent here; every other field is populated and present.
+	// An unexpected new top-level key fails just as a missing one does, so
+	// additive drift cannot slip onto the wire unnoticed.
+	expectedKeys := map[string]struct{}{
+		"id":                       {},
+		"organizationId":           {},
+		"ledgerId":                 {},
+		"status":                   {},
+		"amount":                   {},
+		"assetCode":                {},
+		"chartOfAccountsGroupName": {},
+		"description":              {},
+		"source":                   {},
+		"destination":              {},
+		"route":                    {},
+		"operations":               {},
+		"feesSkipped":              {},
+		"tracerSkipped":            {},
+		"createdAt":                {},
+		"updatedAt":                {},
+	}
+
+	// No unexpected key (fail-closed): every actual key must be expected.
+	for key := range generic {
+		_, ok := expectedKeys[key]
+		assert.Truef(t, ok, "wire payload has unexpected top-level key %q (drift?)", key)
+	}
+
+	// No missing key: every expected key must be present.
+	for key := range expectedKeys {
 		_, ok := generic[key]
 		assert.Truef(t, ok, "wire payload must include %q", key)
 	}
+
+	// Pin the count so additive drift is caught here too.
+	assert.Lenf(t, generic, 16, "expected 16 top-level fields, got %d (drift?)", len(generic))
 
 	_, hasParent := generic["parentTransactionId"]
 	assert.False(t, hasParent, "parentTransactionId must omitempty when nil")
