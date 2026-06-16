@@ -98,7 +98,7 @@ func buildMTLSConfig(cfg *Config) (*tls.Config, error) {
 // parseable certificate, so a misconfigured CA path fails fast instead of
 // yielding an empty pool that rejects every client.
 func loadCertPool(path string) (*x509.CertPool, error) {
-	pem, err := os.ReadFile(path) //nolint:gosec // operator-supplied trusted CA path
+	pem, err := os.ReadFile(path) //#nosec G304 -- operator-supplied trusted CA path
 	if err != nil {
 		return nil, fmt.Errorf("read CA file: %w", err)
 	}

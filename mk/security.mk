@@ -58,10 +58,10 @@ sec-gosec:
 		echo "$(CYAN)Running gosec on $(SEC_SCAN_PATHS)...$(NC)"; \
 		if [ "$(SARIF)" = "1" ]; then \
 			echo "$(YELLOW)Generating SARIF output: gosec-report.sarif$(NC)"; \
-			gosec -fmt sarif -out gosec-report.sarif $(SEC_SCAN_PATHS); \
+			gosec -exclude-generated -fmt sarif -out gosec-report.sarif $(SEC_SCAN_PATHS); \
 			echo "$(GREEN)$(BOLD)[ok]$(NC) SARIF report generated: gosec-report.sarif$(GREEN) ✔️$(NC)"; \
 		else \
-			gosec $(SEC_SCAN_PATHS); \
+			gosec -exclude-generated $(SEC_SCAN_PATHS); \
 		fi; \
 	else \
 		echo "$(YELLOW)No Go files found, skipping gosec$(NC)"; \

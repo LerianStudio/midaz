@@ -232,9 +232,9 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		libOtel.HandleSpanBusinessErrorEvent(span, "expression cost exceeds limit", costErr)
 
 		span.SetAttributes(
-			attribute.Int64("app.cost_estimate_min", int64(costEstimate.Min)),
-			attribute.Int64("app.cost_estimate_max", int64(costEstimate.Max)),
-			attribute.Int64("app.cost_limit", int64(a.costLimit)),
+			attribute.Int64("app.cost_estimate_min", safeCostI64(costEstimate.Min)),
+			attribute.Int64("app.cost_estimate_max", safeCostI64(costEstimate.Max)),
+			attribute.Int64("app.cost_limit", safeCostI64(a.costLimit)),
 			attribute.Bool("app.cost_exceeded", true),
 		)
 
@@ -242,9 +242,9 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	}
 
 	span.SetAttributes(
-		attribute.Int64("app.cost_estimate_min", int64(costEstimate.Min)),
-		attribute.Int64("app.cost_estimate_max", int64(costEstimate.Max)),
-		attribute.Int64("app.cost_limit", int64(a.costLimit)),
+		attribute.Int64("app.cost_estimate_min", safeCostI64(costEstimate.Min)),
+		attribute.Int64("app.cost_estimate_max", safeCostI64(costEstimate.Max)),
+		attribute.Int64("app.cost_limit", safeCostI64(a.costLimit)),
 		attribute.Bool("app.cost_exceeded", false),
 	)
 
@@ -351,6 +351,13 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	)
 
 	return result, nil
+}
+
+// safeCostI64 converts a bounded CEL cost (capped by CEL_COST_LIMIT) to int64 for
+// telemetry. Overflow is unreachable for realistic costs and would only mis-report a
+// span attribute, never a security or control decision.
+func safeCostI64(u uint64) int64 {
+	return int64(u) //#nosec G115 -- bounded CEL cost, telemetry only
 }
 
 // Ensure Adapter implements ExpressionEngine at compile time.
