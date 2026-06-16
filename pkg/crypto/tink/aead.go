@@ -156,7 +156,7 @@ func extractKeysetInfo(handle *keyset.Handle, purpose keyPurpose) (KeysetInfo, e
 func determineKeyType(_ string, purpose keyPurpose) KeyType {
 	// Tink type URLs follow the pattern: type.googleapis.com/google.crypto.tink.*
 	// For AES-GCM: type.googleapis.com/google.crypto.tink.AesGcmKey
-	// For HMAC (MAC and PRF both use HmacKey/HmacPrfKey): type.googleapis.com/google.crypto.tink.Hmac*Key
+	// For HMAC key URLs: type.googleapis.com/google.crypto.tink.Hmac*Key
 	// Currently we infer the type from the keyset purpose supplied by the owning generator.
 	// Future enhancement: parse typeURL to detect specific algorithm variants.
 	switch purpose {
@@ -165,8 +165,8 @@ func determineKeyType(_ string, purpose keyPurpose) KeyType {
 	case keyPurposeAEAD:
 		return KeyTypeAES256GCM
 	default:
-		// No producer supplies a MAC purpose today; the default preserves the
-		// legacy HMAC-SHA256 label for any HMAC keyset inspected directly.
+		// Preserve the legacy HMAC-SHA256 label for keysets inspected without an
+		// owning purpose; current generators supply AEAD or PRF purposes.
 		return KeyTypeHMACSHA256
 	}
 }

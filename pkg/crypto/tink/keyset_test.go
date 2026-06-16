@@ -93,45 +93,6 @@ func TestKeyType_IsAEADType(t *testing.T) {
 	}
 }
 
-func TestKeyType_IsMACType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		keyType  KeyType
-		expected bool
-	}{
-		{
-			name:     "HMAC_SHA256 is MAC",
-			keyType:  KeyTypeHMACSHA256,
-			expected: true,
-		},
-		{
-			name:     "LEGACY_HMAC_SHA256 is MAC",
-			keyType:  KeyTypeLegacyHMACSHA256,
-			expected: true,
-		},
-		{
-			name:     "AES256_GCM is not MAC",
-			keyType:  KeyTypeAES256GCM,
-			expected: false,
-		},
-		{
-			name:     "LEGACY_AES_GCM is not MAC",
-			keyType:  KeyTypeLegacyAESGCM,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.expected, tt.keyType.IsMACType())
-		})
-	}
-}
-
 func TestKeyType_IsLegacy(t *testing.T) {
 	t.Parallel()
 
@@ -261,7 +222,7 @@ func TestKeysetInfo_HasLegacyKey(t *testing.T) {
 		assert.True(t, info.HasLegacyKey())
 	})
 
-	t.Run("returns true when keyset has legacy MAC key", func(t *testing.T) {
+	t.Run("returns true when keyset has legacy HMAC PRF key", func(t *testing.T) {
 		t.Parallel()
 
 		info := KeysetInfo{

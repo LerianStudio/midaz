@@ -475,7 +475,7 @@ func TestFieldEncryptor_GenerateSearchTokenCandidates(t *testing.T) {
 			fieldName:       "document",
 			normalizedValue: "12345678900",
 			mockTokens:      nil,
-			mockErr:         errors.New("MAC primitive construction failed"),
+			mockErr:         errors.New("PRF primitive construction failed"),
 			wantTokens:      nil,
 			wantErr:         true,
 		},

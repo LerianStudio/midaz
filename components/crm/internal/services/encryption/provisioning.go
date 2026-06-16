@@ -163,7 +163,7 @@ type ProvisionResult struct {
 	OrganizationID   string
 	KEKPath          string
 	AEADPrimaryKeyID uint32
-	MACPrimaryKeyID  uint32
+	PRFPrimaryKeyID  uint32
 	RegistryStatus   mmodel.RegistryStatus
 }
 
@@ -174,7 +174,7 @@ type ProvisionResult struct {
 // the existing provisioning info without error.
 //
 // Steps for new provisioning:
-//  1. Generates AEAD and MAC keysets
+//  1. Generates AEAD and PRF keysets
 //  2. Wraps keysets with the organization's KEK via KMS
 //  3. Persists wrapped keysets to storage
 //  4. Creates registry record in active status
@@ -255,15 +255,16 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
 	}
 
-	// Generate PRF keyset for search tokens (stored in the WrappedHMACKeyset slot).
+	// Generate PRF keyset for search tokens. The existing WrappedHMACKeyset slot
+	// name is retained for storage-format compatibility.
 	// Provider timing is measured here at the service boundary and recorded even on
-	// failure. The wrap error-code label is retained as a stable metric value.
+	// failure.
 	prfWrapStart := time.Now()
 	prfBundle, err := s.keysetGenerator.GeneratePRFKeyset(ctx, mount, kekPath)
 	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(prfWrapStart).Milliseconds())
 
 	if err != nil {
-		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapMACFailed)
+		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapPRFFailed)
 
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
 	}
@@ -361,8 +362,8 @@ func provisioningAuditDetails(result ProvisionResult, outcome mmodel.AuditOutcom
 			keyIDs = append(keyIDs, result.AEADPrimaryKeyID)
 		}
 
-		if result.MACPrimaryKeyID != 0 {
-			keyIDs = append(keyIDs, result.MACPrimaryKeyID)
+		if result.PRFPrimaryKeyID != 0 {
+			keyIDs = append(keyIDs, result.PRFPrimaryKeyID)
 		}
 
 		return &mmodel.AuditDetails{
@@ -420,7 +421,7 @@ func (s *provisioningService) handleExistingKeyset(ctx context.Context, req Prov
 
 // createAndSaveRegistry creates a registry record and saves it.
 // Idempotent: if registry already exists (concurrent provisioning race), returns existing result.
-func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, macKeyID uint32) (ProvisionResult, mmodel.AuditOutcome, error) {
+func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req ProvisionInput, kekPath string, aeadKeyID, prfKeyID uint32) (ProvisionResult, mmodel.AuditOutcome, error) {
 	// Create registry record in active status
 	registry, err := mmodel.NewOrganizationRegistryRecord(req.TenantID, req.OrganizationID, req.Actor, req.Reason)
 	if err != nil {
@@ -446,7 +447,7 @@ func (s *provisioningService) createAndSaveRegistry(ctx context.Context, req Pro
 		OrganizationID:   req.OrganizationID,
 		KEKPath:          kekPath,
 		AEADPrimaryKeyID: aeadKeyID,
-		MACPrimaryKeyID:  macKeyID,
+		PRFPrimaryKeyID:  prfKeyID,
 		RegistryStatus:   mmodel.RegistryStatusActive,
 	}, mmodel.AuditOutcomeSuccess, nil
 }
@@ -480,7 +481,7 @@ func (s *provisioningService) getExistingProvisionResult(ctx context.Context, or
 		OrganizationID:   organizationID,
 		KEKPath:          keyset.KEKPath,
 		AEADPrimaryKeyID: keyset.KeysetInfo.PrimaryKeyID,
-		MACPrimaryKeyID:  keyset.HMACKeysetInfo.PrimaryKeyID,
+		PRFPrimaryKeyID:  keyset.HMACKeysetInfo.PrimaryKeyID,
 		RegistryStatus:   registry.Status,
 	}, nil
 }

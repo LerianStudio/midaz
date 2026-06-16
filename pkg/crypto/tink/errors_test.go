@@ -110,16 +110,6 @@ func TestClassifyError(t *testing.T) {
 			expected: ErrorCategoryCrypto,
 		},
 		{
-			name:     "MAC computation failed sentinel",
-			err:      ErrMACComputationFailed,
-			expected: ErrorCategoryCrypto,
-		},
-		{
-			name:     "MAC verification failed sentinel",
-			err:      ErrMACVerificationFailed,
-			expected: ErrorCategoryCrypto,
-		},
-		{
 			name:     "keyset corrupted sentinel",
 			err:      ErrKeysetCorrupted,
 			expected: ErrorCategoryCrypto,
@@ -132,11 +122,6 @@ func TestClassifyError(t *testing.T) {
 		{
 			name:     "encrypt error string",
 			err:      fmt.Errorf("failed to encrypt data"),
-			expected: ErrorCategoryCrypto,
-		},
-		{
-			name:     "mac error string",
-			err:      fmt.Errorf("mac computation error"),
 			expected: ErrorCategoryCrypto,
 		},
 		{
@@ -335,8 +320,6 @@ func TestSentinelErrors(t *testing.T) {
 			ErrKeysetCorrupted,
 			ErrDecryptionFailed,
 			ErrEncryptionFailed,
-			ErrMACComputationFailed,
-			ErrMACVerificationFailed,
 			ErrKMSUnavailable,
 			ErrInvalidKeyName,
 		}

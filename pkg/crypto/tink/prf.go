@@ -47,7 +47,7 @@ func (g *PRFKeysetGenerator) ExtractInfo(handle *keyset.Handle) (KeysetInfo, err
 }
 
 // PRFPrimitive wraps a Tink PRF set for computing deterministic search tokens.
-// PRF output is RAW (no Tink key-id prefix), unlike the MAC primitive.
+// PRF output is RAW (no Tink key-id prefix).
 type PRFPrimitive struct {
 	set *prf.Set
 }
@@ -184,4 +184,20 @@ func (p *PRFMultiPrimitive) ComputeSearchTokenCandidates(data []byte) ([]string,
 	}
 
 	return tokens, nil
+}
+
+// createSingleKeyHandle creates a keyset handle containing only the specified key entry.
+func createSingleKeyHandle(entry *keyset.Entry) (*keyset.Handle, error) {
+	manager := keyset.NewManager()
+
+	keyID, err := manager.AddKey(entry.Key())
+	if err != nil {
+		return nil, fmt.Errorf("failed to add key to manager: %w", err)
+	}
+
+	if err := manager.SetPrimary(keyID); err != nil {
+		return nil, fmt.Errorf("failed to set primary key: %w", err)
+	}
+
+	return manager.Handle()
 }

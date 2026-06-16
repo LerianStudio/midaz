@@ -7,6 +7,7 @@ package encryption
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -14,7 +15,9 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -194,3 +197,123 @@ func TestSafeAuditLogFields_PopulatedEvent(t *testing.T) {
 	assert.Contains(t, keys, "event_type")
 	assert.Contains(t, keys, "outcome")
 }
+
+// spyQueryRepo is a controllable audit.Repository test double for the read path.
+// It captures the organizationID and query handed to FindByOrganization and
+// returns a configurable fixed result, so tests can assert the use case passes
+// everything through and returns the repository output verbatim. Create is
+// present only to satisfy the audit.Repository interface; the query use case
+// never calls it.
+type spyQueryRepo struct {
+	gotOrganizationID string
+	gotQuery          audit.AuditQuery
+	calls             int
+
+	events     []*mmodel.ProtectionAuditEvent
+	pagination libHTTP.CursorPagination
+	err        error
+}
+
+func (s *spyQueryRepo) Create(_ context.Context, _ *mmodel.ProtectionAuditEvent) error {
+	return nil
+}
+
+func (s *spyQueryRepo) FindByOrganization(_ context.Context, organizationID string, query audit.AuditQuery) ([]*mmodel.ProtectionAuditEvent, libHTTP.CursorPagination, error) {
+	s.calls++
+	s.gotOrganizationID = organizationID
+	s.gotQuery = query
+
+	return s.events, s.pagination, s.err
+}
+
+func sampleAuditEvents() []*mmodel.ProtectionAuditEvent {
+	return []*mmodel.ProtectionAuditEvent{
+		{ID: uuid.New(), OrganizationID: "org-1", EventType: mmodel.AuditEventTypeProvisioning},
+		{ID: uuid.New(), OrganizationID: "org-1", EventType: mmodel.AuditEventTypeProvisioning},
+	}
+}
+
+func TestAuditQueryService_GetAuditEvents_ReturnsRepositoryOutputVerbatim(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	want := sampleAuditEvents()
+	repo := &spyQueryRepo{
+		events:     want,
+		pagination: libHTTP.CursorPagination{Next: "n", Prev: "p"},
+	}
+
+	svc := NewAuditQueryService(repo)
+
+	query := audit.AuditQuery{Limit: 50, SortOrder: "asc", Cursor: "c0"}
+
+	got, pagination, err := svc.GetAuditEvents(ctx, "org-1", query)
+
+	require.NoError(t, err)
+	assert.Equal(t, want, got, "events must be returned verbatim")
+	assert.Equal(t, libHTTP.CursorPagination{Next: "n", Prev: "p"}, pagination, "pagination must be returned verbatim")
+
+	assert.Equal(t, 1, repo.calls)
+	assert.Equal(t, "org-1", repo.gotOrganizationID)
+	assert.Equal(t, query, repo.gotQuery, "query must be passed straight through, not re-clamped or re-defaulted")
+}
+
+func TestAuditQueryService_GetAuditEvents_EmptyResult(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	repo := &spyQueryRepo{
+		events:     []*mmodel.ProtectionAuditEvent{},
+		pagination: libHTTP.CursorPagination{},
+	}
+
+	svc := NewAuditQueryService(repo)
+
+	got, pagination, err := svc.GetAuditEvents(ctx, "org-1", audit.AuditQuery{})
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	assert.Equal(t, libHTTP.CursorPagination{}, pagination)
+}
+
+func TestAuditQueryService_GetAuditEvents_InvalidCursorPropagatedUnchanged(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	repo := &spyQueryRepo{err: libHTTP.ErrInvalidCursor}
+
+	svc := NewAuditQueryService(repo)
+
+	got, pagination, err := svc.GetAuditEvents(ctx, "org-1", audit.AuditQuery{Cursor: "bad"})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, libHTTP.ErrInvalidCursor, "invalid-cursor error must be propagated unchanged")
+	assert.Nil(t, got)
+	assert.Equal(t, libHTTP.CursorPagination{}, pagination)
+}
+
+func TestAuditQueryService_GetAuditEvents_WrappedRepoErrorPropagatedUnchanged(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	sentinel := fmt.Errorf("mongo unavailable")
+	repo := &spyQueryRepo{err: sentinel}
+
+	svc := NewAuditQueryService(repo)
+
+	_, _, err := svc.GetAuditEvents(ctx, "org-1", audit.AuditQuery{})
+
+	require.Error(t, err)
+	assert.Same(t, sentinel, err, "repository error must be returned unchanged (handler maps to HTTP status)")
+}
+
+// Compile-time assertions that the spy satisfies the read contract and that the
+// implementation satisfies the exported AuditQueryService interface.
+var (
+	_ audit.Repository  = (*spyQueryRepo)(nil)
+	_ AuditQueryService = (*auditQueryService)(nil)
+)

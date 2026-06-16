@@ -85,8 +85,6 @@ func TestExtractKeysetInfo_TypeLabelingByPurpose(t *testing.T) {
 	t.Run("unknown purpose defaults to HMAC_SHA256 label", func(t *testing.T) {
 		t.Parallel()
 
-		// No producer supplies a MAC purpose anymore; the default branch keeps the
-		// legacy HMAC-SHA256 label, exercised here via an out-of-range purpose.
 		handle, _, err := NewPRFKeysetGenerator().Generate()
 		require.NoError(t, err)
 

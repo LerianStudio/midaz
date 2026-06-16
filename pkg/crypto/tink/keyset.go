@@ -3,7 +3,7 @@
 // that can be found in the LICENSE file.
 
 // Package tink provides cryptographic primitives using Google Tink library.
-// It offers AEAD encryption (AES256-GCM) and MAC operations (HMAC-SHA256)
+// It offers AEAD encryption (AES256-GCM) and PRF-based search tokens (HMAC-SHA256)
 // with support for keyset wrapping through external KMS providers.
 //
 // This package is domain-agnostic and does not contain any business logic.
@@ -40,7 +40,7 @@ const (
 	KeyTypeAES256GCM KeyType = "AES256_GCM"
 	// KeyTypeLegacyAESGCM represents a legacy AES-GCM key imported from a previous system.
 	KeyTypeLegacyAESGCM KeyType = "LEGACY_AES_GCM"
-	// KeyTypeHMACSHA256 represents a standard Tink HMAC-SHA256 key for MAC operations.
+	// KeyTypeHMACSHA256 preserves the legacy HMAC-SHA256 compatibility label.
 	KeyTypeHMACSHA256 KeyType = "HMAC_SHA256"
 	// KeyTypeLegacyHMACSHA256 represents a legacy HMAC-SHA256 key imported from a previous system.
 	KeyTypeLegacyHMACSHA256 KeyType = "LEGACY_HMAC_SHA256"
@@ -51,11 +51,6 @@ const (
 // IsAEADType returns true if the key type is an AEAD key.
 func (t KeyType) IsAEADType() bool {
 	return t == KeyTypeAES256GCM || t == KeyTypeLegacyAESGCM
-}
-
-// IsMACType returns true if the key type is a MAC key.
-func (t KeyType) IsMACType() bool {
-	return t == KeyTypeHMACSHA256 || t == KeyTypeLegacyHMACSHA256
 }
 
 // IsLegacy returns true if the key type is a legacy key.

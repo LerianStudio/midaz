@@ -311,7 +311,7 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(prfStart).Milliseconds())
 
 	if err != nil {
-		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapMACFailed)
+		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapPRFFailed)
 		libOpenTelemetry.HandleSpanError(span, "failed to unwrap PRF keyset", err)
 
 		// Wrap with %w so callers can errors.Is(vault.ErrMountNotFound) (fail-closed).

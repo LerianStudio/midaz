@@ -74,8 +74,8 @@ type LegacyCrypto interface {
 // Used only in envelope mode (KMS_VENDOR=hashicorp-vault) for reading legacy data
 // during migration. Implements LegacyCrypto interface.
 type LegacyKeyMaterial struct {
-	aead *cryptoTink.AEADPrimitive
-	mac  *cryptoTink.LegacyMACPrimitive
+	aead    *cryptoTink.AEADPrimitive
+	hashPRF *cryptoTink.LegacyPRFPrimitive
 }
 
 // NewLegacyKeyMaterial creates Tink-backed primitives from legacy key material.
@@ -87,12 +87,12 @@ func NewLegacyKeyMaterial(encryptHexKey, hashSecretKey string) (*LegacyKeyMateri
 		return nil, fmt.Errorf("initialize legacy AES-GCM import: %w", err)
 	}
 
-	macPrimitive, err := cryptoTink.NewLegacyMACPrimitiveFromSecret(hashSecretKey)
+	hashPRFPrimitive, err := cryptoTink.NewLegacyPRFPrimitiveFromSecret(hashSecretKey)
 	if err != nil {
 		return nil, fmt.Errorf("initialize legacy HMAC import: %w", err)
 	}
 
-	return &LegacyKeyMaterial{aead: aeadPrimitive, mac: macPrimitive}, nil
+	return &LegacyKeyMaterial{aead: aeadPrimitive, hashPRF: hashPRFPrimitive}, nil
 }
 
 // Encrypt implements LegacyCrypto interface using Tink AES-GCM with RAW prefix.
@@ -141,7 +141,7 @@ func (m *LegacyKeyMaterial) GenerateHash(value *string) string {
 		return ""
 	}
 
-	token, err := m.mac.ComputeLegacyHexToken([]byte(*value))
+	token, err := m.hashPRF.ComputeLegacyHexToken([]byte(*value))
 	if err != nil {
 		return ""
 	}
