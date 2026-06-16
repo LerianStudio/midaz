@@ -958,6 +958,26 @@ func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transac
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
 }
 
+// resolveTransactionSkips resolves the two per-call control skips (fees, tracer)
+// off the already-read ledger settings, with no extra I/O. Each skip is honored
+// only when the request asks for it AND the ledger opts in via its override; a
+// skip requested without the matching opt-in returns the 422 business error plus
+// the log/span label naming the rejected control, so the caller emits a single
+// error branch for both controls.
+func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.LedgerSettings) (feeSkip, tracerSkip bool, rejectLabel string, err error) {
+	feeSkip, err = skip.ResolveSkipFor("fees", input.Skip != nil && input.Skip.Fees, settings.Overrides.AllowFeeSkip)
+	if err != nil {
+		return false, false, "Fee skip not permitted", err
+	}
+
+	tracerSkip, err = skip.ResolveSkipFor("tracer", input.Skip != nil && input.Skip.Tracer, settings.Overrides.AllowTracerSkip)
+	if err != nil {
+		return false, false, "Tracer skip not permitted", err
+	}
+
+	return feeSkip, tracerSkip, "", nil
+}
+
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
 func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
@@ -1072,28 +1092,15 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		return http.WithError(c, err)
 	}
 
-	// Resolve the per-call fee skip once, off the settings just read (no extra
-	// I/O). An honored skip short-circuits applyFees below before the fee package
-	// lookup; a skip requested without the per-ledger opt-in is a 422 — release
-	// the idempotency key and reject.
-	honoredFeeSkip, err := skip.ResolveSkipFor("fees", transactionInput.Skip != nil && transactionInput.Skip.Fees, ledgerSettings.Overrides.AllowFeeSkip)
+	// Resolve the two per-call skips (fees, tracer) once, off the settings just
+	// read — no extra I/O. An honored fee skip short-circuits applyFees below
+	// before the fee package lookup; an honored tracer skip short-circuits the
+	// reserve anchor. A skip requested without the per-ledger opt-in is a 422:
+	// release the idempotency key and reject.
+	honoredFeeSkip, honoredTracerSkip, skipRejectLabel, err := resolveTransactionSkips(transactionInput, ledgerSettings)
 	if err != nil {
-		handleSpanByErrorClass(span, "Fee skip not permitted", err)
-		logger.Log(ctx, libLog.LevelWarn, "Fee skip not permitted", libLog.Err(err))
-
-		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
-
-		return http.WithError(c, err)
-	}
-
-	// Resolve the per-call tracer skip once, off the same settings read. An
-	// honored skip short-circuits the reserve anchor below; a skip requested
-	// without the per-ledger opt-in is a 422 — release the idempotency key and
-	// reject, mirroring the fee skip path above.
-	honoredTracerSkip, err := skip.ResolveSkipFor("tracer", transactionInput.Skip != nil && transactionInput.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
-	if err != nil {
-		handleSpanByErrorClass(span, "Tracer skip not permitted", err)
-		logger.Log(ctx, libLog.LevelWarn, "Tracer skip not permitted", libLog.Err(err))
+		handleSpanByErrorClass(span, skipRejectLabel, err)
+		logger.Log(ctx, libLog.LevelWarn, skipRejectLabel, libLog.Err(err))
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 

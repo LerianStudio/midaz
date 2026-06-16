@@ -59,7 +59,7 @@ func findFuncDecl(t *testing.T, src, name string) *ast.FuncDecl {
 // create-path tracer-skip wiring relies on, all within executeCreateTransaction.
 type createSkipSeamMetrics struct {
 	settingsPos        int  // index of the GetParsedLedgerSettings call (-1 if absent)
-	resolveSkipPos     int  // index of the skip.ResolveSkipFor call (-1)
+	resolveSkipPos     int  // index of the resolveTransactionSkips call (-1)
 	reservePos         int  // index of the reserveTransaction call (-1)
 	rejectDeleteIdemp  bool // the ResolveSkipFor-error branch releases the idempotency key
 	rejectReturns      bool // that branch returns (does not fall through to the reserve)
@@ -67,8 +67,9 @@ type createSkipSeamMetrics struct {
 }
 
 // analyzeCreateSkipSeam walks executeCreateTransaction and extracts the tracer-skip
-// resolution facts. The 422 guard is the `if err != nil` that immediately follows
-// the `honoredTracerSkip, err := skip.ResolveSkipFor(...)` assignment.
+// resolution facts. The skip is resolved through the resolveTransactionSkips helper
+// (which calls skip.ResolveSkipFor for both controls); the 422 guard is the
+// `if err != nil` that immediately follows that resolution call.
 func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
 	t.Helper()
 
@@ -81,7 +82,7 @@ func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
 			m.settingsPos = i
 		}
 
-		if m.resolveSkipPos == -1 && stmtCallsFunc(stmt, "ResolveSkipFor") {
+		if m.resolveSkipPos == -1 && stmtCallsFunc(stmt, "resolveTransactionSkips") {
 			m.resolveSkipPos = i
 		}
 
@@ -152,7 +153,7 @@ func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
 	m := analyzeCreateSkipSeam(t, src)
 
 	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings call not found")
-	require.NotEqual(t, -1, m.resolveSkipPos, "skip.ResolveSkipFor call not found")
+	require.NotEqual(t, -1, m.resolveSkipPos, "resolveTransactionSkips call not found")
 	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found")
 
 	assert.Greater(t, m.resolveSkipPos, m.settingsPos,
@@ -167,6 +168,22 @@ func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
 
 	assert.True(t, m.reserveCarriesFlag,
 		"reserveTransaction must receive the resolved honoredTracerSkip flag")
+
+	// The orchestrator delegates resolution to resolveTransactionSkips; prove that
+	// helper terminates at the real two-key gate (skip.ResolveSkipFor) rather than a
+	// stub, so the displaced authz call-site fact stays covered after the extraction.
+	helper := findFuncDecl(t, src, "resolveTransactionSkips")
+	callsResolver := false
+
+	for _, stmt := range helper.Body.List {
+		if stmtCallsFunc(stmt, "ResolveSkipFor") {
+			callsResolver = true
+			break
+		}
+	}
+
+	assert.True(t, callsResolver,
+		"resolveTransactionSkips must call skip.ResolveSkipFor — the orchestrator's skip must terminate at the real two-key gate")
 }
 
 // TestExecuteCreateTransaction_TracerSkip_Bites proves the create-path analyzer
@@ -176,7 +193,7 @@ func TestExecuteCreateTransaction_TracerSkip_Bites(t *testing.T) {
 	leaky := `package in
 func (handler *TransactionHandler) executeCreateTransaction() error {
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings()
-	honoredTracerSkip, err := skip.ResolveSkipFor()
+	honoredTracerSkip, err := resolveTransactionSkips()
 	if err != nil {
 		// BUG: neither releases the idempotency key nor returns
 		_ = err
@@ -190,7 +207,7 @@ func (handler *TransactionHandler) executeCreateTransaction() error {
 
 	m := analyzeCreateSkipSeam(t, leaky)
 
-	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: ResolveSkipFor must be present")
+	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: resolveTransactionSkips must be present")
 	require.NotEqual(t, -1, m.reservePos, "fixture sanity: reserveTransaction must be present")
 
 	assert.False(t, m.rejectDeleteIdemp, "gate failed to bite: a 422 branch with no release was reported as releasing")
@@ -200,7 +217,7 @@ func (handler *TransactionHandler) executeCreateTransaction() error {
 	correct := `package in
 func (handler *TransactionHandler) executeCreateTransaction() error {
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings()
-	honoredTracerSkip, err := skip.ResolveSkipFor()
+	honoredTracerSkip, err := resolveTransactionSkips()
 	if err != nil {
 		handler.deleteIdempotencyKey()
 		return handler.WithError(err)
