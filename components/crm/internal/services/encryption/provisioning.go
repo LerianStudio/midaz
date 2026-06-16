@@ -49,7 +49,7 @@ const EntityOrganizationEncryption = "OrganizationEncryption"
 // keyName is the per-organization KEK key name (org-{id}).
 type KeysetGenerator interface {
 	GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
-	GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
+	GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
 }
 
 // ProvisioningConfig holds configuration for the ProvisioningService.
@@ -250,16 +250,17 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
 	}
 
-	// Check context before generating MAC keyset
+	// Check context before generating PRF keyset
 	if err := ctx.Err(); err != nil {
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
 	}
 
-	// Generate MAC keyset. Provider timing is measured here at the service
-	// boundary and recorded even on failure.
-	macWrapStart := time.Now()
-	macBundle, err := s.keysetGenerator.GenerateMACKeyset(ctx, mount, kekPath)
-	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(macWrapStart).Milliseconds())
+	// Generate PRF keyset for search tokens (stored in the WrappedHMACKeyset slot).
+	// Provider timing is measured here at the service boundary and recorded even on
+	// failure. The wrap error-code label is retained as a stable metric value.
+	prfWrapStart := time.Now()
+	prfBundle, err := s.keysetGenerator.GeneratePRFKeyset(ctx, mount, kekPath)
+	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(prfWrapStart).Milliseconds())
 
 	if err != nil {
 		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapMACFailed)
@@ -276,8 +277,8 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		KEKMountPath:      mount,
 		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
 		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
-		WrappedHMACKeyset: macBundle.Wrapped.WrappedData,
-		HMACKeysetInfo:    convertKeysetInfo(macBundle.Wrapped.Info),
+		WrappedHMACKeyset: prfBundle.Wrapped.WrappedData,
+		HMACKeysetInfo:    convertKeysetInfo(prfBundle.Wrapped.Info),
 		Revision:          1,
 		CreatedAt:         now,
 	}
@@ -294,7 +295,7 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	}
 
 	// Create and save registry record
-	return s.createAndSaveRegistry(ctx, req, kekPath, aeadBundle.Wrapped.Info.PrimaryKeyID, macBundle.Wrapped.Info.PrimaryKeyID)
+	return s.createAndSaveRegistry(ctx, req, kekPath, aeadBundle.Wrapped.Info.PrimaryKeyID, prfBundle.Wrapped.Info.PrimaryKeyID)
 }
 
 // emitProvisioningAudit builds and emits exactly one best-effort provisioning

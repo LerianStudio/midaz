@@ -213,23 +213,23 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 	})
 }
 
-func TestKeysetFactory_GenerateMACKeyset(t *testing.T) {
+func TestKeysetFactory_GeneratePRFKeyset(t *testing.T) {
 	t.Parallel()
 
-	t.Run("generates and wraps MAC keyset", func(t *testing.T) {
+	t.Run("generates and wraps PRF keyset", func(t *testing.T) {
 		t.Parallel()
 
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
 		assert.NotEmpty(t, bundle.RawKeyset)
 		assert.NotZero(t, bundle.Wrapped.Info.PrimaryKeyID)
 		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
-		assert.Equal(t, KeyTypeHMACSHA256, bundle.Wrapped.Info.Keys[0].Type)
+		assert.Equal(t, KeyTypeHMACPRF, bundle.Wrapped.Info.Keys[0].Type)
 		assert.False(t, bundle.Wrapped.LegacyKeyImported)
 		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
 	})
@@ -241,7 +241,7 @@ func TestKeysetFactory_GenerateMACKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
+		_, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
 
 		require.Error(t, err)
 	})
@@ -293,31 +293,33 @@ func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
 	})
 }
 
-func TestKeysetFactory_UnwrapMAC(t *testing.T) {
+func TestKeysetFactory_UnwrapPRF(t *testing.T) {
 	t.Parallel()
 
-	t.Run("unwraps and returns working MAC primitive", func(t *testing.T) {
+	t.Run("unwraps and returns working PRF primitive", func(t *testing.T) {
 		t.Parallel()
 
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
 		// Generate keyset first
-		bundle, err := factory.GenerateMACKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
 		require.NoError(t, err)
 
-		// Unwrap MAC keyset
-		primitive, err := factory.UnwrapMAC(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		// Unwrap PRF keyset
+		primitive, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
 		require.NoError(t, err)
 		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
 
-		// Test that primitive works
+		// Test that primitive works: deterministic search token over RAW PRF output.
 		data := []byte("data to mac")
-		tag, err := primitive.ComputeMAC(data)
+		token1, err := primitive.ComputeSearchToken(data)
 		require.NoError(t, err)
 
-		err = primitive.VerifyMAC(tag, data)
+		token2, err := primitive.ComputeSearchToken(data)
 		require.NoError(t, err)
+
+		assert.Equal(t, token1, token2)
 	})
 
 	t.Run("fails on KMS decryption error", func(t *testing.T) {
@@ -332,7 +334,7 @@ func TestKeysetFactory_UnwrapMAC(t *testing.T) {
 
 		kms.decryptErr = fmt.Errorf("permission denied")
 
-		_, err := factory.UnwrapMAC(context.Background(), "transit/tenant-x", "test-key", wrapped)
+		_, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", wrapped)
 
 		require.Error(t, err)
 	})
@@ -393,25 +395,25 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		// Generate MAC keyset
+		// Generate PRF keyset
 		mountPath := "transit/tenant-abc"
 		keyName := "tenant/abc/entity/123"
-		bundle, err := factory.GenerateMACKeyset(context.Background(), mountPath, keyName)
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 
-		// Unwrap MAC for search tokens
-		macPrimitive, err := factory.UnwrapMAC(context.Background(), mountPath, keyName, bundle.Wrapped)
+		// Unwrap PRF for search tokens
+		prfPrimitive, err := factory.UnwrapPRF(context.Background(), mountPath, keyName, bundle.Wrapped)
 		require.NoError(t, err)
 
 		// Generate search token for email
 		email := []byte("john@example.com")
-		token, err := macPrimitive.ComputeSearchToken(email)
+		token, err := prfPrimitive.ComputeSearchToken(email)
 		require.NoError(t, err)
 
 		// Simulate storage...
 
 		// Later, search by generating same token
-		searchToken, err := macPrimitive.ComputeSearchToken(email)
+		searchToken, err := prfPrimitive.ComputeSearchToken(email)
 		require.NoError(t, err)
 
 		assert.Equal(t, token, searchToken)

@@ -195,7 +195,7 @@ func (f *fakeKeysetGenerator) GenerateAEADKeyset(_ context.Context, mountPath, _
 	}, nil
 }
 
-func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, mountPath, _ string) (tink.KeysetBundle, error) {
+func (f *fakeKeysetGenerator) GeneratePRFKeyset(_ context.Context, mountPath, _ string) (tink.KeysetBundle, error) {
 	f.macCalled++
 	f.callSequencer++
 	f.macMountPath = mountPath
@@ -214,21 +214,21 @@ func (f *fakeKeysetGenerator) GenerateMACKeyset(_ context.Context, mountPath, _ 
 
 	return tink.KeysetBundle{
 		Wrapped: tink.WrappedKeyset{
-			WrappedData: "vault:v1:wrapped-mac-data",
+			WrappedData: "vault:v1:wrapped-prf-data",
 			Info: tink.KeysetInfo{
 				PrimaryKeyID: keyID,
 				Keys: []tink.KeyInfo{
 					{
 						KeyID:     keyID,
 						Status:    tink.KeyStatusEnabled,
-						Type:      tink.KeyTypeHMACSHA256,
+						Type:      tink.KeyTypeHMACPRF,
 						IsPrimary: true,
 					},
 				},
 			},
 			LegacyKeyImported: false,
 		},
-		RawKeyset: []byte("raw-mac-keyset"),
+		RawKeyset: []byte("raw-prf-keyset"),
 	}, nil
 }
 
@@ -349,6 +349,11 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	assert.Equal(t, "org-456", savedKeyset.OrganizationID)
 	assert.NotEmpty(t, savedKeyset.WrappedKeyset)
 	assert.NotEmpty(t, savedKeyset.WrappedHMACKeyset)
+
+	// The search-token keyset (stored in the HMAC slot) must now be a PRF keyset.
+	require.NotEmpty(t, savedKeyset.HMACKeysetInfo.Keys)
+	assert.Equal(t, string(tink.KeyTypeHMACPRF), savedKeyset.HMACKeysetInfo.Keys[0].Type,
+		"provisioned search-token keyset must be of type HMAC_PRF")
 
 	// Verify registry was saved
 	assert.Equal(t, 1, registryRepo.saveCalled)

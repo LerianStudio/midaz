@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -250,5 +251,94 @@ func TestProtectionStateResolver_Resolve_ContextCancelled(t *testing.T) {
 
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Resolve() with cancelled context error = %v, want %v", err, context.Canceled)
+	}
+}
+
+// countingRegistryRepo counts Get calls to verify the resolver's short-TTL cache
+// avoids repeated live registry lookups within the cache window.
+type countingRegistryRepo struct {
+	record   *mmodel.OrganizationRegistryRecord
+	err      error
+	getCalls int
+}
+
+func (c *countingRegistryRepo) Get(_ context.Context, _ string) (*mmodel.OrganizationRegistryRecord, error) {
+	c.getCalls++
+
+	return c.record, c.err
+}
+
+func (c *countingRegistryRepo) Save(_ context.Context, _ *mmodel.OrganizationRegistryRecord) error {
+	return nil
+}
+
+func (c *countingRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
+	return nil
+}
+
+func TestProtectionStateResolver_Resolve_CachesWithinTTL(t *testing.T) {
+	t.Parallel()
+
+	reader := &countingRegistryRepo{
+		record: &mmodel.OrganizationRegistryRecord{
+			TenantID:        "tenant-cache",
+			OrganizationID:  "org-cache",
+			Status:          mmodel.RegistryStatusActive,
+			CurrentVersion:  3,
+			LegacyReadable:  true,
+			ProtectionModel: mmodel.ProtectionModelEnvelope,
+		},
+	}
+
+	resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
+
+	first, err := resolver.Resolve(context.Background(), "org-cache")
+	if err != nil {
+		t.Fatalf("Resolve() first call error = %v", err)
+	}
+
+	second, err := resolver.Resolve(context.Background(), "org-cache")
+	if err != nil {
+		t.Fatalf("Resolve() second call error = %v", err)
+	}
+
+	if reader.getCalls != 1 {
+		t.Errorf("registry Get calls = %d, want 1 (second resolve must hit the cache)", reader.getCalls)
+	}
+
+	if first != second {
+		t.Errorf("cached resolve returned different state: first=%+v second=%+v", first, second)
+	}
+
+	if second.Mode != crypto.EncryptionModeEnvelope {
+		t.Errorf("cached state Mode = %v, want envelope", second.Mode)
+	}
+}
+
+func TestProtectionStateResolver_Resolve_CacheKeyedByTenant(t *testing.T) {
+	t.Parallel()
+
+	reader := &countingRegistryRepo{
+		record: &mmodel.OrganizationRegistryRecord{
+			OrganizationID: "shared-org",
+			Status:         mmodel.RegistryStatusActive,
+		},
+	}
+
+	resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
+
+	ctxA := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+	ctxB := tmcore.ContextWithTenantID(context.Background(), "tenant-b")
+
+	if _, err := resolver.Resolve(ctxA, "shared-org"); err != nil {
+		t.Fatalf("Resolve(tenant-a) error = %v", err)
+	}
+
+	if _, err := resolver.Resolve(ctxB, "shared-org"); err != nil {
+		t.Fatalf("Resolve(tenant-b) error = %v", err)
+	}
+
+	if reader.getCalls != 2 {
+		t.Errorf("registry Get calls = %d, want 2 (different tenants must not share a cache entry)", reader.getCalls)
 	}
 }

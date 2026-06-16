@@ -84,9 +84,9 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	return nil
 }
 
-// createIndexes creates indexes for specific fields, if it not exists.
-func createIndexes(ctx context.Context, collection *mongo.Collection) error {
-	indexModels := []mongo.IndexModel{
+// indexModels returns the index definitions for the alias collection.
+func indexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
 		{
 			Keys: bson.D{
 				{Key: "_id", Value: 1},
@@ -154,11 +154,14 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 				SetPartialFilterExpression(bson.D{{Key: "deleted_at", Value: nil}}),
 		},
 	}
+}
 
+// createIndexes creates indexes for specific fields, if it not exists.
+func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := collection.Indexes().CreateMany(ctx, indexModels)
+	_, err := collection.Indexes().CreateMany(ctx, indexModels())
 
 	return err
 }

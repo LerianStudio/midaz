@@ -608,13 +608,13 @@ func TestKeysetGeneratorAdapter_ForwardsMountPath(t *testing.T) {
 		assert.Equal(t, "org-123", kms.gotKeyName)
 	})
 
-	t.Run("MAC forwards mountPath to KMS", func(t *testing.T) {
+	t.Run("PRF forwards mountPath to KMS", func(t *testing.T) {
 		t.Parallel()
 
 		kms := &recordingKMSClient{}
 		adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(kms)}
 
-		_, err := adapter.GenerateMACKeyset(context.Background(), "transit/tenant-y", "org-456")
+		_, err := adapter.GeneratePRFKeyset(context.Background(), "transit/tenant-y", "org-456")
 		require.NoError(t, err)
 
 		assert.Equal(t, "transit/tenant-y", kms.gotMountPath,
@@ -895,19 +895,19 @@ func (m *mockEncryptionVaultClient) GenerateAEADKeyset(_ context.Context, _, _ s
 	}, nil
 }
 
-// GenerateMACKeyset satisfies the encryption.KeysetGenerator interface.
-func (m *mockEncryptionVaultClient) GenerateMACKeyset(_ context.Context, _, _ string) (tink.KeysetBundle, error) {
+// GeneratePRFKeyset satisfies the encryption.KeysetGenerator interface.
+func (m *mockEncryptionVaultClient) GeneratePRFKeyset(_ context.Context, _, _ string) (tink.KeysetBundle, error) {
 	return tink.KeysetBundle{
 		Wrapped: tink.WrappedKeyset{
-			WrappedData: "mock-wrapped-mac",
+			WrappedData: "mock-wrapped-prf",
 			Info: tink.KeysetInfo{
 				PrimaryKeyID: 67890,
 				Keys: []tink.KeyInfo{
-					{KeyID: 67890, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeHMACSHA256, IsPrimary: true},
+					{KeyID: 67890, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeHMACPRF, IsPrimary: true},
 				},
 			},
 		},
-		RawKeyset: []byte("mock-raw-mac-keyset"),
+		RawKeyset: []byte("mock-raw-prf-keyset"),
 	}, nil
 }
 

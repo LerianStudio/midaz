@@ -424,7 +424,7 @@ func TestGetPrimitives_CacheMissThenHit_RecordsExactlyOnce(t *testing.T) {
 	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), m)
 
 	// First call: cache miss.
-	_, _, _, _, err := manager.GetPrimitives(context.Background(), "org-cache")
+	_, err := manager.GetPrimitives(context.Background(), "org-cache")
 	require.NoError(t, err)
 
 	missV, missN := spy.counterValue(t, utils.CRMProtectionCacheTotal.Name,
@@ -433,7 +433,7 @@ func TestGetPrimitives_CacheMissThenHit_RecordsExactlyOnce(t *testing.T) {
 	assert.Equal(t, 1, missN)
 
 	// Second call: cache hit (fast path).
-	_, _, _, _, err = manager.GetPrimitives(context.Background(), "org-cache")
+	_, err = manager.GetPrimitives(context.Background(), "org-cache")
 	require.NoError(t, err)
 
 	hitV, hitN := spy.counterValue(t, utils.CRMProtectionCacheTotal.Name,

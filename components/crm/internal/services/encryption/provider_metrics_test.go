@@ -116,7 +116,7 @@ func TestFetchAndCache_UnwrapSuccess_RecordsProviderTiming(t *testing.T) {
 
 	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadKeyset: aeadBytes, macKeyset: macBytes}, m)
 
-	_, _, _, _, err := km.GetPrimitives(context.Background(), "org-metrics")
+	_, err := km.GetPrimitives(context.Background(), "org-metrics")
 	require.NoError(t, err, "behavior unchanged: successful unwrap returns no error")
 
 	n := spy.histogramCount(t, utils.CRMProtectionProviderOperationMs.Name,
@@ -140,9 +140,9 @@ func TestFetchAndCache_AEADSuccessMACFail_RecordsTimingAndFailure(t *testing.T) 
 
 	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadKeyset: aeadBytes, macErr: providerSecretError}, m)
 
-	_, _, _, _, err := km.GetPrimitives(context.Background(), "org-metrics")
-	require.Error(t, err, "behavior unchanged: MAC unwrap failure propagates")
-	assert.Contains(t, err.Error(), "failed to unwrap MAC keyset", "wrapped error message unchanged")
+	_, err := km.GetPrimitives(context.Background(), "org-metrics")
+	require.Error(t, err, "behavior unchanged: PRF unwrap failure propagates")
+	assert.Contains(t, err.Error(), "failed to unwrap PRF keyset", "wrapped error message unchanged")
 
 	// Timing recorded for both calls (success AEAD + failed MAC).
 	n := spy.histogramCount(t, utils.CRMProtectionProviderOperationMs.Name,
@@ -177,7 +177,7 @@ func TestFetchAndCache_AEADFail_RecordsTimingAndFailure(t *testing.T) {
 
 	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadErr: providerSecretError}, m)
 
-	_, _, _, _, err := km.GetPrimitives(context.Background(), "org-metrics")
+	_, err := km.GetPrimitives(context.Background(), "org-metrics")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unwrap AEAD keyset")
 
@@ -200,7 +200,7 @@ func TestFetchAndCache_NilFactory_NoPanic(t *testing.T) {
 
 	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadKeyset: aeadBytes, macKeyset: macBytes}, NewProtectionMetrics(nil))
 
-	_, _, _, _, err := km.GetPrimitives(context.Background(), "org-metrics")
+	_, err := km.GetPrimitives(context.Background(), "org-metrics")
 	require.NoError(t, err)
 }
 

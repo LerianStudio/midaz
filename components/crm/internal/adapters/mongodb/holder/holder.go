@@ -15,20 +15,21 @@ import (
 )
 
 type MongoDBModel struct {
-	ID            *uuid.UUID                 `bson:"_id,omitempty"`
-	ExternalID    *string                    `bson:"external_id,omitempty"`
-	Type          *string                    `bson:"type,omitempty"`
-	Name          *string                    `bson:"name,omitempty"`
-	Document      *string                    `bson:"document,omitempty"`
-	Addresses     *AddressesMongoDBModel     `bson:"addresses,omitempty"`
-	Contact       *ContactMongoDBModel       `bson:"contact,omitempty"`
-	NaturalPerson *NaturalPersonMongoDBModel `bson:"natural_person,omitempty"`
-	LegalPerson   *LegalPersonMongoDBModel   `bson:"legal_person,omitempty"`
-	Metadata      map[string]any             `bson:"metadata"`
-	Search        map[string]string          `bson:"search,omitempty"`
-	CreatedAt     *time.Time                 `bson:"created_at,omitempty"`
-	UpdatedAt     *time.Time                 `bson:"updated_at"`
-	DeletedAt     *time.Time                 `bson:"deleted_at"`
+	ID               *uuid.UUID                 `bson:"_id,omitempty"`
+	ExternalID       *string                    `bson:"external_id,omitempty"`
+	Type             *string                    `bson:"type,omitempty"`
+	Name             *string                    `bson:"name,omitempty"`
+	Document         *string                    `bson:"document,omitempty"`
+	Addresses        *AddressesMongoDBModel     `bson:"addresses,omitempty"`
+	Contact          *ContactMongoDBModel       `bson:"contact,omitempty"`
+	NaturalPerson    *NaturalPersonMongoDBModel `bson:"natural_person,omitempty"`
+	LegalPerson      *LegalPersonMongoDBModel   `bson:"legal_person,omitempty"`
+	Metadata         map[string]any             `bson:"metadata"`
+	Search           map[string]string          `bson:"search,omitempty"`
+	SearchKeyVersion uint32                     `bson:"search_key_version,omitempty"`
+	CreatedAt        *time.Time                 `bson:"created_at,omitempty"`
+	UpdatedAt        *time.Time                 `bson:"updated_at"`
+	DeletedAt        *time.Time                 `bson:"deleted_at"`
 }
 
 type AddressesMongoDBModel struct {
@@ -165,12 +166,15 @@ func (hmm *MongoDBModel) FromEntity(ctx context.Context, h *mmodel.Holder, fe en
 			FieldName:      "document",
 		}
 
-		searchToken, tokenErr := fe.GenerateSearchToken(ctx, searchCtx, *h.Document)
+		searchToken, keyVersion, tokenErr := fe.GenerateSearchToken(ctx, searchCtx, *h.Document)
 		if tokenErr != nil {
 			return tokenErr
 		}
 
 		hmm.Search["document"] = searchToken
+		// Holder has a single search field, so the version is assigned directly here;
+		// alias has multiple search fields and uses a first-non-zero-wins helper instead.
+		hmm.SearchKeyVersion = keyVersion
 	}
 
 	if h.Metadata == nil {

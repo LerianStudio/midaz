@@ -33,13 +33,18 @@ type KeysetUnwrapper interface {
 	UnwrapKeyset(ctx context.Context, mountPath, keyName, wrappedKeyset string) ([]byte, error)
 }
 
-// CachedPrimitives holds the unwrapped AEAD and MAC primitives for an organization.
+// CachedPrimitives holds the unwrapped AEAD and PRF primitives for an organization.
+//
+// PrimaryKeyID is the AEAD primary key ID (used for envelope marker formatting).
+// PRFPrimaryKeyID is the PRF (search-token) keyset primary key ID, sourced from the
+// stored HMACKeysetInfo.PrimaryKeyID, and is stamped on search tokens.
 type CachedPrimitives struct {
-	AEAD         *tink.AEADPrimitive
-	MAC          *tink.MACPrimitive
-	MultiKeyMAC  *tink.MACMultiPrimitive
-	PrimaryKeyID uint32
-	ExpiresAt    time.Time
+	AEAD            *tink.AEADPrimitive
+	PRF             *tink.PRFPrimitive
+	MultiKeyPRF     *tink.PRFMultiPrimitive
+	PrimaryKeyID    uint32
+	PRFPrimaryKeyID uint32
+	ExpiresAt       time.Time
 }
 
 // IsExpired returns true if the cached primitives have expired.
@@ -150,25 +155,26 @@ func (km *KeysetManager) getOrgLock(cacheKey string) *sync.Mutex {
 	return lock
 }
 
-// GetPrimitives retrieves the AEAD, MAC, and MACMulti primitives for an organization.
-// Returns cached primitives if available and not expired.
+// GetPrimitives retrieves the cached AEAD, PRF, and PRFMulti primitives for an
+// organization. Returns cached primitives if available and not expired.
 // Otherwise, fetches from repository, unwraps via KMS, caches, and returns.
 //
-// Returns:
+// The returned CachedPrimitives carries:
 //   - AEAD primitive for encryption/decryption
-//   - MAC primitive for search token generation (primary key only)
-//   - MACMulti primitive for search token generation across all keys (for key rotation)
-//   - Primary AEAD key ID for envelope marker formatting
+//   - PRF primitive for search token generation (primary key only)
+//   - MultiKeyPRF primitive for search token generation across all keys (for key rotation)
+//   - PrimaryKeyID, the primary AEAD key ID for envelope marker formatting
+//   - PRFPrimaryKeyID, the primary PRF key ID for search-token versioning
 //
 // Uses per-tenant-organization mutexes to deduplicate concurrent requests for the same
 // tenant-organization, preventing cache stampede while allowing concurrent fetches for
 // different tenant-organizations.
 //
 // Cache keys are scoped by tenant ID to prevent cross-tenant cache collisions.
-func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*tink.AEADPrimitive, *tink.MACPrimitive, *tink.MACMultiPrimitive, uint32, error) {
+func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*CachedPrimitives, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
-		return nil, nil, nil, 0, err
+		return nil, err
 	}
 
 	// Extract tenant ID for cache key scoping
@@ -184,7 +190,7 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 		// Fast-path cache hit: record exactly one hit.
 		km.metrics.recordCache(ctx, "get_primitives", "hit")
 
-		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
+		return cached, nil
 	}
 
 	// Cache miss or expired - acquire per-tenant-organization lock
@@ -203,19 +209,14 @@ func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID strin
 		// fast path, which already returned for the fast-path-hit case).
 		km.metrics.recordCache(ctx, "get_primitives", "hit")
 
-		return cached.AEAD, cached.MAC, cached.MultiKeyMAC, cached.PrimaryKeyID, nil
+		return cached, nil
 	}
 
 	// Cache miss: we will fetch and cache. Record exactly one miss per fetch.
 	km.metrics.recordCache(ctx, "get_primitives", "miss")
 
 	// Fetch and cache while holding org lock
-	primitives, err := km.fetchAndCache(ctx, cacheKey, organizationID)
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-
-	return primitives.AEAD, primitives.MAC, primitives.MultiKeyMAC, primitives.PrimaryKeyID, nil
+	return km.fetchAndCache(ctx, cacheKey, organizationID)
 }
 
 // fetchAndCache fetches keyset from repository, unwraps via KMS, and caches the primitives.
@@ -302,45 +303,48 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, err
 	}
 
-	// Unwrap MAC keyset using the same resolved mount. Provider operation timing
-	// is recorded even on failure.
-	macStart := time.Now()
-	macBytes, err := km.unwrapper.UnwrapKeyset(ctx, mount, keyset.KEKPath, keyset.WrappedHMACKeyset)
-	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(macStart).Milliseconds())
+	// Unwrap PRF (search-token) keyset using the same resolved mount. It is stored
+	// in the WrappedHMACKeyset slot for storage-format compatibility. Provider
+	// operation timing is recorded even on failure.
+	prfStart := time.Now()
+	prfBytes, err := km.unwrapper.UnwrapKeyset(ctx, mount, keyset.KEKPath, keyset.WrappedHMACKeyset)
+	km.metrics.recordProviderOperation(ctx, providerOperationUnwrap, providerVault, time.Since(prfStart).Milliseconds())
 
 	if err != nil {
 		km.metrics.recordProviderFailure(ctx, providerOperationUnwrap, errorCodeUnwrapMACFailed)
-		libOpenTelemetry.HandleSpanError(span, "failed to unwrap MAC keyset", err)
+		libOpenTelemetry.HandleSpanError(span, "failed to unwrap PRF keyset", err)
 
 		// Wrap with %w so callers can errors.Is(vault.ErrMountNotFound) (fail-closed).
-		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
+		return nil, fmt.Errorf("failed to unwrap PRF keyset: %w", err)
 	}
 
-	// Deserialize MAC keyset to get handle for creating both primitives
-	macHandle, err := tink.DeserializeMACKeyset(macBytes)
+	// Deserialize PRF keyset to get handle for creating both primitives.
+	prfHandle, err := tink.DeserializePRFKeyset(prfBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize MAC keyset: %w", err)
+		return nil, fmt.Errorf("failed to deserialize PRF keyset: %w", err)
 	}
 
-	// Create MAC primitive from handle
-	macPrimitive, err := tink.NewMACPrimitive(macHandle)
+	// Create PRF primitive from handle (primary key only)
+	prfPrimitive, err := tink.NewPRFPrimitive(prfHandle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create MAC primitive: %w", err)
+		return nil, fmt.Errorf("failed to create PRF primitive: %w", err)
 	}
 
-	// Create multi-key MAC primitive for search operations (strict mode: error fails the operation)
-	multiKeyMAC, err := tink.NewMACMultiPrimitive(macHandle)
+	// Create multi-key PRF primitive for search operations (strict mode: error fails the operation)
+	multiKeyPRF, err := tink.NewPRFMultiPrimitive(prfHandle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create multi-key MAC primitive: %w", err)
+		return nil, fmt.Errorf("failed to create multi-key PRF primitive: %w", err)
 	}
 
-	// Build cached primitives
+	// Build cached primitives. PRFPrimaryKeyID is sourced from the stored
+	// HMACKeysetInfo primary key ID (the search-token keyset metadata).
 	cached := &CachedPrimitives{
-		AEAD:         aeadPrimitive,
-		MAC:          macPrimitive,
-		MultiKeyMAC:  multiKeyMAC,
-		PrimaryKeyID: keyset.KeysetInfo.PrimaryKeyID,
-		ExpiresAt:    time.Now().Add(km.cacheTTL),
+		AEAD:            aeadPrimitive,
+		PRF:             prfPrimitive,
+		MultiKeyPRF:     multiKeyPRF,
+		PrimaryKeyID:    keyset.KeysetInfo.PrimaryKeyID,
+		PRFPrimaryKeyID: keyset.HMACKeysetInfo.PrimaryKeyID,
+		ExpiresAt:       time.Now().Add(km.cacheTTL),
 	}
 
 	// Cache the primitives with write lock using tenant-scoped key

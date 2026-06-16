@@ -311,11 +311,11 @@ func TestFieldEncryptor_GenerateSearchToken(t *testing.T) {
 
 			// Create mock encryption service
 			mockSvc := &mockEncryptionService{
-				generateSearchTokenFunc: func(_ context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
+				generateSearchTokenFunc: func(_ context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, uint32, error) {
 					if err := searchCtx.Validate(); err != nil {
-						return "", err
+						return "", 0, err
 					}
-					return "token:" + normalizedValue, nil
+					return "token:" + normalizedValue, 0, nil
 				},
 			}
 
@@ -330,7 +330,7 @@ func TestFieldEncryptor_GenerateSearchToken(t *testing.T) {
 			}
 
 			// Call GenerateSearchToken
-			result, err := adapter.GenerateSearchToken(ctx, searchCtx, tc.normalizedValue)
+			result, _, err := adapter.GenerateSearchToken(ctx, searchCtx, tc.normalizedValue)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -403,9 +403,9 @@ func TestFieldEncryptor_SearchTokenContextBinding(t *testing.T) {
 	var capturedSearchCtx SearchTokenContext
 
 	mockSvc := &mockEncryptionService{
-		generateSearchTokenFunc: func(_ context.Context, searchCtx SearchTokenContext, _ string) (string, error) {
+		generateSearchTokenFunc: func(_ context.Context, searchCtx SearchTokenContext, _ string) (string, uint32, error) {
 			capturedSearchCtx = searchCtx
-			return "token", nil
+			return "token", 0, nil
 		},
 	}
 
@@ -417,7 +417,7 @@ func TestFieldEncryptor_SearchTokenContextBinding(t *testing.T) {
 		FieldName:      fieldName,
 	}
 
-	_, err := adapter.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	_, _, err := adapter.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
 	// Verify context fields (note: no RecordID)
@@ -604,7 +604,7 @@ func TestFieldEncryptor_GenerateSearchTokenCandidates_ContextBinding(t *testing.
 type mockEncryptionService struct {
 	encryptFunc                       func(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error)
 	decryptFunc                       func(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error)
-	generateSearchTokenFunc           func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error)
+	generateSearchTokenFunc           func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, uint32, error)
 	generateSearchTokenCandidatesFunc func(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error)
 }
 
@@ -622,11 +622,11 @@ func (m *mockEncryptionService) Decrypt(ctx context.Context, fieldCtx FieldConte
 	return "", nil
 }
 
-func (m *mockEncryptionService) GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, error) {
+func (m *mockEncryptionService) GenerateSearchToken(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, uint32, error) {
 	if m.generateSearchTokenFunc != nil {
 		return m.generateSearchTokenFunc(ctx, searchCtx, normalizedValue)
 	}
-	return "", nil
+	return "", 0, nil
 }
 
 func (m *mockEncryptionService) GenerateSearchTokenCandidates(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) ([]string, error) {

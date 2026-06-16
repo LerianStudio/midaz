@@ -204,8 +204,8 @@ func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, mountPa
 	return a.factory.GenerateAEADKeyset(ctx, mountPath, keyName)
 }
 
-// GenerateMACKeyset generates a new MAC keyset and wraps it with the KMS.
+// GeneratePRFKeyset generates a new PRF keyset (search tokens) and wraps it with the KMS.
 // The per-tenant mountPath is forwarded verbatim to the underlying factory.
-func (a *keysetGeneratorAdapter) GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
-	return a.factory.GenerateMACKeyset(ctx, mountPath, keyName)
+func (a *keysetGeneratorAdapter) GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
+	return a.factory.GeneratePRFKeyset(ctx, mountPath, keyName)
 }

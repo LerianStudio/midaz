@@ -44,6 +44,8 @@ const (
 	KeyTypeHMACSHA256 KeyType = "HMAC_SHA256"
 	// KeyTypeLegacyHMACSHA256 represents a legacy HMAC-SHA256 key imported from a previous system.
 	KeyTypeLegacyHMACSHA256 KeyType = "LEGACY_HMAC_SHA256"
+	// KeyTypeHMACPRF represents a standard Tink HMAC-SHA256 PRF key for search-token operations.
+	KeyTypeHMACPRF KeyType = "HMAC_PRF"
 )
 
 // IsAEADType returns true if the key type is an AEAD key.

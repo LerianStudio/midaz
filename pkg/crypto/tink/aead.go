@@ -40,7 +40,7 @@ func (g *AEADKeysetGenerator) Generate() (*keyset.Handle, []byte, error) {
 
 // ExtractInfo extracts keyset metadata from a keyset handle.
 func (g *AEADKeysetGenerator) ExtractInfo(handle *keyset.Handle) (KeysetInfo, error) {
-	return extractKeysetInfo(handle, true)
+	return extractKeysetInfo(handle, keyPurposeAEAD)
 }
 
 // AEADPrimitive wraps a Tink AEAD primitive for encryption/decryption operations.
@@ -115,8 +115,18 @@ func deserializeKeyset(data []byte) (*keyset.Handle, error) {
 	return handle, nil
 }
 
+// keyPurpose identifies what a keyset is used for, so its key metadata can be
+// labeled with the correct KeyType. Tink type URLs are not parsed today; the
+// purpose is supplied by the generator that owns the keyset.
+type keyPurpose int
+
+const (
+	keyPurposeAEAD keyPurpose = iota
+	keyPurposePRF
+)
+
 // extractKeysetInfo extracts metadata from a keyset handle.
-func extractKeysetInfo(handle *keyset.Handle, isAEAD bool) (KeysetInfo, error) {
+func extractKeysetInfo(handle *keyset.Handle, purpose keyPurpose) (KeysetInfo, error) {
 	info := handle.KeysetInfo()
 	if info == nil {
 		return KeysetInfo{}, fmt.Errorf("keyset info is nil")
@@ -125,7 +135,7 @@ func extractKeysetInfo(handle *keyset.Handle, isAEAD bool) (KeysetInfo, error) {
 	keys := make([]KeyInfo, 0, len(info.KeyInfo))
 
 	for _, keyInfo := range info.KeyInfo {
-		keyType := determineKeyType(keyInfo.TypeUrl, isAEAD)
+		keyType := determineKeyType(keyInfo.TypeUrl, purpose)
 		status := mapKeyStatus(int32(keyInfo.Status))
 
 		keys = append(keys, KeyInfo{
@@ -143,17 +153,22 @@ func extractKeysetInfo(handle *keyset.Handle, isAEAD bool) (KeysetInfo, error) {
 }
 
 // determineKeyType maps Tink type URLs to our KeyType constants.
-func determineKeyType(_ string, isAEAD bool) KeyType {
+func determineKeyType(_ string, purpose keyPurpose) KeyType {
 	// Tink type URLs follow the pattern: type.googleapis.com/google.crypto.tink.*
 	// For AES-GCM: type.googleapis.com/google.crypto.tink.AesGcmKey
-	// For HMAC: type.googleapis.com/google.crypto.tink.HmacKey
-	// Currently we infer the type from the keyset purpose (AEAD vs MAC).
+	// For HMAC (MAC and PRF both use HmacKey/HmacPrfKey): type.googleapis.com/google.crypto.tink.Hmac*Key
+	// Currently we infer the type from the keyset purpose supplied by the owning generator.
 	// Future enhancement: parse typeURL to detect specific algorithm variants.
-	if isAEAD {
+	switch purpose {
+	case keyPurposePRF:
+		return KeyTypeHMACPRF
+	case keyPurposeAEAD:
 		return KeyTypeAES256GCM
+	default:
+		// No producer supplies a MAC purpose today; the default preserves the
+		// legacy HMAC-SHA256 label for any HMAC keyset inspected directly.
+		return KeyTypeHMACSHA256
 	}
-
-	return KeyTypeHMACSHA256
 }
 
 // mapKeyStatus maps Tink KeyStatusType to our KeyStatus.
