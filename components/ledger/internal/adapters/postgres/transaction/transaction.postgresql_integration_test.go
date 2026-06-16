@@ -16,6 +16,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -1515,13 +1516,134 @@ func TestIntegration_Transaction_SkipAudit_RoundTrip(t *testing.T) {
 		assert.False(t, byID[createdControl.ID].TracerSkipped, "ListByIDs: control tracer_skipped should round-trip false")
 	})
 
-	// NOTE: the join-scan readers (FindWithOperations / FindOrListAllWithOperations)
-	// use an INNER JOIN against the operation table, so a transaction with no
-	// operations returns no rows for those methods. Exercising their skip-audit
-	// scan order would require seeding full operation fixtures (balances,
-	// operations, asset/account rows) that are out of scope for this audit-flag
-	// proof; the Find / FindAll / ListByIDs sites above already cover the two
-	// structurally distinct scan paths (single-row and list). Skipped here.
+	// The join-scan readers (FindWithOperations / FindOrListAllWithOperations) use
+	// an INNER JOIN against the operation table, so they only return rows for a
+	// transaction that has at least one operation. Their skip-audit scan order —
+	// where fees_skipped/tracer_skipped sit mid-slice between the transaction and
+	// operation columns — is proven in the sibling test
+	// TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations below.
+}
+
+// TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations closes the
+// join-scan gap: it proves FeesSkipped/TracerSkipped survive the operation-join
+// readers (FindWithOperations / FindOrListAllWithOperations), where the two audit
+// pointers sit mid-slice between the transaction columns and the operation columns
+// — the most position-sensitive scan site. Each transaction is seeded with one
+// operation so the INNER JOIN returns it; a false control confirms the flags are
+// not spuriously set.
+func TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+	opRepo := operation.NewOperationPostgreSQLRepository(infra.conn)
+
+	// Skipped transaction: both audit flags honored, plus one operation.
+	skippedTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Join-scan skip audit - both honored",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		FeesSkipped:    true,
+		TracerSkipped:  true,
+	}
+	createdSkipped, err := infra.repo.Create(ctx, skippedTx)
+	require.NoError(t, err, "Create with skip flags should succeed")
+	infra.createJoinedOperation(t, opRepo, createdSkipped.ID)
+
+	// False control: neither flag set, plus one operation.
+	controlTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Join-scan skip audit - false control",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+	createdControl, err := infra.repo.Create(ctx, controlTx)
+	require.NoError(t, err, "Create control should succeed")
+	infra.createJoinedOperation(t, opRepo, createdControl.ID)
+
+	t.Run("FindWithOperations carries the flags through the join scan", func(t *testing.T) {
+		foundSkipped, err := infra.repo.FindWithOperations(ctx, infra.orgID, infra.ledgerID, parseID(t, createdSkipped.ID))
+		require.NoError(t, err)
+		require.NotEmpty(t, foundSkipped.ID, "INNER JOIN must return the tx (it has an operation)")
+		require.GreaterOrEqual(t, len(foundSkipped.Operations), 1, "join must surface the seeded operation")
+		assert.True(t, foundSkipped.FeesSkipped, "join scan: skipped fees_skipped should round-trip true")
+		assert.True(t, foundSkipped.TracerSkipped, "join scan: skipped tracer_skipped should round-trip true")
+
+		foundControl, err := infra.repo.FindWithOperations(ctx, infra.orgID, infra.ledgerID, parseID(t, createdControl.ID))
+		require.NoError(t, err)
+		require.NotEmpty(t, foundControl.ID)
+		assert.False(t, foundControl.FeesSkipped, "join scan: control fees_skipped should round-trip false")
+		assert.False(t, foundControl.TracerSkipped, "join scan: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("FindOrListAllWithOperations carries the flags through the list join scan", func(t *testing.T) {
+		transactions, _, err := infra.repo.FindOrListAllWithOperations(ctx, infra.orgID, infra.ledgerID, nil, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		listedSkipped, ok := byID[createdSkipped.ID]
+		require.True(t, ok, "list-with-ops should return the skipped transaction")
+		assert.True(t, listedSkipped.FeesSkipped, "list join scan: skipped fees_skipped should round-trip true")
+		assert.True(t, listedSkipped.TracerSkipped, "list join scan: skipped tracer_skipped should round-trip true")
+
+		listedControl, ok := byID[createdControl.ID]
+		require.True(t, ok, "list-with-ops should return the control transaction")
+		assert.False(t, listedControl.FeesSkipped, "list join scan: control fees_skipped should round-trip false")
+		assert.False(t, listedControl.TracerSkipped, "list join scan: control tracer_skipped should round-trip false")
+	})
+}
+
+// createJoinedOperation seeds one minimal valid operation linked to txID so the
+// operation-join readers return the parent transaction. The fixture mirrors the
+// known-good shape in the operation package's integration tests; timestamps are
+// fixed (not time.Now) per the project's test conventions.
+func (infra *integrationTestInfra) createJoinedOperation(t *testing.T, opRepo *operation.OperationPostgreSQLRepository, txID string) {
+	t.Helper()
+
+	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	amount := decimal.NewFromInt(100)
+	available := decimal.NewFromInt(900)
+	onHold := decimal.Zero
+	version := int64(1)
+	statusDesc := "Operation approved"
+
+	op := &operation.Operation{
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		TransactionID:   txID,
+		Description:     "join-scan fixture operation",
+		Type:            "DEBIT",
+		AssetCode:       "USD",
+		ChartOfAccounts: "1000",
+		Amount:          operation.Amount{Value: &amount},
+		Balance:         operation.Balance{Available: &available, OnHold: &onHold, Version: &version},
+		BalanceAfter:    operation.Balance{Available: &available, OnHold: &onHold, Version: &version},
+		Status:          operation.Status{Code: "APPROVED", Description: &statusDesc},
+		AccountID:       infra.accountID.String(),
+		AccountAlias:    "@join-scan-account",
+		BalanceKey:      "default",
+		BalanceID:       infra.balanceID.String(),
+		OrganizationID:  infra.orgID.String(),
+		LedgerID:        infra.ledgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       fixed,
+		UpdatedAt:       fixed,
+	}
+
+	_, err := opRepo.Create(context.Background(), op)
+	require.NoError(t, err, "seeding join operation should succeed")
 }
 
 // =============================================================================
