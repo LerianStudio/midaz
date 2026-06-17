@@ -60,7 +60,7 @@ func TestEncryption_Provision(t *testing.T) {
 						OrganizationID:   orgID,
 						KEKPath:          "transit/keys/org-" + orgID,
 						AEADPrimaryKeyID: 123456,
-						MACPrimaryKeyID:  789012,
+						PRFPrimaryKeyID:  789012,
 						RegistryStatus:   mmodel.RegistryStatusActive,
 					}, nil).
 					Times(1)

@@ -12,20 +12,22 @@ import (
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/v2/keyset"
-	"github.com/tink-crypto/tink-go/v2/mac"
+	"github.com/tink-crypto/tink-go/v2/prf"
 	aesgcmpb "github.com/tink-crypto/tink-go/v2/proto/aes_gcm_go_proto"
 	commonpb "github.com/tink-crypto/tink-go/v2/proto/common_go_proto"
-	macpb "github.com/tink-crypto/tink-go/v2/proto/hmac_go_proto"
+	hmacprfpb "github.com/tink-crypto/tink-go/v2/proto/hmac_prf_go_proto"
 	tinkpb "github.com/tink-crypto/tink-go/v2/proto/tink_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
 const legacyImportedKeyID uint32 = 1
 
-// LegacyMACPrimitive wraps a MAC primitive for computing legacy-compatible HMAC tokens.
-// It produces lowercase hex-encoded HMAC-SHA256 tags matching lib-commons GenerateHash output.
-type LegacyMACPrimitive struct {
-	primitive *MACPrimitive
+// LegacyPRFPrimitive wraps a Tink HMAC-PRF set for computing legacy-compatible
+// HMAC tokens. At a 32-byte output length, Tink HMAC-SHA256-PRF equals the full
+// HMAC-SHA256 tag, so the hex-encoded output is byte-identical to lib-commons
+// GenerateHash. Used for the legacy hash-search read path during migration.
+type LegacyPRFPrimitive struct {
+	set *prf.Set
 }
 
 // NewLegacyAESGCMPrimitiveFromHexKey creates a Tink AEAD primitive from a hex-encoded AES key.
@@ -73,30 +75,30 @@ func NewLegacyAESGCMPrimitiveFromHexKey(hexKey string) (*AEADPrimitive, error) {
 	return &AEADPrimitive{primitive: primitive}, nil
 }
 
-// NewLegacyMACPrimitiveFromSecret creates a MAC primitive from a plain string secret.
-// The primitive produces HMAC-SHA256 tags compatible with lib-commons GenerateHash.
-func NewLegacyMACPrimitiveFromSecret(secret string) (*LegacyMACPrimitive, error) {
+// NewLegacyPRFPrimitiveFromSecret creates an HMAC-PRF primitive from a plain
+// string secret. The primitive produces 32-byte HMAC-SHA256 outputs compatible
+// with lib-commons GenerateHash. PRF keys are always RAW (no key-id prefix).
+func NewLegacyPRFPrimitiveFromSecret(secret string) (*LegacyPRFPrimitive, error) {
 	if secret == "" {
 		return nil, fmt.Errorf("legacy HMAC key must not be empty")
 	}
 
-	keyData, err := proto.Marshal(&macpb.HmacKey{
+	keyData, err := proto.Marshal(&hmacprfpb.HmacPrfKey{
 		Version:  0,
 		KeyValue: []byte(secret),
-		Params: &macpb.HmacParams{
-			Hash:    commonpb.HashType_SHA256,
-			TagSize: 32,
+		Params: &hmacprfpb.HmacPrfParams{
+			Hash: commonpb.HashType_SHA256,
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("marshal legacy HMAC key: %w", err)
+		return nil, fmt.Errorf("marshal legacy HMAC-PRF key: %w", err)
 	}
 
 	handle, err := readLegacyKeyset(&tinkpb.Keyset{
 		PrimaryKeyId: legacyImportedKeyID,
 		Key: []*tinkpb.Keyset_Key{{
 			KeyData: &tinkpb.KeyData{
-				TypeUrl:         "type.googleapis.com/google.crypto.tink.HmacKey",
+				TypeUrl:         "type.googleapis.com/google.crypto.tink.HmacPrfKey",
 				Value:           keyData,
 				KeyMaterialType: tinkpb.KeyData_SYMMETRIC,
 			},
@@ -106,30 +108,31 @@ func NewLegacyMACPrimitiveFromSecret(secret string) (*LegacyMACPrimitive, error)
 		}},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("read legacy HMAC keyset: %w", err)
+		return nil, fmt.Errorf("read legacy HMAC-PRF keyset: %w", err)
 	}
 
-	primitive, err := mac.New(handle)
+	set, err := prf.NewPRFSet(handle)
 	if err != nil {
-		return nil, fmt.Errorf("create legacy HMAC primitive: %w", err)
+		return nil, fmt.Errorf("create legacy HMAC-PRF primitive: %w", err)
 	}
 
-	return &LegacyMACPrimitive{primitive: &MACPrimitive{primitive: primitive}}, nil
+	return &LegacyPRFPrimitive{set: set}, nil
 }
 
-// ComputeLegacyHexToken computes an HMAC-SHA256 tag and returns it as lowercase hex.
-// This matches the output format of lib-commons GenerateHash for migration compatibility.
-func (m *LegacyMACPrimitive) ComputeLegacyHexToken(data []byte) (string, error) {
-	if m == nil || m.primitive == nil {
-		return "", fmt.Errorf("legacy HMAC primitive is not configured")
+// ComputeLegacyHexToken computes a 32-byte HMAC-SHA256 PRF output and returns it
+// as lowercase hex. This matches the output format of lib-commons GenerateHash
+// for migration compatibility.
+func (m *LegacyPRFPrimitive) ComputeLegacyHexToken(data []byte) (string, error) {
+	if m == nil || m.set == nil {
+		return "", fmt.Errorf("legacy HMAC-PRF primitive is not configured")
 	}
 
-	tag, err := m.primitive.ComputeMAC(data)
+	out, err := m.set.ComputePrimaryPRF(data, searchTokenPRFOutputBytes)
 	if err != nil {
 		return "", err
 	}
 
-	return hex.EncodeToString(tag), nil
+	return hex.EncodeToString(out), nil
 }
 
 // readLegacyKeyset deserializes a Tink keyset proto into a handle.

@@ -618,8 +618,8 @@ func (f *failingFieldEncryptor) DecryptField(_ context.Context, _ encryption.Fie
 	return "decrypted", nil
 }
 
-func (f *failingFieldEncryptor) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, error) {
-	return "token", nil
+func (f *failingFieldEncryptor) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, uint32, error) {
+	return "token", 0, nil
 }
 
 func (f *failingFieldEncryptor) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {
@@ -707,7 +707,7 @@ func TestRelatedPartyAAD_UsesIDNotIndex(t *testing.T) {
 	}
 
 	// Encrypt all three related parties
-	encryptedModels, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
+	encryptedModels, _, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
 	require.NoError(t, err)
 	require.Len(t, encryptedModels, 3)
 
@@ -774,7 +774,7 @@ func TestRelatedPartyAAD_DifferentIDsProduceDifferentCiphertexts(t *testing.T) {
 		RecordID:       aliasID.String(),
 	}
 
-	encryptedModels, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
+	encryptedModels, _, _, err := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, parties)
 	require.NoError(t, err)
 	require.Len(t, encryptedModels, 2)
 

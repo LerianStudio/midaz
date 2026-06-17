@@ -19,10 +19,6 @@ var (
 	ErrDecryptionFailed = errors.New("decryption failed")
 	// ErrEncryptionFailed indicates the encryption operation failed.
 	ErrEncryptionFailed = errors.New("encryption failed")
-	// ErrMACComputationFailed indicates the MAC computation failed.
-	ErrMACComputationFailed = errors.New("mac computation failed")
-	// ErrMACVerificationFailed indicates the MAC verification failed.
-	ErrMACVerificationFailed = errors.New("mac verification failed")
 	// ErrKMSUnavailable indicates the KMS service is not available.
 	ErrKMSUnavailable = errors.New("kms unavailable")
 	// ErrInvalidKeyName indicates the key name format is invalid.
@@ -80,7 +76,7 @@ func ClassifyError(err error) ErrorCategory {
 // classifyBySentinel checks if the error matches known sentinel errors.
 func classifyBySentinel(err error) ErrorCategory {
 	kmsErrors := []error{ErrKMSUnavailable}
-	cryptoErrors := []error{ErrDecryptionFailed, ErrEncryptionFailed, ErrMACComputationFailed, ErrMACVerificationFailed, ErrKeysetCorrupted}
+	cryptoErrors := []error{ErrDecryptionFailed, ErrEncryptionFailed, ErrKeysetCorrupted}
 	inputErrors := []error{ErrInvalidKeyName}
 
 	for _, sentinel := range kmsErrors {
@@ -108,7 +104,7 @@ func classifyBySentinel(err error) ErrorCategory {
 // Matching is case-insensitive to handle variations like "KMS unavailable".
 func classifyByString(errStr string) ErrorCategory {
 	kmsPatterns := []string{"kms", "vault", "transit"}
-	cryptoPatterns := []string{"decrypt", "encrypt", "mac", "keyset"}
+	cryptoPatterns := []string{"decrypt", "encrypt", "keyset"}
 	inputPatterns := []string{"invalid", "empty"}
 	configPatterns := []string{"config", "missing"}
 

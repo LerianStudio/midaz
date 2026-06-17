@@ -24,6 +24,7 @@ type MongoDBModel struct {
 	HolderID         *uuid.UUID                    `bson:"holder_id,omitempty"`
 	Metadata         map[string]any                `bson:"metadata"`
 	Search           *SearchMongoDB                `bson:"search,omitempty"`
+	SearchKeyVersion uint32                        `bson:"search_key_version,omitempty"`
 	BankingDetails   *BankingMongoDBModel          `bson:"banking_details,omitempty"`
 	RegulatoryFields *RegulatoryFieldsMongoDBModel `bson:"regulatory_fields,omitempty"`
 	RelatedParties   []*RelatedPartyMongoDBModel   `bson:"related_parties,omitempty"`
@@ -64,8 +65,18 @@ type RelatedPartyMongoDBModel struct {
 	EndDate   *time.Time `bson:"end_date,omitempty"`
 }
 
+// stampSearchKeyVersion records the PRF keyset primary version used for the document's
+// search tokens. All of a document's tokens share one version (same org primary), so the
+// first non-zero version observed is kept; a legacy write (version 0) leaves it unset.
+func (amm *MongoDBModel) stampSearchKeyVersion(keyVersion uint32) {
+	if amm.SearchKeyVersion == 0 {
+		amm.SearchKeyVersion = keyVersion
+	}
+}
+
 // mapBankingDetailsFromEntity encrypts and maps banking details to MongoDB model.
-func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, bd *mmodel.BankingDetails) (*BankingMongoDBModel, *string, *string, error) {
+// The returned key version is the PRF keyset primary used for the generated search tokens.
+func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, bd *mmodel.BankingDetails) (*BankingMongoDBModel, *string, *string, uint32, error) {
 	fieldCtx := encryption.FieldContext{
 		TenantID:       encryptionCtx.TenantID,
 		OrganizationID: encryptionCtx.OrganizationID,
@@ -84,14 +95,17 @@ func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 		model.ClosingDate = &bd.ClosingDate.Time
 	}
 
-	var accountHash, ibanHash *string
+	var (
+		accountHash, ibanHash *string
+		keyVersion            uint32
+	)
 
 	if bd.Account != nil {
 		fieldCtx.FieldName = "banking_details.account"
 
 		encrypted, err := fe.EncryptField(ctx, fieldCtx, *bd.Account)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, 0, err
 		}
 
 		model.Account = &encrypted
@@ -103,12 +117,13 @@ func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 				FieldName:      "banking_details.account",
 			}
 
-			hash, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.Account)
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.Account)
 			if hashErr != nil {
-				return nil, nil, nil, hashErr
+				return nil, nil, nil, 0, hashErr
 			}
 
 			accountHash = &hash
+			keyVersion = version
 		}
 	}
 
@@ -117,7 +132,7 @@ func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 
 		encrypted, err := fe.EncryptField(ctx, fieldCtx, *bd.IBAN)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, 0, err
 		}
 
 		model.IBAN = &encrypted
@@ -129,16 +144,17 @@ func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 				FieldName:      "banking_details.iban",
 			}
 
-			hash, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.IBAN)
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.IBAN)
 			if hashErr != nil {
-				return nil, nil, nil, hashErr
+				return nil, nil, nil, 0, hashErr
 			}
 
 			ibanHash = &hash
+			keyVersion = version
 		}
 	}
 
-	return model, accountHash, ibanHash, nil
+	return model, accountHash, ibanHash, keyVersion, nil
 }
 
 // mapBankingDetailsToEntity decrypts and maps banking details from MongoDB model.
@@ -187,10 +203,14 @@ func mapBankingDetailsToEntity(ctx context.Context, fe encryption.FieldEncryptor
 }
 
 // mapRegulatoryFieldsFromEntity encrypts and maps regulatory fields to MongoDB model.
-func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *mmodel.RegulatoryFields) (*RegulatoryFieldsMongoDBModel, *string, error) {
+// The returned key version is the PRF keyset primary used for the generated search token.
+func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *mmodel.RegulatoryFields) (*RegulatoryFieldsMongoDBModel, *string, uint32, error) {
 	model := &RegulatoryFieldsMongoDBModel{}
 
-	var docHash *string
+	var (
+		docHash    *string
+		keyVersion uint32
+	)
 
 	if rf.ParticipantDocument != nil {
 		fieldCtx := encryption.FieldContext{
@@ -202,7 +222,7 @@ func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncry
 
 		encrypted, err := fe.EncryptField(ctx, fieldCtx, *rf.ParticipantDocument)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		model.ParticipantDocument = &encrypted
@@ -214,16 +234,17 @@ func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncry
 				FieldName:      "regulatory_fields.participant_document",
 			}
 
-			hash, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *rf.ParticipantDocument)
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *rf.ParticipantDocument)
 			if hashErr != nil {
-				return nil, nil, hashErr
+				return nil, nil, 0, hashErr
 			}
 
 			docHash = &hash
+			keyVersion = version
 		}
 	}
 
-	return model, docHash, nil
+	return model, docHash, keyVersion, nil
 }
 
 // mapRegulatoryFieldsToEntity decrypts and maps regulatory fields from MongoDB model.
@@ -250,9 +271,12 @@ func mapRegulatoryFieldsToEntity(ctx context.Context, fe encryption.FieldEncrypt
 }
 
 // mapRelatedPartiesFromEntity encrypts and maps related parties to MongoDB models.
-func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, parties []*mmodel.RelatedParty) ([]*RelatedPartyMongoDBModel, []string, error) {
+// The returned key version is the PRF keyset primary used for the generated search tokens.
+func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, parties []*mmodel.RelatedParty) ([]*RelatedPartyMongoDBModel, []string, uint32, error) {
 	models := make([]*RelatedPartyMongoDBModel, len(parties))
 	hashes := make([]string, 0, len(parties))
+
+	var keyVersion uint32
 
 	for i, rp := range parties {
 		docFieldCtx := encryption.FieldContext{
@@ -264,7 +288,7 @@ func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 
 		encryptedDoc, err := fe.EncryptField(ctx, docFieldCtx, rp.Document)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		var endDate *time.Time
@@ -287,15 +311,16 @@ func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncrypt
 			FieldName:      "related_parties.document",
 		}
 
-		hash, hashErr := fe.GenerateSearchToken(ctx, searchCtx, rp.Document)
+		hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, rp.Document)
 		if hashErr != nil {
-			return nil, nil, hashErr
+			return nil, nil, 0, hashErr
 		}
 
 		hashes = append(hashes, hash)
+		keyVersion = version
 	}
 
-	return models, hashes, nil
+	return models, hashes, keyVersion, nil
 }
 
 // mapRelatedPartiesToEntity decrypts and maps related parties from MongoDB models.
@@ -378,17 +403,18 @@ func (amm *MongoDBModel) FromEntity(ctx context.Context, a *mmodel.Alias, fe enc
 				FieldName:      "document",
 			}
 
-			hash, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *a.Document)
+			hash, keyVersion, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *a.Document)
 			if hashErr != nil {
 				return hashErr
 			}
 
 			amm.Search.Document = &hash
+			amm.stampSearchKeyVersion(keyVersion)
 		}
 	}
 
 	if a.BankingDetails != nil {
-		bankingModel, accountHash, ibanHash, bankingErr := mapBankingDetailsFromEntity(ctx, fe, encryptionCtx, a.BankingDetails)
+		bankingModel, accountHash, ibanHash, keyVersion, bankingErr := mapBankingDetailsFromEntity(ctx, fe, encryptionCtx, a.BankingDetails)
 		if bankingErr != nil {
 			return bankingErr
 		}
@@ -396,26 +422,29 @@ func (amm *MongoDBModel) FromEntity(ctx context.Context, a *mmodel.Alias, fe enc
 		amm.BankingDetails = bankingModel
 		amm.Search.BankingDetailsAccount = accountHash
 		amm.Search.BankingDetailsIBAN = ibanHash
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if a.RegulatoryFields != nil {
-		regulatoryModel, docHash, regErr := mapRegulatoryFieldsFromEntity(ctx, fe, encryptionCtx, a.RegulatoryFields)
+		regulatoryModel, docHash, keyVersion, regErr := mapRegulatoryFieldsFromEntity(ctx, fe, encryptionCtx, a.RegulatoryFields)
 		if regErr != nil {
 			return regErr
 		}
 
 		amm.RegulatoryFields = regulatoryModel
 		amm.Search.RegulatoryFieldsParticipantDocument = docHash
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if len(a.RelatedParties) > 0 {
-		partiesModels, partiesHashes, partiesErr := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, a.RelatedParties)
+		partiesModels, partiesHashes, keyVersion, partiesErr := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, a.RelatedParties)
 		if partiesErr != nil {
 			return partiesErr
 		}
 
 		amm.RelatedParties = partiesModels
 		amm.Search.RelatedPartyDocuments = partiesHashes
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if a.Metadata == nil {

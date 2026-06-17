@@ -41,8 +41,8 @@ type ProvisionEncryptionResponse struct {
 	KEKPath string `json:"kek_path" example:"transit/keys/org-00000000-0000-0000-0000-000000000000"`
 	// The primary key ID for AEAD encryption.
 	AEADPrimaryKeyID uint32 `json:"aead_primary_key_id" example:"1"`
-	// The primary key ID for MAC operations.
-	MACPrimaryKeyID uint32 `json:"mac_primary_key_id" example:"1"`
+	// The primary key ID of the PRF search-token keyset.
+	PRFPrimaryKeyID uint32 `json:"prf_primary_key_id" example:"1"`
 	// The current provisioning status.
 	Status string `json:"status" example:"active"`
 } // @name ProvisionEncryptionResponse

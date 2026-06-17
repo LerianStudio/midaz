@@ -35,7 +35,7 @@ func (stc SearchTokenContext) Validate() error {
 	return nil
 }
 
-// CanonicalInput returns the canonical input for MAC computation.
+// CanonicalInput returns the canonical input for PRF computation.
 // Format: "tenant:{tenantID}:org:{orgID}:field:{fieldName}:{normalizedValue}"
 func (stc SearchTokenContext) CanonicalInput(normalizedValue string) []byte {
 	return fmt.Appendf(nil, "tenant:%s:org:%s:field:%s:%s",

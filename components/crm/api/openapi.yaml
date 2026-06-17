@@ -1539,7 +1539,7 @@ components:
         organization_id: 00000000-0000-0000-0000-000000000000
         aead_primary_key_id: 1
         kek_path: transit/keys/org-00000000-0000-0000-0000-000000000000
-        mac_primary_key_id: 1
+        prf_primary_key_id: 1
         status: active
       properties:
         aead_primary_key_id:
@@ -1550,8 +1550,8 @@ components:
           description: The path to the Key Encryption Key in Vault.
           example: transit/keys/org-00000000-0000-0000-0000-000000000000
           type: string
-        mac_primary_key_id:
-          description: The primary key ID for MAC operations.
+        prf_primary_key_id:
+          description: The primary key ID for PRF-based search-token operations.
           example: 1
           type: integer
         organization_id:

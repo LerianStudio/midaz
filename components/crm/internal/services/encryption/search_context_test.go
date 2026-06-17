@@ -4,9 +4,7 @@
 
 package encryption
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestSearchTokenContext_Validate(t *testing.T) {
 	t.Parallel()
@@ -97,6 +95,7 @@ func TestSearchTokenContext_Validate(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Validate() expected error containing %q, got nil", tt.errContains)
+
 					return
 				}
 
@@ -200,7 +199,7 @@ func TestSearchTokenContext_CanonicalInput_Determinism(t *testing.T) {
 
 	normalizedValue := "123456789"
 
-	// Call multiple times to verify deterministic output
+	// Call multiple times to verify deterministic output.
 	first := ctx.CanonicalInput(normalizedValue)
 	second := ctx.CanonicalInput(normalizedValue)
 	third := ctx.CanonicalInput(normalizedValue)
@@ -220,7 +219,7 @@ func TestSearchTokenContext_CanonicalInput_DifferentValues(t *testing.T) {
 		FieldName:      "tax_id",
 	}
 
-	// Same context, different values should produce different outputs
+	// Same context, different values should produce different outputs.
 	value1 := ctx.CanonicalInput("123456789")
 	value2 := ctx.CanonicalInput("987654321")
 

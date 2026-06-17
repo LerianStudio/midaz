@@ -6,9 +6,15 @@ package encryption
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // exerciseAllMethods calls every protectionMetrics emitter once. It is shared by
@@ -64,4 +70,92 @@ func TestProtectionMetrics_NopFactory_NeverErrorsOrBlocks(t *testing.T) {
 	}
 
 	exerciseAllMethods(context.Background(), m)
+}
+
+// TestResolve_RepositoryError_Propagated asserts an unexpected repo error is
+// returned unchanged.
+func TestResolve_RepositoryError_Propagated(t *testing.T) {
+	t.Parallel()
+
+	repoErr := errors.New("database connection failed")
+	repo := &fakeRegistryRepoForProtection{err: repoErr}
+
+	resolver := NewProtectionStateResolver(repo, NewProtectionMetrics(nil))
+
+	_, err := resolver.Resolve(context.Background(), "org-err")
+	require.ErrorIs(t, err, repoErr)
+}
+
+// TestResolve_NilFactory_NoPanic asserts the resolve path is a safe no-op for
+// metrics when telemetry is disabled (nil factory), keeping behavior identical.
+func TestResolve_NilFactory_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRegistryRepoForProtection{
+		record: nil,
+		err:    constant.ErrRegistryNotFound,
+	}
+
+	resolver := NewProtectionStateResolver(repo, NewProtectionMetrics(nil))
+
+	state, err := resolver.Resolve(context.Background(), "org-nil")
+	require.NoError(t, err)
+	assert.Equal(t, crypto.EncryptionModeLegacy, state.Mode)
+}
+
+// scriptedUnwrapper is a per-call-controllable KeysetUnwrapper. The first call is
+// the AEAD unwrap, the second is the PRF unwrap, matching fetchAndCache order.
+type scriptedUnwrapper struct {
+	aeadKeyset []byte
+	prfKeyset  []byte
+	aeadErr    error
+	macErr     error
+	calls      int
+}
+
+func (s *scriptedUnwrapper) UnwrapKeyset(_ context.Context, _ string, _ string, _ string) ([]byte, error) {
+	s.calls++
+
+	if s.calls == 1 {
+		if s.aeadErr != nil {
+			return nil, s.aeadErr
+		}
+
+		return s.aeadKeyset, nil
+	}
+
+	if s.macErr != nil {
+		return nil, s.macErr
+	}
+
+	return s.prfKeyset, nil
+}
+
+// newKeysetManagerForMetrics builds a KeysetManager wired with the recording
+// metrics seam and a scripted unwrapper. Provisioner is nil; the keyset is
+// pre-seeded so fetchAndCache reaches the unwrap path directly.
+func newKeysetManagerForMetrics(unwrapper KeysetUnwrapper, m *protectionMetrics) *KeysetManager {
+	repo := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-metrics",
+			KEKPath:           "org-org-metrics",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+		},
+	}
+
+	return NewKeysetManager(repo, unwrapper, nil, DefaultKeysetManagerConfig(), m)
+}
+
+// TestFetchAndCache_NilFactory_NoPanic asserts the read path is a safe no-op for
+// provider metrics when telemetry is disabled, keeping behavior identical.
+func TestFetchAndCache_NilFactory_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, prfBytes := generateTestKeysets(t)
+
+	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadKeyset: aeadBytes, prfKeyset: prfBytes}, NewProtectionMetrics(nil))
+
+	_, err := km.GetPrimitives(context.Background(), "org-metrics")
+	require.NoError(t, err)
 }

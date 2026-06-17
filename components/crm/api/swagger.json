@@ -1620,8 +1620,8 @@
                     "type": "string",
                     "example": "transit/keys/org-00000000-0000-0000-0000-000000000000"
                 },
-                "mac_primary_key_id": {
-                    "description": "The primary key ID for MAC operations.",
+                "prf_primary_key_id": {
+                    "description": "The primary key ID for PRF-based search-token operations.",
                     "type": "integer",
                     "example": 1
                 },

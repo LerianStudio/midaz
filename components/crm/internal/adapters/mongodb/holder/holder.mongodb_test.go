@@ -534,8 +534,8 @@ func (m *mockFieldEncryptorWithError) DecryptField(_ context.Context, _ encrypti
 	return ciphertext, nil
 }
 
-func (m *mockFieldEncryptorWithError) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, error) {
-	return "mock-token", nil
+func (m *mockFieldEncryptorWithError) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, uint32, error) {
+	return "mock-token", 0, nil
 }
 
 func (m *mockFieldEncryptorWithError) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {
@@ -594,12 +594,12 @@ func (m *mockFieldEncryptorMultiToken) DecryptField(_ context.Context, _ encrypt
 	return ciphertext, nil
 }
 
-func (m *mockFieldEncryptorMultiToken) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, error) {
+func (m *mockFieldEncryptorMultiToken) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, uint32, error) {
 	if len(m.tokens) > 0 {
-		return m.tokens[0], nil
+		return m.tokens[0], 0, nil
 	}
 
-	return "mock-token", nil
+	return "mock-token", 0, nil
 }
 
 func (m *mockFieldEncryptorMultiToken) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {

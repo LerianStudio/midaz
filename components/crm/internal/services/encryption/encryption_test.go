@@ -13,8 +13,8 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
-	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/tests/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,30 +113,16 @@ func newTestLegacyKeyMaterial(t *testing.T) *LegacyKeyMaterial {
 func generateServiceTestKeysets(t *testing.T) ([]byte, []byte, uint32, uint32) {
 	t.Helper()
 
-	// Generate AEAD keyset
-	aeadGen := tink.NewAEADKeysetGenerator()
-	aeadHandle, aeadBytes, err := aeadGen.Generate()
-	require.NoError(t, err)
+	keysets := helpers.GenerateTinkKeysets(t)
 
-	aeadInfo, err := aeadGen.ExtractInfo(aeadHandle)
-	require.NoError(t, err)
-
-	// Generate MAC keyset
-	macGen := tink.NewMACKeysetGenerator()
-	macHandle, macBytes, err := macGen.Generate()
-	require.NoError(t, err)
-
-	macInfo, err := macGen.ExtractInfo(macHandle)
-	require.NoError(t, err)
-
-	return aeadBytes, macBytes, aeadInfo.PrimaryKeyID, macInfo.PrimaryKeyID
+	return keysets.AEADBytes, keysets.PRFBytes, keysets.AEADPrimaryKeyID, keysets.PRFPrimaryKeyID
 }
 
 // createEncryptionTestService creates a Service with test dependencies for envelope mode tests.
 func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys *LegacyKeyMaterial) (EncryptionService, *mmodel.OrganizationKeyset) {
 	t.Helper()
 
-	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+	aeadBytes, prfBytes, aeadKeyID, prfKeyID := generateServiceTestKeysets(t)
 
 	keyset := &mmodel.OrganizationKeyset{
 		TenantID:       state.TenantID,
@@ -148,7 +134,7 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 		},
 		WrappedHMACKeyset: "wrapped-hmac",
 		HMACKeysetInfo: mmodel.KeysetInfo{
-			PrimaryKeyID: aeadKeyID, // Using same ID for simplicity
+			PrimaryKeyID: prfKeyID, // PRF (search-token) keyset primary key ID
 		},
 	}
 
@@ -160,7 +146,7 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 
 	unwrapper := &serviceTestKeysetUnwrapper{
 		aeadKeyset: aeadBytes,
-		macKeyset:  macBytes,
+		macKeyset:  prfBytes,
 	}
 
 	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
@@ -588,7 +574,7 @@ func TestService_GenerateSearchToken_EnvelopeMode(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	token, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	token, _, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 
@@ -618,10 +604,10 @@ func TestService_GenerateSearchToken_Deterministic(t *testing.T) {
 	}
 
 	// Generate same token twice
-	token1, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	token1, _, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
 	require.NoError(t, err)
 
-	token2, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	token2, _, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
 	require.NoError(t, err)
 
 	// Tokens should be identical
@@ -649,10 +635,10 @@ func TestService_GenerateSearchToken_DifferentInputs(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	token1, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	token1, _, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
 	require.NoError(t, err)
 
-	token2, err := svc.GenerateSearchToken(ctx, searchCtx, "XYZ789")
+	token2, _, err := svc.GenerateSearchToken(ctx, searchCtx, "XYZ789")
 	require.NoError(t, err)
 
 	// Tokens should be different
@@ -681,7 +667,7 @@ func TestService_GenerateSearchToken_LegacyMode(t *testing.T) {
 	}
 
 	normalizedValue := "ABC123"
-	token, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	token, _, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
 	// Legacy mode uses HMAC-SHA256 hex token matching lib-commons format
@@ -738,7 +724,7 @@ func TestService_GenerateSearchToken_InvalidContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := svc.GenerateSearchToken(ctx, tt.searchCtx, "value")
+			_, _, err := svc.GenerateSearchToken(ctx, tt.searchCtx, "value")
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrSearchContextInvalid)
 		})
@@ -965,7 +951,7 @@ func TestService_GenerateSearchToken_ContextCanceled(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	_, err := svc.GenerateSearchToken(ctx, searchCtx, "value")
+	_, _, err := svc.GenerateSearchToken(ctx, searchCtx, "value")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }
@@ -1202,7 +1188,7 @@ func TestService_GenerateSearchToken_StateResolverError(t *testing.T) {
 		FieldName:      "document",
 	}
 
-	_, err := svc.GenerateSearchToken(ctx, searchCtx, "value")
+	_, _, err := svc.GenerateSearchToken(ctx, searchCtx, "value")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve protection state")
 }
@@ -1355,7 +1341,7 @@ func (m *mockProvisioningService) Provision(ctx context.Context, req ProvisionIn
 		OrganizationID:   req.OrganizationID,
 		KEKPath:          "transit/keys/crm/" + req.OrganizationID,
 		AEADPrimaryKeyID: 12345,
-		MACPrimaryKeyID:  12346,
+		PRFPrimaryKeyID:  12346,
 		RegistryStatus:   mmodel.RegistryStatusActive,
 	}, nil
 }
@@ -1426,7 +1412,7 @@ func TestService_KMSNone_LegacyEncryptDecryptSearchUsesImportedLegacyKey(t *test
 		FieldName:      "document",
 	}
 
-	token, err := svc.GenerateSearchToken(ctx, searchCtx, plaintext)
+	token, _, err := svc.GenerateSearchToken(ctx, searchCtx, plaintext)
 	require.NoError(t, err)
 
 	// Compare with expected HMAC-SHA256 hex token
@@ -1454,7 +1440,7 @@ func TestService_SearchRouting_LegacyTokenAndEnvelopeTokenDifferByMode(t *testin
 	}
 
 	// Generate legacy token
-	legacyToken, err := legacySvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	legacyToken, _, err := legacySvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
 	// Assert legacy token equals expected hex HMAC
@@ -1473,7 +1459,7 @@ func TestService_SearchRouting_LegacyTokenAndEnvelopeTokenDifferByMode(t *testin
 	envelopeSvc, _ := createEncryptionTestService(t, state, legacyKeys)
 
 	// Generate envelope token
-	envelopeToken, err := envelopeSvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	envelopeToken, _, err := envelopeSvc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
 	// Assert envelope token differs from legacy token
@@ -1546,7 +1532,7 @@ func TestService_GenerateSearchToken_GlobalModeEnvelope_TriggersLazyProvisioning
 
 	// Execute: GenerateSearchToken should use envelope mode (triggering lazy provisioning)
 	// NOT legacy mode, even though ProtectionStateResolver returns legacy
-	token, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	token, _, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
 	require.NoError(t, err)
 
 	// Verify: Token is not empty
@@ -1906,4 +1892,403 @@ func TestService_GenerateSearchTokenCandidates_NilLegacyKeyMaterial(t *testing.T
 	// Legacy mode with nil crypto returns single empty string
 	require.Len(t, tokens, 1)
 	assert.Empty(t, tokens[0], "token MUST be empty when legacy crypto is nil")
+}
+
+// ---------------------------------------------------------------------------
+// GenerateSearchTokenCandidates legacy∪envelope union Tests
+// ---------------------------------------------------------------------------
+
+// Envelope-resolved org that may read legacy gets envelope candidates plus the
+// bare-value legacy token as the final element.
+func TestService_GenerateSearchTokenCandidates_MigratedOrgCanReadLegacy_ReturnsEnvelopePlusLegacy(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        true,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	envelopeOnly, err := svc.(*encryptionService).generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+	require.NotEmpty(t, envelopeOnly, "envelope baseline MUST NOT be empty")
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	for i, want := range envelopeOnly {
+		assert.Contains(t, tokens, want, "result MUST contain envelope PRF candidate at index %d", i)
+	}
+
+	// Legacy token MUST be the final element, computed over the bare value.
+	wantLegacy := legacyKeys.GenerateHash(&value)
+	require.Len(t, tokens, len(envelopeOnly)+1, "result MUST be envelope candidates plus exactly one legacy token")
+	assert.Equal(t, wantLegacy, tokens[len(tokens)-1], "legacy token MUST be the FINAL element and computed over the bare value")
+}
+
+// Global envelope mode with an empty registry resolves to CanReadLegacy=true, so
+// the legacy token is unioned in here too.
+func TestService_GenerateSearchTokenCandidates_GlobalEnvelopeModeCanReadLegacy_IncludesLegacy(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	keyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-global",
+		KEKPath:        "test-kek",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	keysetRepo := &serviceTestKeysetRepo{
+		keysets: map[string]*mmodel.OrganizationKeyset{
+			"org-global": keyset,
+		},
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-global",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	wantLegacy := legacyKeys.GenerateHash(&value)
+	require.GreaterOrEqual(t, len(tokens), 2, "result MUST include at least one envelope candidate plus the legacy token")
+	assert.Equal(t, wantLegacy, tokens[len(tokens)-1], "legacy token MUST be the FINAL element over the bare value")
+}
+
+// Envelope-resolved org that may NOT read legacy gets envelope candidates only.
+func TestService_GenerateSearchTokenCandidates_BornEnvelopeNoLegacy_ReturnsEnvelopeOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-123",
+		TenantID:             "tenant-abc",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	envelopeOnly, err := svc.(*encryptionService).generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	assert.Equal(t, envelopeOnly, tokens, "envelope-only org MUST NOT include a legacy token")
+
+	wantLegacy := legacyKeys.GenerateHash(&value)
+	assert.NotContains(t, tokens, wantLegacy, "result MUST NOT contain the legacy token when CanReadLegacy=false")
+}
+
+// Fail-closed when legacy reads are permitted but no legacy crypto is wired.
+func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_Errors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{
+			"org-123": {
+				TenantID:       "tenant-abc",
+				OrganizationID: "org-123",
+				Status:         mmodel.RegistryStatusActive,
+				LegacyReadable: true,
+				CurrentVersion: 1,
+			},
+		},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	keyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		KEKPath:        "test-kek",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	keysetRepo := &serviceTestKeysetRepo{
+		keysets: map[string]*mmodel.OrganizationKeyset{
+			"org-123": keyset,
+		},
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	// nil legacyCrypto (true nil interface, matching production wiring when no legacy crypto is configured).
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, nil, NewProtectionMetrics(nil))
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.Error(t, err)
+	assert.Nil(t, tokens, "no partial slice MUST be returned on fail-closed error")
+}
+
+// A protection-state resolution failure on the global envelope path is propagated unchanged.
+func TestService_GenerateSearchTokenCandidates_ResolveError_Propagated(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registryRepo := &serviceTestRegistryRepo{
+		err: errors.New("registry error"),
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+
+	keyset := &mmodel.OrganizationKeyset{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		KEKPath:        "test-kek",
+		WrappedKeyset:  "wrapped-aead",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+		WrappedHMACKeyset: "wrapped-hmac",
+		HMACKeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: aeadKeyID,
+		},
+	}
+
+	keysetRepo := &serviceTestKeysetRepo{
+		keysets: map[string]*mmodel.OrganizationKeyset{
+			"org-123": keyset,
+		},
+	}
+
+	unwrapper := &serviceTestKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		macKeyset:  macBytes,
+	}
+
+	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-abc",
+		OrganizationID: "org-123",
+		FieldName:      "document",
+	}
+
+	_, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve protection state")
+}
+
+// A pure-legacy org still returns the single-element legacy-token slice, unchanged by the union.
+func TestService_GenerateSearchTokenCandidates_PureLegacyOrg_Unchanged(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	require.Len(t, tokens, 1, "pure-legacy org MUST return exactly one token")
+	assert.Equal(t, legacyKeys.GenerateHash(&value), tokens[0], "single legacy token MUST match GenerateHash over bare value")
+}
+
+// TestService_GenerateSearchToken_Envelope_ReturnsPRFKeyVersion verifies that the
+// envelope path returns a non-zero keyVersion equal to the provisioned PRF keyset
+// primary key ID, and that the token base64url-decodes to a RAW 32-byte PRF value
+func TestService_GenerateSearchToken_Envelope_ReturnsPRFKeyVersion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        false,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-prf",
+		TenantID:             "tenant-prf",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, keyset := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-prf",
+		OrganizationID: "org-prf",
+		FieldName:      "document",
+	}
+
+	token, keyVersion, err := svc.GenerateSearchToken(ctx, searchCtx, "ABC123")
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	// keyVersion must equal the provisioned PRF (HMAC) keyset primary key ID.
+	assert.NotZero(t, keyVersion, "envelope search token must carry a non-zero PRF key version")
+	assert.Equal(t, keyset.HMACKeysetInfo.PrimaryKeyID, keyVersion)
+
+	// PRF output is RAW (no Tink key-id prefix) and fixed at 32 bytes.
+	raw, decErr := base64.URLEncoding.DecodeString(token)
+	require.NoError(t, decErr)
+	assert.Len(t, raw, 32, "PRF token must decode to RAW 32 bytes")
+}
+
+// TestService_GenerateSearchToken_Legacy_ReturnsZeroKeyVersion verifies that the
+// true legacy-hash branch returns keyVersion == 0.
+func TestService_GenerateSearchToken_Legacy_ReturnsZeroKeyVersion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+
+	// Empty registry (no record) -> legacy mode.
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-legacy",
+		OrganizationID: "org-legacy",
+		FieldName:      "document",
+	}
+
+	normalizedValue := "ABC123"
+	token, keyVersion, err := svc.GenerateSearchToken(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+
+	assert.Zero(t, keyVersion, "legacy-hash branch must return key version 0")
+	assert.Equal(t, legacyKeys.GenerateHash(&normalizedValue), token)
+}
+
+// TestService_GenerateSearchTokenCandidates_MigratedOrg_PreservesLegacyUnion
+// verifies the Phase-1 union: a migrated org (envelope + CanReadLegacy) yields the
+// PRF candidate(s) AND a trailing legacy bare-value token.
+func TestService_GenerateSearchTokenCandidates_MigratedOrg_PreservesLegacyUnion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := ProtectionState{
+		Mode:                 crypto.EncryptionModeEnvelope,
+		CanReadLegacy:        true,
+		CurrentKeysetVersion: 1,
+		OrganizationID:       "org-migrated",
+		TenantID:             "tenant-migrated",
+	}
+
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-migrated",
+		OrganizationID: "org-migrated",
+		FieldName:      "document",
+	}
+
+	normalizedValue := "ABC123"
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, normalizedValue)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(tokens), 2, "must include at least one PRF candidate plus the legacy token")
+
+	// Trailing element must be the legacy bare-value token (Phase-1 union preserved).
+	legacyToken := legacyKeys.GenerateHash(&normalizedValue)
+	assert.Equal(t, legacyToken, tokens[len(tokens)-1], "last candidate must be the legacy bare-value token")
+
+	// Leading PRF candidate(s) must be RAW 32-byte PRF values, distinct from the legacy hex token.
+	raw, decErr := base64.URLEncoding.DecodeString(tokens[0])
+	require.NoError(t, decErr)
+	assert.Len(t, raw, 32)
+	assert.NotEqual(t, legacyToken, tokens[0])
 }

@@ -108,7 +108,7 @@ func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
 		OrganizationID:   result.OrganizationID,
 		KEKPath:          result.KEKPath,
 		AEADPrimaryKeyID: result.AEADPrimaryKeyID,
-		MACPrimaryKeyID:  result.MACPrimaryKeyID,
+		PRFPrimaryKeyID:  result.PRFPrimaryKeyID,
 		Status:           string(result.RegistryStatus),
 	}
 

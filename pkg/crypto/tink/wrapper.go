@@ -100,7 +100,7 @@ type KeysetBundle struct {
 type KeysetFactory struct {
 	wrapper       *KeysetWrapper
 	aeadGenerator *AEADKeysetGenerator
-	macGenerator  *MACKeysetGenerator
+	prfGenerator  *PRFKeysetGenerator
 }
 
 // NewKeysetFactory creates a factory for generating and wrapping keysets.
@@ -109,7 +109,7 @@ func NewKeysetFactory(kms KMSClient) *KeysetFactory {
 	return &KeysetFactory{
 		wrapper:       NewKeysetWrapper(kms),
 		aeadGenerator: NewAEADKeysetGenerator(),
-		macGenerator:  NewMACKeysetGenerator(),
+		prfGenerator:  NewPRFKeysetGenerator(),
 	}
 }
 
@@ -139,24 +139,25 @@ func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, mountPath, keyNa
 	}, nil
 }
 
-// GenerateMACKeyset creates a new HMAC-SHA256 keyset and wraps it with the KMS.
+// GeneratePRFKeyset creates a new HMAC-SHA256 PRF keyset and wraps it with the KMS.
 // The mountPath and keyName are caller-defined and should follow the caller's
 // naming convention; both are forwarded verbatim to the wrapper.
+// The keyset metadata is labeled with KeyTypeHMACPRF via ExtractInfo.
 // Returns a bundle containing both the wrapped keyset and raw bytes for immediate use.
-func (f *KeysetFactory) GenerateMACKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
-	handle, rawKeyset, err := f.macGenerator.Generate()
+func (f *KeysetFactory) GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
+	handle, rawKeyset, err := f.prfGenerator.Generate()
 	if err != nil {
-		return KeysetBundle{}, fmt.Errorf("failed to generate MAC keyset: %w", err)
+		return KeysetBundle{}, fmt.Errorf("failed to generate PRF keyset: %w", err)
 	}
 
-	info, err := f.macGenerator.ExtractInfo(handle)
+	info, err := f.prfGenerator.ExtractInfo(handle)
 	if err != nil {
-		return KeysetBundle{}, fmt.Errorf("failed to extract MAC keyset info: %w", err)
+		return KeysetBundle{}, fmt.Errorf("failed to extract PRF keyset info: %w", err)
 	}
 
 	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
 	if err != nil {
-		return KeysetBundle{}, fmt.Errorf("failed to wrap MAC keyset: %w", err)
+		return KeysetBundle{}, fmt.Errorf("failed to wrap PRF keyset: %w", err)
 	}
 
 	return KeysetBundle{
@@ -181,17 +182,17 @@ func (f *KeysetFactory) UnwrapAEAD(ctx context.Context, mountPath, keyName strin
 	return primitive, nil
 }
 
-// UnwrapMAC unwraps a keyset and returns a MAC primitive ready for use.
+// UnwrapPRF unwraps a keyset and returns a PRF primitive ready for use.
 // The mountPath and keyName must match those used during wrapping.
-func (f *KeysetFactory) UnwrapMAC(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*MACPrimitive, error) {
+func (f *KeysetFactory) UnwrapPRF(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*PRFPrimitive, error) {
 	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, mountPath, keyName, wrapped.WrappedData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unwrap MAC keyset: %w", err)
+		return nil, fmt.Errorf("failed to unwrap PRF keyset: %w", err)
 	}
 
-	primitive, err := ParseMACKeyset(keysetBytes)
+	primitive, err := ParsePRFKeyset(keysetBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse MAC keyset: %w", err)
+		return nil, fmt.Errorf("failed to parse PRF keyset: %w", err)
 	}
 
 	return primitive, nil

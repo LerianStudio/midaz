@@ -26,9 +26,9 @@ const (
 
 	// Stable failure classifiers for the provider operation failures counter.
 	errorCodeUnwrapAEADFailed = "unwrap_aead_failed"
-	errorCodeUnwrapMACFailed  = "unwrap_mac_failed"
+	errorCodeUnwrapPRFFailed  = "unwrap_prf_failed"
 	errorCodeWrapAEADFailed   = "wrap_aead_failed"
-	errorCodeWrapMACFailed    = "wrap_mac_failed"
+	errorCodeWrapPRFFailed    = "wrap_prf_failed"
 )
 
 // protectionMetrics is the nil-safe emission seam for CRM field-protection
