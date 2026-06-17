@@ -11,8 +11,10 @@ import (
 	"sync"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -324,7 +326,7 @@ func TestProvisioningService_Provision_Success(t *testing.T) {
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -382,7 +384,7 @@ func TestProvisioningService_Provision_SingleTenant_FlatMount(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
-		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "default",
@@ -415,7 +417,7 @@ func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
-		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	const tenantID = "11111111-2222-3333-4444-555555555555"
 
@@ -452,7 +454,7 @@ func TestProvisioningService_Provision_MountNotFound_FailsClosed(t *testing.T) {
 	keysetGenerator.aeadErr = fmt.Errorf("wrap aead: %w", vault.ErrMountNotFound)
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
-		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "11111111-2222-3333-4444-555555555555",
@@ -468,6 +470,144 @@ func TestProvisioningService_Provision_MountNotFound_FailsClosed(t *testing.T) {
 	// No keyset/registry should be persisted on a failed-closed provision.
 	assert.Empty(t, keysetRepo.keysets, "no keyset should be saved when mount is missing")
 	assert.Empty(t, registryRepo.records, "no registry should be saved when mount is missing")
+}
+
+type provisioningInvalidationRegistryRepo struct {
+	mu       sync.Mutex
+	record   *mmodel.OrganizationRegistryRecord
+	saveErr  error
+	getCalls int
+}
+
+func (p *provisioningInvalidationRegistryRepo) Get(_ context.Context, _ string) (*mmodel.OrganizationRegistryRecord, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.getCalls++
+	if p.record == nil {
+		return nil, constant.ErrRegistryNotFound
+	}
+
+	return p.record, nil
+}
+
+func (p *provisioningInvalidationRegistryRepo) Save(_ context.Context, record *mmodel.OrganizationRegistryRecord) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.saveErr != nil {
+		return p.saveErr
+	}
+
+	p.record = record
+
+	return nil
+}
+
+func (p *provisioningInvalidationRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegistryRecord, _ int64) error {
+	return nil
+}
+
+func (p *provisioningInvalidationRegistryRepo) getCallCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.getCalls
+}
+
+func TestProvisioningService_Provision_InvalidatesProtectionStateOnlyOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		configureRegistry    func(*provisioningInvalidationRegistryRepo)
+		wantErr              bool
+		wantResolvedMode     crypto.EncryptionMode
+		wantCanReadLegacy    bool
+		wantRegistryGetCalls int
+	}{
+		{
+			name:                 "successful provisioning invalidates protection state",
+			wantResolvedMode:     crypto.EncryptionModeEnvelope,
+			wantCanReadLegacy:    true,
+			wantRegistryGetCalls: 3,
+		},
+		{
+			name: "failed provisioning does not invalidate protection state",
+			configureRegistry: func(repo *provisioningInvalidationRegistryRepo) {
+				repo.saveErr = errors.New("save failed")
+			},
+			wantErr:              true,
+			wantResolvedMode:     crypto.EncryptionModeLegacy,
+			wantCanReadLegacy:    true,
+			wantRegistryGetCalls: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registryRepo := &provisioningInvalidationRegistryRepo{}
+			if tt.configureRegistry != nil {
+				tt.configureRegistry(registryRepo)
+			}
+
+			resolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+			service := NewProvisioningService(
+				newFakeKeysetRepoForProv(),
+				registryRepo,
+				newFakeKeysetGenerator(),
+				DefaultProvisioningConfig(),
+				newSpyAuditWriter(),
+				NewProtectionMetrics(nil),
+				resolver,
+			)
+
+			req := ProvisionInput{
+				TenantID:       "tenant-123",
+				OrganizationID: "org-456",
+				Actor:          "tester",
+				Reason:         "test provisioning invalidation",
+			}
+
+			ctx := tmcore.ContextWithTenantID(context.Background(), req.TenantID)
+			initial, err := resolver.Resolve(ctx, req.OrganizationID)
+			if err != nil {
+				t.Fatalf("Resolve() initial call error = %v", err)
+			}
+
+			if initial.Mode != crypto.EncryptionModeLegacy {
+				t.Fatalf("initial Mode = %v, want legacy", initial.Mode)
+			}
+
+			_, err = service.Provision(ctx, req)
+			if tt.wantErr && err == nil {
+				t.Fatal("Provision() error = nil, want error")
+			}
+
+			if !tt.wantErr && err != nil {
+				t.Fatalf("Provision() unexpected error = %v", err)
+			}
+
+			resolved, err := resolver.Resolve(ctx, req.OrganizationID)
+			if err != nil {
+				t.Fatalf("Resolve() after provisioning error = %v", err)
+			}
+
+			if resolved.Mode != tt.wantResolvedMode {
+				t.Errorf("resolved Mode = %v, want %v", resolved.Mode, tt.wantResolvedMode)
+			}
+
+			if resolved.CanReadLegacy != tt.wantCanReadLegacy {
+				t.Errorf("resolved CanReadLegacy = %v, want %v", resolved.CanReadLegacy, tt.wantCanReadLegacy)
+			}
+
+			if got := registryRepo.getCallCount(); got != tt.wantRegistryGetCalls {
+				t.Errorf("registry Get calls = %d, want %d", got, tt.wantRegistryGetCalls)
+			}
+		})
+	}
 }
 
 func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
@@ -490,7 +630,7 @@ func TestProvisioningService_Provision_AlreadyProvisioned(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -532,7 +672,7 @@ func TestProvisioningService_Provision_RecoveryFromPartialFailure(t *testing.T) 
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -563,7 +703,7 @@ func TestProvisioningService_Provision_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "",
@@ -586,7 +726,7 @@ func TestProvisioningService_Provision_AEADGenerationFailed(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	keysetGenerator.aeadErr = errors.New("KMS unavailable")
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -611,7 +751,7 @@ func TestProvisioningService_Provision_PRFGenerationFailed(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	keysetGenerator.macErr = errors.New("KMS unavailable")
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -636,7 +776,7 @@ func TestProvisioningService_Provision_KeysetSaveFailed(t *testing.T) {
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -661,7 +801,7 @@ func TestProvisioningService_Provision_RegistrySaveFailed(t *testing.T) {
 	registryRepo.saveErr = errors.New("database error")
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -683,7 +823,7 @@ func TestProvisioningService_Provision_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -715,7 +855,7 @@ func TestProvisioningService_GetProvisioningStatus_Provisioned(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	status, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.NoError(t, err)
@@ -731,7 +871,7 @@ func TestProvisioningService_GetProvisioningStatus_NotProvisioned(t *testing.T) 
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	status, err := svc.GetProvisioningStatus(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -742,7 +882,7 @@ func TestProvisioningService_GetProvisioningStatus_EmptyOrgID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	_, err := svc.GetProvisioningStatus(ctx, "")
 	require.Error(t, err)
@@ -754,7 +894,7 @@ func TestProvisioningService_GetProvisioningStatus_ContextCanceled(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	_, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.Error(t, err)
@@ -778,7 +918,7 @@ func TestProvisioningService_IsProvisioned_True(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	provisioned, err := svc.IsProvisioned(ctx, "org-456")
 	require.NoError(t, err)
@@ -793,7 +933,7 @@ func TestProvisioningService_IsProvisioned_False(t *testing.T) {
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	provisioned, err := svc.IsProvisioned(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -817,7 +957,7 @@ func TestProvisioningService_IsActive(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	active, err := svc.IsActive(ctx, "org-456")
 	require.NoError(t, err)
@@ -832,7 +972,7 @@ func TestProvisioningService_IsActive_NotProvisioned(t *testing.T) {
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	active, err := svc.IsActive(ctx, "org-not-provisioned")
 	require.NoError(t, err)
@@ -846,7 +986,7 @@ func TestProvisioningService_IsActive_NotProvisioned(t *testing.T) {
 func TestNewProvisioningService_DefaultMountPath(t *testing.T) {
 	t.Parallel()
 
-	svc := NewProvisioningService(nil, nil, nil, ProvisioningConfig{}, newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, ProvisioningConfig{}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	// Type assert to access internal method for testing
 	concreteSvc, ok := svc.(*provisioningService)
@@ -863,7 +1003,7 @@ func TestNewProvisioningService_CustomMountPath(t *testing.T) {
 	config := ProvisioningConfig{
 		KEKMountPath: "custom-transit",
 	}
-	svc := NewProvisioningService(nil, nil, nil, config, newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, config, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	// Type assert to access internal method for testing
 	concreteSvc, ok := svc.(*provisioningService)
@@ -900,7 +1040,7 @@ func TestProvisioningService_Provision_RegistryAlreadyExists_ButKeysetMissing(t 
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -925,7 +1065,7 @@ func TestProvisioningService_GetProvisioningStatus_DatabaseError(t *testing.T) {
 	registryRepo.getErr = errors.New("database error")
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	_, err := svc.GetProvisioningStatus(ctx, "org-456")
 	require.Error(t, err)
@@ -940,7 +1080,7 @@ func TestProvisioningService_GetProvisioningStatus_NilNilFromRepository(t *testi
 	registryRepo.returnNilNil = true // Simulate edge case: repository returns (nil, nil)
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	// Should handle (nil, nil) gracefully without panic
 	status, err := svc.GetProvisioningStatus(ctx, "org-456")
@@ -972,7 +1112,7 @@ func TestProvisioningService_Provision_ConstantPackageErrors(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1003,7 +1143,7 @@ func TestProvisioningService_Provision_RegistrySaveFailure_ThenRetryRecovers(t *
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1076,7 +1216,7 @@ func TestProvisioningService_Provision_IdempotentMultipleCalls(t *testing.T) {
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1150,7 +1290,7 @@ func TestProvisioningService_getExistingProvisionResult_Success(t *testing.T) {
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	// Type assert to access internal method
 	concreteSvc, ok := svc.(*provisioningService)
@@ -1175,7 +1315,7 @@ func TestProvisioningService_getExistingProvisionResult_EmptyOrgID(t *testing.T)
 	registryRepo := newFakeRegistryRepoForProv()
 	keysetGenerator := newFakeKeysetGenerator()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok)
@@ -1201,7 +1341,7 @@ func TestProvisioningService_getExistingProvisionResult_KeysetNotFound(t *testin
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok)
@@ -1228,7 +1368,7 @@ func TestProvisioningService_getExistingProvisionResult_NilKeyset(t *testing.T) 
 	// Create a custom fake that returns (nil, nil) from Get
 	nilKeysetRepo := &fakeKeysetRepoNilNil{}
 
-	svc := NewProvisioningService(nilKeysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nilKeysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok)
@@ -1255,7 +1395,7 @@ func TestProvisioningService_getExistingProvisionResult_RegistryNotFound(t *test
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 44444},
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok)
@@ -1283,7 +1423,7 @@ func TestProvisioningService_getExistingProvisionResult_NilRegistry(t *testing.T
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 66666},
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	concreteSvc, ok := svc.(*provisioningService)
 	require.True(t, ok)
@@ -1376,7 +1516,7 @@ func TestProvisioningService_Provision_EmitsSuccessAuditEvent(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 	spy := newSpyAuditWriter()
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	req := ProvisionInput{
 		TenantID:       "tenant-123",
@@ -1422,7 +1562,7 @@ func TestProvisioningService_Provision_AlreadyProvisioned_EmitsAlreadyExists(t *
 		Status:         mmodel.RegistryStatusActive,
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -1451,7 +1591,7 @@ func TestProvisioningService_Provision_RegistryRecreatedFromExistingKeyset_Emits
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
 	}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	result, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -1479,7 +1619,7 @@ func TestProvisioningService_Provision_RegistrySaveRace_EmitsAlreadyExists(t *te
 	// concurrently-written registry so getExistingProvisionResult succeeds.
 	registryRepo := &raceRegistryRepo{}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -1533,7 +1673,7 @@ func TestProvisioningService_Provision_HandleExistingKeyset_BothExist_EmitsAlrea
 	keysetRepo := &raceKeysetRepo{}
 	registryRepo := &raceRegistryRepoBothExist{}
 
-	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	_, err := svc.Provision(ctx, newProvisionReq())
 	require.NoError(t, err)
@@ -1639,7 +1779,7 @@ func TestProvisioningService_Provision_Failures_EmitFailure(t *testing.T) {
 
 			tt.mutate(keysetRepo, registryRepo, keysetGenerator)
 
-			svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+			svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 			_, err := svc.Provision(ctx, newProvisionReq())
 			require.Error(t, err)
@@ -1664,7 +1804,7 @@ func TestProvisioningService_Provision_ResultUnchangedVsWriter(t *testing.T) {
 		t.Helper()
 
 		ctx := context.Background()
-		svc := NewProvisioningService(newFakeKeysetRepoForProv(), newFakeRegistryRepoForProv(), newFakeKeysetGenerator(), DefaultProvisioningConfig(), w, NewProtectionMetrics(nil))
+		svc := NewProvisioningService(newFakeKeysetRepoForProv(), newFakeRegistryRepoForProv(), newFakeKeysetGenerator(), DefaultProvisioningConfig(), w, NewProtectionMetrics(nil), nil)
 
 		return svc.Provision(ctx, newProvisionReq())
 	}
@@ -1711,7 +1851,7 @@ func TestProvisioningService_Provision_InvalidRequest_EmitsFailure(t *testing.T)
 
 	ctx := context.Background()
 	spy := newSpyAuditWriter()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	req := newProvisionReq()
 	req.TenantID = ""
@@ -1732,7 +1872,7 @@ func TestProvisioningService_Provision_EventBuildFails_SkipsEmission(t *testing.
 
 	ctx := context.Background()
 	spy := newSpyAuditWriter()
-	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil))
+	svc := NewProvisioningService(nil, nil, nil, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
 	req := newProvisionReq()
 	req.OrganizationID = "" // fails validation AND event build (OrganizationID required)

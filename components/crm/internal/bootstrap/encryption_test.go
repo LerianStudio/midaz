@@ -855,6 +855,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
 		stubAuditWriter{},
 		encryption.NewProtectionMetrics(nil),
+		nil,
 	)
 
 	return wireEncryptionServicesOutput{

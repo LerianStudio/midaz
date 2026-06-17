@@ -342,3 +342,61 @@ func TestProtectionStateResolver_Resolve_CacheKeyedByTenant(t *testing.T) {
 		t.Errorf("registry Get calls = %d, want 2 (different tenants must not share a cache entry)", reader.getCalls)
 	}
 }
+
+func TestProtectionStateResolver_Invalidate_RemovesCachedState(t *testing.T) {
+	t.Parallel()
+
+	reader := &countingRegistryRepo{
+		err: constant.ErrRegistryNotFound,
+	}
+
+	resolver := NewProtectionStateResolver(reader, NewProtectionMetrics(nil))
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-cache")
+
+	initial, err := resolver.Resolve(ctx, "org-cache")
+	if err != nil {
+		t.Fatalf("Resolve() initial call error = %v", err)
+	}
+
+	if initial.Mode != crypto.EncryptionModeLegacy {
+		t.Fatalf("initial Mode = %v, want legacy", initial.Mode)
+	}
+
+	reader.err = nil
+	reader.record = &mmodel.OrganizationRegistryRecord{
+		TenantID:        "tenant-cache",
+		OrganizationID:  "org-cache",
+		Status:          mmodel.RegistryStatusActive,
+		CurrentVersion:  1,
+		LegacyReadable:  true,
+		ProtectionModel: mmodel.ProtectionModelEnvelope,
+	}
+
+	cached, err := resolver.Resolve(ctx, "org-cache")
+	if err != nil {
+		t.Fatalf("Resolve() cached call error = %v", err)
+	}
+
+	if cached.Mode != crypto.EncryptionModeLegacy {
+		t.Fatalf("cached Mode = %v, want legacy before invalidation", cached.Mode)
+	}
+
+	resolver.Invalidate("tenant-cache", "org-cache")
+
+	refreshed, err := resolver.Resolve(ctx, "org-cache")
+	if err != nil {
+		t.Fatalf("Resolve() refreshed call error = %v", err)
+	}
+
+	if refreshed.Mode != crypto.EncryptionModeEnvelope {
+		t.Errorf("refreshed Mode = %v, want envelope", refreshed.Mode)
+	}
+
+	if !refreshed.CanReadLegacy {
+		t.Error("refreshed CanReadLegacy = false, want true")
+	}
+
+	if reader.getCalls != 2 {
+		t.Errorf("registry Get calls = %d, want 2 after invalidation", reader.getCalls)
+	}
+}
