@@ -154,6 +154,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		encryption.ProvisioningConfig{KEKMountPath: baseMountPath},
 		input.auditWriter,
 		pm,
+		protectionStateResolver,
 	)
 
 	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService.

@@ -31,9 +31,8 @@ const statusNone = "none"
 // protectionStateCacheTTL bounds how long a resolved protection state is reused
 // before the registry is consulted again. It mirrors the KeysetManager cache TTL
 // so a multi-field alias search resolves the registry once per window instead of
-// once per field. There is no explicit invalidation hook, so a protection-state
-// change (for example provisioning legacy -> envelope) becomes visible after at
-// most this window.
+// once per field. Successful provisioning invalidates the affected entry so
+// legacy -> envelope transitions become visible immediately.
 const protectionStateCacheTTL = 5 * time.Minute
 
 // cachedProtectionState is a resolved ProtectionState with the status label it was
@@ -170,6 +169,15 @@ func (r *ProtectionStateResolver) cacheStore(cacheKey, statusLabel string, state
 		statusLabel: statusLabel,
 		expiresAt:   time.Now().Add(protectionStateCacheTTL),
 	}
+	r.mu.Unlock()
+}
+
+// Invalidate removes a cached protection state for a tenant and organization.
+func (r *ProtectionStateResolver) Invalidate(tenantID, organizationID string) {
+	cacheKey := buildCacheKey(tenantID, organizationID)
+
+	r.mu.Lock()
+	delete(r.cache, cacheKey)
 	r.mu.Unlock()
 }
 

@@ -90,6 +90,7 @@ type provisioningService struct {
 	kekMountPath    string
 	auditWriter     AuditWriter
 	metrics         *protectionMetrics
+	stateResolver   *ProtectionStateResolver
 }
 
 // NewProvisioningService creates a new provisioning service with the given dependencies.
@@ -109,6 +110,7 @@ func NewProvisioningService(
 	config ProvisioningConfig,
 	auditWriter AuditWriter,
 	metrics *protectionMetrics,
+	stateResolver *ProtectionStateResolver,
 ) ProvisioningService {
 	mountPath := config.KEKMountPath
 	if mountPath == "" {
@@ -126,6 +128,7 @@ func NewProvisioningService(
 		kekMountPath:    mountPath,
 		auditWriter:     auditWriter,
 		metrics:         metrics,
+		stateResolver:   stateResolver,
 	}
 }
 
@@ -180,6 +183,9 @@ type ProvisionResult struct {
 //  4. Creates registry record in active status
 func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput) (ProvisionResult, error) {
 	result, outcome, err := s.provision(ctx, req)
+	if err == nil && outcome == mmodel.AuditOutcomeSuccess && s.stateResolver != nil {
+		s.stateResolver.Invalidate(req.TenantID, req.OrganizationID)
+	}
 
 	// Single-point, best-effort audit emission: exactly one event per terminal
 	// path, based on the outcome we are about to return. This must never alter
