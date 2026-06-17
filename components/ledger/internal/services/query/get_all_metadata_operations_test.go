@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -85,10 +86,14 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	ledgerID, _ := uuid.Parse(ledgerIDStr)
 	accountID, _ := uuid.Parse(accountIDStr)
 
+	// Explicit non-zero dates so ApplyDefaultDateRange is a no-op and the
+	// strict filter expectations below match unchanged.
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	metadataList := []*mongodb.Metadata{
@@ -164,9 +169,11 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -198,9 +205,11 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	metadataList := []*mongodb.Metadata{
@@ -244,9 +253,11 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	metadataList := []*mongodb.Metadata{
@@ -277,4 +288,60 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, repoError, err)
+}
+
+// TestGetAllMetadataOperations_AppliesDefaultDateRange ensures that when the
+// caller passes no date window, GetAllMetadataOperations applies the default
+// window before reaching the protected operation repository, so the repo never
+// receives a zero-date (unbounded) filter.
+func TestGetAllMetadataOperations_AppliesDefaultDateRange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+	opID := uuid.New()
+
+	// No StartDate/EndDate: the use case must inject the default window.
+	filter := http.QueryHeader{
+		Metadata: &bson.M{"key": "value"},
+		Limit:    10,
+		Page:     1,
+	}
+
+	metadataList := []*mongodb.Metadata{
+		{
+			ID:       primitive.NewObjectID(),
+			EntityID: opID.String(),
+			Data:     map[string]any{"key": "value"},
+		},
+	}
+
+	// FindList must receive a windowed QueryHeader (non-zero, ordered dates).
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityOperation, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
+		Return(metadataList, nil)
+
+	// FindAllByAccount must receive the same windowed pagination.
+	mockOperationRepo.EXPECT().
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
+		Return([]*operation.Operation{{ID: opID.String()}}, libHTTP.CursorPagination{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
 }

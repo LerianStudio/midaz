@@ -29,6 +29,8 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operations by account")
 
+	filter.ApplyDefaultDateRange()
+
 	opFilter := operation.OperationFilter{
 		OperationType: &filter.OperationType,
 		Direction:     filter.Direction,
