@@ -10,6 +10,11 @@
 // Callers are responsible for key naming conventions, storage, and context binding.
 package tink
 
+import (
+	"context"
+	"fmt"
+)
+
 // KeyStatus represents the status of a key within a keyset.
 type KeyStatus string
 
@@ -139,4 +144,207 @@ func NewWrappedKeyset(wrappedData string, info KeysetInfo, legacyImported bool) 
 		Info:              info,
 		LegacyKeyImported: legacyImported,
 	}
+}
+
+// KeysetBundle contains a generated keyset with its wrapped form and metadata.
+// This is returned by generation methods and can be stored by the caller.
+//
+// SECURITY: This struct contains cleartext key material in RawKeyset.
+// Callers MUST NOT persist RawKeyset to disk, logs, or any storage.
+// Use RawKeyset only for immediate in-memory cryptographic operations,
+// then discard it. For storage, use only the Wrapped field.
+type KeysetBundle struct {
+	// Wrapped contains the KMS-encrypted keyset and its metadata.
+	// This is the ONLY field safe to persist.
+	Wrapped WrappedKeyset
+	// RawKeyset contains the serialized keyset bytes (CLEARTEXT KEY MATERIAL).
+	// WARNING: Never persist, log, or transmit this field.
+	// Intended only for immediate use after generation, then discard.
+	RawKeyset []byte
+}
+
+// KeysetFactory provides convenient methods for generating and wrapping keysets.
+// It combines keyset generation with KMS wrapping in a single operation.
+type KeysetFactory struct {
+	wrapper       *KeysetWrapper
+	aeadGenerator *AEADKeysetGenerator
+	prfGenerator  *PRFKeysetGenerator
+}
+
+// NewKeysetFactory creates a factory for generating and wrapping keysets.
+// The KMS client is used for all wrapping operations.
+func NewKeysetFactory(kms KMSClient) *KeysetFactory {
+	return &KeysetFactory{
+		wrapper:       NewKeysetWrapper(kms),
+		aeadGenerator: NewAEADKeysetGenerator(),
+		prfGenerator:  NewPRFKeysetGenerator(),
+	}
+}
+
+// GenerateAEADKeyset creates a new AES256-GCM keyset and wraps it with the KMS.
+// The mountPath and keyName are caller-defined and should follow the caller's
+// naming convention; both are forwarded verbatim to the wrapper.
+// Returns a bundle containing both the wrapped keyset and raw bytes for immediate use.
+func (f *KeysetFactory) GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
+	handle, rawKeyset, err := f.aeadGenerator.Generate()
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to generate AEAD keyset: %w", err)
+	}
+
+	info, err := f.aeadGenerator.ExtractInfo(handle)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to extract AEAD keyset info: %w", err)
+	}
+
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to wrap AEAD keyset: %w", err)
+	}
+
+	return KeysetBundle{
+		Wrapped:   NewWrappedKeyset(wrappedData, info, false),
+		RawKeyset: rawKeyset,
+	}, nil
+}
+
+// GeneratePRFKeyset creates a new HMAC-SHA256 PRF keyset and wraps it with the KMS.
+// The mountPath and keyName are caller-defined and should follow the caller's
+// naming convention; both are forwarded verbatim to the wrapper.
+// The keyset metadata is labeled with KeyTypeHMACPRF via ExtractInfo.
+// Returns a bundle containing both the wrapped keyset and raw bytes for immediate use.
+func (f *KeysetFactory) GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (KeysetBundle, error) {
+	handle, rawKeyset, err := f.prfGenerator.Generate()
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to generate PRF keyset: %w", err)
+	}
+
+	info, err := f.prfGenerator.ExtractInfo(handle)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to extract PRF keyset info: %w", err)
+	}
+
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to wrap PRF keyset: %w", err)
+	}
+
+	return KeysetBundle{
+		Wrapped:   NewWrappedKeyset(wrappedData, info, false),
+		RawKeyset: rawKeyset,
+	}, nil
+}
+
+// GenerateMixedAEADKeyset creates a COMPOSITE AEAD keyset for legacy-key import
+// migration: a freshly generated AES-256-GCM key set as PRIMARY plus the imported
+// legacy AES-GCM key (from legacyHexKey) as an ENABLED, NON-primary entry. The
+// complete composite keyset is KMS-wrapped via the same path as GenerateAEADKeyset.
+//
+// The returned bundle's Wrapped.LegacyKeyImported is true and Wrapped.Info.Keys
+// holds BOTH entries with correct IsPrimary flags and KeyTypes (AES256_GCM for the
+// fresh primary, LEGACY_AES_GCM for the imported key).
+//
+// It FAILS CLOSED if legacyHexKey is missing or invalid (no keyset is generated or
+// wrapped in that case). It never returns or persists the raw legacy secret.
+func (f *KeysetFactory) GenerateMixedAEADKeyset(ctx context.Context, mountPath, keyName, legacyHexKey string) (KeysetBundle, error) {
+	legacyKey, err := legacyAESGCMKeysetKey(legacyHexKey, legacyComposedKeyID)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to import legacy AES-GCM key: %w", err)
+	}
+
+	freshHandle, _, err := f.aeadGenerator.Generate()
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to generate fresh AEAD keyset: %w", err)
+	}
+
+	rawKeyset, info, err := composeMixedKeyset(freshHandle, legacyKey, keyPurposeAEAD, KeyTypeLegacyAESGCM)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to compose mixed AEAD keyset: %w", err)
+	}
+
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to wrap mixed AEAD keyset: %w", err)
+	}
+
+	return KeysetBundle{
+		Wrapped:   NewWrappedKeyset(wrappedData, info, true),
+		RawKeyset: rawKeyset,
+	}, nil
+}
+
+// GenerateMixedPRFKeyset creates a COMPOSITE PRF keyset for legacy-key import
+// migration: a freshly generated HMAC-SHA256-PRF key set as PRIMARY plus the
+// imported legacy HMAC-SHA256 key (from legacySecret) as an ENABLED, NON-primary
+// entry. The complete composite keyset is KMS-wrapped via the same path as
+// GeneratePRFKeyset.
+//
+// The returned bundle's Wrapped.LegacyKeyImported is true and Wrapped.Info.Keys
+// holds BOTH entries with correct IsPrimary flags and KeyTypes (HMAC_PRF for the
+// fresh primary, LEGACY_HMAC_SHA256 for the imported key).
+//
+// It FAILS CLOSED if legacySecret is empty (no keyset is generated or wrapped in
+// that case). It never returns or persists the raw legacy secret.
+func (f *KeysetFactory) GenerateMixedPRFKeyset(ctx context.Context, mountPath, keyName, legacySecret string) (KeysetBundle, error) {
+	legacyKey, err := legacyHMACPRFKeysetKey(legacySecret, legacyComposedKeyID)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to import legacy HMAC key: %w", err)
+	}
+
+	freshHandle, _, err := f.prfGenerator.Generate()
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to generate fresh PRF keyset: %w", err)
+	}
+
+	rawKeyset, info, err := composeMixedKeyset(freshHandle, legacyKey, keyPurposePRF, KeyTypeLegacyHMACSHA256)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to compose mixed PRF keyset: %w", err)
+	}
+
+	wrappedData, err := f.wrapper.WrapKeyset(ctx, mountPath, keyName, rawKeyset)
+	if err != nil {
+		return KeysetBundle{}, fmt.Errorf("failed to wrap mixed PRF keyset: %w", err)
+	}
+
+	return KeysetBundle{
+		Wrapped:   NewWrappedKeyset(wrappedData, info, true),
+		RawKeyset: rawKeyset,
+	}, nil
+}
+
+// UnwrapAEAD unwraps a keyset and returns an AEAD primitive ready for use.
+// The mountPath and keyName must match those used during wrapping.
+func (f *KeysetFactory) UnwrapAEAD(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*AEADPrimitive, error) {
+	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, mountPath, keyName, wrapped.WrappedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unwrap AEAD keyset: %w", err)
+	}
+
+	primitive, err := ParseAEADKeyset(keysetBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AEAD keyset: %w", err)
+	}
+
+	return primitive, nil
+}
+
+// UnwrapPRF unwraps a keyset and returns a PRF primitive ready for use.
+// The mountPath and keyName must match those used during wrapping.
+func (f *KeysetFactory) UnwrapPRF(ctx context.Context, mountPath, keyName string, wrapped WrappedKeyset) (*PRFPrimitive, error) {
+	keysetBytes, err := f.wrapper.UnwrapKeyset(ctx, mountPath, keyName, wrapped.WrappedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unwrap PRF keyset: %w", err)
+	}
+
+	primitive, err := ParsePRFKeyset(keysetBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PRF keyset: %w", err)
+	}
+
+	return primitive, nil
+}
+
+// Wrapper returns the underlying KeysetWrapper for direct access.
+// Use this when you need fine-grained control over wrap/unwrap operations.
+func (f *KeysetFactory) Wrapper() *KeysetWrapper {
+	return f.wrapper
 }

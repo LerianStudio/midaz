@@ -531,6 +531,19 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 		return "", err
 	}
 
+	// Branch the legacy decrypt by source of legacy material (per-org resolution,
+	// not the service-level mode). The CanReadLegacy gate and legacy-read metric
+	// above are unchanged. An envelope-mode org (a keyset exists) carries any
+	// imported legacy key inside its per-org composite keyset, so unmarked legacy
+	// bytes decrypt through the keyset AEAD; the process-global legacyCrypto is
+	// consulted only in pure legacy mode (KMS_VENDOR=none, no keyset). For a
+	// lazy-provisioned envelope org that never migrated legacy data, the keyset
+	// has no legacy key and the AEAD decrypt fails on the legacy path - correct,
+	// because that org never wrote legacy data.
+	if state.MustUseEnvelope() {
+		return s.decryptLegacyFromKeyset(ctx, fieldCtx, ciphertext)
+	}
+
 	if s.legacyCrypto == nil {
 		return "", fmt.Errorf("legacy crypto is required")
 	}
@@ -545,6 +558,42 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 	}
 
 	return *result, nil
+}
+
+// decryptLegacyFromKeyset decrypts unmarked legacy ciphertext using the
+// organization's per-org composite AEAD primitive instead of the process-global
+// legacyCrypto. Migrated organizations carry the imported legacy RAW-prefix
+// AES-GCM key inside their composite keyset, so the legacy bytes decrypt through
+// prims.AEAD.Decrypt.
+//
+// The input format mirrors LegacyKeyMaterial.Decrypt: base64(nonce||ciphertext||
+// tag) written with nil associated data. The canonical envelope AAD MUST NOT be
+// used for legacy bytes. This helper performs decode + crypto ONLY; the
+// CanReadLegacy gate and legacy-read metric remain in the caller.
+func (s *encryptionService) decryptLegacyFromKeyset(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	// Mirror LegacyKeyMaterial.Decrypt: base64 decode before AEAD decrypt.
+	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return "", fmt.Errorf("decode legacy ciphertext: %w", err)
+	}
+
+	prims, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
+	}
+
+	// Legacy data was written with nil associated data; the canonical envelope
+	// AAD MUST NOT be applied here.
+	plainBytes, err := prims.AEAD.Decrypt(cipherBytes, nil)
+	if err != nil {
+		return "", fmt.Errorf("keyset legacy decrypt: %w", err)
+	}
+
+	return string(plainBytes), nil
 }
 
 // GenerateSearchToken generates a deterministic search token for a field value.
@@ -652,8 +701,14 @@ func (s *encryptionService) GenerateSearchTokenCandidates(ctx context.Context, s
 }
 
 // generateSearchTokenCandidatesEnvelope generates PRF tokens for all enabled search-token keys.
-// When canReadLegacy is true it appends the legacy token (over the bare value) as the final
-// element, failing closed if legacy reads are permitted but no legacy crypto is wired.
+//
+// When canReadLegacy is true and the per-organization keyset carries an imported legacy
+// HMAC key (migrated org), it appends that keyset's legacy hex token (over the bare value)
+// as the final candidate. This token is byte-identical to the indexed legacy token, so
+// migrated orgs can still find their pre-migration rows.
+//
+// Envelope-only organizations (LegacyHexTokenPRF nil) never wrote legacy tokens, so no
+// legacy candidate is appended and the process-global legacyCrypto is never consulted.
 func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string, canReadLegacy bool) ([]string, error) {
 	// Get cached primitives (strict mode: only MultiKeyPRF is needed; error if construction failed)
 	prims, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
@@ -669,13 +724,18 @@ func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Co
 		return nil, fmt.Errorf("failed to compute search token candidates: %w", err)
 	}
 
-	// Union the legacy token when legacy reads are still permitted.
-	if canReadLegacy {
-		if s.legacyCrypto == nil {
-			return nil, fmt.Errorf("legacy crypto is required")
+	// Union the per-org keyset legacy token when legacy reads are permitted AND the
+	// keyset carries an imported legacy key (migrated org). Envelope-only orgs never
+	// wrote legacy tokens, so no legacy candidate is appended.
+	if canReadLegacy && prims.LegacyHexTokenPRF != nil {
+		legacyToken, err := prims.LegacyHexTokenPRF.ComputeLegacyHexToken([]byte(normalizedValue))
+		if err != nil {
+			// Fail loud: a migrated org that cannot produce its legacy candidate would
+			// silently fail to find legacy rows.
+			return nil, fmt.Errorf("failed to compute legacy search token candidate: %w", err)
 		}
 
-		tokens = append(tokens, s.legacyCrypto.GenerateHash(&normalizedValue))
+		tokens = append(tokens, legacyToken)
 	}
 
 	return tokens, nil

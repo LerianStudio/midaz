@@ -29,6 +29,15 @@ import (
 )
 
 func TestEncryption_Provision(t *testing.T) {
+	// Sentinels stand in for imported raw legacy secret material
+	// (LCRYPTO_ENCRYPT_SECRET_KEY / LCRYPTO_HASH_SECRET_KEY). Used by the
+	// response-shape forward-guard case below to assert the rendered body never
+	// echoes such material.
+	const (
+		httpSentinelLegacyAESHex     = "5345435245544145534b45595345435245544145534b4559"
+		httpSentinelLegacyHMACSecret = "SENTINEL-LEGACY-HMAC-SECRET-DO-NOT-LEAK"
+	)
+
 	tests := []struct {
 		name           string
 		organizationID string
@@ -206,6 +215,50 @@ func TestEncryption_Provision(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody:   nil,
+		},
+		{
+			// Forward-guard on response SHAPE, not a RED-capable leak test.
+			// ProvisionResult (and therefore ProvisionEncryptionResponse) has no
+			// field that can ever carry raw legacy secret material: the handler
+			// maps only org id, KEK path, the two primary key IDs and status. A
+			// genuine RED leak is structurally impossible today, so this case
+			// guards against a FUTURE field addition that would serialize
+			// secret-derived data. The sentinels stand in for imported
+			// LCRYPTO_ENCRYPT_SECRET_KEY / LCRYPTO_HASH_SECRET_KEY material and
+			// must never appear in the rendered body.
+			name:           "provision response shape carries no secret field",
+			organizationID: uuid.New().String(),
+			jsonBody: `{
+				"actor": "admin@example.com",
+				"reason": "Initial encryption setup"
+			}`,
+			setupMocks: func(mockService *MockProvisioningService, orgID string) {
+				mockService.EXPECT().
+					Provision(gomock.Any(), gomock.Any()).
+					Return(encryption.ProvisionResult{
+						OrganizationID:   orgID,
+						KEKPath:          "transit/keys/org-" + orgID,
+						AEADPrimaryKeyID: 123456,
+						PRFPrimaryKeyID:  789012,
+						RegistryStatus:   mmodel.RegistryStatusActive,
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 201,
+			validateBody: func(t *testing.T, body []byte) {
+				rendered := string(body)
+				assert.NotContains(t, rendered, httpSentinelLegacyAESHex,
+					"provision response must never contain raw legacy AES key material")
+				assert.NotContains(t, rendered, httpSentinelLegacyHMACSecret,
+					"provision response must never contain raw legacy HMAC secret")
+
+				// Sanity: the response still carries the expected non-secret fields.
+				var result mmodel.ProvisionEncryptionResponse
+				require.NoError(t, json.Unmarshal(body, &result))
+				assert.NotEmpty(t, result.OrganizationID)
+				assert.NotEmpty(t, result.KEKPath)
+				assert.Equal(t, string(mmodel.RegistryStatusActive), result.Status)
+			},
 		},
 	}
 

@@ -5,9 +5,16 @@
 package tink
 
 import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"testing"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKeyStatus_IsValid(t *testing.T) {
@@ -310,5 +317,463 @@ func TestWrappedKeyset_Fields(t *testing.T) {
 		}
 
 		assert.True(t, wrapped.LegacyKeyImported)
+	})
+}
+
+func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("generates and wraps AEAD keyset", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+		assert.NotEmpty(t, bundle.RawKeyset)
+		assert.NotZero(t, bundle.Wrapped.Info.PrimaryKeyID)
+		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
+		assert.Equal(t, KeyTypeAES256GCM, bundle.Wrapped.Info.Keys[0].Type)
+		assert.False(t, bundle.Wrapped.LegacyKeyImported)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+	})
+
+	t.Run("fails on KMS encryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		kms.encryptErr = fmt.Errorf("KMS unavailable")
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_GeneratePRFKeyset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("generates and wraps PRF keyset", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+		assert.NotEmpty(t, bundle.RawKeyset)
+		assert.NotZero(t, bundle.Wrapped.Info.PrimaryKeyID)
+		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
+		assert.Equal(t, KeyTypeHMACPRF, bundle.Wrapped.Info.Keys[0].Type)
+		assert.False(t, bundle.Wrapped.LegacyKeyImported)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+	})
+
+	t.Run("fails on KMS encryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		kms.encryptErr = fmt.Errorf("KMS unavailable")
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("composes legacy non-primary key with fresh primary key", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+		assert.NotEmpty(t, bundle.RawKeyset)
+		assert.True(t, bundle.Wrapped.LegacyKeyImported, "mixed keyset must flag the imported legacy key")
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+
+		// Exactly two enabled keys: fresh primary + legacy non-primary.
+		require.Len(t, bundle.Wrapped.Info.Keys, 2, "mixed AEAD keyset must hold two keys")
+
+		primary := bundle.Wrapped.Info.GetPrimaryKey()
+		require.NotNil(t, primary, "mixed keyset must have a primary key")
+		assert.Equal(t, KeyTypeAES256GCM, primary.Type, "primary must be the fresh envelope key")
+		assert.Equal(t, KeyStatusEnabled, primary.Status)
+
+		// The non-primary key must be the imported legacy key, enabled.
+		var legacy *KeyInfo
+
+		for i := range bundle.Wrapped.Info.Keys {
+			if !bundle.Wrapped.Info.Keys[i].IsPrimary {
+				legacy = &bundle.Wrapped.Info.Keys[i]
+			}
+		}
+
+		require.NotNil(t, legacy, "mixed keyset must have a non-primary legacy key")
+		assert.Equal(t, KeyTypeLegacyAESGCM, legacy.Type)
+		assert.Equal(t, KeyStatusEnabled, legacy.Status)
+		assert.NotEqual(t, primary.KeyID, legacy.KeyID, "fresh and legacy key IDs must differ")
+		assert.Equal(t, primary.KeyID, bundle.Wrapped.Info.PrimaryKeyID)
+	})
+
+	t.Run("unwrapped keyset decrypts legacy lib-commons ciphertext and round-trips fresh primary", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+		require.NoError(t, err)
+
+		primitive, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		require.NoError(t, err)
+
+		// (a) The composite keyset must decrypt ciphertext produced by lib-commons
+		// with the legacy key (legacy key is ENABLED, used on decrypt).
+		legacy := &libCrypto.Crypto{HashSecretKey: testLegacyHashKey, EncryptSecretKey: testLegacyEncryptHexKey}
+		require.NoError(t, legacy.InitializeCipher())
+
+		plaintext := "legacy-encrypted-value"
+		legacyCipher, err := legacy.Encrypt(&plaintext)
+		require.NoError(t, err)
+
+		decodedLegacy, err := base64.StdEncoding.DecodeString(*legacyCipher)
+		require.NoError(t, err)
+
+		opened, err := primitive.Decrypt(decodedLegacy, nil)
+		require.NoError(t, err)
+		assert.Equal(t, plaintext, string(opened))
+
+		// (b) Fresh primary round-trips through the same composite keyset.
+		freshPlain := []byte("fresh-value")
+		freshCipher, err := primitive.Encrypt(freshPlain, nil)
+		require.NoError(t, err)
+
+		freshOpened, err := primitive.Decrypt(freshCipher, nil)
+		require.NoError(t, err)
+		assert.Equal(t, freshPlain, freshOpened)
+	})
+
+	t.Run("fails closed on empty legacy key material", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", "")
+
+		require.Error(t, err)
+		assert.Empty(t, kms.gotEncryptMount, "must fail before reaching the KMS wrap step")
+	})
+
+	t.Run("fails closed on invalid legacy key material", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", "not-hex-zz")
+
+		require.Error(t, err)
+	})
+
+	t.Run("fails on KMS encryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		kms.encryptErr = fmt.Errorf("KMS unavailable")
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_GenerateMixedPRFKeyset(t *testing.T) {
+	t.Parallel()
+
+	t.Run("composes legacy non-primary PRF key with fresh primary key", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+		assert.NotEmpty(t, bundle.RawKeyset)
+		assert.True(t, bundle.Wrapped.LegacyKeyImported)
+		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+
+		require.Len(t, bundle.Wrapped.Info.Keys, 2, "mixed PRF keyset must hold two keys")
+
+		primary := bundle.Wrapped.Info.GetPrimaryKey()
+		require.NotNil(t, primary)
+		assert.Equal(t, KeyTypeHMACPRF, primary.Type, "primary must be the fresh PRF key")
+		assert.Equal(t, KeyStatusEnabled, primary.Status)
+
+		var legacy *KeyInfo
+
+		for i := range bundle.Wrapped.Info.Keys {
+			if !bundle.Wrapped.Info.Keys[i].IsPrimary {
+				legacy = &bundle.Wrapped.Info.Keys[i]
+			}
+		}
+
+		require.NotNil(t, legacy)
+		assert.Equal(t, KeyTypeLegacyHMACSHA256, legacy.Type)
+		assert.Equal(t, KeyStatusEnabled, legacy.Status)
+		assert.NotEqual(t, primary.KeyID, legacy.KeyID)
+	})
+
+	t.Run("legacy key in composite produces lib-commons-compatible search candidate", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+		require.NoError(t, err)
+
+		keysetBytes, err := factory.Wrapper().UnwrapKeyset(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped.WrappedData)
+		require.NoError(t, err)
+
+		handle, err := DeserializePRFKeyset(keysetBytes)
+		require.NoError(t, err)
+
+		multi, err := NewPRFMultiPrimitive(handle)
+		require.NoError(t, err)
+
+		// The multi-primitive must yield two candidates (one per enabled key).
+		input := []byte("a@b.com")
+		candidates, err := multi.ComputeSearchTokenCandidates(input)
+		require.NoError(t, err)
+		assert.Len(t, candidates, 2, "composite PRF keyset must yield one candidate per enabled key")
+
+		// Value assertion (not just count): the composite must carry a candidate
+		// produced by the IMPORTED legacy HMAC key, so legacy-indexed rows stay
+		// findable. The legacy key is RAW HMAC-SHA256 over testLegacyHashKey; the
+		// multi-primitive computes ComputePRF(input, 32) and base64.URLEncodes it
+		// (see ComputeSearchTokenCandidates). Compute that reference token by value
+		// and assert membership. A wrong HMAC key would still yield 2 candidates but
+		// would NOT contain this token.
+		refHMAC := hmac.New(sha256.New, []byte(testLegacyHashKey))
+		_, err = refHMAC.Write(input)
+		require.NoError(t, err)
+		wantLegacyCandidate := base64.URLEncoding.EncodeToString(refHMAC.Sum(nil))
+
+		assert.Contains(t, candidates, wantLegacyCandidate,
+			"composite PRF keyset must yield the legacy HMAC search candidate by value, not merely by count")
+	})
+
+	t.Run("fails closed on empty legacy secret", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", "")
+
+		require.Error(t, err)
+	})
+
+	t.Run("fails on KMS encryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		kms.encryptErr = fmt.Errorf("KMS unavailable")
+		factory := NewKeysetFactory(kms)
+
+		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unwraps and returns working AEAD primitive", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		// Generate keyset first
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+		require.NoError(t, err)
+
+		// Unwrap AEAD keyset
+		primitive, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
+
+		// Test that primitive works
+		plaintext := []byte("test encryption")
+		ciphertext, err := primitive.Encrypt(plaintext, nil)
+		require.NoError(t, err)
+
+		decrypted, err := primitive.Decrypt(ciphertext, nil)
+		require.NoError(t, err)
+		assert.Equal(t, plaintext, decrypted)
+	})
+
+	t.Run("fails on KMS decryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		wrapped := WrappedKeyset{
+			WrappedData: "vault:v1:invaliddata",
+		}
+
+		kms.decryptErr = fmt.Errorf("permission denied")
+
+		_, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", wrapped)
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_UnwrapPRF(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unwraps and returns working PRF primitive", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		// Generate keyset first
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+		require.NoError(t, err)
+
+		// Unwrap PRF keyset
+		primitive, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		require.NoError(t, err)
+		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
+
+		// Test that primitive works: deterministic search token over RAW PRF output.
+		data := []byte("data to mac")
+		token1, err := primitive.ComputeSearchToken(data)
+		require.NoError(t, err)
+
+		token2, err := primitive.ComputeSearchToken(data)
+		require.NoError(t, err)
+
+		assert.Equal(t, token1, token2)
+	})
+
+	t.Run("fails on KMS decryption error", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		wrapped := WrappedKeyset{
+			WrappedData: "vault:v1:invaliddata",
+		}
+
+		kms.decryptErr = fmt.Errorf("permission denied")
+
+		_, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", wrapped)
+
+		require.Error(t, err)
+	})
+}
+
+func TestKeysetFactory_Wrapper(t *testing.T) {
+	t.Parallel()
+
+	kms := newMockKMSClient()
+	factory := NewKeysetFactory(kms)
+
+	wrapper := factory.Wrapper()
+
+	assert.NotNil(t, wrapper)
+}
+
+func TestKeysetFactory_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("complete encryption workflow", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		// Generate AEAD keyset with caller-defined mount and key name
+		mountPath := "transit/tenant-abc"
+		keyName := "tenant/abc/entity/123"
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), mountPath, keyName)
+		require.NoError(t, err)
+
+		// Unwrap and use for encryption
+		aeadPrimitive, err := factory.UnwrapAEAD(context.Background(), mountPath, keyName, bundle.Wrapped)
+		require.NoError(t, err)
+
+		// Encrypt sensitive data
+		sensitiveData := []byte("PII: John Doe, john@example.com")
+		associatedData := []byte("context:field:email")
+
+		ciphertext, err := aeadPrimitive.Encrypt(sensitiveData, associatedData)
+		require.NoError(t, err)
+
+		// Simulate storage and retrieval...
+
+		// Unwrap AEAD again (simulating different request)
+		aeadPrimitive2, err := factory.UnwrapAEAD(context.Background(), mountPath, keyName, bundle.Wrapped)
+		require.NoError(t, err)
+
+		// Decrypt
+		decrypted, err := aeadPrimitive2.Decrypt(ciphertext, associatedData)
+		require.NoError(t, err)
+		assert.Equal(t, sensitiveData, decrypted)
+	})
+
+	t.Run("complete search token workflow", func(t *testing.T) {
+		t.Parallel()
+
+		kms := newMockKMSClient()
+		factory := NewKeysetFactory(kms)
+
+		// Generate PRF keyset
+		mountPath := "transit/tenant-abc"
+		keyName := "tenant/abc/entity/123"
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), mountPath, keyName)
+		require.NoError(t, err)
+
+		// Unwrap PRF for search tokens
+		prfPrimitive, err := factory.UnwrapPRF(context.Background(), mountPath, keyName, bundle.Wrapped)
+		require.NoError(t, err)
+
+		// Generate search token for email
+		email := []byte("john@example.com")
+		token, err := prfPrimitive.ComputeSearchToken(email)
+		require.NoError(t, err)
+
+		// Simulate storage...
+
+		// Later, search by generating same token
+		searchToken, err := prfPrimitive.ComputeSearchToken(email)
+		require.NoError(t, err)
+
+		assert.Equal(t, token, searchToken)
 	})
 }

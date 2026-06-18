@@ -38,13 +38,20 @@ type KeysetUnwrapper interface {
 // PrimaryKeyID is the AEAD primary key ID (used for envelope marker formatting).
 // PRFPrimaryKeyID is the PRF (search-token) keyset primary key ID, sourced from the
 // stored HMACKeysetInfo.PrimaryKeyID, and is stamped on search tokens.
+//
+// LegacyHexTokenPRF is populated ONLY for migrated organizations whose persisted PRF
+// keyset carries an imported legacy HMAC-SHA256 key; it computes the legacy-compatible
+// hex-over-bare-value search token (byte-identical to the process-global indexed token).
+// It is nil for envelope-only organizations. Consumed by legacy search-candidate
+// generation (T-2.2.2).
 type CachedPrimitives struct {
-	AEAD            *tink.AEADPrimitive
-	PRF             *tink.PRFPrimitive
-	MultiKeyPRF     *tink.PRFMultiPrimitive
-	PrimaryKeyID    uint32
-	PRFPrimaryKeyID uint32
-	ExpiresAt       time.Time
+	AEAD              *tink.AEADPrimitive
+	PRF               *tink.PRFPrimitive
+	MultiKeyPRF       *tink.PRFMultiPrimitive
+	LegacyHexTokenPRF *tink.LegacyPRFPrimitive
+	PrimaryKeyID      uint32
+	PRFPrimaryKeyID   uint32
+	ExpiresAt         time.Time
 }
 
 // IsExpired returns true if the cached primitives have expired.
@@ -318,33 +325,23 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		return nil, fmt.Errorf("failed to unwrap PRF keyset: %w", err)
 	}
 
-	// Deserialize PRF keyset to get handle for creating both primitives.
-	prfHandle, err := tink.DeserializePRFKeyset(prfBytes)
+	// Build the PRF primitives (primary, multi-key, and the optional legacy hex-token
+	// primitive for migrated keysets) from the unwrapped PRF keyset.
+	prfSet, err := buildPRFPrimitives(prfBytes, keyset.HMACKeysetInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize PRF keyset: %w", err)
-	}
-
-	// Create PRF primitive from handle (primary key only)
-	prfPrimitive, err := tink.NewPRFPrimitive(prfHandle)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PRF primitive: %w", err)
-	}
-
-	// Create multi-key PRF primitive for search operations (strict mode: error fails the operation)
-	multiKeyPRF, err := tink.NewPRFMultiPrimitive(prfHandle)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create multi-key PRF primitive: %w", err)
+		return nil, err
 	}
 
 	// Build cached primitives. PRFPrimaryKeyID is sourced from the stored
 	// HMACKeysetInfo primary key ID (the search-token keyset metadata).
 	cached := &CachedPrimitives{
-		AEAD:            aeadPrimitive,
-		PRF:             prfPrimitive,
-		MultiKeyPRF:     multiKeyPRF,
-		PrimaryKeyID:    keyset.KeysetInfo.PrimaryKeyID,
-		PRFPrimaryKeyID: keyset.HMACKeysetInfo.PrimaryKeyID,
-		ExpiresAt:       time.Now().Add(km.cacheTTL),
+		AEAD:              aeadPrimitive,
+		PRF:               prfSet.prf,
+		MultiKeyPRF:       prfSet.multiKey,
+		LegacyHexTokenPRF: prfSet.legacyHexToken,
+		PrimaryKeyID:      keyset.KeysetInfo.PrimaryKeyID,
+		PRFPrimaryKeyID:   keyset.HMACKeysetInfo.PrimaryKeyID,
+		ExpiresAt:         time.Now().Add(km.cacheTTL),
 	}
 
 	// Cache the primitives with write lock using tenant-scoped key
@@ -353,6 +350,63 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 	km.mu.Unlock()
 
 	return cached, nil
+}
+
+// prfPrimitiveSet groups the PRF primitives derived from a single unwrapped PRF
+// keyset: the primary-key primitive, the multi-key primitive (all enabled keys),
+// and the optional legacy hex-token primitive (nil for envelope-only keysets).
+type prfPrimitiveSet struct {
+	prf            *tink.PRFPrimitive
+	multiKey       *tink.PRFMultiPrimitive
+	legacyHexToken *tink.LegacyPRFPrimitive
+}
+
+// buildPRFPrimitives deserializes the unwrapped PRF keyset once and builds all PRF
+// primitives from the shared handle. The legacy hex-token primitive is populated
+// ONLY when the stored PRF metadata flags an imported legacy HMAC key; envelope-only
+// keysets leave it nil. It fails closed (wrapped error) when the metadata flags a
+// legacy key but the handle has no enabled legacy entry, surfacing a
+// provisioning/decoding bug rather than silently degrading search.
+func buildPRFPrimitives(prfBytes []byte, info mmodel.KeysetInfo) (prfPrimitiveSet, error) {
+	prfHandle, err := tink.DeserializePRFKeyset(prfBytes)
+	if err != nil {
+		return prfPrimitiveSet{}, fmt.Errorf("failed to deserialize PRF keyset: %w", err)
+	}
+
+	prfPrimitive, err := tink.NewPRFPrimitive(prfHandle)
+	if err != nil {
+		return prfPrimitiveSet{}, fmt.Errorf("failed to create PRF primitive: %w", err)
+	}
+
+	// Strict mode: a failure to build the multi-key primitive fails the operation.
+	multiKeyPRF, err := tink.NewPRFMultiPrimitive(prfHandle)
+	if err != nil {
+		return prfPrimitiveSet{}, fmt.Errorf("failed to create multi-key PRF primitive: %w", err)
+	}
+
+	set := prfPrimitiveSet{prf: prfPrimitive, multiKey: multiKeyPRF}
+
+	if hmacKeysetHasLegacyKey(info) {
+		set.legacyHexToken, err = tink.NewLegacyPRFPrimitiveFromHandle(prfHandle)
+		if err != nil {
+			return prfPrimitiveSet{}, fmt.Errorf("failed to derive legacy PRF primitive for migrated keyset: %w", err)
+		}
+	}
+
+	return set, nil
+}
+
+// hmacKeysetHasLegacyKey reports whether the stored PRF (HMAC) keyset metadata
+// carries an imported legacy key. It mirrors tink.KeysetInfo.HasLegacyKey over the
+// persisted mmodel representation, reusing tink.KeyType.IsLegacy for the label test.
+func hmacKeysetHasLegacyKey(info mmodel.KeysetInfo) bool {
+	for _, key := range info.Keys {
+		if tink.KeyType(key.Type).IsLegacy() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // autoProvision provisions an organization using the injected provisioner. The tenant
@@ -373,6 +427,9 @@ func (km *KeysetManager) autoProvision(ctx context.Context, organizationID strin
 		OrganizationID: organizationID,
 		Actor:          "system:auto-provision",
 		Reason:         "Auto-provisioned on first encrypted field access",
+		// Lazy provisioning is always envelope-only: a new org accessed for the
+		// first time has no legacy key material to import.
+		envelopeOnly: true,
 	})
 
 	return err

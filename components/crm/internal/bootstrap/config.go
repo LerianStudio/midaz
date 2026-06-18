@@ -298,6 +298,8 @@ func buildEncryptionServices(
 		metricsFactory:       metricsFactory,
 		vaultMountPath:       cfg.VaultMountPath,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
+		legacyAESHexKey:      cfg.EncryptSecretKey,
+		legacyHMACSecret:     cfg.HashSecretKey,
 	})
 	if encryptionResult.err != nil {
 		return wireEncryptionServicesOutput{}, fmt.Errorf("failed to wire encryption services: %w", encryptionResult.err)

@@ -13,6 +13,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/tests/helpers"
 	"github.com/stretchr/testify/assert"
@@ -399,15 +400,26 @@ func TestService_Decrypt_EnvelopeMarked(t *testing.T) {
 func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	// An envelope-mode org with LegacyReadable=true carries any imported legacy
+	// key inside its per-org composite keyset, so unmarked legacy ciphertext now
+	// decrypts through the keyset (not the process-global legacyCrypto).
+	factory := tink.NewKeysetFactory(identityKMS{})
 
-	legacyKeys := newTestLegacyKeyMaterial(t)
-
-	// Create actual legacy ciphertext using Tink-backed legacy crypto
-	plaintext := "secret-value"
-	cipherBytes, err := legacyKeys.aead.Encrypt([]byte(plaintext), nil)
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-123", helperLegacyHexKey)
 	require.NoError(t, err)
-	legacyCiphertext := base64.StdEncoding.EncodeToString(cipherBytes)
+
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-123", helperLegacySecret)
+	require.NoError(t, err)
+
+	km := newKeysetManagerForKeyset(t, "org-123", mixedAEAD, mixedPRF)
+
+	// Unmarked legacy ciphertext written with the legacy hex key (nil AAD), which
+	// the migrated org's composite keyset can decrypt.
+	plaintext := "secret-value"
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	encrypted, err := legacyKeys.Encrypt(&plaintext)
+	require.NoError(t, err)
+	require.NotNil(t, encrypted)
 
 	// Create service with envelope mode but legacy read allowed
 	registryRepo := &serviceTestRegistryRepo{
@@ -423,8 +435,9 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	svc := NewEncryptionService(stateResolver, nil, nil, legacyKeys, NewProtectionMetrics(nil))
+	svc := NewEncryptionService(stateResolver, km, nil, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
 	fieldCtx := FieldContext{
 		TenantID:       "tenant-abc",
 		OrganizationID: "org-123",
@@ -433,7 +446,7 @@ func TestService_Decrypt_LegacyAllowed(t *testing.T) {
 	}
 
 	// Decrypt legacy ciphertext (no envelope marker)
-	decrypted, err := svc.Decrypt(ctx, fieldCtx, legacyCiphertext)
+	decrypted, err := svc.Decrypt(ctx, fieldCtx, *encrypted)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted)
 }
@@ -1378,7 +1391,7 @@ func TestService_KMSNone_LegacyEncryptDecryptSearchUsesImportedLegacyKey(t *test
 	legacyKeys, err := NewLegacyKeyMaterial(legacyEncryptHexKey, legacyHashKey)
 	require.NoError(t, err)
 
-	// Build resolver with nil registry repo (KMS_VENDOR=none scenario)
+	// Build resolver with nil registry repo (pure legacy mode, no keyset)
 	resolver := NewProtectionStateResolver(nil, NewProtectionMetrics(nil))
 
 	// Build service with nil keyset manager and nil keyset repo (legacy-only mode)
@@ -1898,22 +1911,14 @@ func TestService_GenerateSearchTokenCandidates_NilLegacyKeyMaterial(t *testing.T
 // GenerateSearchTokenCandidates legacy∪envelope union Tests
 // ---------------------------------------------------------------------------
 
-// Envelope-resolved org that may read legacy gets envelope candidates plus the
-// bare-value legacy token as the final element.
+// Migrated org (composite PRF keyset) that may read legacy gets envelope candidates
+// plus the per-org keyset legacy hex token (over the bare value) as the final element.
 func TestService_GenerateSearchTokenCandidates_MigratedOrgCanReadLegacy_ReturnsEnvelopePlusLegacy(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	state := ProtectionState{
-		Mode:                 crypto.EncryptionModeEnvelope,
-		CanReadLegacy:        true,
-		CurrentKeysetVersion: 1,
-		OrganizationID:       "org-123",
-		TenantID:             "tenant-abc",
-	}
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
 
-	legacyKeys := newTestLegacyKeyMaterial(t)
-	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+	svc, _ := migratedOrgSearchService(t, "org-123", "tenant-abc", true)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1923,7 +1928,7 @@ func TestService_GenerateSearchTokenCandidates_MigratedOrgCanReadLegacy_ReturnsE
 
 	value := "ABC123"
 
-	envelopeOnly, err := svc.(*encryptionService).generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	envelopeOnly, err := svc.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
 	require.NoError(t, err)
 	require.NotEmpty(t, envelopeOnly, "envelope baseline MUST NOT be empty")
 
@@ -1934,56 +1939,40 @@ func TestService_GenerateSearchTokenCandidates_MigratedOrgCanReadLegacy_ReturnsE
 		assert.Contains(t, tokens, want, "result MUST contain envelope PRF candidate at index %d", i)
 	}
 
-	// Legacy token MUST be the final element, computed over the bare value.
-	wantLegacy := legacyKeys.GenerateHash(&value)
+	// Legacy token MUST be the final element, computed over the bare value via the
+	// per-org keyset (byte-identical to the indexed legacy token).
+	wantLegacy := newTestLegacyKeyMaterial(t).GenerateHash(&value)
 	require.Len(t, tokens, len(envelopeOnly)+1, "result MUST be envelope candidates plus exactly one legacy token")
 	assert.Equal(t, wantLegacy, tokens[len(tokens)-1], "legacy token MUST be the FINAL element and computed over the bare value")
 }
 
-// Global envelope mode with an empty registry resolves to CanReadLegacy=true, so
-// the legacy token is unioned in here too.
+// Global envelope mode with an empty registry resolves to CanReadLegacy=true. When the
+// per-org keyset is a migrated (composite) keyset, the keyset legacy token is unioned in.
 func TestService_GenerateSearchTokenCandidates_GlobalEnvelopeModeCanReadLegacy_IncludesLegacy(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-abc")
 
+	// Empty registry -> global envelope mode resolves CanReadLegacy=true.
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{},
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+	// Migrated (composite) per-org keyset so LegacyHexTokenPRF is populated.
+	factory := tink.NewKeysetFactory(identityKMS{})
 
-	keyset := &mmodel.OrganizationKeyset{
-		TenantID:       "tenant-abc",
-		OrganizationID: "org-global",
-		KEKPath:        "test-kek",
-		WrappedKeyset:  "wrapped-aead",
-		KeysetInfo: mmodel.KeysetInfo{
-			PrimaryKeyID: aeadKeyID,
-		},
-		WrappedHMACKeyset: "wrapped-hmac",
-		HMACKeysetInfo: mmodel.KeysetInfo{
-			PrimaryKeyID: aeadKeyID,
-		},
-	}
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-global", helperLegacyHexKey)
+	require.NoError(t, err)
 
-	keysetRepo := &serviceTestKeysetRepo{
-		keysets: map[string]*mmodel.OrganizationKeyset{
-			"org-global": keyset,
-		},
-	}
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-global", helperLegacySecret)
+	require.NoError(t, err)
 
-	unwrapper := &serviceTestKeysetUnwrapper{
-		aeadKeyset: aeadBytes,
-		macKeyset:  macBytes,
-	}
+	keysetManager := newKeysetManagerForKeyset(t, "org-global", mixedAEAD, mixedPRF)
 
-	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+	spy := &spyLegacyCrypto{}
 
-	legacyKeys := newTestLegacyKeyMaterial(t)
-
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, legacyKeys, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+	svc := NewEncryptionService(stateResolver, keysetManager, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -1996,9 +1985,10 @@ func TestService_GenerateSearchTokenCandidates_GlobalEnvelopeModeCanReadLegacy_I
 	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
 	require.NoError(t, err)
 
-	wantLegacy := legacyKeys.GenerateHash(&value)
+	wantLegacy := newTestLegacyKeyMaterial(t).GenerateHash(&value)
 	require.GreaterOrEqual(t, len(tokens), 2, "result MUST include at least one envelope candidate plus the legacy token")
 	assert.Equal(t, wantLegacy, tokens[len(tokens)-1], "legacy token MUST be the FINAL element over the bare value")
+	assert.False(t, spy.hashCalled, "process-global legacyCrypto MUST NOT be consulted on the envelope path")
 }
 
 // Envelope-resolved org that may NOT read legacy gets envelope candidates only.
@@ -2037,8 +2027,178 @@ func TestService_GenerateSearchTokenCandidates_BornEnvelopeNoLegacy_ReturnsEnvel
 	assert.NotContains(t, tokens, wantLegacy, "result MUST NOT contain the legacy token when CanReadLegacy=false")
 }
 
-// Fail-closed when legacy reads are permitted but no legacy crypto is wired.
-func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_Errors(t *testing.T) {
+// migratedOrgSearchService builds an envelope-mode service for a MIGRATED org:
+// a per-org composite PRF keyset (fresh primary + imported legacy HMAC secret) so
+// GetPrimitives populates CachedPrimitives.LegacyHexTokenPRF. The legacyCrypto is an
+// observable spy so tests can assert the process-global path is NEVER consulted on
+// the envelope search candidate path. Returns the service and the spy.
+func migratedOrgSearchService(t *testing.T, organizationID, tenantID string, canReadLegacy bool) (*encryptionService, *spyLegacyCrypto) {
+	t.Helper()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-"+organizationID, helperLegacyHexKey)
+	require.NoError(t, err)
+
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-"+organizationID, helperLegacySecret)
+	require.NoError(t, err)
+
+	km := newKeysetManagerForKeyset(t, organizationID, mixedAEAD, mixedPRF)
+
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{
+			organizationID: {
+				TenantID:       tenantID,
+				OrganizationID: organizationID,
+				Status:         mmodel.RegistryStatusActive,
+				LegacyReadable: canReadLegacy,
+				CurrentVersion: 1,
+			},
+		},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	spy := &spyLegacyCrypto{}
+	svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+	return svc.(*encryptionService), spy
+}
+
+// T-2.2.2: a MIGRATED org (composite PRF keyset, CanReadLegacy=true) MUST union the
+// per-org keyset-derived legacy hex token (byte-identical to the indexed legacy token)
+// as the final candidate, and MUST NOT consult the process-global legacyCrypto.
+func TestService_GenerateSearchTokenCandidates_MigratedOrg_UsesKeysetLegacyToken_NotProcessGlobal(t *testing.T) {
+	t.Parallel()
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-mig")
+
+	svc, spy := migratedOrgSearchService(t, "org-mig", "tenant-mig", true)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-mig",
+		OrganizationID: "org-mig",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	// MultiKeyPRF envelope candidates (canReadLegacy=false isolates the envelope set).
+	envelopeOnly, err := svc.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+	require.NotEmpty(t, envelopeOnly, "envelope baseline MUST NOT be empty")
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	// Envelope candidates preserved.
+	for i, want := range envelopeOnly {
+		assert.Contains(t, tokens, want, "result MUST contain envelope PRF candidate at index %d", i)
+	}
+
+	// Exactly one extra candidate: the keyset-derived legacy hex token.
+	require.Len(t, tokens, len(envelopeOnly)+1, "result MUST be envelope candidates plus exactly one legacy token")
+
+	// The keyset-derived legacy token is byte-identical to the indexed legacy token
+	// (LegacyKeyMaterial uses the same secret as the imported keyset key).
+	indexedLegacy := newTestLegacyKeyMaterial(t).GenerateHash(&value)
+	assert.Equal(t, indexedLegacy, tokens[len(tokens)-1], "final candidate MUST equal the indexed legacy hex token")
+
+	// The process-global legacyCrypto MUST NOT be consulted on the envelope path.
+	assert.False(t, spy.hashCalled, "process-global legacyCrypto.GenerateHash MUST NOT be consulted on the envelope path")
+	assert.NotContains(t, tokens, "spy-legacy-hash-must-not-be-used", "result MUST NOT contain the process-global spy token")
+}
+
+// T-2.2.2: an ENVELOPE-ONLY org (fresh PRF keyset, LegacyHexTokenPRF nil) with
+// CanReadLegacy=true MUST produce envelope-only candidates and MUST NOT consult the
+// process-global legacyCrypto (the org never wrote legacy tokens).
+func TestService_GenerateSearchTokenCandidates_EnvelopeOnlyOrg_NoLegacyToken_NotProcessGlobal(t *testing.T) {
+	t.Parallel()
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-env")
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	envAEAD, err := factory.GenerateAEADKeyset(context.Background(), "transit", "crm-org-env")
+	require.NoError(t, err)
+
+	envPRF, err := factory.GeneratePRFKeyset(context.Background(), "transit", "crm-org-env")
+	require.NoError(t, err)
+
+	km := newKeysetManagerForKeyset(t, "org-env", envAEAD, envPRF)
+
+	registryRepo := &serviceTestRegistryRepo{
+		records: map[string]*mmodel.OrganizationRegistryRecord{
+			"org-env": {
+				TenantID:       "tenant-env",
+				OrganizationID: "org-env",
+				Status:         mmodel.RegistryStatusActive,
+				LegacyReadable: true,
+				CurrentVersion: 1,
+			},
+		},
+	}
+	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+	spy := &spyLegacyCrypto{}
+	svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope).(*encryptionService)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-env",
+		OrganizationID: "org-env",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	envelopeOnly, err := svc.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	// No legacy token appended; envelope candidates only.
+	assert.Equal(t, envelopeOnly, tokens, "envelope-only org MUST produce envelope candidates only")
+
+	// Process-global legacyCrypto MUST NOT be consulted.
+	assert.False(t, spy.hashCalled, "envelope-only org MUST NOT consult process-global legacyCrypto")
+	assert.NotContains(t, tokens, "spy-legacy-hash-must-not-be-used", "result MUST NOT contain the process-global spy token")
+}
+
+// T-2.2.2: a migrated org with CanReadLegacy=false MUST produce envelope-only
+// candidates with no legacy token, regardless of the keyset carrying a legacy key.
+func TestService_GenerateSearchTokenCandidates_MigratedOrg_CanReadLegacyFalse_NoLegacyToken(t *testing.T) {
+	t.Parallel()
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-mig2")
+
+	svc, spy := migratedOrgSearchService(t, "org-mig2", "tenant-mig2", false)
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-mig2",
+		OrganizationID: "org-mig2",
+		FieldName:      "document",
+	}
+
+	value := "ABC123"
+
+	envelopeOnly, err := svc.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err)
+
+	assert.Equal(t, envelopeOnly, tokens, "CanReadLegacy=false MUST produce envelope candidates only")
+
+	indexedLegacy := newTestLegacyKeyMaterial(t).GenerateHash(&value)
+	assert.NotContains(t, tokens, indexedLegacy, "no legacy candidate when CanReadLegacy=false")
+	assert.False(t, spy.hashCalled, "legacyCrypto MUST NOT be consulted when CanReadLegacy=false")
+}
+
+// T-2.2.2: an envelope-only org (fresh PRF keyset, LegacyHexTokenPRF nil) with
+// CanReadLegacy=true and NO process-global legacy crypto wired produces envelope-only
+// candidates WITHOUT error: the per-org keyset carries no legacy key, so there is no
+// legacy candidate to produce and the process-global legacyCrypto is never consulted.
+func TestService_GenerateSearchTokenCandidates_EnvelopeOnlyNilLegacyCrypto_EnvelopeOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -2056,7 +2216,7 @@ func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_E
 	}
 	stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
 
-	aeadBytes, macBytes, aeadKeyID, _ := generateServiceTestKeysets(t)
+	aeadBytes, macBytes, aeadKeyID, prfKeyID := generateServiceTestKeysets(t)
 
 	keyset := &mmodel.OrganizationKeyset{
 		TenantID:       "tenant-abc",
@@ -2068,7 +2228,7 @@ func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_E
 		},
 		WrappedHMACKeyset: "wrapped-hmac",
 		HMACKeysetInfo: mmodel.KeysetInfo{
-			PrimaryKeyID: aeadKeyID,
+			PrimaryKeyID: prfKeyID,
 		},
 	}
 
@@ -2085,8 +2245,8 @@ func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_E
 
 	keysetManager := NewKeysetManager(keysetRepo, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
 
-	// nil legacyCrypto (true nil interface, matching production wiring when no legacy crypto is configured).
-	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, nil, NewProtectionMetrics(nil))
+	// nil legacyCrypto (true nil interface). It MUST NOT be consulted on this path.
+	svc := NewEncryptionService(stateResolver, keysetManager, keysetRepo, nil, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-abc",
@@ -2094,9 +2254,14 @@ func TestService_GenerateSearchTokenCandidates_CanReadLegacyButNilLegacyCrypto_E
 		FieldName:      "document",
 	}
 
-	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "ABC123")
-	require.Error(t, err)
-	assert.Nil(t, tokens, "no partial slice MUST be returned on fail-closed error")
+	value := "ABC123"
+
+	envelopeOnly, err := svc.(*encryptionService).generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+	require.NoError(t, err)
+
+	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+	require.NoError(t, err, "envelope-only org with nil legacyCrypto MUST NOT error")
+	assert.Equal(t, envelopeOnly, tokens, "envelope-only org MUST produce envelope candidates only")
 }
 
 // A protection-state resolution failure on the global envelope path is propagated unchanged.
@@ -2254,22 +2419,15 @@ func TestService_GenerateSearchToken_Legacy_ReturnsZeroKeyVersion(t *testing.T) 
 }
 
 // TestService_GenerateSearchTokenCandidates_MigratedOrg_PreservesLegacyUnion
-// verifies the Phase-1 union: a migrated org (envelope + CanReadLegacy) yields the
-// PRF candidate(s) AND a trailing legacy bare-value token.
+// verifies the legacy∪envelope union for a MIGRATED org (composite PRF keyset +
+// CanReadLegacy): the PRF candidate(s) AND a trailing keyset-sourced legacy
+// bare-value token (byte-identical to the indexed legacy token).
 func TestService_GenerateSearchTokenCandidates_MigratedOrg_PreservesLegacyUnion(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	state := ProtectionState{
-		Mode:                 crypto.EncryptionModeEnvelope,
-		CanReadLegacy:        true,
-		CurrentKeysetVersion: 1,
-		OrganizationID:       "org-migrated",
-		TenantID:             "tenant-migrated",
-	}
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-migrated")
 
-	legacyKeys := newTestLegacyKeyMaterial(t)
-	svc, _ := createEncryptionTestService(t, state, legacyKeys)
+	svc, spy := migratedOrgSearchService(t, "org-migrated", "tenant-migrated", true)
 
 	searchCtx := SearchTokenContext{
 		TenantID:       "tenant-migrated",
@@ -2282,13 +2440,529 @@ func TestService_GenerateSearchTokenCandidates_MigratedOrg_PreservesLegacyUnion(
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(tokens), 2, "must include at least one PRF candidate plus the legacy token")
 
-	// Trailing element must be the legacy bare-value token (Phase-1 union preserved).
-	legacyToken := legacyKeys.GenerateHash(&normalizedValue)
+	// Trailing element must be the keyset-sourced legacy bare-value token
+	// (byte-identical to the indexed legacy token).
+	legacyToken := newTestLegacyKeyMaterial(t).GenerateHash(&normalizedValue)
 	assert.Equal(t, legacyToken, tokens[len(tokens)-1], "last candidate must be the legacy bare-value token")
+	assert.False(t, spy.hashCalled, "process-global legacyCrypto MUST NOT be consulted")
 
 	// Leading PRF candidate(s) must be RAW 32-byte PRF values, distinct from the legacy hex token.
 	raw, decErr := base64.URLEncoding.DecodeString(tokens[0])
 	require.NoError(t, decErr)
 	assert.Len(t, raw, 32)
 	assert.NotEqual(t, legacyToken, tokens[0])
+}
+
+// ---------------------------------------------------------------------------
+// T-2.2.3: end-to-end legacy-token search match
+// ---------------------------------------------------------------------------
+
+// TestService_GenerateSearchTokenCandidates_LegacyIndexedValueIsFoundEndToEnd proves
+// the full read-path contract for a value that was indexed under the OLD scheme.
+//
+// Scenario: before migration the process-global legacy hashing wrote
+// search.<field> = hex-over-bare-value HMAC for value V. After the org is migrated
+// (its per-org composite keyset is built with the SAME legacy secret), a search for
+// V calls GenerateSearchTokenCandidates — the exact function whose result feeds the
+// MongoDB `$in` filter (holder_query.mongodb.go:144-150, alias_query.mongodb.go:179-228).
+//
+// The test asserts:
+//  1. The candidate set CONTAINS the historically-indexed legacy token byte-for-byte
+//     (so a `$in` query against the pre-migration row matches), and
+//  2. The candidate set also contains the current envelope/MultiKeyPRF candidate(s)
+//     (so newly indexed rows match too), and
+//  3. An envelope-only org (never wrote legacy rows) produces NO legacy candidate, so
+//     it would never falsely match on the legacy token.
+//
+// This is the end-to-end proof that migrated orgs can still find their pre-migration
+// rows while envelope-only orgs are unaffected.
+func TestService_GenerateSearchTokenCandidates_LegacyIndexedValueIsFoundEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	value := "123-45-6789"
+
+	// STEP 1 — simulate the historically-indexed token. This is exactly what the
+	// pre-migration process-global legacy hashing wrote into search.<field> for V:
+	// the lowercase-hex HMAC over the BARE normalized value. LegacyKeyMaterial uses
+	// the same legacy secret the migrated org's composite keyset imports.
+	indexedLegacyToken := newTestLegacyKeyMaterial(t).GenerateHash(&value)
+	require.NotEmpty(t, indexedLegacyToken, "historically-indexed legacy token must be non-empty")
+
+	searchCtx := SearchTokenContext{
+		TenantID:       "tenant-e2e",
+		OrganizationID: "org-e2e",
+		FieldName:      "document",
+	}
+
+	t.Run("migrated org finds the historically-indexed row plus current rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-e2e")
+
+		// MIGRATED org: composite keyset built with the SAME legacy secret.
+		svc, spy := migratedOrgSearchService(t, "org-e2e", "tenant-e2e", true)
+
+		// Isolate the envelope/MultiKeyPRF candidate set (canReadLegacy=false path).
+		envelopeCandidates, err := svc.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, value, false)
+		require.NoError(t, err)
+		require.NotEmpty(t, envelopeCandidates, "envelope candidate set must not be empty")
+
+		// READ PATH: the exact slice that feeds the `$in` filter.
+		candidates, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, value)
+		require.NoError(t, err)
+
+		// (1) The `$in` set contains the historically-indexed token -> old row matches.
+		assert.Contains(t, candidates, indexedLegacyToken,
+			"candidate set must contain the historically-indexed legacy token so the pre-migration row is found")
+
+		// (2) The `$in` set also contains the current envelope candidate(s) -> new rows match.
+		for i, envToken := range envelopeCandidates {
+			assert.Contains(t, candidates, envToken,
+				"candidate set must contain the current envelope candidate at index %d", i)
+		}
+
+		// The legacy token is derived from the per-org keyset, never the process-global crypto.
+		assert.False(t, spy.hashCalled,
+			"process-global legacyCrypto MUST NOT be consulted on the envelope read path")
+	})
+
+	t.Run("envelope-only org produces no legacy candidate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-e2e-env")
+
+		// ENVELOPE-ONLY org: fresh PRF keyset, no imported legacy key, never wrote legacy rows.
+		factory := tink.NewKeysetFactory(identityKMS{})
+
+		envAEAD, err := factory.GenerateAEADKeyset(context.Background(), "transit", "crm-org-e2e-env")
+		require.NoError(t, err)
+
+		envPRF, err := factory.GeneratePRFKeyset(context.Background(), "transit", "crm-org-e2e-env")
+		require.NoError(t, err)
+
+		km := newKeysetManagerForKeyset(t, "org-e2e-env", envAEAD, envPRF)
+
+		registryRepo := &serviceTestRegistryRepo{
+			records: map[string]*mmodel.OrganizationRegistryRecord{
+				"org-e2e-env": {
+					TenantID:       "tenant-e2e-env",
+					OrganizationID: "org-e2e-env",
+					Status:         mmodel.RegistryStatusActive,
+					LegacyReadable: true, // even with legacy reads allowed, no legacy key exists
+					CurrentVersion: 1,
+				},
+			},
+		}
+		stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+		spy := &spyLegacyCrypto{}
+		svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+		envSearchCtx := SearchTokenContext{
+			TenantID:       "tenant-e2e-env",
+			OrganizationID: "org-e2e-env",
+			FieldName:      "document",
+		}
+
+		candidates, err := svc.GenerateSearchTokenCandidates(ctx, envSearchCtx, value)
+		require.NoError(t, err)
+
+		// The legacy token is absent -> the env-only org never falsely matches a legacy row.
+		assert.NotContains(t, candidates, indexedLegacyToken,
+			"envelope-only org MUST NOT produce the legacy token (it never wrote legacy rows)")
+		assert.False(t, spy.hashCalled,
+			"envelope-only org MUST NOT consult the process-global legacyCrypto")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Keyset-backed legacy decrypt helper (T-2.1.1)
+// ---------------------------------------------------------------------------
+
+const helperLegacyHexKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+const helperLegacySecret = "legacy-hash-secret"
+
+// newKeysetManagerForKeyset builds a KeysetManager backed by the given composite
+// keyset bundles for organizationID. The fake unwrapper returns the real raw
+// keyset bytes so GetPrimitives produces working primitives.
+func newKeysetManagerForKeyset(t *testing.T, organizationID string, aead, prf tink.KeysetBundle) *KeysetManager {
+	t.Helper()
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    organizationID,
+			KEKPath:           "crm-" + organizationID,
+			KEKMountPath:      "transit",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+			KeysetInfo:        convertTestKeysetInfo(aead.Wrapped.Info),
+			HMACKeysetInfo:    convertTestKeysetInfo(prf.Wrapped.Info),
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aead.RawKeyset,
+		prfKeyset:  prf.RawKeyset,
+	}
+
+	return NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+}
+
+// newServiceWithKeysetManager builds an *encryptionService wired to the given
+// KeysetManager. The helper under test reads only keysetManager, so the other
+// dependencies are intentionally minimal.
+func newServiceWithKeysetManager(km *KeysetManager) *encryptionService {
+	return &encryptionService{
+		keysetManager: km,
+		metrics:       NewProtectionMetrics(nil),
+	}
+}
+
+// TestService_DecryptLegacyFromKeyset_MigratedOrg proves that an unmarked legacy
+// ciphertext (written with the legacy hex key, nil AAD) decrypts through the
+// per-org composite AEAD primitive, and FAILS for an envelope-only keyset that
+// has no legacy key. The helper never consults process-global s.legacyCrypto
+// (it is left nil here).
+func TestService_DecryptLegacyFromKeyset_MigratedOrg(t *testing.T) {
+	t.Parallel()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	// Migrated org: composite keyset (fresh primary + imported legacy AES-GCM).
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacyHexKey)
+	require.NoError(t, err)
+
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacySecret)
+	require.NoError(t, err)
+
+	// Envelope-only org: fresh keyset with NO legacy key imported.
+	envAEAD, err := factory.GenerateAEADKeyset(context.Background(), "transit", "crm-org-envelope")
+	require.NoError(t, err)
+
+	envPRF, err := factory.GeneratePRFKeyset(context.Background(), "transit", "crm-org-envelope")
+	require.NoError(t, err)
+
+	// Produce unmarked legacy ciphertext using the legacy hex key directly,
+	// mirroring how legacy data was written (base64(nonce||ct||tag), nil AAD).
+	plaintext := "migrated-secret-value"
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	encrypted, err := legacyKeys.Encrypt(&plaintext)
+	require.NoError(t, err)
+	require.NotNil(t, encrypted)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-migrated")
+
+	t.Run("migrated org composite keyset decrypts legacy ciphertext", func(t *testing.T) {
+		km := newKeysetManagerForKeyset(t, "org-migrated", mixedAEAD, mixedPRF)
+		svc := newServiceWithKeysetManager(km)
+
+		fieldCtx := FieldContext{
+			TenantID:       "tenant-migrated",
+			OrganizationID: "org-migrated",
+			RecordID:       "rec-1",
+			FieldName:      "document",
+		}
+
+		got, derr := svc.decryptLegacyFromKeyset(ctx, fieldCtx, *encrypted)
+		require.NoError(t, derr)
+		assert.Equal(t, plaintext, got)
+	})
+
+	t.Run("envelope-only keyset fails to decrypt legacy ciphertext", func(t *testing.T) {
+		km := newKeysetManagerForKeyset(t, "org-envelope", envAEAD, envPRF)
+		svc := newServiceWithKeysetManager(km)
+
+		fieldCtx := FieldContext{
+			TenantID:       "tenant-migrated",
+			OrganizationID: "org-envelope",
+			RecordID:       "rec-1",
+			FieldName:      "document",
+		}
+
+		_, derr := svc.decryptLegacyFromKeyset(ctx, fieldCtx, *encrypted)
+		require.Error(t, derr, "envelope-only keyset must not silently succeed")
+	})
+}
+
+// TestService_DecryptLegacyFromKeyset_DecodeFailure proves a non-base64 input is
+// rejected with a wrapped error and no panic.
+func TestService_DecryptLegacyFromKeyset_DecodeFailure(t *testing.T) {
+	t.Parallel()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacyHexKey)
+	require.NoError(t, err)
+
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacySecret)
+	require.NoError(t, err)
+
+	km := newKeysetManagerForKeyset(t, "org-migrated", mixedAEAD, mixedPRF)
+	svc := newServiceWithKeysetManager(km)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-migrated")
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-migrated",
+		OrganizationID: "org-migrated",
+		RecordID:       "rec-1",
+		FieldName:      "document",
+	}
+
+	_, derr := svc.decryptLegacyFromKeyset(ctx, fieldCtx, "not-valid-base64!!!")
+	require.Error(t, derr)
+}
+
+// TestService_DecryptLegacyFromKeyset_GetPrimitivesFailure proves a GetPrimitives
+// failure is propagated as a wrapped error.
+func TestService_DecryptLegacyFromKeyset_GetPrimitivesFailure(t *testing.T) {
+	t.Parallel()
+
+	unwrapper := &fakeKeysetUnwrapper{err: errors.New("unwrap boom")}
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-broken",
+			KEKPath:           "crm-org-broken",
+			KEKMountPath:      "transit",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+		},
+	}
+
+	km := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+	svc := newServiceWithKeysetManager(km)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-broken")
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-broken",
+		OrganizationID: "org-broken",
+		RecordID:       "rec-1",
+		FieldName:      "document",
+	}
+
+	plaintext := "v"
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	encrypted, err := legacyKeys.Encrypt(&plaintext)
+	require.NoError(t, err)
+
+	_, derr := svc.decryptLegacyFromKeyset(ctx, fieldCtx, *encrypted)
+	require.Error(t, derr)
+}
+
+// TestService_DecryptLegacyFromKeyset_ContextCancelled proves a cancelled context
+// short-circuits before any crypto work, returning the context error.
+func TestService_DecryptLegacyFromKeyset_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	mixedAEAD, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacyHexKey)
+	require.NoError(t, err)
+
+	mixedPRF, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacySecret)
+	require.NoError(t, err)
+
+	km := newKeysetManagerForKeyset(t, "org-migrated", mixedAEAD, mixedPRF)
+	svc := newServiceWithKeysetManager(km)
+
+	ctx, cancel := context.WithCancel(tmcore.ContextWithTenantID(context.Background(), "tenant-migrated"))
+	cancel()
+
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-migrated",
+		OrganizationID: "org-migrated",
+		RecordID:       "rec-1",
+		FieldName:      "document",
+	}
+
+	_, derr := svc.decryptLegacyFromKeyset(ctx, fieldCtx, "irrelevant")
+	require.ErrorIs(t, derr, context.Canceled)
+}
+
+// spyLegacyCrypto is an observable LegacyCrypto double. Decrypt records that it
+// was invoked and always fails, so a test can assert the production path did NOT
+// route through process-global legacy crypto.
+type spyLegacyCrypto struct {
+	decryptCalled bool
+	hashCalled    bool
+}
+
+func (s *spyLegacyCrypto) Encrypt(plaintext *string) (*string, error) {
+	return plaintext, nil
+}
+
+func (s *spyLegacyCrypto) Decrypt(_ *string) (*string, error) {
+	s.decryptCalled = true
+	return nil, errors.New("spy legacy decrypt must not be called")
+}
+
+func (s *spyLegacyCrypto) GenerateHash(_ *string) string {
+	s.hashCalled = true
+	return "spy-legacy-hash-must-not-be-used"
+}
+
+// TestService_Decrypt_LegacyRouting proves decryptLegacy routes unmarked legacy
+// ciphertext by per-org protection state (state.MustUseEnvelope), not by the
+// process-global legacyCrypto:
+//
+//	(a) envelope/migrated org decrypts via the per-org composite KEYSET; the
+//	    observable legacyCrypto double is NEVER consulted;
+//	(b) legacy-mode org (no keyset, KMS vendor none shape) decrypts via legacyCrypto;
+//	(c) CanReadLegacy=false short-circuits with ErrLegacyReadNotAllowed before any
+//	    decrypt branch (neither keyset nor legacyCrypto is consulted).
+func TestService_Decrypt_LegacyRouting(t *testing.T) {
+	t.Parallel()
+
+	// Unmarked legacy ciphertext written with the legacy hex key, nil AAD.
+	plaintext := "routed-secret-value"
+	legacyKeys := newTestLegacyKeyMaterial(t)
+	encrypted, err := legacyKeys.Encrypt(&plaintext)
+	require.NoError(t, err)
+	require.NotNil(t, encrypted)
+
+	fieldCtx := FieldContext{
+		TenantID:       "tenant-route",
+		OrganizationID: "org-migrated",
+		RecordID:       "rec-1",
+		FieldName:      "document",
+	}
+
+	t.Run("envelope org routes to keyset, legacyCrypto not consulted", func(t *testing.T) {
+		t.Parallel()
+
+		factory := tink.NewKeysetFactory(identityKMS{})
+
+		mixedAEAD, gerr := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacyHexKey)
+		require.NoError(t, gerr)
+
+		mixedPRF, gerr := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacySecret)
+		require.NoError(t, gerr)
+
+		km := newKeysetManagerForKeyset(t, "org-migrated", mixedAEAD, mixedPRF)
+
+		registryRepo := &serviceTestRegistryRepo{
+			records: map[string]*mmodel.OrganizationRegistryRecord{
+				"org-migrated": {
+					TenantID:       "tenant-route",
+					OrganizationID: "org-migrated",
+					Status:         mmodel.RegistryStatusActive,
+					LegacyReadable: true,
+					CurrentVersion: 1,
+				},
+			},
+		}
+		stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+		spy := &spyLegacyCrypto{}
+		svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-route")
+
+		got, derr := svc.Decrypt(ctx, fieldCtx, *encrypted)
+		require.NoError(t, derr)
+		assert.Equal(t, plaintext, got)
+		assert.False(t, spy.decryptCalled, "envelope/migrated org must decrypt via keyset, not legacyCrypto")
+	})
+
+	t.Run("legacy-mode org routes to legacyCrypto", func(t *testing.T) {
+		t.Parallel()
+
+		// No registry record -> legacy mode (KMS vendor none shape), nil keyset manager.
+		registryRepo := &serviceTestRegistryRepo{
+			records: map[string]*mmodel.OrganizationRegistryRecord{},
+		}
+		stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+		svc := NewEncryptionService(stateResolver, nil, nil, newTestLegacyKeyMaterial(t), NewProtectionMetrics(nil))
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-route")
+
+		got, derr := svc.Decrypt(ctx, fieldCtx, *encrypted)
+		require.NoError(t, derr)
+		assert.Equal(t, plaintext, got)
+	})
+
+	t.Run("envelope-only org fails and never consults legacyCrypto", func(t *testing.T) {
+		t.Parallel()
+
+		// Born-envelope org: keyset has NO legacy key. Even with CanReadLegacy
+		// allowed, an unmarked legacy ciphertext routes to the per-org keyset
+		// (MustUseEnvelope) and MUST fail, never falling back to the
+		// process-global legacyCrypto (the org never wrote legacy data).
+		factory := tink.NewKeysetFactory(identityKMS{})
+
+		envAEAD, gerr := factory.GenerateAEADKeyset(context.Background(), "transit", "crm-org-envelope")
+		require.NoError(t, gerr)
+
+		envPRF, gerr := factory.GeneratePRFKeyset(context.Background(), "transit", "crm-org-envelope")
+		require.NoError(t, gerr)
+
+		km := newKeysetManagerForKeyset(t, "org-envelope", envAEAD, envPRF)
+
+		registryRepo := &serviceTestRegistryRepo{
+			records: map[string]*mmodel.OrganizationRegistryRecord{
+				"org-envelope": {
+					TenantID:       "tenant-route",
+					OrganizationID: "org-envelope",
+					Status:         mmodel.RegistryStatusActive,
+					LegacyReadable: true,
+					CurrentVersion: 1,
+				},
+			},
+		}
+		stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+		spy := &spyLegacyCrypto{}
+		svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-route")
+
+		envelopeOnlyFieldCtx := FieldContext{
+			TenantID:       "tenant-route",
+			OrganizationID: "org-envelope",
+			RecordID:       "rec-1",
+			FieldName:      "document",
+		}
+
+		_, derr := svc.Decrypt(ctx, envelopeOnlyFieldCtx, *encrypted)
+		require.Error(t, derr, "envelope-only org must not decrypt unmarked legacy ciphertext")
+		assert.False(t, spy.decryptCalled, "envelope-only org must route to keyset, never to process-global legacyCrypto")
+	})
+
+	t.Run("CanReadLegacy false short-circuits before any decrypt", func(t *testing.T) {
+		t.Parallel()
+
+		factory := tink.NewKeysetFactory(identityKMS{})
+
+		mixedAEAD, gerr := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacyHexKey)
+		require.NoError(t, gerr)
+
+		mixedPRF, gerr := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-migrated", helperLegacySecret)
+		require.NoError(t, gerr)
+
+		km := newKeysetManagerForKeyset(t, "org-migrated", mixedAEAD, mixedPRF)
+
+		registryRepo := &serviceTestRegistryRepo{
+			records: map[string]*mmodel.OrganizationRegistryRecord{
+				"org-migrated": {
+					TenantID:       "tenant-route",
+					OrganizationID: "org-migrated",
+					Status:         mmodel.RegistryStatusActive,
+					LegacyReadable: false,
+					CurrentVersion: 1,
+				},
+			},
+		}
+		stateResolver := NewProtectionStateResolver(registryRepo, NewProtectionMetrics(nil))
+
+		spy := &spyLegacyCrypto{}
+		svc := NewEncryptionService(stateResolver, km, nil, spy, NewProtectionMetrics(nil), crypto.EncryptionModeEnvelope)
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-route")
+
+		_, derr := svc.Decrypt(ctx, fieldCtx, *encrypted)
+		require.Error(t, derr)
+		assert.ErrorIs(t, derr, ErrLegacyReadNotAllowed)
+		assert.False(t, spy.decryptCalled, "rejection must short-circuit before any decrypt branch")
+	})
 }
