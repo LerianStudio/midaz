@@ -28,6 +28,8 @@ const keysetCollection = "organization_keyset"
 type KeysetRepository interface {
 	Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error
 	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+	GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error)
+	GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
 	Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error
 }
 
@@ -96,8 +98,10 @@ func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.Organ
 
 	model := KeysetFromEntity(keyset)
 
-	// Database isolation handles multi-tenancy - filter by organization_id only
-	filter := bson.M{"organization_id": keyset.OrganizationID}
+	// Database isolation handles multi-tenancy - filter by organization_id and
+	// version so each keyset version is an independent document (storage is
+	// version-keyed).
+	filter := bson.M{"organization_id": keyset.OrganizationID, "version": keyset.Version}
 	update := bson.M{"$setOnInsert": model}
 
 	result, err := collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
@@ -150,6 +154,85 @@ func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string
 	return model.ToEntity(), nil
 }
 
+// GetByVersion returns the keyset document for an organization at an exact version.
+func (r *KeysetMongoDBRepository) GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+
+	ctx, span := tracer.Start(ctx, "mongodb.keyset.get_by_version")
+	defer span.End()
+
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.Int("app.request.version", version),
+	)
+
+	collection, err := r.collection(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to get collection", err)
+		return nil, err
+	}
+
+	var model KeysetMongoDBModel
+
+	// Database isolation handles multi-tenancy - filter by organization_id and version.
+	filter := bson.M{"organization_id": organizationID, "version": version}
+
+	if err := collection.FindOne(ctx, filter).Decode(&model); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, mmodel.ErrKeysetNotFound
+		}
+
+		libOpenTelemetry.HandleSpanError(span, "Failed to get organization keyset by version", err)
+
+		return nil, fmt.Errorf("get organization keyset by version: %w", err)
+	}
+
+	return model.ToEntity(), nil
+}
+
+// GetActive returns the highest-version keyset document for an organization.
+func (r *KeysetMongoDBRepository) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+
+	ctx, span := tracer.Start(ctx, "mongodb.keyset.get_active")
+	defer span.End()
+
+	tenantID := extractTenantID(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.tenant_id", tenantID),
+		attribute.String("app.request.organization_id", organizationID),
+	)
+
+	collection, err := r.collection(ctx)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to get collection", err)
+		return nil, err
+	}
+
+	var model KeysetMongoDBModel
+
+	// Database isolation handles multi-tenancy - filter by organization_id, select
+	// the highest version document (descending sort, single result).
+	filter := bson.M{"organization_id": organizationID}
+	opts := options.FindOne().SetSort(bson.D{{Key: "version", Value: -1}})
+
+	if err := collection.FindOne(ctx, filter, opts).Decode(&model); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, mmodel.ErrKeysetNotFound
+		}
+
+		libOpenTelemetry.HandleSpanError(span, "Failed to get active organization keyset", err)
+
+		return nil, fmt.Errorf("get active organization keyset: %w", err)
+	}
+
+	return model.ToEntity(), nil
+}
+
 func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
@@ -189,9 +272,11 @@ func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.Org
 	model := KeysetFromEntity(keyset)
 	model.Revision = expectedRevision + 1
 
-	// Database isolation handles multi-tenancy - filter by organization_id and revision only
+	// Database isolation handles multi-tenancy - filter by organization_id, version
+	// and revision so the optimistic update targets the exact version document.
 	filter := bson.M{
 		"organization_id": keyset.OrganizationID,
+		"version":         keyset.Version,
 		"revision":        expectedRevision,
 	}
 
@@ -253,8 +338,9 @@ func (r *KeysetMongoDBRepository) ensureIndexes(ctx context.Context, collection 
 func (r *KeysetMongoDBRepository) createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
 		{
-			// Compound unique index on tenant_id + organization_id for proper tenant isolation
-			Keys:    bson.D{{Key: "tenant_id", Value: 1}, {Key: "organization_id", Value: 1}},
+			// Compound unique index on tenant_id + organization_id + version for
+			// proper tenant isolation and version-keyed keyset storage.
+			Keys:    bson.D{{Key: "tenant_id", Value: 1}, {Key: "organization_id", Value: 1}, {Key: "version", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 	}

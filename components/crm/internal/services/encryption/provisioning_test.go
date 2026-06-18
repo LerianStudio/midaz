@@ -65,6 +65,19 @@ func (f *fakeKeysetRepoForProv) Get(_ context.Context, organizationID string) (*
 	return keyset, nil
 }
 
+func (f *fakeKeysetRepoForProv) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	return f.Get(ctx, organizationID)
+}
+
+func (f *fakeKeysetRepoForProv) GetByVersion(_ context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error) {
+	keyset, ok := f.keysets[organizationID]
+	if !ok || keyset.Version != version {
+		return nil, mmodel.ErrKeysetNotFound
+	}
+
+	return keyset, nil
+}
+
 func (f *fakeKeysetRepoForProv) Update(_ context.Context, _ *mmodel.OrganizationKeyset, _ int64) error {
 	return nil
 }
@@ -2035,6 +2048,14 @@ func (f *fakeKeysetRepoNilNil) Get(_ context.Context, _ string) (*mmodel.Organiz
 	return nil, nil
 }
 
+func (f *fakeKeysetRepoNilNil) GetActive(_ context.Context, _ string) (*mmodel.OrganizationKeyset, error) {
+	return nil, nil
+}
+
+func (f *fakeKeysetRepoNilNil) GetByVersion(_ context.Context, _ string, _ int) (*mmodel.OrganizationKeyset, error) {
+	return nil, nil
+}
+
 func (f *fakeKeysetRepoNilNil) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error {
 	return nil
 }
@@ -2370,10 +2391,19 @@ func (r *raceKeysetRepo) Get(_ context.Context, organizationID string) (*mmodel.
 	return &mmodel.OrganizationKeyset{
 		TenantID:       "tenant-123",
 		OrganizationID: organizationID,
+		Version:        1,
 		KEKPath:        "org-org-456",
 		KeysetInfo:     mmodel.KeysetInfo{PrimaryKeyID: 12345},
 		HMACKeysetInfo: mmodel.KeysetInfo{PrimaryKeyID: 67890},
 	}, nil
+}
+
+func (r *raceKeysetRepo) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	return r.Get(ctx, organizationID)
+}
+
+func (r *raceKeysetRepo) GetByVersion(ctx context.Context, organizationID string, _ int) (*mmodel.OrganizationKeyset, error) {
+	return r.Get(ctx, organizationID)
 }
 
 func (r *raceKeysetRepo) Update(_ context.Context, _ *mmodel.OrganizationKeyset, _ int64) error {

@@ -70,6 +70,23 @@ func (f *serviceTestKeysetRepo) Get(_ context.Context, organizationID string) (*
 	return keyset, nil
 }
 
+func (f *serviceTestKeysetRepo) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	return f.Get(ctx, organizationID)
+}
+
+func (f *serviceTestKeysetRepo) GetByVersion(_ context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	keyset, ok := f.keysets[organizationID]
+	if !ok || keyset.Version != version {
+		return nil, mmodel.ErrKeysetNotFound
+	}
+
+	return keyset, nil
+}
+
 func (f *serviceTestKeysetRepo) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error {
 	return nil
 }
@@ -125,9 +142,18 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 
 	aeadBytes, prfBytes, aeadKeyID, prfKeyID := generateServiceTestKeysets(t)
 
+	// Default the registry's readable versions to [keysetVersion] so version-routed
+	// decrypt of the active marker passes the fail-closed gate, unless the test set
+	// ReadableVersions explicitly (e.g. to exercise the fail-closed path).
+	readableVersions := state.ReadableVersions
+	if readableVersions == nil && state.CurrentKeysetVersion >= 1 {
+		readableVersions = []int{state.CurrentKeysetVersion}
+	}
+
 	keyset := &mmodel.OrganizationKeyset{
 		TenantID:       state.TenantID,
 		OrganizationID: state.OrganizationID,
+		Version:        1,
 		KEKPath:        "test-kek",
 		WrappedKeyset:  "wrapped-aead",
 		KeysetInfo: mmodel.KeysetInfo{
@@ -155,11 +181,12 @@ func createEncryptionTestService(t *testing.T, state ProtectionState, legacyKeys
 	registryRepo := &serviceTestRegistryRepo{
 		records: map[string]*mmodel.OrganizationRegistryRecord{
 			state.OrganizationID: {
-				TenantID:       state.TenantID,
-				OrganizationID: state.OrganizationID,
-				Status:         mmodel.RegistryStatusActive,
-				LegacyReadable: state.CanReadLegacy,
-				CurrentVersion: state.CurrentKeysetVersion,
+				TenantID:         state.TenantID,
+				OrganizationID:   state.OrganizationID,
+				Status:           mmodel.RegistryStatusActive,
+				LegacyReadable:   state.CanReadLegacy,
+				CurrentVersion:   state.CurrentKeysetVersion,
+				ReadableVersions: readableVersions,
 			},
 		},
 	}
@@ -209,7 +236,8 @@ func TestService_Encrypt_EnvelopeMode(t *testing.T) {
 	marker, hasMarker, err := ParseEnvelopeMarker(ciphertext)
 	require.NoError(t, err)
 	require.True(t, hasMarker)
-	assert.Equal(t, keyset.KeysetInfo.PrimaryKeyID, marker.KeyID)
+	// The marker now carries the keyset VERSION (not the Tink primary key id).
+	assert.Equal(t, uint32(keyset.Version), marker.Version)
 }
 
 func TestService_Encrypt_LegacyMode(t *testing.T) {
@@ -514,8 +542,9 @@ func TestService_Decrypt_EnvelopeFailure_NoFallback(t *testing.T) {
 		FieldName:      "tax_id",
 	}
 
-	// Create a marked ciphertext with bogus payload
-	bogusMarkedCiphertext := FormatEnvelopeMarker(keyset.KeysetInfo.PrimaryKeyID, []byte("invalid-ciphertext"))
+	// Create a marked ciphertext with bogus payload for the active keyset version
+	// (so it passes the readable-version gate and fails on AEAD decrypt instead).
+	bogusMarkedCiphertext := FormatEnvelopeMarker(uint32(keyset.Version), []byte("invalid-ciphertext"))
 
 	// Decryption should fail - NO fallback to legacy
 	_, err := svc.Decrypt(ctx, fieldCtx, bogusMarkedCiphertext)
@@ -1308,6 +1337,19 @@ func (f *serviceTestKeysetRepoWithProvisioning) Get(_ context.Context, organizat
 	keyset, ok := f.keysets[organizationID]
 	if !ok {
 		return nil, constant.ErrKeysetNotFound
+	}
+
+	return keyset, nil
+}
+
+func (f *serviceTestKeysetRepoWithProvisioning) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	return f.Get(ctx, organizationID)
+}
+
+func (f *serviceTestKeysetRepoWithProvisioning) GetByVersion(_ context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error) {
+	keyset, ok := f.keysets[organizationID]
+	if !ok || keyset.Version != version {
+		return nil, mmodel.ErrKeysetNotFound
 	}
 
 	return keyset, nil

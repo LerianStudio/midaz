@@ -14,6 +14,7 @@ import (
 type KeysetMongoDBModel struct {
 	TenantID          string          `bson:"tenant_id,omitempty"`
 	OrganizationID    string          `bson:"organization_id"`
+	Version           int             `bson:"version"`
 	KEKPath           string          `bson:"kek_path"`
 	KEKMountPath      string          `bson:"kek_mount_path,omitempty"`
 	WrappedKeyset     string          `bson:"wrapped_keyset"`
@@ -48,6 +49,7 @@ func KeysetFromEntity(k *mmodel.OrganizationKeyset) *KeysetMongoDBModel {
 	return &KeysetMongoDBModel{
 		TenantID:          k.TenantID,
 		OrganizationID:    k.OrganizationID,
+		Version:           k.Version,
 		KEKPath:           k.KEKPath,
 		KEKMountPath:      k.KEKMountPath,
 		WrappedKeyset:     k.WrappedKeyset,
@@ -69,6 +71,7 @@ func (m *KeysetMongoDBModel) ToEntity() *mmodel.OrganizationKeyset {
 	return &mmodel.OrganizationKeyset{
 		TenantID:          m.TenantID,
 		OrganizationID:    m.OrganizationID,
+		Version:           m.Version,
 		KEKPath:           m.KEKPath,
 		KEKMountPath:      m.KEKMountPath,
 		WrappedKeyset:     m.WrappedKeyset,

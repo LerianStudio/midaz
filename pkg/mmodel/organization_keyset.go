@@ -22,11 +22,10 @@ var (
 // OrganizationKeyset stores wrapped keyset metadata for an organization.
 // Wrapped keysets are encrypted by a KEK in the KMS provider.
 type OrganizationKeyset struct {
-	TenantID       string
-	OrganizationID string
-	KEKPath        string
-	// KEKMountPath is the resolved Vault Transit mount the wrapped keysets were created
-	// under (e.g. "transit" or "transit/{tenant}"); persisted so unwrap ignores live config.
+	TenantID          string
+	OrganizationID    string
+	Version           int
+	KEKPath           string
 	KEKMountPath      string
 	WrappedKeyset     string
 	KeysetInfo        KeysetInfo
@@ -55,6 +54,10 @@ type KeyInfo struct {
 func (k *OrganizationKeyset) Validate() error {
 	if k.OrganizationID == "" {
 		return fmt.Errorf("organization_id is required")
+	}
+
+	if k.Version < 1 {
+		return fmt.Errorf("version must be >= 1")
 	}
 
 	if k.KEKPath == "" {
@@ -88,6 +91,7 @@ func (k *OrganizationKeyset) SafeView() OrganizationKeyset {
 	return OrganizationKeyset{
 		TenantID:          k.TenantID,
 		OrganizationID:    k.OrganizationID,
+		Version:           k.Version,
 		KEKPath:           k.KEKPath,
 		KEKMountPath:      k.KEKMountPath,
 		WrappedKeyset:     "[REDACTED]",

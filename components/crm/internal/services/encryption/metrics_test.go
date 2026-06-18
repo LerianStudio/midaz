@@ -156,6 +156,6 @@ func TestFetchAndCache_NilFactory_NoPanic(t *testing.T) {
 
 	km := newKeysetManagerForMetrics(&scriptedUnwrapper{aeadKeyset: aeadBytes, prfKeyset: prfBytes}, NewProtectionMetrics(nil))
 
-	_, err := km.GetPrimitives(context.Background(), "org-metrics")
+	_, err := km.GetActivePrimitives(context.Background(), "org-metrics")
 	require.NoError(t, err)
 }

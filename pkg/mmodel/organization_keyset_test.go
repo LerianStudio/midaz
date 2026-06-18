@@ -26,6 +26,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "valid keyset",
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
+				Version:        1,
 				KEKPath:        "transit/keys/test",
 				KEKMountPath:   "transit",
 				WrappedKeyset:  "vault:v1:encrypted",
@@ -37,6 +38,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "empty kek_mount_path",
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
+				Version:        1,
 				KEKPath:        "transit/keys/test",
 				KEKMountPath:   "",
 				WrappedKeyset:  "vault:v1:encrypted",
@@ -58,6 +60,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "empty kek_path",
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
+				Version:        1,
 				KEKPath:        "",
 				WrappedKeyset:  "vault:v1:encrypted",
 				KeysetInfo:     KeysetInfo{PrimaryKeyID: 1},
@@ -68,6 +71,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "empty wrapped_keyset",
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
+				Version:        1,
 				KEKPath:        "transit/keys/test",
 				KEKMountPath:   "transit",
 				WrappedKeyset:  "",
@@ -79,6 +83,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "zero primary_key_id",
 			keyset: OrganizationKeyset{
 				OrganizationID: "org-a",
+				Version:        1,
 				KEKPath:        "transit/keys/test",
 				KEKMountPath:   "transit",
 				WrappedKeyset:  "vault:v1:encrypted",
@@ -90,6 +95,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "hmac_keyset_without_hmac_info",
 			keyset: OrganizationKeyset{
 				OrganizationID:    "org-a",
+				Version:           1,
 				KEKPath:           "transit/keys/test",
 				KEKMountPath:      "transit",
 				WrappedKeyset:     "vault:v1:encrypted",
@@ -103,6 +109,7 @@ func TestOrganizationKeyset_Validate(t *testing.T) {
 			name: "valid keyset with hmac",
 			keyset: OrganizationKeyset{
 				OrganizationID:    "org-a",
+				Version:           1,
 				KEKPath:           "transit/keys/test",
 				KEKMountPath:      "transit",
 				WrappedKeyset:     "vault:v1:encrypted",
@@ -226,6 +233,7 @@ func mixedKeyset() OrganizationKeyset {
 	return OrganizationKeyset{
 		TenantID:       "tenant-a",
 		OrganizationID: "org-a",
+		Version:        1,
 		KEKPath:        "transit/keys/test",
 		KEKMountPath:   "transit",
 		WrappedKeyset:  "vault:v1:secret-dek-material",

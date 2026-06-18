@@ -56,6 +56,10 @@ type ProtectionState struct {
 	CanReadLegacy bool
 	// CurrentKeysetVersion is the keyset version for new encryptions (0 for legacy mode).
 	CurrentKeysetVersion int
+	// ReadableVersions lists the keyset versions whose marked ciphertext may be
+	// decrypted. Decrypt fails closed when a marker's version is not in this set.
+	// Empty/nil for legacy or unprovisioned organizations.
+	ReadableVersions []int
 	// OrganizationID is the resolved organization.
 	OrganizationID string
 	// TenantID is the resolved tenant (from registry record).
@@ -226,6 +230,7 @@ func (r *ProtectionStateResolver) resolveFromRecord(ctx context.Context, logger 
 			Mode:                 mode,
 			CanReadLegacy:        record.LegacyReadable,
 			CurrentKeysetVersion: record.CurrentVersion,
+			ReadableVersions:     record.ReadableVersions,
 			OrganizationID:       record.OrganizationID,
 			TenantID:             record.TenantID,
 		}
