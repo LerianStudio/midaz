@@ -1,0 +1,59 @@
+# Auto-label PRs based on changed files
+
+'area: crm':
+  - changed-files:
+      - any-glob-to-any-file: 'components/crm/**/*'
+
+'area: ledger':
+  - changed-files:
+      - any-glob-to-any-file: 'components/ledger/**/*'
+
+'area: infra':
+  - changed-files:
+      - any-glob-to-any-file: 'components/infra/**/*'
+
+'area: pkg':
+  - changed-files:
+      - any-glob-to-any-file: 'pkg/**/*'
+
+'area: migrations':
+  - changed-files:
+      - any-glob-to-any-file: 'components/ledger/migrations/**/*'
+
+'area: scripts':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**/*'
+          - 'Makefile'
+          - 'mk/**/*'
+
+'area: ci/cd':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
+          - '.golangci.yml'
+          - '.releaserc.yml'
+
+'area: documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+
+'area: tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*_test.go'
+          - 'tests/**/*'
+
+'area: dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'go.mod'
+          - 'go.sum'
+
+'area: build':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/Dockerfile'
+          - 'docker-compose*.yml'

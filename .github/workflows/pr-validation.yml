@@ -3,7 +3,7 @@ name: PR Validation
 on:
   pull_request:
     branches: [develop, release-candidate, main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -12,21 +12,8 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.35.0
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      pr_title_types: |
-        feat
-        fix
-        docs
-        style
-        refactor
-        perf
-        test
-        chore
-        ci
-        build
-        revert
       pr_title_scopes: |
         crm
         ledger
@@ -36,10 +23,8 @@ jobs:
         migrations
         scripts
         deps
-        workflows
-      require_scope: false
-      enable_auto_labeler: false
+        ci
+        docs
+        tests
       enforce_source_branches: true
-      allowed_source_branches: 'develop|release-candidate|hotfix/*'
-      target_branches_for_source_check: 'main'
     secrets: inherit

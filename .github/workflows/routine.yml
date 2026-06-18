@@ -1,0 +1,43 @@
+name: Repository Routines
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  pull_request:
+    types: [closed]
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+  workflow_dispatch:
+    inputs:
+      routine:
+        description: Routine to run
+        type: choice
+        options:
+          - all
+          - branch-cleanup-stale
+          - stale-pr
+          - stale-issue
+          - labels-sync
+          - workflow-runs-cleanup
+        default: all
+      dry_run:
+        description: Preview changes without applying them
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  routine:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.35.0
+    with:
+      routine: ${{ inputs.routine || 'all' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      merged_branch: ${{ github.head_ref }}
+    secrets: inherit

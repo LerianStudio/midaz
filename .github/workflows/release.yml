@@ -6,29 +6,36 @@ on:
       - develop
       - release-candidate
       - main
+    tags-ignore:
+      - '**'
     paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'LICENSE'
+      - 'CODEOWNERS'
       - '.gitignore'
-      - '**/*.env'   # Ignores all .env files
-      - '*.env'      # Ignores .env files in the root directory
-      - '**/*.md'    # Ignores all .md files
-      - '*.md'       # Ignores .md files in the root directory
-      - '**/*.txt'   # Ignores all .env files
-      - '*.txt'      # Ignores .env files in the root directory
-      - '.github/**' # Ignores all GitHub config (workflows, templates, dependabot, labeler, etc.)
-    tags-ignore: ['**']
+      - '.editorconfig'
+      - '*.png'
+      - '*.jpg'
+      - '*.svg'
+      - 'images/**'
+      - '*.txt'
+      - '.golangci.yml'
+      - '.golangci.yaml'
+      - '.releaserc.yml'
 
 permissions:
+  id-token: write
   contents: write
   issues: write
   pull-requests: write
+  packages: write
 
 jobs:
-  # =========================
-  # RELEASE
-  # =========================
   release:
     name: Create Release
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.28.9
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.35.0
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      enable_changelog: ${{ github.ref == 'refs/heads/main' }}
     secrets: inherit

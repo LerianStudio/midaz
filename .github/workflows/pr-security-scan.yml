@@ -21,6 +21,8 @@ on:
       - '*.png'
       - '*.jpg'
       - '*.svg'
+      - 'images/**'
+      - '*.txt'
 
 permissions:
   id-token: write
@@ -31,17 +33,5 @@ permissions:
 
 jobs:
   security-scan:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.28.9
-    with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      filter_paths: |-
-        components/crm
-        components/ledger
-      shared_paths: |
-        go.mod
-        go.sum
-        pkg/
-        Makefile
-      path_level: "2"
-      dockerhub_org: "lerianstudio"
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.35.0
     secrets: inherit

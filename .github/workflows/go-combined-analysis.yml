@@ -21,24 +21,26 @@ on:
       - '*.png'
       - '*.jpg'
       - '*.svg'
+      - 'images/**'
+      - '*.txt'
+
+permissions:
+  id-token: write
+  actions: read
+  contents: read
+  pull-requests: write
+  security-events: write
 
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.28.9
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.35.0
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      filter_paths: '["components/crm", "components/ledger"]'
-      path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.26.4"
       golangci_lint_version: "v2.4.0"
       golangci_lint_args: "--timeout=5m"
       coverage_threshold: 85
       fail_on_coverage_threshold: true
-      enable_lint: true
-      enable_security: true
-      enable_tests: true
-      enable_coverage: true
-      enable_build: true
+      go_private_modules: "github.com/LerianStudio/*"
     secrets: inherit
