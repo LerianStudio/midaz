@@ -701,8 +701,14 @@ func (s *encryptionService) GenerateSearchTokenCandidates(ctx context.Context, s
 }
 
 // generateSearchTokenCandidatesEnvelope generates PRF tokens for all enabled search-token keys.
-// When canReadLegacy is true it appends the legacy token (over the bare value) as the final
-// element, failing closed if legacy reads are permitted but no legacy crypto is wired.
+//
+// When canReadLegacy is true and the per-organization keyset carries an imported legacy
+// HMAC key (migrated org), it appends that keyset's legacy hex token (over the bare value)
+// as the final candidate. This token is byte-identical to the indexed legacy token, so
+// migrated orgs can still find their pre-migration rows.
+//
+// Envelope-only organizations (LegacyHexTokenPRF nil) never wrote legacy tokens, so no
+// legacy candidate is appended and the process-global legacyCrypto is never consulted.
 func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string, canReadLegacy bool) ([]string, error) {
 	// Get cached primitives (strict mode: only MultiKeyPRF is needed; error if construction failed)
 	prims, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
@@ -718,13 +724,18 @@ func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Co
 		return nil, fmt.Errorf("failed to compute search token candidates: %w", err)
 	}
 
-	// Union the legacy token when legacy reads are still permitted.
-	if canReadLegacy {
-		if s.legacyCrypto == nil {
-			return nil, fmt.Errorf("legacy crypto is required")
+	// Union the per-org keyset legacy token when legacy reads are permitted AND the
+	// keyset carries an imported legacy key (migrated org). Envelope-only orgs never
+	// wrote legacy tokens, so no legacy candidate is appended.
+	if canReadLegacy && prims.LegacyHexTokenPRF != nil {
+		legacyToken, err := prims.LegacyHexTokenPRF.ComputeLegacyHexToken([]byte(normalizedValue))
+		if err != nil {
+			// Fail loud: a migrated org that cannot produce its legacy candidate would
+			// silently fail to find legacy rows.
+			return nil, fmt.Errorf("failed to compute legacy search token candidate: %w", err)
 		}
 
-		tokens = append(tokens, s.legacyCrypto.GenerateHash(&normalizedValue))
+		tokens = append(tokens, legacyToken)
 	}
 
 	return tokens, nil

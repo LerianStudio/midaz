@@ -7,6 +7,7 @@ package tink
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/tink-crypto/tink-go/v2/aead"
@@ -19,6 +20,12 @@ import (
 	tinkpb "github.com/tink-crypto/tink-go/v2/proto/tink_go_proto"
 	"google.golang.org/protobuf/proto"
 )
+
+// ErrNoLegacyPRFKey is returned by NewLegacyPRFPrimitiveFromHandle when the keyset
+// handle carries no ENABLED imported legacy HMAC-SHA256 key (i.e. an envelope-only
+// keyset). Callers use errors.Is to distinguish "no legacy key present" (leave the
+// legacy primitive nil) from a genuine build failure.
+var ErrNoLegacyPRFKey = errors.New("keyset has no enabled legacy HMAC-PRF key")
 
 const legacyImportedKeyID uint32 = 1
 
@@ -89,6 +96,56 @@ func NewLegacyPRFPrimitiveFromSecret(secret string) (*LegacyPRFPrimitive, error)
 	}
 
 	return &LegacyPRFPrimitive{set: set}, nil
+}
+
+// NewLegacyPRFPrimitiveFromHandle extracts the imported legacy HMAC-SHA256 key from
+// a COMPOSITE PRF keyset handle (a fresh HMAC-PRF primary plus the imported legacy
+// key composed by GenerateMixedPRFKeyset) and returns a LegacyPRFPrimitive that
+// computes the indexed legacy hex token over that key.
+//
+// The legacy entry is selected by its fixed sentinel key ID (legacyComposedKeyID),
+// NOT by position: the fresh primary uses a random Tink key ID while the imported
+// legacy key is always assigned the sentinel at compose time. A DISABLED legacy
+// entry is skipped, so a keyset whose only legacy key is disabled is treated as
+// having no legacy key.
+//
+// It returns ErrNoLegacyPRFKey (errors.Is-matchable) when no enabled legacy entry
+// is present, so envelope-only keysets resolve to a nil primitive without error.
+// It never returns or logs raw key material.
+func NewLegacyPRFPrimitiveFromHandle(handle *keyset.Handle) (*LegacyPRFPrimitive, error) {
+	if handle == nil {
+		return nil, fmt.Errorf("keyset handle is nil")
+	}
+
+	for i := range handle.Len() {
+		entry, err := handle.Entry(i)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get keyset entry %d: %w", i, err)
+		}
+
+		if entry.KeyID() != legacyComposedKeyID {
+			continue
+		}
+
+		// A disabled or destroyed legacy entry must not be used for token computation.
+		if entry.KeyStatus() != keyset.Enabled {
+			continue
+		}
+
+		singleKeyHandle, err := createSingleKeyHandle(entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create single-key handle for legacy PRF key: %w", err)
+		}
+
+		set, err := prf.NewPRFSet(singleKeyHandle)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create legacy HMAC-PRF primitive from handle: %w", err)
+		}
+
+		return &LegacyPRFPrimitive{set: set}, nil
+	}
+
+	return nil, ErrNoLegacyPRFKey
 }
 
 // ComputeLegacyHexToken computes a 32-byte HMAC-SHA256 PRF output and returns it

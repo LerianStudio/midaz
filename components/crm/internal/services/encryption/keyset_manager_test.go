@@ -2277,3 +2277,168 @@ func TestKeysetManager_GetPrimitives_MixedKeyset_UnwrapsToWorkingPrimitives(t *t
 		t.Errorf("PRF legacy key status = %q, want ENABLED", prfLegacy.Status)
 	}
 }
+
+// TestKeysetManager_GetPrimitives_MigratedKeyset_ExposesLegacyHexTokenPRF is the
+// hard gate for T-2.2.1: a MIGRATED composite PRF keyset (fresh HMAC-PRF primary +
+// imported legacy HMAC-SHA256) must cause GetPrimitives to populate a non-nil
+// CachedPrimitives.LegacyHexTokenPRF whose ComputeLegacyHexToken(value) is
+// byte-identical to the indexed legacy token produced by
+// tink.NewLegacyPRFPrimitiveFromSecret(secret) for the same secret.
+func TestKeysetManager_GetPrimitives_MigratedKeyset_ExposesLegacyHexTokenPRF(t *testing.T) {
+	t.Parallel()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	const legacyHexKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+	const legacySecret = "legacy-hash-secret"
+
+	aeadBundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-legacy-prf", legacyHexKey)
+	if err != nil {
+		t.Fatalf("GenerateMixedAEADKeyset() error = %v", err)
+	}
+
+	prfBundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-legacy-prf", legacySecret)
+	if err != nil {
+		t.Fatalf("GenerateMixedPRFKeyset() error = %v", err)
+	}
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-legacy-prf",
+			KEKPath:           "crm-org-legacy-prf",
+			KEKMountPath:      "transit",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+			KeysetInfo:        convertTestKeysetInfo(aeadBundle.Wrapped.Info),
+			HMACKeysetInfo:    convertTestKeysetInfo(prfBundle.Wrapped.Info),
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBundle.RawKeyset,
+		prfKeyset:  prfBundle.RawKeyset,
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	prims, err := manager.GetPrimitives(context.Background(), "org-legacy-prf")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	if prims.LegacyHexTokenPRF == nil {
+		t.Fatal("GetPrimitives() LegacyHexTokenPRF is nil for a migrated keyset, want non-nil")
+	}
+
+	fromSecret, err := tink.NewLegacyPRFPrimitiveFromSecret(legacySecret)
+	if err != nil {
+		t.Fatalf("NewLegacyPRFPrimitiveFromSecret() error = %v", err)
+	}
+
+	for _, value := range []string{"abc123", "", "a@b.com"} {
+		want, err := fromSecret.ComputeLegacyHexToken([]byte(value))
+		if err != nil {
+			t.Fatalf("fromSecret.ComputeLegacyHexToken(%q) error = %v", value, err)
+		}
+
+		got, err := prims.LegacyHexTokenPRF.ComputeLegacyHexToken([]byte(value))
+		if err != nil {
+			t.Fatalf("LegacyHexTokenPRF.ComputeLegacyHexToken(%q) error = %v", value, err)
+		}
+
+		if got != want {
+			t.Errorf("LegacyHexTokenPRF token for %q = %q, want indexed legacy token %q", value, got, want)
+		}
+	}
+}
+
+// TestKeysetManager_GetPrimitives_EnvelopeOnlyKeyset_LegacyHexTokenPRFNil verifies
+// that an ENVELOPE-ONLY PRF keyset (no imported legacy key) leaves
+// CachedPrimitives.LegacyHexTokenPRF nil.
+func TestKeysetManager_GetPrimitives_EnvelopeOnlyKeyset_LegacyHexTokenPRFNil(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, prfBytes := generateTestKeysets(t)
+
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-envelope-only",
+			KEKPath:           "org-org-envelope-only",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+			KeysetInfo:        mmodel.KeysetInfo{PrimaryKeyID: 111},
+			HMACKeysetInfo:    mmodel.KeysetInfo{PrimaryKeyID: 222},
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		prfKeyset:  prfBytes,
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	prims, err := manager.GetPrimitives(context.Background(), "org-envelope-only")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	if prims.LegacyHexTokenPRF != nil {
+		t.Error("GetPrimitives() LegacyHexTokenPRF should be nil for an envelope-only keyset")
+	}
+}
+
+// TestKeysetManager_GetPrimitives_LegacyMetadataButNoHandleKey_FailsClosed verifies
+// the fail-closed path: stored PRF metadata flags an imported legacy HMAC key, but
+// the unwrapped PRF handle is envelope-only (no legacy entry). This mismatch signals
+// a provisioning/decoding bug, so GetPrimitives MUST error rather than silently drop
+// the legacy search token.
+func TestKeysetManager_GetPrimitives_LegacyMetadataButNoHandleKey_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	aeadBytes, prfBytes := generateTestKeysets(t)
+
+	// Metadata claims a legacy HMAC key, but prfBytes is a fresh envelope-only keyset.
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-legacy-mismatch",
+			KEKPath:           "org-org-legacy-mismatch",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+			KeysetInfo:        mmodel.KeysetInfo{PrimaryKeyID: 111},
+			HMACKeysetInfo: mmodel.KeysetInfo{
+				PrimaryKeyID: 222,
+				Keys: []mmodel.KeyInfo{
+					{KeyID: 222, Status: "ENABLED", Type: string(tink.KeyTypeHMACPRF), IsPrimary: true},
+					{KeyID: 333, Status: "ENABLED", Type: string(tink.KeyTypeLegacyHMACSHA256), IsPrimary: false},
+				},
+			},
+		},
+	}
+
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBytes,
+		prfKeyset:  prfBytes,
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	_, err := manager.GetPrimitives(context.Background(), "org-legacy-mismatch")
+	if err == nil {
+		t.Fatal("GetPrimitives() expected fail-closed error for legacy-metadata/handle mismatch, got nil")
+	}
+
+	if !errors.Is(err, tink.ErrNoLegacyPRFKey) {
+		t.Errorf("GetPrimitives() error = %v, want errors.Is(tink.ErrNoLegacyPRFKey)", err)
+	}
+
+	// No partial cache entry should remain after the failure.
+	manager.mu.RLock()
+	_, ok := manager.cache[buildCacheKey("default", "org-legacy-mismatch")]
+	manager.mu.RUnlock()
+
+	if ok {
+		t.Error("cache entry should NOT exist after fail-closed legacy mismatch")
+	}
+}
