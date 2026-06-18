@@ -535,6 +535,78 @@ func TestIntegration_KeysetRepo_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.KeysetInfo.Keys[0].IsPrimary, result.KeysetInfo.Keys[0].IsPrimary)
 }
 
+// createMixedKeyset builds a MIXED keyset whose AEAD (KeysetInfo) and PRF
+// (HMACKeysetInfo) sides BOTH hold two keys: a fresh envelope PRIMARY and an
+// imported legacy ENABLED non-primary entry. This mirrors the document E-1.2
+// manual provisioning persists for a migrated organization.
+func createMixedKeyset(organizationID string) *mmodel.OrganizationKeyset {
+	keyset := createValidKeyset(organizationID)
+
+	keyset.KeysetInfo = mmodel.KeysetInfo{
+		PrimaryKeyID: 100,
+		Keys: []mmodel.KeyInfo{
+			{KeyID: 100, Status: "ENABLED", Type: "AES256_GCM", IsPrimary: true},
+			{KeyID: 1, Status: "ENABLED", Type: "LEGACY_AES_GCM", IsPrimary: false},
+		},
+	}
+	keyset.HMACKeysetInfo = mmodel.KeysetInfo{
+		PrimaryKeyID: 200,
+		Keys: []mmodel.KeyInfo{
+			{KeyID: 200, Status: "ENABLED", Type: "HMAC_PRF", IsPrimary: true},
+			{KeyID: 1, Status: "ENABLED", Type: "LEGACY_HMAC_SHA256", IsPrimary: false},
+		},
+	}
+
+	return keyset
+}
+
+// TestIntegration_KeysetRepo_RoundTrip_MixedKeyset proves a MIXED keyset document
+// round-trips through real MongoDB persistence with BOTH the AEAD and PRF keys
+// arrays preserving their two entries (correct primary flags + legacy metadata).
+// Existing integration round-trips only exercise the AEAD keys array; the PRF
+// (hmac_keyset_info.keys) array is the migrated-org gap this asserts.
+func TestIntegration_KeysetRepo_RoundTrip_MixedKeyset(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+	repo := createKeysetRepository(t, container)
+	ctx := context.Background()
+
+	organizationID := "org-mixed-" + uuid.New().String()[:8]
+	original := createMixedKeyset(organizationID)
+
+	// Act
+	err := repo.Save(ctx, original)
+	require.NoError(t, err)
+
+	result, err := repo.Get(ctx, organizationID)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// AEAD side: two keys, fresh primary + legacy non-primary.
+	assert.Equal(t, uint32(100), result.KeysetInfo.PrimaryKeyID, "AEAD primary key ID preserved")
+	require.Len(t, result.KeysetInfo.Keys, 2, "AEAD keyset must keep both keys")
+	assert.Equal(t, uint32(100), result.KeysetInfo.Keys[0].KeyID)
+	assert.True(t, result.KeysetInfo.Keys[0].IsPrimary, "fresh AEAD key is primary")
+	assert.Equal(t, "AES256_GCM", result.KeysetInfo.Keys[0].Type)
+	assert.Equal(t, uint32(1), result.KeysetInfo.Keys[1].KeyID)
+	assert.False(t, result.KeysetInfo.Keys[1].IsPrimary, "legacy AEAD key is non-primary")
+	assert.Equal(t, "LEGACY_AES_GCM", result.KeysetInfo.Keys[1].Type)
+	assert.Equal(t, "ENABLED", result.KeysetInfo.Keys[1].Status, "legacy AEAD key enabled")
+
+	// PRF side: two keys, fresh primary + legacy non-primary.
+	assert.Equal(t, uint32(200), result.HMACKeysetInfo.PrimaryKeyID, "PRF primary key ID preserved")
+	require.Len(t, result.HMACKeysetInfo.Keys, 2, "PRF keyset must keep both keys")
+	assert.Equal(t, uint32(200), result.HMACKeysetInfo.Keys[0].KeyID)
+	assert.True(t, result.HMACKeysetInfo.Keys[0].IsPrimary, "fresh PRF key is primary")
+	assert.Equal(t, "HMAC_PRF", result.HMACKeysetInfo.Keys[0].Type)
+	assert.Equal(t, uint32(1), result.HMACKeysetInfo.Keys[1].KeyID)
+	assert.False(t, result.HMACKeysetInfo.Keys[1].IsPrimary, "legacy PRF key is non-primary")
+	assert.Equal(t, "LEGACY_HMAC_SHA256", result.HMACKeysetInfo.Keys[1].Type)
+	assert.Equal(t, "ENABLED", result.HMACKeysetInfo.Keys[1].Status, "legacy PRF key enabled")
+}
+
 func TestIntegration_KeysetRepo_RoundTrip_WithMultipleKeys(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)

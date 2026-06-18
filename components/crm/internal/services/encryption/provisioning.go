@@ -50,6 +50,20 @@ const EntityOrganizationEncryption = "OrganizationEncryption"
 type KeysetGenerator interface {
 	GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
 	GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
+
+	// GenerateMixedAEADKeyset builds a composite AEAD keyset: a fresh AES-256-GCM
+	// primary key plus the imported legacy AES-GCM key (legacyHexKey) as an
+	// enabled, non-primary entry, KMS-wrapped as one keyset. It fails closed when
+	// legacy material is missing or invalid. Used only by the manual migration
+	// path; T-1.2.2 routes provision() to it.
+	GenerateMixedAEADKeyset(ctx context.Context, mountPath, keyName, legacyHexKey string) (tink.KeysetBundle, error)
+
+	// GenerateMixedPRFKeyset builds a composite PRF keyset: a fresh HMAC-PRF
+	// primary key plus the imported legacy HMAC-SHA256 key (legacySecret) as an
+	// enabled, non-primary entry, KMS-wrapped as one keyset. It fails closed when
+	// legacy material is missing. Used only by the manual migration path; T-1.2.2
+	// routes provision() to it.
+	GenerateMixedPRFKeyset(ctx context.Context, mountPath, keyName, legacySecret string) (tink.KeysetBundle, error)
 }
 
 // ProvisioningConfig holds configuration for the ProvisioningService.
@@ -138,6 +152,14 @@ type ProvisionInput struct {
 	OrganizationID string
 	Actor          string // Who initiated the provisioning
 	Reason         string // Why provisioning was requested
+
+	// envelopeOnly selects the lazy, envelope-only provisioning path for brand-new
+	// organizations with no legacy key material to import. It is unexported on
+	// purpose: it is an internal service-package decision, not an HTTP API
+	// contract, so external callers (e.g. adapters/http/in) cannot set it. The
+	// zero value (false) is the default manual migration provisioning path.
+	// It MUST NOT be inferred from the Actor or Reason audit fields.
+	envelopeOnly bool
 }
 
 // Validate validates the provision request.
@@ -241,53 +263,17 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
 	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
 
-	// Generate AEAD keyset. The KMS wrap happens inside the generator; provider
-	// timing is measured here at the service boundary (pkg/crypto/tink MUST NOT
-	// emit metrics). Provider is "vault" today (envelope is Vault-only); this
-	// becomes dynamic when other KMS providers land. Timing is recorded even on
-	// failure.
-	aeadWrapStart := time.Now()
-	aeadBundle, err := s.keysetGenerator.GenerateAEADKeyset(ctx, mount, kekPath)
-	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(aeadWrapStart).Milliseconds())
-
+	// Build the AEAD + PRF keysets (see buildProvisioningKeysets for the
+	// envelope-only-vs-migration branch and the verbatim error contract).
+	keyset, verbatim, err := s.buildProvisioningKeysets(ctx, req, mount, kekPath)
 	if err != nil {
-		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapAEADFailed)
+		if verbatim {
+			// Pre-refactor behavior: a bare context error observed between keyset
+			// generations is returned verbatim, not masked as a business error.
+			return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
+		}
 
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
-	}
-
-	// Check context before generating PRF keyset
-	if err := ctx.Err(); err != nil {
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
-	}
-
-	// Generate PRF keyset for search tokens. The existing WrappedHMACKeyset slot
-	// name is retained for storage-format compatibility.
-	// Provider timing is measured here at the service boundary and recorded even on
-	// failure.
-	prfWrapStart := time.Now()
-	prfBundle, err := s.keysetGenerator.GeneratePRFKeyset(ctx, mount, kekPath)
-	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(prfWrapStart).Milliseconds())
-
-	if err != nil {
-		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapPRFFailed)
-
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, s.wrapProvisionError(span, err)
-	}
-
-	// Build organization keyset
-	now := time.Now().UTC()
-	keyset := &mmodel.OrganizationKeyset{
-		TenantID:          req.TenantID,
-		OrganizationID:    req.OrganizationID,
-		KEKPath:           kekPath,
-		KEKMountPath:      mount,
-		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
-		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
-		WrappedHMACKeyset: prfBundle.Wrapped.WrappedData,
-		HMACKeysetInfo:    convertKeysetInfo(prfBundle.Wrapped.Info),
-		Revision:          1,
-		CreatedAt:         now,
 	}
 
 	// Save keyset
@@ -302,7 +288,151 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 	}
 
 	// Create and save registry record
-	return s.createAndSaveRegistry(ctx, req, kekPath, aeadBundle.Wrapped.Info.PrimaryKeyID, prfBundle.Wrapped.Info.PrimaryKeyID)
+	return s.createAndSaveRegistry(ctx, req, kekPath, keyset.KeysetInfo.PrimaryKeyID, keyset.HMACKeysetInfo.PrimaryKeyID)
+}
+
+// buildProvisioningKeysets constructs the AEAD and PRF keysets for an
+// organization and assembles the OrganizationKeyset ready for persistence. It is
+// the single internal branching point between envelope-only and migration
+// keyset construction.
+//
+// envelopeOnly == true selects the lazy path for brand-new organizations with no
+// legacy material: one fresh AEAD keyset plus one fresh PRF keyset. The default
+// (envelopeOnly == false) selects manual migration: it composes the imported
+// legacy key material with a fresh envelope PRIMARY, yielding a two-key keyset per
+// slot (fresh envelope PRIMARY + imported legacy ENABLED non-primary).
+//
+// The context is checked before generating the PRF keyset. Provider timing is
+// measured at this service boundary (pkg/crypto/tink MUST NOT emit metrics) and
+// recorded even on failure. The returned verbatim flag is true only for the bare
+// between-keysets context cancellation, signalling the caller to return that
+// error Is-comparable; for any wrap failure it is false (caller maps it to the
+// fail-closed provisioning error).
+func (s *provisioningService) buildProvisioningKeysets(ctx context.Context, req ProvisionInput, mount, kekPath string) (*mmodel.OrganizationKeyset, bool, error) {
+	var (
+		aeadBundle tink.KeysetBundle
+		prfBundle  tink.KeysetBundle
+		verbatim   bool
+		err        error
+	)
+
+	if req.envelopeOnly {
+		aeadBundle, prfBundle, verbatim, err = s.generateFreshKeysets(ctx, mount, kekPath)
+	} else {
+		// Migration mode: compose the imported legacy key material with a fresh
+		// envelope PRIMARY into a single keyset per slot. It is a deliberate seam:
+		// do not collapse it into the envelope-only arm. The fresh envelope keys
+		// stay primary, so the returned primary IDs match the envelope-only shape.
+		aeadBundle, prfBundle, verbatim, err = s.generateMixedKeysets(ctx, mount, kekPath)
+	}
+
+	if err != nil {
+		return nil, verbatim, err
+	}
+
+	// Build organization keyset. The existing WrappedHMACKeyset slot name is
+	// retained for storage-format compatibility while it now holds a PRF keyset.
+	now := time.Now().UTC()
+
+	return &mmodel.OrganizationKeyset{
+		TenantID:          req.TenantID,
+		OrganizationID:    req.OrganizationID,
+		KEKPath:           kekPath,
+		KEKMountPath:      mount,
+		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,
+		KeysetInfo:        convertKeysetInfo(aeadBundle.Wrapped.Info),
+		WrappedHMACKeyset: prfBundle.Wrapped.WrappedData,
+		HMACKeysetInfo:    convertKeysetInfo(prfBundle.Wrapped.Info),
+		Revision:          1,
+		CreatedAt:         now,
+	}, false, nil
+}
+
+// generateFreshKeysets generates one fresh AEAD keyset and one fresh PRF keyset,
+// wrapping each via the KMS inside the generator. It is the envelope-only arm; it
+// delegates the shared timing/metrics/context/verbatim scaffolding to
+// generateKeysetPair, supplying the two fresh generator calls.
+func (s *provisioningService) generateFreshKeysets(ctx context.Context, mount, kekPath string) (tink.KeysetBundle, tink.KeysetBundle, bool, error) {
+	return s.generateKeysetPair(
+		ctx,
+		func(ctx context.Context) (tink.KeysetBundle, error) {
+			return s.keysetGenerator.GenerateAEADKeyset(ctx, mount, kekPath)
+		},
+		func(ctx context.Context) (tink.KeysetBundle, error) {
+			return s.keysetGenerator.GeneratePRFKeyset(ctx, mount, kekPath)
+		},
+	)
+}
+
+// generateMixedKeysets generates one composite AEAD keyset and one composite PRF
+// keyset for the manual migration path, each wrapping a fresh envelope PRIMARY
+// plus the imported legacy key as an enabled non-primary entry. It is the
+// migration arm; it delegates the shared scaffolding to generateKeysetPair,
+// supplying the two mixed generator calls.
+//
+// The legacy material arguments are passed empty: the bootstrap generator adapter
+// substitutes the process-level legacy secrets (LCRYPTO_*). The mixed generators
+// fail closed when no legacy material is available, and that failure flows through
+// the same business-error path (verbatim == false) as a wrap failure.
+func (s *provisioningService) generateMixedKeysets(ctx context.Context, mount, kekPath string) (tink.KeysetBundle, tink.KeysetBundle, bool, error) {
+	return s.generateKeysetPair(
+		ctx,
+		func(ctx context.Context) (tink.KeysetBundle, error) {
+			return s.keysetGenerator.GenerateMixedAEADKeyset(ctx, mount, kekPath, "")
+		},
+		func(ctx context.Context) (tink.KeysetBundle, error) {
+			return s.keysetGenerator.GenerateMixedPRFKeyset(ctx, mount, kekPath, "")
+		},
+	)
+}
+
+// generateKeysetPair is the shared scaffolding for both the envelope-only and
+// migration arms. It measures provider timing at the service boundary
+// (pkg/crypto/tink MUST NOT emit metrics) and records it even on failure, runs the
+// bare between-keysets context check, and reproduces the exact verbatim error
+// contract for both arms:
+//   - An AEAD or PRF wrap/import failure returns verbatim == false: the generator
+//     error is always destined for wrapProvisionError (the opaque business error),
+//     even if its chain wraps context.Canceled/DeadlineExceeded.
+//   - The bare ctx.Err() check between the two generations returns verbatim ==
+//     true: that context sentinel is returned Is-comparable, not masked.
+//
+// Provider is "vault" today (envelope is Vault-only); this becomes dynamic when
+// other KMS providers land.
+func (s *provisioningService) generateKeysetPair(
+	ctx context.Context,
+	genAEAD func(context.Context) (tink.KeysetBundle, error),
+	genPRF func(context.Context) (tink.KeysetBundle, error),
+) (tink.KeysetBundle, tink.KeysetBundle, bool, error) {
+	aeadWrapStart := time.Now()
+	aeadBundle, err := genAEAD(ctx)
+	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(aeadWrapStart).Milliseconds())
+
+	if err != nil {
+		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapAEADFailed)
+
+		// Wrap/import failure: always a business error, never verbatim.
+		return tink.KeysetBundle{}, tink.KeysetBundle{}, false, err
+	}
+
+	// Check context before generating the PRF keyset. This bare sentinel is the
+	// only path returned verbatim (Is-comparable to context.Canceled/DeadlineExceeded).
+	if err := ctx.Err(); err != nil {
+		return tink.KeysetBundle{}, tink.KeysetBundle{}, true, err
+	}
+
+	prfWrapStart := time.Now()
+	prfBundle, err := genPRF(ctx)
+	s.metrics.recordProviderOperation(ctx, providerOperationWrap, providerVault, time.Since(prfWrapStart).Milliseconds())
+
+	if err != nil {
+		s.metrics.recordProviderFailure(ctx, providerOperationWrap, errorCodeWrapPRFFailed)
+
+		// Wrap/import failure: always a business error, never verbatim.
+		return tink.KeysetBundle{}, tink.KeysetBundle{}, false, err
+	}
+
+	return aeadBundle, prfBundle, false, nil
 }
 
 // emitProvisioningAudit builds and emits exactly one best-effort provisioning

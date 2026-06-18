@@ -373,6 +373,9 @@ func (km *KeysetManager) autoProvision(ctx context.Context, organizationID strin
 		OrganizationID: organizationID,
 		Actor:          "system:auto-provision",
 		Reason:         "Auto-provisioned on first encrypted field access",
+		// Lazy provisioning is always envelope-only: a new org accessed for the
+		// first time has no legacy key material to import.
+		envelopeOnly: true,
 	})
 
 	return err

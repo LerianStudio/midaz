@@ -50,6 +50,15 @@ type wireEncryptionServicesInput struct {
 	metricsFactory       *metrics.MetricsFactory
 	vaultMountPath       string
 	allowGracefulDegrade bool
+
+	// legacyAESHexKey and legacyHMACSecret are the process-level legacy key
+	// material (LCRYPTO_ENCRYPT_SECRET_KEY / LCRYPTO_HASH_SECRET_KEY) used by the
+	// manual migration path to compose mixed keysets. They are threaded only into
+	// the keyset generator adapter and never persisted; the migration generator
+	// returns only wrapped keyset bytes. Empty values are tolerated here: mixed
+	// generation fails closed at call time if requested without material.
+	legacyAESHexKey  string
+	legacyHMACSecret string
 }
 
 // wireEncryptionServicesOutput contains the wired encryption services.
@@ -150,7 +159,11 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	provisioningService := encryption.NewProvisioningService(
 		input.keysetRepo,
 		input.registryRepo,
-		&keysetGeneratorAdapter{factory: keysetFactory},
+		&keysetGeneratorAdapter{
+			factory:          keysetFactory,
+			legacyAESHexKey:  input.legacyAESHexKey,
+			legacyHMACSecret: input.legacyHMACSecret,
+		},
 		encryption.ProvisioningConfig{KEKMountPath: baseMountPath},
 		input.auditWriter,
 		pm,
@@ -195,8 +208,15 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 // keysetGeneratorAdapter adapts tink.KeysetFactory to encryption.KeysetGenerator.
 // Since encryption.KeysetGenerator now uses tink types directly, this adapter
 // simply delegates to the underlying factory.
+//
+// legacyAESHexKey and legacyHMACSecret hold the process-level legacy key material
+// supplied verbatim to the migration (mixed) generation methods. They mirror the
+// material already held by LegacyKeyMaterial; storing them here introduces no new
+// long-lived secret exposure and keeps tink.KeysetFactory itself stateless.
 type keysetGeneratorAdapter struct {
-	factory *tink.KeysetFactory
+	factory          *tink.KeysetFactory
+	legacyAESHexKey  string
+	legacyHMACSecret string
 }
 
 // GenerateAEADKeyset generates a new AEAD keyset and wraps it with the KMS.
@@ -209,4 +229,28 @@ func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, mountPa
 // The per-tenant mountPath is forwarded verbatim to the underlying factory.
 func (a *keysetGeneratorAdapter) GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
 	return a.factory.GeneratePRFKeyset(ctx, mountPath, keyName)
+}
+
+// GenerateMixedAEADKeyset composes the process-level legacy AES-GCM key with a
+// fresh primary key and wraps the composite via the KMS. The legacy material is
+// supplied from the adapter (not stored on the factory). Fails closed inside the
+// factory when the material is missing or invalid.
+func (a *keysetGeneratorAdapter) GenerateMixedAEADKeyset(ctx context.Context, mountPath, keyName, legacyHexKey string) (tink.KeysetBundle, error) {
+	if legacyHexKey == "" {
+		legacyHexKey = a.legacyAESHexKey
+	}
+
+	return a.factory.GenerateMixedAEADKeyset(ctx, mountPath, keyName, legacyHexKey)
+}
+
+// GenerateMixedPRFKeyset composes the process-level legacy HMAC key with a fresh
+// primary PRF key and wraps the composite via the KMS. The legacy material is
+// supplied from the adapter (not stored on the factory). Fails closed inside the
+// factory when the material is missing.
+func (a *keysetGeneratorAdapter) GenerateMixedPRFKeyset(ctx context.Context, mountPath, keyName, legacySecret string) (tink.KeysetBundle, error) {
+	if legacySecret == "" {
+		legacySecret = a.legacyHMACSecret
+	}
+
+	return a.factory.GenerateMixedPRFKeyset(ctx, mountPath, keyName, legacySecret)
 }

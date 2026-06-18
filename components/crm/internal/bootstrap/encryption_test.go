@@ -624,6 +624,120 @@ func TestKeysetGeneratorAdapter_ForwardsMountPath(t *testing.T) {
 }
 
 // =============================================================================
+// keysetGeneratorAdapter Secret-Injection Seam Tests (HIGH-1)
+// =============================================================================
+
+// adapterTestLegacyAESHexKey is a valid 32-byte (AES-256) hex key used only to
+// exercise the adapter's secret-injection seam. It is test material, never a
+// production secret.
+const adapterTestLegacyAESHexKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+// adapterTestLegacyHMACSecret is the test HMAC secret for the seam test.
+const adapterTestLegacyHMACSecret = "legacy-hmac-secret"
+
+// findLegacyKey returns the single non-primary key in a composite bundle, or nil.
+func findLegacyKey(info tink.KeysetInfo) *tink.KeyInfo {
+	for i := range info.Keys {
+		if !info.Keys[i].IsPrimary {
+			return &info.Keys[i]
+		}
+	}
+
+	return nil
+}
+
+// TestKeysetGeneratorAdapter_InjectsConfiguredLegacyMaterial is the HIGH-1 gate:
+// it exercises the production secret-injection seam directly. The adapter is
+// configured with legacy material and the mixed generators are called with EMPTY
+// legacy args (exactly as the provisioning service calls them). The adapter MUST
+// substitute its configured material so generation succeeds, the KMS is reached,
+// and the produced composite bundle carries the imported legacy key.
+func TestKeysetGeneratorAdapter_InjectsConfiguredLegacyMaterial(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AEAD: empty arg substitutes configured legacy AES key", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{
+			factory:          tink.NewKeysetFactory(kms),
+			legacyAESHexKey:  adapterTestLegacyAESHexKey,
+			legacyHMACSecret: adapterTestLegacyHMACSecret,
+		}
+
+		// Empty legacy arg: the adapter must substitute its configured key.
+		bundle, err := adapter.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "org-1", "")
+		require.NoError(t, err, "adapter must substitute configured legacy AES key when arg is empty")
+
+		// (a) KMS reached: the composite was wrapped via the factory's KMS path.
+		assert.Equal(t, "transit/tenant-x", kms.gotMountPath, "wrap must reach the KMS with the forwarded mount")
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+
+		// (b) The composite actually carries the imported legacy key.
+		assert.True(t, bundle.Wrapped.LegacyKeyImported, "mixed AEAD bundle must flag the imported legacy key")
+		require.Len(t, bundle.Wrapped.Info.Keys, 2, "composite AEAD keyset must hold fresh primary + legacy")
+
+		legacy := findLegacyKey(bundle.Wrapped.Info)
+		require.NotNil(t, legacy, "composite must contain a non-primary legacy key")
+		assert.Equal(t, tink.KeyTypeLegacyAESGCM, legacy.Type, "non-primary entry must be the imported legacy AES key")
+	})
+
+	t.Run("PRF: empty arg substitutes configured legacy HMAC secret", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{
+			factory:          tink.NewKeysetFactory(kms),
+			legacyAESHexKey:  adapterTestLegacyAESHexKey,
+			legacyHMACSecret: adapterTestLegacyHMACSecret,
+		}
+
+		bundle, err := adapter.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-y", "org-2", "")
+		require.NoError(t, err, "adapter must substitute configured legacy HMAC secret when arg is empty")
+
+		assert.Equal(t, "transit/tenant-y", kms.gotMountPath, "wrap must reach the KMS with the forwarded mount")
+		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
+
+		assert.True(t, bundle.Wrapped.LegacyKeyImported, "mixed PRF bundle must flag the imported legacy key")
+		require.Len(t, bundle.Wrapped.Info.Keys, 2, "composite PRF keyset must hold fresh primary + legacy")
+
+		legacy := findLegacyKey(bundle.Wrapped.Info)
+		require.NotNil(t, legacy, "composite must contain a non-primary legacy key")
+		assert.Equal(t, tink.KeyTypeLegacyHMACSHA256, legacy.Type, "non-primary entry must be the imported legacy HMAC key")
+	})
+}
+
+// TestKeysetGeneratorAdapter_FailsClosedWithoutConfiguredMaterial is the HIGH-1
+// fail-closed gate: when the adapter has NO configured legacy material and the
+// mixed generators are called with EMPTY args, there is nothing to substitute, so
+// generation MUST fail closed before reaching the KMS wrap step.
+func TestKeysetGeneratorAdapter_FailsClosedWithoutConfiguredMaterial(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AEAD fails closed with empty config and empty arg", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(kms)}
+
+		_, err := adapter.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "org-1", "")
+		require.Error(t, err, "mixed AEAD generation must fail closed when no legacy key is configured or supplied")
+		assert.Empty(t, kms.gotMountPath, "must fail before reaching the KMS wrap step")
+	})
+
+	t.Run("PRF fails closed with empty config and empty arg", func(t *testing.T) {
+		t.Parallel()
+
+		kms := &recordingKMSClient{}
+		adapter := &keysetGeneratorAdapter{factory: tink.NewKeysetFactory(kms)}
+
+		_, err := adapter.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "org-1", "")
+		require.Error(t, err, "mixed PRF generation must fail closed when no legacy secret is configured or supplied")
+		assert.Empty(t, kms.gotMountPath, "must fail before reaching the KMS wrap step")
+	})
+}
+
+// =============================================================================
 // Base Mount Injection Tests (production wireEncryptionServices)
 // =============================================================================
 
@@ -909,6 +1023,44 @@ func (m *mockEncryptionVaultClient) GeneratePRFKeyset(_ context.Context, _, _ st
 			},
 		},
 		RawKeyset: []byte("mock-raw-prf-keyset"),
+	}, nil
+}
+
+// GenerateMixedAEADKeyset satisfies the encryption.KeysetGenerator interface.
+// It returns a composite-shaped bundle (fresh primary + legacy non-primary) for
+// the mocked migration path.
+func (m *mockEncryptionVaultClient) GenerateMixedAEADKeyset(_ context.Context, _, _, _ string) (tink.KeysetBundle, error) {
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
+			WrappedData: "mock-wrapped-mixed-aead",
+			Info: tink.KeysetInfo{
+				PrimaryKeyID: 12345,
+				Keys: []tink.KeyInfo{
+					{KeyID: 12345, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeAES256GCM, IsPrimary: true},
+					{KeyID: 1, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeLegacyAESGCM, IsPrimary: false},
+				},
+			},
+			LegacyKeyImported: true,
+		},
+		RawKeyset: []byte("mock-raw-mixed-aead-keyset"),
+	}, nil
+}
+
+// GenerateMixedPRFKeyset satisfies the encryption.KeysetGenerator interface.
+func (m *mockEncryptionVaultClient) GenerateMixedPRFKeyset(_ context.Context, _, _, _ string) (tink.KeysetBundle, error) {
+	return tink.KeysetBundle{
+		Wrapped: tink.WrappedKeyset{
+			WrappedData: "mock-wrapped-mixed-prf",
+			Info: tink.KeysetInfo{
+				PrimaryKeyID: 67890,
+				Keys: []tink.KeyInfo{
+					{KeyID: 67890, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeHMACPRF, IsPrimary: true},
+					{KeyID: 1, Status: tink.KeyStatusEnabled, Type: tink.KeyTypeLegacyHMACSHA256, IsPrimary: false},
+				},
+			},
+			LegacyKeyImported: true,
+		},
+		RawKeyset: []byte("mock-raw-mixed-prf-keyset"),
 	}, nil
 }
 

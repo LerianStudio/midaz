@@ -6,6 +6,7 @@ package encryption
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"sync"
@@ -2033,5 +2034,246 @@ func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *test
 				}
 			}
 		})
+	}
+}
+
+// TestKeysetManager_autoProvision_SetsEnvelopeOnly verifies that lazy
+// auto-provisioning takes the envelope-only path by setting the internal
+// ProvisionInput.envelopeOnly marker to true, without relying on audit fields
+// (Actor/Reason). Envelope-only provisioning is the correct path for brand-new
+// organizations that have no legacy key material to import.
+func TestKeysetManager_autoProvision_SetsEnvelopeOnly(t *testing.T) {
+	t.Parallel()
+
+	provisioner := &fakeProvisioningService{}
+
+	manager := NewKeysetManager(
+		&fakeKeysetRepoWithProvision{},
+		&fakeKeysetUnwrapper{},
+		provisioner,
+		DefaultKeysetManagerConfig(),
+		NewProtectionMetrics(nil),
+	)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-envelope")
+
+	if err := manager.autoProvision(ctx, "org-envelope-only"); err != nil {
+		t.Fatalf("autoProvision() error = %v", err)
+	}
+
+	got := provisioner.getLastRequest()
+	if !got.envelopeOnly {
+		t.Errorf("autoProvision() envelopeOnly = %v, want true", got.envelopeOnly)
+	}
+}
+
+// identityKMS is a test KMSClient that performs no real encryption: it base64-
+// encodes on Encrypt and decodes on Decrypt. It lets tests build REAL Tink mixed
+// keysets via tink.KeysetFactory without a live Vault, while the KeysetManager
+// itself is driven through the separate fakeKeysetUnwrapper.
+type identityKMS struct{}
+
+func (identityKMS) Encrypt(_ context.Context, _, _ string, plaintext []byte) (string, error) {
+	return "id:" + base64.StdEncoding.EncodeToString(plaintext), nil
+}
+
+func (identityKMS) Decrypt(_ context.Context, _, _ string, ciphertext string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(strings.TrimPrefix(ciphertext, "id:"))
+}
+
+// convertTestKeysetInfo maps a tink.KeysetInfo to the mmodel form the repository
+// stores. Mirrors the production conversion so test fixtures reflect what a
+// migrated org actually persists.
+func convertTestKeysetInfo(info tink.KeysetInfo) mmodel.KeysetInfo {
+	keys := make([]mmodel.KeyInfo, len(info.Keys))
+	for i, k := range info.Keys {
+		keys[i] = mmodel.KeyInfo{
+			KeyID:     k.KeyID,
+			Status:    string(k.Status),
+			Type:      string(k.Type),
+			IsPrimary: k.IsPrimary,
+		}
+	}
+
+	return mmodel.KeysetInfo{PrimaryKeyID: info.PrimaryKeyID, Keys: keys}
+}
+
+// findNonPrimaryKey returns the single ENABLED non-primary entry (the imported
+// legacy key), or nil. The composite keyset assigns the legacy key a fixed
+// reserved ID, while the fresh primary uses a random Tink ID, so the legacy key
+// is located by its non-primary flag rather than a hardcoded ID.
+func findNonPrimaryKey(info mmodel.KeysetInfo) *mmodel.KeyInfo {
+	for i := range info.Keys {
+		if !info.Keys[i].IsPrimary {
+			return &info.Keys[i]
+		}
+	}
+
+	return nil
+}
+
+// TestKeysetManager_GetPrimitives_MixedKeyset_UnwrapsToWorkingPrimitives proves a
+// PERSISTED MIXED keyset (fresh envelope PRIMARY + imported legacy ENABLED
+// non-primary, on BOTH the AEAD and PRF sides) unwraps into working primitives via
+// GetPrimitives. A migrated org runs GetPrimitives on its next encrypt/decrypt, so
+// a keyset that cannot unwrap would break the org immediately.
+func TestKeysetManager_GetPrimitives_MixedKeyset_UnwrapsToWorkingPrimitives(t *testing.T) {
+	t.Parallel()
+
+	factory := tink.NewKeysetFactory(identityKMS{})
+
+	const legacyHexKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+	const legacySecret = "legacy-hash-secret"
+
+	aeadBundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit", "crm-org-mixed", legacyHexKey)
+	if err != nil {
+		t.Fatalf("GenerateMixedAEADKeyset() error = %v", err)
+	}
+
+	prfBundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit", "crm-org-mixed", legacySecret)
+	if err != nil {
+		t.Fatalf("GenerateMixedPRFKeyset() error = %v", err)
+	}
+
+	aeadInfo := convertTestKeysetInfo(aeadBundle.Wrapped.Info)
+	prfInfo := convertTestKeysetInfo(prfBundle.Wrapped.Info)
+
+	// Persisted keyset fixture: stored metadata is the composite (two-key) info,
+	// wrapped slots map to the fake unwrapper's known tokens.
+	reader := &fakeKeysetRepo{
+		keyset: &mmodel.OrganizationKeyset{
+			OrganizationID:    "org-mixed",
+			KEKPath:           "crm-org-mixed",
+			KEKMountPath:      "transit",
+			WrappedKeyset:     "wrapped-aead",
+			WrappedHMACKeyset: "wrapped-prf",
+			KeysetInfo:        aeadInfo,
+			HMACKeysetInfo:    prfInfo,
+		},
+	}
+
+	// The fake unwrapper returns the REAL composite raw keyset bytes for each slot.
+	unwrapper := &fakeKeysetUnwrapper{
+		aeadKeyset: aeadBundle.RawKeyset,
+		prfKeyset:  prfBundle.RawKeyset,
+	}
+
+	manager := NewKeysetManager(reader, unwrapper, nil, DefaultKeysetManagerConfig(), NewProtectionMetrics(nil))
+
+	prims, err := manager.GetPrimitives(context.Background(), "org-mixed")
+	if err != nil {
+		t.Fatalf("GetPrimitives() error = %v", err)
+	}
+
+	// All three primitives must be present.
+	if prims.AEAD == nil {
+		t.Fatal("GetPrimitives() AEAD primitive is nil")
+	}
+
+	if prims.PRF == nil {
+		t.Fatal("GetPrimitives() PRF primitive is nil")
+	}
+
+	if prims.MultiKeyPRF == nil {
+		t.Fatal("GetPrimitives() MultiKeyPRF primitive is nil")
+	}
+
+	// The envelope (fresh) key stays primary for encrypt on both sides.
+	if prims.PrimaryKeyID != aeadInfo.PrimaryKeyID {
+		t.Errorf("AEAD PrimaryKeyID = %d, want %d (fresh envelope key)", prims.PrimaryKeyID, aeadInfo.PrimaryKeyID)
+	}
+
+	if prims.PRFPrimaryKeyID != prfInfo.PrimaryKeyID {
+		t.Errorf("PRFPrimaryKeyID = %d, want %d (fresh envelope key)", prims.PRFPrimaryKeyID, prfInfo.PrimaryKeyID)
+	}
+
+	// The AEAD primitive actually works: encrypt with the fresh primary, decrypt back.
+	plaintext := []byte("migrated-org-secret-value")
+	aad := []byte("aad-context")
+
+	ciphertext, err := prims.AEAD.Encrypt(plaintext, aad)
+	if err != nil {
+		t.Fatalf("AEAD.Encrypt() error = %v", err)
+	}
+
+	decrypted, err := prims.AEAD.Decrypt(ciphertext, aad)
+	if err != nil {
+		t.Fatalf("AEAD.Decrypt() error = %v", err)
+	}
+
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("AEAD round-trip = %q, want %q", decrypted, plaintext)
+	}
+
+	// The PRF primitive produces a deterministic, non-empty search token.
+	token, err := prims.PRF.ComputeSearchToken([]byte("searchable@example.com"))
+	if err != nil {
+		t.Fatalf("PRF.ComputeSearchToken() error = %v", err)
+	}
+
+	if token == "" {
+		t.Error("PRF.ComputeSearchToken() returned empty token")
+	}
+
+	// MultiKeyPRF returns one candidate per key (>= 2: fresh primary + legacy).
+	candidates, err := prims.MultiKeyPRF.ComputeSearchTokenCandidates([]byte("searchable@example.com"))
+	if err != nil {
+		t.Fatalf("MultiKeyPRF.ComputeSearchTokenCandidates() error = %v", err)
+	}
+
+	if len(candidates) < 2 {
+		t.Errorf("MultiKeyPRF candidates = %d, want >= 2 (fresh + legacy)", len(candidates))
+	}
+
+	// The primary-key token must appear among the multi-key candidates.
+	found := false
+
+	for _, c := range candidates {
+		if c == token {
+			found = true
+
+			break
+		}
+	}
+
+	if !found {
+		t.Error("primary PRF token not found among multi-key candidates")
+	}
+
+	// Stored metadata: legacy key present, ENABLED, non-primary on both sides.
+	// Each composite keyset holds exactly two keys (fresh primary + legacy).
+	if len(aeadInfo.Keys) != 2 {
+		t.Errorf("AEAD stored keyset keys = %d, want 2 (fresh + legacy)", len(aeadInfo.Keys))
+	}
+
+	if len(prfInfo.Keys) != 2 {
+		t.Errorf("PRF stored keyset keys = %d, want 2 (fresh + legacy)", len(prfInfo.Keys))
+	}
+
+	aeadLegacy := findNonPrimaryKey(aeadInfo)
+	if aeadLegacy == nil {
+		t.Fatal("AEAD legacy (non-primary) key missing from stored keyset")
+	}
+
+	if aeadLegacy.Type != string(tink.KeyTypeLegacyAESGCM) {
+		t.Errorf("AEAD legacy key type = %q, want %q", aeadLegacy.Type, tink.KeyTypeLegacyAESGCM)
+	}
+
+	if aeadLegacy.Status != "ENABLED" {
+		t.Errorf("AEAD legacy key status = %q, want ENABLED", aeadLegacy.Status)
+	}
+
+	prfLegacy := findNonPrimaryKey(prfInfo)
+	if prfLegacy == nil {
+		t.Fatal("PRF legacy (non-primary) key missing from stored keyset")
+	}
+
+	if prfLegacy.Type != string(tink.KeyTypeLegacyHMACSHA256) {
+		t.Errorf("PRF legacy key type = %q, want %q", prfLegacy.Type, tink.KeyTypeLegacyHMACSHA256)
+	}
+
+	if prfLegacy.Status != "ENABLED" {
+		t.Errorf("PRF legacy key status = %q, want ENABLED", prfLegacy.Status)
 	}
 }
