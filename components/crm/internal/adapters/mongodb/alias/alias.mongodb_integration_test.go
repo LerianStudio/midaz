@@ -36,7 +36,7 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 
 	// Use FieldEncryptorAdapter wrapping EncryptionService with lib-commons crypto
-	// This matches KMS_VENDOR=none production behavior
+	// This matches production behavior when KMS vendor is none
 	crypto := testutils.SetupCrypto(t)
 
 	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))

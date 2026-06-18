@@ -531,6 +531,19 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 		return "", err
 	}
 
+	// Branch the legacy decrypt by source of legacy material (per-org resolution,
+	// not the service-level mode). The CanReadLegacy gate and legacy-read metric
+	// above are unchanged. An envelope-mode org (a keyset exists) carries any
+	// imported legacy key inside its per-org composite keyset, so unmarked legacy
+	// bytes decrypt through the keyset AEAD; the process-global legacyCrypto is
+	// consulted only in pure legacy mode (KMS_VENDOR=none, no keyset). For a
+	// lazy-provisioned envelope org that never migrated legacy data, the keyset
+	// has no legacy key and the AEAD decrypt fails on the legacy path - correct,
+	// because that org never wrote legacy data.
+	if state.MustUseEnvelope() {
+		return s.decryptLegacyFromKeyset(ctx, fieldCtx, ciphertext)
+	}
+
 	if s.legacyCrypto == nil {
 		return "", fmt.Errorf("legacy crypto is required")
 	}
@@ -545,6 +558,42 @@ func (s *encryptionService) decryptLegacy(ctx context.Context, fieldCtx FieldCon
 	}
 
 	return *result, nil
+}
+
+// decryptLegacyFromKeyset decrypts unmarked legacy ciphertext using the
+// organization's per-org composite AEAD primitive instead of the process-global
+// legacyCrypto. Migrated organizations carry the imported legacy RAW-prefix
+// AES-GCM key inside their composite keyset, so the legacy bytes decrypt through
+// prims.AEAD.Decrypt.
+//
+// The input format mirrors LegacyKeyMaterial.Decrypt: base64(nonce||ciphertext||
+// tag) written with nil associated data. The canonical envelope AAD MUST NOT be
+// used for legacy bytes. This helper performs decode + crypto ONLY; the
+// CanReadLegacy gate and legacy-read metric remain in the caller.
+func (s *encryptionService) decryptLegacyFromKeyset(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	// Mirror LegacyKeyMaterial.Decrypt: base64 decode before AEAD decrypt.
+	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return "", fmt.Errorf("decode legacy ciphertext: %w", err)
+	}
+
+	prims, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
+	}
+
+	// Legacy data was written with nil associated data; the canonical envelope
+	// AAD MUST NOT be applied here.
+	plainBytes, err := prims.AEAD.Decrypt(cipherBytes, nil)
+	if err != nil {
+		return "", fmt.Errorf("keyset legacy decrypt: %w", err)
+	}
+
+	return string(plainBytes), nil
 }
 
 // GenerateSearchToken generates a deterministic search token for a field value.

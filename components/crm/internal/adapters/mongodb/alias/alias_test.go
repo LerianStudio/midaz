@@ -18,11 +18,11 @@ import (
 )
 
 // setupTestFieldEncryptor creates a FieldEncryptorAdapter wrapping an EncryptionService
-// with lib-commons crypto for testing. This matches production KMS_VENDOR=none behavior.
+// with lib-commons crypto for testing. This matches production behavior when KMS vendor is none.
 func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	t.Helper()
 
-	// Use lib-commons crypto directly, matching KMS_VENDOR=none production path
+	// Use lib-commons crypto directly, matching the production path when KMS vendor is none
 	crypto := testutils.SetupCrypto(t)
 
 	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
