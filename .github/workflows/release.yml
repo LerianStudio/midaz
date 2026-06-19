@@ -2,28 +2,8 @@ name: Release
 
 on:
   push:
-    branches:
-      - develop
-      - release-candidate
-      - main
-    tags-ignore:
-      - '**'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - 'LICENSE'
-      - 'CODEOWNERS'
-      - '.gitignore'
-      - '.editorconfig'
-      - '*.png'
-      - '*.jpg'
-      - '*.svg'
-      - 'images/**'
-      - '*.txt'
-      - '.golangci.yml'
-      - '.golangci.yaml'
-      - '.releaserc.yml'
+    branches: [develop, release-candidate, main]
+    tags: ['**']
 
 permissions:
   id-token: write
@@ -33,9 +13,23 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Create Release
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.35.0
+  pipeline:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.0
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
+      app_name_prefix: "midaz"
+      filter_paths: |
+        components/crm
+        components/ledger
+      shared_paths: |
+        go.mod
+        go.sum
+        pkg/
+        Makefile
+      enable_gitops_artifacts: true
+      enable_helm_dispatch: true
+      helm_chart: "midaz"
+      helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
+      gitops_yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
+      enable_apidog_e2e: true
     secrets: inherit

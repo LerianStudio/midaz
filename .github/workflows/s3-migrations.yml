@@ -1,0 +1,32 @@
+name: "Upload Migrations to S3"
+
+on:
+  push:
+    tags: ['**']
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  upload-onboarding-migrations:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.36.0
+    with:
+      s3_bucket: "lerian-migration-files"
+      file_pattern: "components/ledger/migrations/onboarding/*.sql"
+      s3_prefix: "ledger/onboarding/postgresql"
+      strip_prefix: "components/ledger/migrations/onboarding"
+      flatten: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
+
+  upload-transaction-migrations:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.36.0
+    with:
+      s3_bucket: "lerian-migration-files"
+      file_pattern: "components/ledger/migrations/transaction/*.sql"
+      s3_prefix: "ledger/transaction/postgresql"
+      strip_prefix: "components/ledger/migrations/transaction"
+      flatten: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
