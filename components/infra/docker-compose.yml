@@ -214,19 +214,29 @@ services:
       VAULT_ADDR: "http://midaz-hc-vault:8200"
       VAULT_TOKEN: ${VAULT_DEV_TOKEN:-root}
       TRANSIT_MOUNT_PATH: ${VAULT_TRANSIT_MOUNT_PATH:-transit}
+      # Surfaced from components/crm/.env by the infra `up` target. In multi-tenant
+      # mode the flat transit mount is skipped because per-tenant mounts live at
+      # transit/<tenantID>, which cannot coexist with a flat transit/ mount.
+      MULTI_TENANT_ENABLED: ${MULTI_TENANT_ENABLED:-false}
     entrypoint: /bin/sh
     command:
       - -c
       - |
-        echo "Checking if Transit is already enabled at $${TRANSIT_MOUNT_PATH}..."
-        if vault secrets list | grep -q "^$${TRANSIT_MOUNT_PATH}/"; then
-          echo "Transit already enabled at $${TRANSIT_MOUNT_PATH}"
+        if [ "$${MULTI_TENANT_ENABLED}" = "true" ]; then
+          echo "MULTI_TENANT_ENABLED=true: skipping flat '$${TRANSIT_MOUNT_PATH}' mount (multi-tenant uses per-tenant mounts)."
+          echo "Provision per-tenant mounts with: make infra COMMAND=\"vault-transit-multi TENANTS=<id ...>\""
+          echo "Vault initialization complete (multi-tenant mode)"
         else
-          echo "Enabling Transit secrets engine at $${TRANSIT_MOUNT_PATH}..."
-          vault secrets enable -path="$${TRANSIT_MOUNT_PATH}" transit
-          echo "Transit enabled successfully"
+          echo "Checking if Transit is already enabled at $${TRANSIT_MOUNT_PATH}..."
+          if vault secrets list | grep -q "^$${TRANSIT_MOUNT_PATH}/"; then
+            echo "Transit already enabled at $${TRANSIT_MOUNT_PATH}"
+          else
+            echo "Enabling Transit secrets engine at $${TRANSIT_MOUNT_PATH}..."
+            vault secrets enable -path="$${TRANSIT_MOUNT_PATH}" transit
+            echo "Transit enabled successfully"
+          fi
+          echo "Vault initialization complete"
         fi
-        echo "Vault initialization complete"
     networks:
       - infra-network
     restart: "no"
