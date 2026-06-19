@@ -29,10 +29,8 @@ jobs:
         ci
         docs
         tests
-      enforce_source_branches: true
       go_version: "1.26.4"
       golangci_lint_version: "v2.4.0"
-      golangci_lint_args: "--timeout=5m"
       app_name_prefix: "midaz"
       go_private_modules: "github.com/LerianStudio/*"
       ignore_file: ".trivyignore"
