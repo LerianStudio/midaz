@@ -6,13 +6,16 @@ on:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
+  actions: read
   contents: read
-  pull-requests: write
+  id-token: write
   issues: write
+  pull-requests: write
+  security-events: write
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.35.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.35.0
     with:
       pr_title_scopes: |
         crm
@@ -27,4 +30,18 @@ jobs:
         docs
         tests
       enforce_source_branches: true
+      go_version: "1.26.4"
+      golangci_lint_version: "v2.4.0"
+      golangci_lint_args: "--timeout=5m"
+      app_name_prefix: "midaz"
+      coverage_threshold: 85
+      fail_on_coverage_threshold: true
+      go_private_modules: "github.com/LerianStudio/*"
+      ignore_file: ".trivyignore"
+      shared_paths: |
+        go.mod
+        go.sum
+        components/
+        pkg/
+        Makefile
     secrets: inherit
