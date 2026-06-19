@@ -1079,6 +1079,32 @@ func (m *mockKeysetRepo) Get(_ context.Context, _ string) (*mmodel.OrganizationK
 	}, nil
 }
 
+// GetByVersion satisfies the mongoEncryption.KeysetRepository interface.
+func (m *mockKeysetRepo) GetByVersion(_ context.Context, _ string, version int) (*mmodel.OrganizationKeyset, error) {
+	return &mmodel.OrganizationKeyset{
+		OrganizationID: "test-org",
+		Version:        version,
+		KEKPath:        "transit/keys/test",
+		WrappedKeyset:  "mock-wrapped",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: 12345,
+		},
+	}, nil
+}
+
+// GetActive satisfies the mongoEncryption.KeysetRepository interface.
+func (m *mockKeysetRepo) GetActive(_ context.Context, _ string) (*mmodel.OrganizationKeyset, error) {
+	return &mmodel.OrganizationKeyset{
+		OrganizationID: "test-org",
+		Version:        1,
+		KEKPath:        "transit/keys/test",
+		WrappedKeyset:  "mock-wrapped",
+		KeysetInfo: mmodel.KeysetInfo{
+			PrimaryKeyID: 12345,
+		},
+	}, nil
+}
+
 // Save satisfies the mongoEncryption.KeysetRepository interface.
 func (m *mockKeysetRepo) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error {
 	return nil

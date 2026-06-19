@@ -28,7 +28,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			name:  "valid marker with key ID 1",
 			value: "tink:v1:" + validPayloadB64,
 			wantMarker: EnvelopeMarker{
-				KeyID:   1,
+				Version: 1,
 				Payload: validPayload,
 			},
 			wantHasMarker: true,
@@ -38,7 +38,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			name:  "valid marker with large key ID",
 			value: "tink:v4294967295:" + validPayloadB64,
 			wantMarker: EnvelopeMarker{
-				KeyID:   4294967295, // max uint32
+				Version: 4294967295, // max uint32
 				Payload: validPayload,
 			},
 			wantHasMarker: true,
@@ -64,7 +64,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			wantMarker:    EnvelopeMarker{},
 			wantHasMarker: false,
 			wantErr:       true,
-			errContains:   "invalid key ID",
+			errContains:   "invalid keyset version",
 		},
 		{
 			name:          "malformed - non-numeric key ID",
@@ -72,7 +72,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			wantMarker:    EnvelopeMarker{},
 			wantHasMarker: false,
 			wantErr:       true,
-			errContains:   "invalid key ID",
+			errContains:   "invalid keyset version",
 		},
 		{
 			name:          "malformed - negative key ID",
@@ -80,7 +80,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			wantMarker:    EnvelopeMarker{},
 			wantHasMarker: false,
 			wantErr:       true,
-			errContains:   "invalid key ID",
+			errContains:   "invalid keyset version",
 		},
 		{
 			name:          "malformed - key ID exceeds uint32",
@@ -88,7 +88,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			wantMarker:    EnvelopeMarker{},
 			wantHasMarker: false,
 			wantErr:       true,
-			errContains:   "invalid key ID",
+			errContains:   "invalid keyset version",
 		},
 		{
 			name:          "malformed - missing payload separator",
@@ -110,7 +110,7 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			name:  "valid marker with empty payload",
 			value: "tink:v1:",
 			wantMarker: EnvelopeMarker{
-				KeyID:   1,
+				Version: 1,
 				Payload: []byte{},
 			},
 			wantHasMarker: true,
@@ -155,8 +155,8 @@ func TestParseEnvelopeMarker(t *testing.T) {
 			}
 
 			if hasMarker {
-				if marker.KeyID != tt.wantMarker.KeyID {
-					t.Errorf("ParseEnvelopeMarker() KeyID = %d, want %d", marker.KeyID, tt.wantMarker.KeyID)
+				if marker.Version != tt.wantMarker.Version {
+					t.Errorf("ParseEnvelopeMarker() Version = %d, want %d", marker.Version, tt.wantMarker.Version)
 				}
 
 				if string(marker.Payload) != string(tt.wantMarker.Payload) {
@@ -172,37 +172,37 @@ func TestFormatEnvelopeMarker(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		keyID    uint32
+		version  uint32
 		payload  []byte
 		expected string
 	}{
 		{
 			name:     "standard key ID and payload",
-			keyID:    1,
+			version:  1,
 			payload:  []byte("encrypted-data"),
 			expected: "tink:v1:" + base64.URLEncoding.EncodeToString([]byte("encrypted-data")),
 		},
 		{
 			name:     "large key ID",
-			keyID:    4294967295,
+			version:  4294967295,
 			payload:  []byte("data"),
 			expected: "tink:v4294967295:" + base64.URLEncoding.EncodeToString([]byte("data")),
 		},
 		{
 			name:     "empty payload",
-			keyID:    42,
+			version:  42,
 			payload:  []byte{},
 			expected: "tink:v42:",
 		},
 		{
 			name:     "zero key ID",
-			keyID:    0,
+			version:  0,
 			payload:  []byte("test"),
 			expected: "tink:v0:" + base64.URLEncoding.EncodeToString([]byte("test")),
 		},
 		{
 			name:     "binary payload",
-			keyID:    123,
+			version:  123,
 			payload:  []byte{0x00, 0x01, 0x02, 0xFF, 0xFE},
 			expected: "tink:v123:" + base64.URLEncoding.EncodeToString([]byte{0x00, 0x01, 0x02, 0xFF, 0xFE}),
 		},
@@ -212,10 +212,10 @@ func TestFormatEnvelopeMarker(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := FormatEnvelopeMarker(tt.keyID, tt.payload)
+			got := FormatEnvelopeMarker(tt.version, tt.payload)
 
 			if got != tt.expected {
-				t.Errorf("FormatEnvelopeMarker(%d, %q) = %q, want %q", tt.keyID, string(tt.payload), got, tt.expected)
+				t.Errorf("FormatEnvelopeMarker(%d, %q) = %q, want %q", tt.version, string(tt.payload), got, tt.expected)
 			}
 		})
 	}
@@ -226,27 +226,27 @@ func TestFormatEnvelopeMarker_Roundtrip(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		keyID   uint32
+		version uint32
 		payload []byte
 	}{
 		{
 			name:    "standard roundtrip",
-			keyID:   12345,
+			version: 12345,
 			payload: []byte("some encrypted data here"),
 		},
 		{
 			name:    "max key ID roundtrip",
-			keyID:   4294967295,
+			version: 4294967295,
 			payload: []byte("max key test"),
 		},
 		{
 			name:    "binary data roundtrip",
-			keyID:   99,
+			version: 99,
 			payload: []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05},
 		},
 		{
 			name:    "empty payload roundtrip",
-			keyID:   1,
+			version: 1,
 			payload: []byte{},
 		},
 	}
@@ -256,7 +256,7 @@ func TestFormatEnvelopeMarker_Roundtrip(t *testing.T) {
 			t.Parallel()
 
 			// Format the marker
-			formatted := FormatEnvelopeMarker(tt.keyID, tt.payload)
+			formatted := FormatEnvelopeMarker(tt.version, tt.payload)
 
 			// Parse it back
 			marker, hasMarker, err := ParseEnvelopeMarker(formatted)
@@ -270,8 +270,8 @@ func TestFormatEnvelopeMarker_Roundtrip(t *testing.T) {
 				return
 			}
 
-			if marker.KeyID != tt.keyID {
-				t.Errorf("Roundtrip failed: KeyID = %d, want %d", marker.KeyID, tt.keyID)
+			if marker.Version != tt.version {
+				t.Errorf("Roundtrip failed: Version = %d, want %d", marker.Version, tt.version)
 			}
 
 			if string(marker.Payload) != string(tt.payload) {

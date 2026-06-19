@@ -7,6 +7,7 @@ package encryption
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -306,7 +307,7 @@ func TestProtectionStateResolver_Resolve_CachesWithinTTL(t *testing.T) {
 		t.Errorf("registry Get calls = %d, want 1 (second resolve must hit the cache)", reader.getCalls)
 	}
 
-	if first != second {
+	if !reflect.DeepEqual(first, second) {
 		t.Errorf("cached resolve returned different state: first=%+v second=%+v", first, second)
 	}
 

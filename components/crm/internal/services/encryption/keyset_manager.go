@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +53,7 @@ type CachedPrimitives struct {
 	LegacyHexTokenPRF *tink.LegacyPRFPrimitive
 	PrimaryKeyID      uint32
 	PRFPrimaryKeyID   uint32
+	Version           uint32
 	ExpiresAt         time.Time
 }
 
@@ -141,10 +144,19 @@ func NewKeysetManager(
 	}
 }
 
-// buildCacheKey constructs a tenant-scoped cache key.
+// buildCacheKey constructs a tenant-scoped cache key prefix.
 // Format: "tenantID:organizationID" to prevent cross-tenant cache collisions.
+// Used by the protection-state resolver and as the prefix for version-scoped
+// keyset cache invalidation.
 func buildCacheKey(tenantID, organizationID string) string {
 	return tenantID + ":" + organizationID
+}
+
+// buildVersionedCacheKey constructs a version-scoped keyset cache key.
+// Format: "tenantID:organizationID:version" so each keyset version is cached
+// independently and routed-by-version reads do not collide.
+func buildVersionedCacheKey(tenantID, organizationID string, version int) string {
+	return tenantID + ":" + organizationID + ":" + strconv.Itoa(version)
 }
 
 // getOrgLock returns the mutex for a specific tenant-organization combination.
@@ -162,95 +174,80 @@ func (km *KeysetManager) getOrgLock(cacheKey string) *sync.Mutex {
 	return lock
 }
 
-// GetPrimitives retrieves the cached AEAD, PRF, and PRFMulti primitives for an
-// organization. Returns cached primitives if available and not expired.
-// Otherwise, fetches from repository, unwraps via KMS, caches, and returns.
+// GetActivePrimitives retrieves the cached AEAD, PRF, and PRFMulti primitives for an
+// organization's ACTIVE (highest-version) keyset. It is CACHE-FIRST: the active
+// entry is keyed on the non-versioned cache key (tenantID:organizationID), so a
+// fresh cache hit serves without touching the repository. On a miss it loads the
+// active keyset via repo.GetActive and, when no keyset exists and a provisioner is
+// configured, auto-provisions version 1 before retrying (lazy provisioning).
 //
 // The returned CachedPrimitives carries:
 //   - AEAD primitive for encryption/decryption
 //   - PRF primitive for search token generation (primary key only)
-//   - MultiKeyPRF primitive for search token generation across all keys (for key rotation)
-//   - PrimaryKeyID, the primary AEAD key ID for envelope marker formatting
+//   - MultiKeyPRF primitive for search token generation across all keys
+//   - PrimaryKeyID, the primary AEAD key ID
 //   - PRFPrimaryKeyID, the primary PRF key ID for search-token versioning
+//   - Version, the loaded keyset version, stamped onto envelope markers
 //
-// Uses per-tenant-organization mutexes to deduplicate concurrent requests for the same
-// tenant-organization, preventing cache stampede while allowing concurrent fetches for
-// different tenant-organizations.
-//
-// Cache keys are scoped by tenant ID to prevent cross-tenant cache collisions.
-func (km *KeysetManager) GetPrimitives(ctx context.Context, organizationID string) (*CachedPrimitives, error) {
+// Uses the per-key mutex to deduplicate concurrent loads/unwraps for the same
+// tenant-organization. Cache keys are scoped by tenant to prevent cross-tenant
+// collisions.
+func (km *KeysetManager) GetActivePrimitives(ctx context.Context, organizationID string) (*CachedPrimitives, error) {
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// Extract tenant ID for cache key scoping
 	tenantID := ExtractTenantID(ctx)
 	cacheKey := buildCacheKey(tenantID, organizationID)
 
-	// Fast path: check cache with read lock
-	km.mu.RLock()
-	cached, ok := km.cache[cacheKey]
-	km.mu.RUnlock()
-
-	if ok && !cached.IsExpired() {
-		// Fast-path cache hit: record exactly one hit.
-		km.metrics.recordCache(ctx, "get_primitives", "hit")
-
-		return cached, nil
-	}
-
-	// Cache miss or expired - acquire per-tenant-organization lock
-	orgLock := km.getOrgLock(cacheKey)
-	orgLock.Lock()
-	defer orgLock.Unlock()
-
-	// Double-check cache after acquiring lock (another goroutine may have fetched)
-	km.mu.RLock()
-	cached, ok = km.cache[cacheKey]
-	km.mu.RUnlock()
-
-	if ok && !cached.IsExpired() {
-		// Double-check cache hit: another goroutine populated the cache while we
-		// waited on the lock. Record exactly one hit (no double-count with the
-		// fast path, which already returned for the fast-path-hit case).
-		km.metrics.recordCache(ctx, "get_primitives", "hit")
-
-		return cached, nil
-	}
-
-	// Cache miss: we will fetch and cache. Record exactly one miss per fetch.
-	km.metrics.recordCache(ctx, "get_primitives", "miss")
-
-	// Fetch and cache while holding org lock
-	return km.fetchAndCache(ctx, cacheKey, organizationID)
+	return km.getOrUnwrap(ctx, cacheKey, func(ctx context.Context) (*mmodel.OrganizationKeyset, error) {
+		return km.loadActiveKeyset(ctx, organizationID)
+	})
 }
 
-// fetchAndCache fetches keyset from repository, unwraps via KMS, and caches the primitives.
-// Caller MUST hold the per-tenant-organization lock before calling this method.
-//
-// When a keyset is not found and a Provisioner is configured, this method
-// automatically provisions the organization before retrying the fetch.
-//
-// The cacheKey parameter is the tenant-scoped key (tenantID:organizationID).
-// The organizationID parameter is needed for repository lookups and provisioning.
-func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizationID string) (*CachedPrimitives, error) {
-	// Check context before expensive KMS operations
+// GetPrimitivesForVersion retrieves the cached primitives for an organization's
+// keyset at an EXACT version. It is CACHE-FIRST: the entry is keyed on the
+// version-scoped cache key (tenantID:organizationID:version), so a fresh cache hit
+// serves without touching the repository. On a miss it loads via repo.GetByVersion
+// and does NOT auto-provision; a missing version surfaces as ErrKeysetNotFound.
+// Used on the read/decrypt path where the marker selects the version to route to.
+func (km *KeysetManager) GetPrimitivesForVersion(ctx context.Context, organizationID string, version int) (*CachedPrimitives, error) {
+	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// Fetch keyset from repository (repository extracts tenant from context)
-	keyset, err := km.keysetRepo.Get(ctx, organizationID)
+	tenantID := ExtractTenantID(ctx)
+	cacheKey := buildVersionedCacheKey(tenantID, organizationID, version)
+
+	return km.getOrUnwrap(ctx, cacheKey, func(ctx context.Context) (*mmodel.OrganizationKeyset, error) {
+		keyset, err := km.keysetRepo.GetByVersion(ctx, organizationID, version)
+		if err != nil {
+			return nil, err
+		}
+
+		if keyset == nil {
+			return nil, constant.ErrKeysetNotFound
+		}
+
+		return keyset, nil
+	})
+}
+
+// loadActiveKeyset fetches the organization's active (highest-version) keyset,
+// auto-provisioning version 1 on first access when a provisioner is configured.
+func (km *KeysetManager) loadActiveKeyset(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
+	keyset, err := km.keysetRepo.GetActive(ctx, organizationID)
 	if err != nil {
-		// If keyset not found and provisioner available, try to auto-provision
+		// If keyset not found and provisioner available, try to auto-provision.
 		if km.provisioner != nil && (errors.Is(err, constant.ErrKeysetNotFound) || errors.Is(err, mmodel.ErrKeysetNotFound)) {
 			if provErr := km.autoProvision(ctx, organizationID); provErr != nil {
 				return nil, fmt.Errorf("auto-provision failed: %w", provErr)
 			}
 
-			// Retry fetch after provisioning
-			keyset, err = km.keysetRepo.Get(ctx, organizationID)
+			// Retry fetch after provisioning.
+			keyset, err = km.keysetRepo.GetActive(ctx, organizationID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get keyset after provisioning: %w", err)
 			}
@@ -259,11 +256,60 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		}
 	}
 
-	// Guard against nil keyset (repository returned nil without error)
+	// Guard against nil keyset (repository returned nil without error).
 	if keyset == nil {
 		return nil, constant.ErrKeysetNotFound
 	}
 
+	return keyset, nil
+}
+
+// getOrUnwrap returns cached primitives for cacheKey when present and fresh,
+// otherwise loads the keyset via the load closure, unwraps it via KMS, caches, and
+// returns. It is CACHE-FIRST: the cache is consulted before load runs, so a fresh
+// hit serves from cache without any repository call. The per-key mutex (keyed on
+// cacheKey) deduplicates concurrent loads/unwraps without blocking unrelated keys.
+func (km *KeysetManager) getOrUnwrap(ctx context.Context, cacheKey string, load func(context.Context) (*mmodel.OrganizationKeyset, error)) (*CachedPrimitives, error) {
+	// Fast path: check cache with read lock.
+	km.mu.RLock()
+	cached, ok := km.cache[cacheKey]
+	km.mu.RUnlock()
+
+	if ok && !cached.IsExpired() {
+		km.metrics.recordCache(ctx, "get_primitives", "hit")
+
+		return cached, nil
+	}
+
+	// Cache miss or expired - acquire per-key lock.
+	orgLock := km.getOrgLock(cacheKey)
+	orgLock.Lock()
+	defer orgLock.Unlock()
+
+	// Double-check cache after acquiring lock (another goroutine may have unwrapped).
+	km.mu.RLock()
+	cached, ok = km.cache[cacheKey]
+	km.mu.RUnlock()
+
+	if ok && !cached.IsExpired() {
+		km.metrics.recordCache(ctx, "get_primitives", "hit")
+
+		return cached, nil
+	}
+
+	km.metrics.recordCache(ctx, "get_primitives", "miss")
+
+	keyset, err := load(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return km.unwrapAndCache(ctx, cacheKey, keyset)
+}
+
+// unwrapAndCache unwraps the keyset via KMS and caches the primitives under cacheKey.
+// Caller MUST hold the per-tenant-organization-version lock before calling.
+func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, keyset *mmodel.OrganizationKeyset) (*CachedPrimitives, error) {
 	// Check context before KMS unwrap
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -341,10 +387,11 @@ func (km *KeysetManager) fetchAndCache(ctx context.Context, cacheKey, organizati
 		LegacyHexTokenPRF: prfSet.legacyHexToken,
 		PrimaryKeyID:      keyset.KeysetInfo.PrimaryKeyID,
 		PRFPrimaryKeyID:   keyset.HMACKeysetInfo.PrimaryKeyID,
+		Version:           uint32(keyset.Version), // #nosec G115 -- keyset version is a small positive monotonic counter
 		ExpiresAt:         time.Now().Add(km.cacheTTL),
 	}
 
-	// Cache the primitives with write lock using tenant-scoped key
+	// Cache the primitives with write lock using the tenant+version-scoped key
 	km.mu.Lock()
 	km.cache[cacheKey] = cached
 	km.mu.Unlock()
@@ -435,19 +482,35 @@ func (km *KeysetManager) autoProvision(ctx context.Context, organizationID strin
 	return err
 }
 
-// InvalidateCacheForTenant removes the cached primitives for a specific tenant-organization.
-// Call this after key rotation or when keyset is updated.
-// Also removes the per-tenant-organization mutex to prevent unbounded map growth.
+// InvalidateCacheForTenant removes the cached primitives for the ACTIVE keyset and
+// ALL keyset versions of a specific tenant-organization. The active entry is cached
+// under the exact key "tenantID:organizationID" (no version), while version entries
+// are cached under the "tenantID:organizationID:version" prefix; both are removed.
+// Call this after key rotation or when a keyset is updated. Also removes the matching
+// per-key mutexes to prevent unbounded map growth.
 func (km *KeysetManager) InvalidateCacheForTenant(tenantID, organizationID string) {
-	cacheKey := buildCacheKey(tenantID, organizationID)
+	activeKey := buildCacheKey(tenantID, organizationID)
+	prefix := activeKey + ":"
 
 	km.mu.Lock()
-	delete(km.cache, cacheKey)
+	delete(km.cache, activeKey)
+
+	for key := range km.cache {
+		if strings.HasPrefix(key, prefix) {
+			delete(km.cache, key)
+		}
+	}
 	km.mu.Unlock()
 
-	// Clean up per-tenant-org mutex to prevent unbounded growth
+	// Clean up per-key mutexes (active + all versions) to prevent unbounded growth.
 	km.fetchMu.Lock()
-	delete(km.fetching, cacheKey)
+	delete(km.fetching, activeKey)
+
+	for key := range km.fetching {
+		if strings.HasPrefix(key, prefix) {
+			delete(km.fetching, key)
+		}
+	}
 	km.fetchMu.Unlock()
 }
 

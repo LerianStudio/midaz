@@ -337,6 +337,7 @@ func (s *provisioningService) buildProvisioningKeysets(ctx context.Context, req 
 	return &mmodel.OrganizationKeyset{
 		TenantID:          req.TenantID,
 		OrganizationID:    req.OrganizationID,
+		Version:           1,
 		KEKPath:           kekPath,
 		KEKMountPath:      mount,
 		WrappedKeyset:     aeadBundle.Wrapped.WrappedData,

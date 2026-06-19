@@ -248,7 +248,7 @@ func NewEncryptionService(
 //
 // When encryptionMode is EncryptionModeEnvelope:
 //   - Always uses envelope encryption regardless of per-org registry state
-//   - Triggers lazy provisioning via KeysetManager.GetPrimitives() for non-provisioned orgs
+//   - Triggers lazy provisioning via KeysetManager.GetActivePrimitives() for non-provisioned orgs
 //
 // When encryptionMode is EncryptionModeLegacy (or unset):
 //   - Routes based on per-organization protection state
@@ -257,9 +257,9 @@ func NewEncryptionService(
 //
 // For envelope mode:
 //   - Validates field context
-//   - Gets AEAD primitive from KeysetManager
+//   - Gets the active-version AEAD primitive from KeysetManager
 //   - Encrypts with canonical AAD
-//   - Returns marked ciphertext (tink:v{keyID}:{base64})
+//   - Returns marked ciphertext (tink:v{keysetVersion}:{base64})
 //
 // For legacy mode:
 //   - Uses libCommons crypto.Encrypt
@@ -343,10 +343,10 @@ func (s *encryptionService) resolveEncryptPath(ctx context.Context, organization
 	return protectionPathLegacy, false, nil
 }
 
-// encryptEnvelope performs envelope encryption using Tink AEAD.
+// encryptEnvelope performs envelope encryption using the active keyset's Tink AEAD.
 func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
-	// Get cached primitives (AEAD and primary key ID, fetched together to avoid redundant DB calls)
-	prims, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	// Get the active-version primitives (auto-provisions version 1 on first access).
+	prims, err := s.keysetManager.GetActivePrimitives(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
 	}
@@ -359,8 +359,9 @@ func (s *encryptionService) encryptEnvelope(ctx context.Context, fieldCtx FieldC
 		return "", fmt.Errorf("AEAD encryption failed: %w", err)
 	}
 
-	// Format with envelope marker
-	marked := FormatEnvelopeMarker(prims.PrimaryKeyID, ciphertext)
+	// Stamp the marker with the active keyset VERSION (NOT the Tink primary key id);
+	// decrypt routes on this version.
+	marked := FormatEnvelopeMarker(prims.Version, ciphertext)
 
 	return marked, nil
 }
@@ -393,8 +394,9 @@ func (s *encryptionService) encryptLegacy(ctx context.Context, plaintext string)
 // Routes based on envelope marker presence and organization state.
 //
 // If ciphertext has envelope marker:
-//   - Parse marker to get key ID
-//   - Get AEAD primitive from KeysetManager
+//   - Parse marker to get the keyset version
+//   - Fail closed if the version is not in the org's readable versions
+//   - Load the version-specific AEAD primitive from KeysetManager
 //   - Decrypt with canonical AAD
 //   - Return plaintext
 //
@@ -484,11 +486,27 @@ func classifyLegacyDecryptError(err error) string {
 	return ""
 }
 
-// decryptEnvelope performs envelope decryption using Tink AEAD.
-// Returns ErrEnvelopeDecryptFailed on failure - NO fallback to legacy.
+// decryptEnvelope performs version-routed envelope decryption.
+//
+// The marker carries the organization keyset VERSION that produced the ciphertext.
+// Decrypt resolves the organization's protection state and fails closed when the
+// marker version is not in state.ReadableVersions (no fallback to legacy). It then
+// loads the exact-version primitives via GetPrimitivesForVersion and decrypts. Tink
+// still selects the concrete key internally from the ciphertext prefix; the version
+// only routes which keyset is loaded. Returns ErrEnvelopeDecryptFailed on failure.
 func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldContext, marker EnvelopeMarker) (string, error) {
-	// Get cached primitives (only AEAD is needed; the marker's key ID drives decryption)
-	prims, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	// Resolve protection state to enforce readable-version routing (fail-closed).
+	state, err := s.stateResolver.Resolve(ctx, fieldCtx.OrganizationID)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to resolve protection state: %v", ErrEnvelopeDecryptFailed, err)
+	}
+
+	if !versionIsReadable(marker.Version, state.ReadableVersions) {
+		return "", fmt.Errorf("%w: marker version %d is not in the organization's readable versions", ErrEnvelopeDecryptFailed, marker.Version)
+	}
+
+	// Load the primitives for the exact marker version (no auto-provision).
+	prims, err := s.keysetManager.GetPrimitivesForVersion(ctx, fieldCtx.OrganizationID, int(marker.Version))
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to get AEAD primitive: %v", ErrEnvelopeDecryptFailed, err)
 	}
@@ -503,6 +521,20 @@ func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldC
 	}
 
 	return string(plaintext), nil
+}
+
+// versionIsReadable reports whether the marker version is present in the
+// organization's readable-versions set. An empty/nil set is never readable
+// (fail-closed for legacy/unprovisioned organizations).
+func versionIsReadable(version uint32, readable []int) bool {
+	target := int(version)
+	for _, v := range readable {
+		if v == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 // decryptLegacy performs legacy decryption using the LegacyCrypto interface.
@@ -581,7 +613,7 @@ func (s *encryptionService) decryptLegacyFromKeyset(ctx context.Context, fieldCt
 		return "", fmt.Errorf("decode legacy ciphertext: %w", err)
 	}
 
-	prims, err := s.keysetManager.GetPrimitives(ctx, fieldCtx.OrganizationID)
+	prims, err := s.keysetManager.GetActivePrimitives(ctx, fieldCtx.OrganizationID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get AEAD primitive: %w", err)
 	}
@@ -601,7 +633,7 @@ func (s *encryptionService) decryptLegacyFromKeyset(ctx context.Context, fieldCt
 //
 // When encryptionMode is EncryptionModeEnvelope:
 //   - Always uses envelope PRF generation regardless of per-org registry state
-//   - Triggers lazy provisioning via KeysetManager.GetPrimitives() for non-provisioned orgs
+//   - Triggers lazy provisioning via KeysetManager.GetActivePrimitives() for non-provisioned orgs
 //
 // When encryptionMode is EncryptionModeLegacy (or unset):
 //   - Routes based on per-organization protection state
@@ -648,8 +680,8 @@ func (s *encryptionService) GenerateSearchToken(ctx context.Context, searchCtx S
 // generateSearchTokenEnvelope generates a PRF-based search token using Tink and
 // returns the PRF keyset primary key ID it was computed with.
 func (s *encryptionService) generateSearchTokenEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string) (string, uint32, error) {
-	// Get cached primitives (only the PRF surface and its primary key ID are needed here).
-	prims, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
+	// Write path: index with the ACTIVE version's PRF primary key (auto-provisions v1).
+	prims, err := s.keysetManager.GetActivePrimitives(ctx, searchCtx.OrganizationID)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to get PRF primitive: %w", err)
 	}
@@ -710,8 +742,10 @@ func (s *encryptionService) GenerateSearchTokenCandidates(ctx context.Context, s
 // Envelope-only organizations (LegacyHexTokenPRF nil) never wrote legacy tokens, so no
 // legacy candidate is appended and the process-global legacyCrypto is never consulted.
 func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Context, searchCtx SearchTokenContext, normalizedValue string, canReadLegacy bool) ([]string, error) {
-	// Get cached primitives (strict mode: only MultiKeyPRF is needed; error if construction failed)
-	prims, err := s.keysetManager.GetPrimitives(ctx, searchCtx.OrganizationID)
+	// Read path: candidates are generated from the ACTIVE version's MultiKeyPRF.
+	// Multi-version search fan-out (querying older keyset versions after rotation)
+	// is rotation work and is deferred/out of scope here.
+	prims, err := s.keysetManager.GetActivePrimitives(ctx, searchCtx.OrganizationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get MultiKeyPRF primitive: %w", err)
 	}
