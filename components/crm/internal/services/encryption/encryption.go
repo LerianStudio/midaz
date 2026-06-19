@@ -527,8 +527,9 @@ func (s *encryptionService) decryptEnvelope(ctx context.Context, fieldCtx FieldC
 // organization's readable-versions set. An empty/nil set is never readable
 // (fail-closed for legacy/unprovisioned organizations).
 func versionIsReadable(version uint32, readable []int) bool {
+	target := int(version)
 	for _, v := range readable {
-		if v >= 0 && uint32(v) == version {
+		if v == target {
 			return true
 		}
 	}

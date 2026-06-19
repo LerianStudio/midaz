@@ -387,7 +387,7 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 		LegacyHexTokenPRF: prfSet.legacyHexToken,
 		PrimaryKeyID:      keyset.KeysetInfo.PrimaryKeyID,
 		PRFPrimaryKeyID:   keyset.HMACKeysetInfo.PrimaryKeyID,
-		Version:           uint32(keyset.Version), //nolint:gosec // keyset version is a small positive monotonic counter
+		Version:           uint32(keyset.Version), // #nosec G115 -- keyset version is a small positive monotonic counter
 		ExpiresAt:         time.Now().Add(km.cacheTTL),
 	}
 
