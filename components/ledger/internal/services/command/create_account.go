@@ -58,7 +58,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder requirement", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve holder requirement", libLog.Err(err))
+
+		return nil, err
+	}
 
 	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
 	if err != nil {
@@ -291,20 +297,23 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 // resolveHolderRequirement reads the cached holder gate keys for a ledger in a
 // single settings read: whether holder validation is required and whether the
 // per-call holder skip is opted in. It uses the cached settings reader port (not
-// the uncached LedgerRepo.GetSettings) and falls back to (false, false) when the
-// reader is unwired or returns an error, keeping account creation permissive by
-// default.
-func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID, ledgerID uuid.UUID) (requireHolder, allowHolderSkip bool) {
+// the uncached LedgerRepo.GetSettings).
+//
+// A nil reader is an unwired adapter (legitimate; production always wires it) and
+// falls back to the permissive default (false, false). A settings-read error fails
+// CLOSED — it is propagated so a transient PostgreSQL failure cannot silently
+// disable the holder-integrity gate, mirroring applyAccountingValidations.
+func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID, ledgerID uuid.UUID) (requireHolder, allowHolderSkip bool, err error) {
 	if uc.SettingsReader == nil {
-		return false, false
+		return false, false, nil
 	}
 
 	settings, err := uc.SettingsReader.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		return false, false
+		return false, false, err
 	}
 
-	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip
+	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip, nil
 }
 
 // applyHolderValidation enforces that an explicitly supplied holder exists.

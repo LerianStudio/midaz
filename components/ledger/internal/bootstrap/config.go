@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
@@ -785,6 +786,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory = telemetry.MetricsFactory
 	}
 
+	// Arm lib-observability's panic-observability trident so every
+	// libRuntime.SafeGo* call site (e.g. the Redis backup-consumer replay
+	// goroutines) emits the panic_recovered_total counter when a goroutine
+	// panics. Without this Init, SafeGo still recovers + logs + records the
+	// span event, but the metric is a no-op binary-wide. Called once here,
+	// after the metrics factory is resolved and before the workers spawn.
+	// Idempotent — subsequent calls are no-ops.
+	if metricsFactory != nil {
+		libRuntime.InitPanicMetrics(metricsFactory, logger)
+	}
+
 	commandUseCase := &command.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -880,6 +892,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	fees.billingPackageService.MetricsFactory = metricsFactory
 	fees.billingCalculateService.MetricsFactory = metricsFactory
 
+	// Cache the per-(org,ledger) fee-package set so a transaction create on a
+	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
+	fees.useCase.PackageCache = txnRedisRepo
+
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	if err := rmq.wireConsumer(commandUseCase); err != nil {
 		doCleanup()
@@ -907,6 +923,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
+	}
+
+	// Resolve the optional SIGTERM teardown hook for the tracer transport.
+	// The gRPC client holds a persistent grpc.ClientConn and exposes
+	// Close() error; the REST client does not implement the interface, so
+	// tracerClose stays nil and Run() registers no teardown app for it.
+	var tracerClose func() error
+	if closer, ok := tracerReserver.(interface{ Close() error }); ok {
+		tracerClose = closer.Close
 	}
 
 	// Transaction handlers
@@ -1067,6 +1092,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		TracerClose:              tracerClose,
 	}, nil
 }
 

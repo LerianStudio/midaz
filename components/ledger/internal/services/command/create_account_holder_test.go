@@ -294,6 +294,33 @@ func TestCreateAccountRequireHolderReaderError(t *testing.T) {
 	assert.Equal(t, 1, holderReader.calls)
 }
 
+// TestCreateAccountSettingsReadErrorFailsClosed proves the holder gate fails
+// CLOSED on a settings-read failure: the error propagates out of CreateAccount
+// and the account is NOT created (the gate is never silently disabled).
+func TestCreateAccountSettingsReadErrorFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var captured *mmodel.Account
+	uc, _, settingsReader := setupHolderAccountTest(ctrl, &captured)
+
+	readErr := errors.New("postgres settings read failed")
+	settingsReader.err = readErr
+
+	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID,
+		&mmodel.CreateAccountInput{Name: "A", Type: "deposit", AssetCode: "USD"},
+		"Bearer test")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, readErr)
+	assert.Nil(t, acc)
+	assert.Nil(t, captured, "account must not be created when the settings read fails")
+}
+
 // TestCreateAccountHolderSkip covers the Phase 3 per-call holder skip. The two-key
 // rule: a skip is honored only when the caller requests it AND the ledger opts in
 // via AllowHolderSkip; a requested-but-not-allowed skip is rejected 422
@@ -402,24 +429,30 @@ func TestCreateAccountHolderSkip(t *testing.T) {
 	}
 }
 
-// TestResolveHolderRequirementFallback proves the cached read degrades to
-// permissive (false, false) when the settings reader is unwired or errors, and
-// surfaces both holder gate keys from a single settings read on success.
+// TestResolveHolderRequirementFallback proves the holder gate's two-key read:
+// a nil (unwired) reader degrades to permissive (false, false) with no error; a
+// settings-read error fails CLOSED — it propagates so a transient PostgreSQL
+// failure cannot silently disable the holder-integrity gate; and a successful
+// read surfaces both holder gate keys from a single settings read.
 func TestResolveHolderRequirementFallback(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
-	t.Run("nil reader -> false, false", func(t *testing.T) {
+	t.Run("nil reader -> false, false, no error", func(t *testing.T) {
 		uc := &UseCase{}
-		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		require.NoError(t, err)
 		assert.False(t, requireHolder)
 		assert.False(t, allowHolderSkip)
 	})
 
-	t.Run("reader error -> false, false", func(t *testing.T) {
-		uc := &UseCase{SettingsReader: &stubSettingsReader{err: errors.New("boom")}}
-		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	t.Run("reader error -> fails closed, error propagated", func(t *testing.T) {
+		readErr := errors.New("boom")
+		uc := &UseCase{SettingsReader: &stubSettingsReader{err: readErr}}
+		requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, readErr)
 		assert.False(t, requireHolder)
 		assert.False(t, allowHolderSkip)
 	})
@@ -427,7 +460,8 @@ func TestResolveHolderRequirementFallback(t *testing.T) {
 	t.Run("reader surfaces both keys from one read", func(t *testing.T) {
 		reader := &stubSettingsReader{requireHolder: true, allowHolderSkip: true}
 		uc := &UseCase{SettingsReader: reader}
-		requireHolder, allowHolderSkip := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+		require.NoError(t, err)
 		assert.True(t, requireHolder)
 		assert.True(t, allowHolderSkip)
 		assert.Equal(t, 1, reader.calls, "must read settings exactly once")

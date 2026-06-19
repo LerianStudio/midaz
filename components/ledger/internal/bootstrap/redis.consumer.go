@@ -22,6 +22,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -48,6 +49,11 @@ const (
 	// the next cycle (a poison record is the only durable copy of an authorized
 	// transaction, so it is never deleted or skipped silently forever).
 	QuarantineThreshold = 3
+
+	// redisBackupConsumerComponent scopes panic-observability signals (the
+	// panic_recovered_total counter, structured logs, span events) emitted by
+	// the per-record replay goroutines to this subsystem in dashboards.
+	redisBackupConsumerComponent = "ledger.redis-backup-consumer"
 )
 
 type RedisQueueConsumer struct {
@@ -351,18 +357,21 @@ Outer:
 
 		wg.Add(1)
 
-		go func(key, rawPayload string, m mmodel.TransactionRedisQueue) {
-			defer func() {
-				if rec := recover(); rec != nil {
-					r.Logger.Log(ctx, libLog.LevelWarn, "Panic recovered while processing message; message will remain in queue", libLog.String("key", key), libLog.Any("recover", rec))
-				}
+		// Route any panic through the lib-observability trident (recover +
+		// structured log + span event + panic_recovered_total counter). The
+		// semaphore release and WaitGroup.Done stay in this func's defer so they
+		// run even when processMessage panics. Loop variables are per-iteration
+		// (Go 1.22+), so the closure captures them directly.
+		libRuntime.SafeGoWithContextAndComponent(ctx, r.Logger, redisBackupConsumerComponent,
+			"ledger-redis-backup-consumer", libRuntime.KeepRunning,
+			func(ctx context.Context) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
 
-				<-sem
-				wg.Done()
-			}()
-
-			r.processMessage(ctx, key, rawPayload, m)
-		}(key, message, transaction)
+				r.processMessage(ctx, key, message, transaction)
+			})
 	}
 
 	wg.Wait()
