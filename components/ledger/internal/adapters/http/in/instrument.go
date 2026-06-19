@@ -164,14 +164,14 @@ func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	alias, err := handler.Service.GetInstrumentByID(ctx, organizationID.String(), holderID, id, includeDeleted)
+	instrument, err := handler.Service.GetInstrumentByID(ctx, organizationID.String(), holderID, id, includeDeleted)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve instrument", err)
 
 		return http.WithError(c, err)
 	}
 
-	return http.OK(c, alias)
+	return http.OK(c, instrument)
 }
 
 // UpdateInstrument is a method that updates Instrument information.
@@ -239,14 +239,14 @@ func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
 		attribute.Int("app.request.fields_to_remove_count", len(fieldsToRemove)),
 	)
 
-	alias, err := handler.Service.UpdateInstrumentByID(ctx, organizationID.String(), holderID, id, payload, fieldsToRemove)
+	instrument, err := handler.Service.UpdateInstrumentByID(ctx, organizationID.String(), holderID, id, payload, fieldsToRemove)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update instrument", err)
 
 		return http.WithError(c, err)
 	}
 
-	return http.OK(c, alias)
+	return http.OK(c, instrument)
 }
 
 // DeleteInstrumentByID removes an instrument by a given id
@@ -393,14 +393,14 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 
 	recordSafeQueryAttributes(span, headerParams)
 
-	aliases, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
+	instruments, err := handler.Service.GetAllInstruments(ctx, organizationID.String(), holderID, *headerParams, includeDeleted)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get all aliases", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get all instruments", err)
 
 		return http.WithError(c, err)
 	}
 
-	pagination.SetItems(aliases)
+	pagination.SetItems(instruments)
 
 	return http.OK(c, pagination)
 }

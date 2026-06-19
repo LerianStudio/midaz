@@ -112,4 +112,6 @@ func TestBalanceConfigChangedPayload_JSONShape_MinimalIncludesRequiredFields(t *
 
 	_, hasSettings := generic["settings"]
 	assert.False(t, hasSettings, "settings is omitempty when nil")
+
+	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }

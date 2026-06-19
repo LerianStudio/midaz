@@ -201,14 +201,6 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 			expectedCode:   "0170",
 			expectedTitle:  "Reserved Balance Key Error",
 		},
-		// --- 1 move-409 (ValidationError -> EntityConflictError) ---
-		{
-			name:           "0156 duplicate action route is 409",
-			err:            pkg.ValidateBusinessError(constant.ErrDuplicateActionRoute, constant.EntityOperationRoute, "r", "a"),
-			expectedStatus: fiber.StatusConflict,
-			expectedCode:   "0156",
-			expectedTitle:  "Duplicate Action Route",
-		},
 		// --- 2 reverse fixes -> 400 (ValidationError) ---
 		{
 			name:           "0017 invalid script format is 400 (reverse fix from 409)",
@@ -226,7 +218,7 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 		},
 	}
 
-	require.Len(t, tests, 26, "the reclassification table is 26 codes (23 move-422 + 1 move-409 + 2 reverse fixes)")
+	require.Len(t, tests, 25, "the reclassification table is 25 codes (23 move-422 + 2 reverse fixes)")
 
 	runErrorContractCases(t, tests)
 }

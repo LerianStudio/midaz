@@ -36,8 +36,8 @@ var feePrefixedCodeRegex = regexp.MustCompile(`^FEE-\d{4}$`)
 //
 // Representative coverage across the migrated categories:
 //   - duplicate package         FEE-0018 -> 0184 (Conflict 409)
-//   - package range overlap      FEE-0035 -> 0199 (Unprocessable 422, 400->422)
-//   - billing route overlap      FEE-0058 -> 0219 (Unprocessable 422, 400->422)
+//   - package range overlap      FEE-0035 -> 0199 (Conflict 409)
+//   - billing route overlap      FEE-0058 -> 0219 (Conflict 409)
 //   - min>max amount             FEE-0015 -> 0182 (Unprocessable 422, 400->422)
 //   - calculate-fee failure      FEE-0022 -> 0186 (Internal 500)
 //   - billing calculation failed FEE-0060 -> 0221 (Internal 500)

@@ -480,12 +480,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Segment Name Error",
 			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
-		constant.ErrBalanceRemainingDeletion: EntityConflictError{
-			EntityType: entityType,
-			Code:       constant.ErrBalanceRemainingDeletion.Error(),
-			Title:      "Balance Remaining Deletion Error",
-			Message:    "The asset cannot be deleted because there is a remaining balance. Please ensure all balances are cleared before attempting to delete again.",
-		},
 		constant.ErrInvalidScriptFormat: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidScriptFormat.Error(),
@@ -1457,12 +1451,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidRouteAction.Error(),
 			Title:      "Invalid Route Action",
 			Message:    fmt.Sprintf("The action '%v' is not a valid route action. Please provide a valid action value.", args...),
-		},
-		constant.ErrDuplicateActionRoute: EntityConflictError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateActionRoute.Error(),
-			Title:      "Duplicate Action Route",
-			Message:    fmt.Sprintf("The operation route '%v' is already assigned to the action '%v'. Please remove the duplicate entry.", args...),
 		},
 		constant.ErrNoRoutesForAction: UnprocessableOperationError{
 			EntityType: entityType,

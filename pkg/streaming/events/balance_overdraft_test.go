@@ -172,4 +172,6 @@ func TestBalanceOverdraftPayload_JSONShape_IncludesAllRequiredFields(t *testing.
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted from the wire payload")
+
+	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }
