@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

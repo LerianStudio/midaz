@@ -8,11 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -21,7 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetAllMetadataOperations fetch all Operations from the repository
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
@@ -32,9 +31,9 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operations")
 
-	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperation, filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo by metadata", err)
 
@@ -61,7 +60,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operations on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo", err)
 

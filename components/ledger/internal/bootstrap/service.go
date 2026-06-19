@@ -11,11 +11,11 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
@@ -31,6 +31,17 @@ type Service struct {
 	Logger                   libLog.Logger
 	Telemetry                *libOpentelemetry.Telemetry
 	metricsFactory           *metrics.MetricsFactory
+
+	// StreamingClose is the close hook for the lib-streaming producer. It
+	// is non-nil for both the real producer and the NoopEmitter — callers
+	// register it as a Launcher app so a graceful shutdown drains buffered
+	// records before exit. Registered conditionally so the Launcher does
+	// not start an entry that has nothing to do (e.g. when streaming is
+	// disabled and the close func is the no-op).
+	StreamingClose func() error
+	// StreamingEnabled mirrors the config flag so Run() can decide whether
+	// to register the producer-shutdown Launcher app.
+	StreamingEnabled bool
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -80,7 +91,48 @@ func (s *Service) Run() {
 			NewCircuitBreakerRunnable(s.CircuitBreakerManager)))
 	}
 
+	// Streaming producer: register only when streaming is actually enabled
+	// AND we have a non-nil close hook. The NoopEmitter path is skipped to
+	// keep the Launcher app list lean.
+	if s.StreamingEnabled && s.StreamingClose != nil {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Streaming Producer",
+			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger}))
+	}
+
 	libCommons.NewLauncher(launcherOpts...).Run()
+}
+
+// streamingProducerRunnable adapts the lib-streaming Producer's Close hook
+// to the libCommons.App interface. It blocks until SIGINT/SIGTERM and then
+// runs the producer's drain/flush close path so buffered records reach the
+// broker before the process exits.
+type streamingProducerRunnable struct {
+	close  func() error
+	logger libLog.Logger
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the producer close hook.
+// The close hook is responsible for draining records under
+// STREAMING_CLOSE_TIMEOUT_S; a non-nil return is logged but not propagated
+// because at shutdown the Launcher cannot meaningfully react.
+func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.close == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	if err := r.close(); err != nil && r.logger != nil {
+		r.logger.Log(context.Background(), libLog.LevelWarn,
+			"streaming producer Close returned error",
+			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
 }
 
 // eventListenerRunnable adapts a TenantEventListener to the libCommons.App interface.

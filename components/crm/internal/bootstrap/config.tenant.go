@@ -11,22 +11,22 @@ import (
 	"strings"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const moduleName = "crm"
+const moduleName = "crm-api"
 
 // initTenantMiddleware creates the tenant middleware for multi-tenant mode.
 // Returns (nil, nil, nil) when multi-tenant is disabled or the URL is not configured.

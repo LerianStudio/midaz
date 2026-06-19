@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -47,7 +46,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 
 	expectedMetadata := &mongodb.Metadata{
 		EntityID:   transactionRouteID.String(),
-		EntityName: reflect.TypeOf(mmodel.TransactionRoute{}).Name(),
+		EntityName: constant.EntityTransactionRoute,
 		Data:       mongodb.JSON{"key": "value"},
 	}
 
@@ -65,7 +64,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -109,7 +108,7 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
@@ -179,7 +178,7 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	assert.Error(t, err)
 
 	// Should return business error for transaction route not found
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 	assert.Equal(t, expectedBusinessError, err)
 	assert.Nil(t, result)
 }
@@ -216,7 +215,7 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, metadataError).
 		Times(1)
 

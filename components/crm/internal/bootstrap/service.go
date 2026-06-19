@@ -11,8 +11,8 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"

@@ -7,15 +7,15 @@ package query
 import (
 	"context"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 
 	// GetParentByTransactionID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*transaction.Transaction, error) {
@@ -36,7 +36,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 	}
 
 	if tran != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), tran.ID)
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, tran.ID)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
 

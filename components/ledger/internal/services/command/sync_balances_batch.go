@@ -7,9 +7,9 @@ package command
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -42,6 +42,8 @@ type SyncBalancesBatchResult struct {
 //   - Missing keys (already expired): skipped in aggregation
 //   - Version conflicts: optimistic locking in DB update
 //   - Partial failures: keys only removed after successful DB write
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
 	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 

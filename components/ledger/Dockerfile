@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26.2-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine AS builder
 
 WORKDIR /ledger-app
 
@@ -25,5 +25,4 @@ EXPOSE 3002
 USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]
-
 

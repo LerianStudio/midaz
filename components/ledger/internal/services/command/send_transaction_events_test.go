@@ -98,7 +98,7 @@ func TestSendTransactionEvents(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
+		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseCreated)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
@@ -111,7 +111,7 @@ func TestSendTransactionEvents(t *testing.T) {
 		// No expectations for RabbitMQRepo as it shouldn't be called
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
+		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseCreated)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if no mock expectations are called
@@ -137,7 +137,7 @@ func TestSendTransactionEvents(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
+		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseCreated)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
@@ -170,7 +170,7 @@ func TestSendTransactionEvents(t *testing.T) {
 			Times(1)
 
 		// Call the method with different action
-		uc.SendTransactionEvents(ctx, tran)
+		uc.SendTransactionEvents(ctx, tran, TransactionLifecyclePhaseUpdated)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met

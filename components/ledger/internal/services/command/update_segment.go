@@ -8,14 +8,18 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdateSegmentByID updates a segment from the repository by the given ID.
@@ -76,6 +80,8 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
+	uc.emitSegmentUpdatedEvent(ctx, span, logger, segmentUpdated)
+
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntitySegment, id.String(), upi.Metadata)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to update segment metadata", libLog.Err(err), libLog.String("segment_id", id.String()))
@@ -87,4 +93,27 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	segmentUpdated.Metadata = metadataUpdated
 
 	return segmentUpdated, nil
+}
+
+// emitSegmentUpdatedEvent publishes the segment.updated event for a
+// successfully persisted update. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked between the SegmentRepo.Update success branch and the
+// metadata-write call in UpdateSegmentByID, so a downstream Mongo
+// failure cannot mask the event.
+//
+// Caller invariant: s must be the value returned by SegmentRepo.Update
+// (post-commit), not the input struct. Specifically s.ID, s.UpdatedAt
+// and the persisted Name/Status must reflect the row state.
+//
+// Wire-format mapping lives in pkg/streaming/events/segment_updated.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitSegmentUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, s *mmodel.Segment) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.SegmentUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewSegmentUpdated(s).ToEmitRequest(tenantID, s.UpdatedAt)
+		})
 }

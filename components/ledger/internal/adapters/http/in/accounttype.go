@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -181,19 +181,11 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	recordSafePayloadAttributes(span, payload)
 	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account type with ID: %s", id.String()), payload)
 
-	if _, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload); err != nil {
+	accountType, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get updated account type", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}

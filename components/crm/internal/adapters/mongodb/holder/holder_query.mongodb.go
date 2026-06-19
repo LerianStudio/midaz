@@ -8,12 +8,12 @@ import (
 	"context"
 	"strings"
 
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/otel/attribute"

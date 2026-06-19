@@ -6,25 +6,27 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateSegment creates a new segment and persists it in the repository.
 func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_segment")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create segment organizationID=%s ledgerID=%s name=%s", organizationID.String(), ledgerID.String(), cpi.Name))
 
 	var status mmodel.Status
 	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
@@ -40,49 +42,67 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 	segmentID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate segment ID", err)
-		logger.Log(ctx, libLog.LevelError, "Error generating segment ID")
+		logger.Log(ctx, libLog.LevelError, "Failed to generate segment ID", libLog.Err(err))
 
 		return nil, err
 	}
 
+	now := time.Now()
 	segment := &mmodel.Segment{
 		ID:             segmentID.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
-	_, err = uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, cpi.Name)
-	if err != nil {
+	if _, err = uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, cpi.Name); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error checking segment name existence: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to check segment name existence", libLog.Err(err))
 
 		return nil, err
 	}
 
-	prod, err := uc.SegmentRepo.Create(ctx, segment)
+	seg, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create segment", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating segment: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create segment", libLog.Err(err))
 
 		return nil, err
 	}
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
+	uc.emitSegmentCreatedEvent(ctx, span, logger, seg)
+
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntitySegment, seg.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create segment metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating segment metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create segment metadata", libLog.Err(err))
 
 		return nil, err
 	}
 
-	prod.Metadata = metadata
+	seg.Metadata = metadata
 
-	return prod, nil
+	return seg, nil
+}
+
+// emitSegmentCreatedEvent publishes the segment.created event for a
+// successfully persisted segment. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after SegmentRepo.Create succeeds and
+// before CreateOnboardingMetadata runs, so a downstream Mongo failure
+// cannot mask the event.
+//
+// Wire-format mapping lives in pkg/streaming/events/segment_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitSegmentCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, s *mmodel.Segment) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.SegmentCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewSegmentCreated(s).ToEmitRequest(tenantID, s.CreatedAt)
+		})
 }

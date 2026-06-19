@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

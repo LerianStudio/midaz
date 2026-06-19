@@ -11,8 +11,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

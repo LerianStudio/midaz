@@ -7,17 +7,19 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UpdatePortfolioByID updates a portfolio from the repository by the given ID.
@@ -27,8 +29,6 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	ctx, span := tracer.Start(ctx, "command.update_portfolio_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update portfolio %s", id.String()))
-
 	portfolio := &mmodel.Portfolio{
 		EntityID: upi.EntityID,
 		Name:     upi.Name,
@@ -37,12 +37,10 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating portfolio on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, constant.EntityPortfolio)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Portfolio ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Portfolio ID not found", libLog.String("portfolio_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update portfolio on repo by id", err)
 
@@ -50,13 +48,16 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update portfolio on repo by id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio on repo by id", libLog.Err(err))
 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String(), upi.Metadata)
+	uc.emitPortfolioUpdatedEvent(ctx, span, logger, portfolioUpdated)
+
+	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityPortfolio, id.String(), upi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio metadata", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
@@ -66,4 +67,27 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	portfolioUpdated.Metadata = metadataUpdated
 
 	return portfolioUpdated, nil
+}
+
+// emitPortfolioUpdatedEvent publishes the portfolio.updated event for a
+// successfully persisted update. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked between the PortfolioRepo.Update success branch and
+// the metadata-write call in UpdatePortfolioByID, so a downstream Mongo
+// failure cannot mask the event.
+//
+// Caller invariant: p must be the value returned by PortfolioRepo.Update
+// (post-commit), not the input struct. Specifically p.ID, p.UpdatedAt
+// and the persisted EntityID/Name/Status must reflect the row state.
+//
+// Wire-format mapping lives in pkg/streaming/events/portfolio_updated.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitPortfolioUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *mmodel.Portfolio) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewPortfolioUpdated(p).ToEmitRequest(tenantID, p.UpdatedAt)
+		})
 }

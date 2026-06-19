@@ -16,10 +16,11 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -30,7 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 // OperationFilter holds optional filters for listing operations.
@@ -168,7 +169,7 @@ func (r *OperationPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.D
 
 // Create a new Operation entity into Postgresql and returns it.
 func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_operation")
 	defer span.End()
@@ -285,7 +286,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *OperationPostgreSQLRepository) CreateBulk(ctx context.Context, operations []*Operation) (*repository.BulkInsertResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_bulk_operations")
 	defer span.End()
@@ -335,7 +336,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 	spanName string,
 	logSuffix string,
 ) (*repository.BulkInsertResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
@@ -413,7 +414,7 @@ type operationChunkInsertResult struct {
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 // Returns the count of inserted rows and their IDs for downstream filtering.
 func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation) (*operationChunkInsertResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.insert_operation_chunk")
 	defer span.End()
@@ -516,7 +517,7 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 
 // FindAll retrieves Operations entities from the database.
 func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
 	defer span.End()
@@ -587,7 +588,11 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -615,7 +620,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -627,6 +632,8 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}
@@ -661,7 +668,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // ListByIDs retrieves Operation entities from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_operations_by_ids")
 	defer span.End()
@@ -710,7 +717,11 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -738,7 +749,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -750,6 +761,8 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 			return nil, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}
@@ -767,7 +780,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Find retrieves a Operation entity from the database using the provided ID.
 func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation")
 	defer span.End()
@@ -800,6 +813,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 	}
 
 	operation := &OperationPostgreSQLModel{}
+
+	var direction sql.NullString
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -834,7 +849,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
-		&operation.Direction,
+		&direction,
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
@@ -857,12 +872,14 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		return nil, err
 	}
 
+	operation.Direction = direction.String
+
 	return operation.ToEntity(), nil
 }
 
 // FindByAccount retrieves a Operation entity from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
@@ -895,6 +912,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 	}
 
 	operation := &OperationPostgreSQLModel{}
+
+	var direction sql.NullString
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
@@ -929,7 +948,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
-		&operation.Direction,
+		&direction,
 		&operation.RouteID,
 		&operation.RouteCode,
 		&operation.RouteDescription,
@@ -952,12 +971,14 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		return nil, err
 	}
 
+	operation.Direction = direction.String
+
 	return operation.ToEntity(), nil
 }
 
 // Update an Operation entity into Postgresql and returns the Operation updated.
 func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation")
 	defer span.End()
@@ -1033,7 +1054,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Operation entity from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation")
 	defer span.End()
@@ -1097,9 +1118,30 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	return nil
 }
 
+func applyDirectionFallbackFilter(findAll squirrel.SelectBuilder, direction string) squirrel.SelectBuilder {
+	switch strings.ToLower(direction) {
+	case constant.DirectionDebit:
+		return findAll.Where(squirrel.Expr(
+			"(direction = ? OR ((direction IS NULL OR direction = '') AND UPPER(type) IN (?, ?)))",
+			constant.DirectionDebit,
+			constant.DEBIT,
+			constant.ONHOLD,
+		))
+	case constant.DirectionCredit:
+		return findAll.Where(squirrel.Expr(
+			"(direction = ? OR ((direction IS NULL OR direction = '') AND UPPER(type) IN (?, ?)))",
+			constant.DirectionCredit,
+			constant.CREDIT,
+			constant.RELEASE,
+		))
+	default:
+		return findAll.Where(squirrel.Expr("direction = ?", direction))
+	}
+}
+
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, opFilter OperationFilter, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
@@ -1144,7 +1186,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	}
 
 	if !libCommons.IsNilOrEmpty(opFilter.Direction) {
-		findAll = findAll.Where(squirrel.Expr("direction = ?", *opFilter.Direction))
+		findAll = applyDirectionFallbackFilter(findAll, *opFilter.Direction)
 	}
 
 	if !libCommons.IsNilOrEmpty(opFilter.RouteID) {
@@ -1186,7 +1228,11 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	spanQuery.End()
 
 	for rows.Next() {
-		var operation OperationPostgreSQLModel
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
 		if err := rows.Scan(
 			&operation.ID,
 			&operation.TransactionID,
@@ -1214,7 +1260,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
-			&operation.Direction,
+			&direction,
 			&operation.RouteID,
 			&operation.RouteCode,
 			&operation.RouteDescription,
@@ -1226,6 +1272,8 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		operation.Direction = direction.String
 
 		operations = append(operations, operation.ToEntity())
 	}
@@ -1261,7 +1309,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 // FindLastOperationBeforeTimestamp finds the last operation for a specific balance before a given timestamp.
 // This is used for point-in-time balance queries to determine the balance state at a specific moment.
 func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_last_operation_before_timestamp")
 	defer span.End()
@@ -1336,7 +1384,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 // FindLastOperationsForAccountBeforeTimestamp finds the last operation for each balance of an account before a given timestamp.
 // This is used for point-in-time account balance queries to get all balance states at a specific moment.
 func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_last_operations_for_account_before_timestamp")
 	defer span.End()

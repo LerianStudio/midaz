@@ -6,25 +6,27 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreatePortfolio creates a new portfolio and persists it in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_portfolio")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create portfolio organizationID=%s ledgerID=%s entityID=%s", organizationID.String(), ledgerID.String(), cpi.EntityID))
 
 	var status mmodel.Status
 	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
@@ -40,11 +42,12 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	portfolioID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate portfolio ID", err)
-		logger.Log(ctx, libLog.LevelError, "Error generating portfolio ID")
+		logger.Log(ctx, libLog.LevelError, "Failed to generate portfolio ID", libLog.Err(err))
 
 		return nil, err
 	}
 
+	now := time.Now()
 	portfolio := &mmodel.Portfolio{
 		ID:             portfolioID.String(),
 		EntityID:       cpi.EntityID,
@@ -52,24 +55,26 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating portfolio: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio", libLog.Err(err))
 
 		return nil, err
 	}
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	uc.emitPortfolioCreatedEvent(ctx, span, logger, port)
+
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityPortfolio, port.ID, cpi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create portfolio metadata", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating portfolio metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create portfolio metadata", libLog.Err(err))
 
 		return nil, err
 	}
@@ -77,4 +82,23 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	port.Metadata = metadata
 
 	return port, nil
+}
+
+// emitPortfolioCreatedEvent publishes the portfolio.created event for a
+// successfully persisted portfolio. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after PortfolioRepo.Create succeeds and
+// before CreateOnboardingMetadata runs, so a downstream Mongo failure
+// cannot mask the event.
+//
+// Wire-format mapping lives in pkg/streaming/events/portfolio_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitPortfolioCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *mmodel.Portfolio) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewPortfolioCreated(p).ToEmitRequest(tenantID, p.CreatedAt)
+		})
 }

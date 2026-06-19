@@ -8,10 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,7 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetAccountTypeByID get an Account Type from the repository by given id.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error) {
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account type on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account type on repo by id", err)
 
@@ -50,9 +49,9 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 	}
 
 	if accountType != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String())
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAccountType, id.String())
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account type", err)
 

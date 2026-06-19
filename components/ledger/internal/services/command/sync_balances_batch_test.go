@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -844,6 +845,84 @@ func TestSyncBalancesBatch_MalformedKeyWithTrailingHash(t *testing.T) {
 	assert.Equal(t, 1, result.BalancesAggregated)
 	assert.Equal(t, int64(1), result.BalancesSynced)
 	assert.Equal(t, int64(1), result.KeysRemoved, "Malformed key must be removed to break sync loop")
+}
+
+// TestSyncBalancesBatch_MultiTenant_PresentValuePersistsNotOrphaned is the use-case-level
+// regression for the multi-tenant balance-sync bug. With a tenant in context and already
+// tenant-namespaced claimed members, the (now-fixed) read returns the live balance value.
+// The flush MUST persist it to the database (UpdateMany called) and remove it as a *synced*
+// key — it must NOT be treated as an orphan and silently dropped. Before the fix, the read
+// double-namespaced the key, MGET missed, and the balance was dropped as a false orphan.
+func TestSyncBalancesBatch_MultiTenant_PresentValuePersistsNotOrphaned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Claimed ZSET member: tenant-namespaced exactly once (as written by the Lua script).
+	namespacedKey := "tenant:acme:balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
+
+	keys := []string{namespacedKey}
+
+	// The fixed read finds the value for the namespaced key (no double-prefix miss).
+	balanceData := map[string]*mmodel.BalanceRedis{
+		namespacedKey: {
+			ID:        balanceID.String(),
+			Alias:     "@acc1",
+			AssetCode: "USD",
+			Version:   1,
+			Available: decimal.NewFromInt(1000),
+		},
+	}
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalance := balance.NewMockRepository(ctrl)
+
+	mockRedis.EXPECT().
+		GetBalancesByKeys(gomock.Any(), keys).
+		Return(balanceData, nil).
+		Times(1)
+
+	// Must persist to DB — proves the value was NOT discarded as an orphan.
+	mockBalance.EXPECT().
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+			assert.Len(t, balances, 1, "the present balance must be queued for persistence")
+			assert.Equal(t, balanceID.String(), balances[0].ID)
+			assert.Equal(t, int64(1), balances[0].Version)
+			return 1, nil
+		}).
+		Times(1)
+
+	// The key is removed as a synced key (after a successful DB write), carrying its
+	// claimed score — not via the orphan-only cleanup path.
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
+			assert.Len(t, keysToRemove, 1)
+			assert.Equal(t, namespacedKey, keysToRemove[0].Key, "namespaced key must be removed verbatim")
+			assert.Equal(t, syncKeyScore(0), keysToRemove[0].Score, "claimed score must be preserved")
+			return 1, nil
+		}).
+		Times(1)
+
+	uc := UseCase{
+		TransactionRedisRepo: mockRedis,
+		BalanceRepo:          mockBalance,
+	}
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), "acme")
+
+	result, err := uc.SyncBalancesBatch(ctx, organizationID, ledgerID, toSyncKeys(keys))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 1, result.KeysProcessed)
+	assert.Equal(t, 1, result.BalancesAggregated, "present value must aggregate, not be orphaned")
+	assert.Equal(t, int64(1), result.BalancesSynced, "balance must be persisted to PostgreSQL")
+	assert.Equal(t, int64(1), result.KeysRemoved)
 }
 
 // TestSyncBalancesBatch_MalformedKeyFallbackToDefault verifies that when parsed partition

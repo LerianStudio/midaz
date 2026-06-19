@@ -8,11 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -21,7 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetAllMetadataOperationRoutes fetch all Operation Routes from the repository filtered by metadata
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
@@ -32,9 +31,9 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operation routes by metadata")
 
-	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
+	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperationRoute, filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo by metadata", err)
 
@@ -54,7 +53,7 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation routes on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
 

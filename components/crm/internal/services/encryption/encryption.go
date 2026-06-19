@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/crypto"

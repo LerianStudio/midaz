@@ -9,9 +9,9 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCommonsLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libCommonsOtel "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
+	libCommonsLog "github.com/LerianStudio/lib-observability/log"
+	libCommonsOtel "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 )
 

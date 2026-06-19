@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"testing"
 	"time"
 
@@ -674,7 +673,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1012,7 +1011,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 				// Find is always called first (scope guard). 404 now comes from Find.
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 				// Update must NOT be called when Find fails.
 				balanceRepo.EXPECT().
@@ -1145,7 +1144,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Check if balance with key already exists - returns not found (allows creation)
 				balanceRepo.EXPECT().
 					FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "freeze-assets").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 
 				// Get default balance to copy properties
@@ -1238,7 +1237,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Check if balance with key already exists - returns not found
 				balanceRepo.EXPECT().
 					FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "new-key").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 
 				// Get default balance - returns external account type
@@ -1283,13 +1282,13 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Check if balance with key already exists - returns not found
 				balanceRepo.EXPECT().
 					FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "new-balance").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 
 				// Get default balance fails
 				balanceRepo.EXPECT().
 					FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "default").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1312,7 +1311,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 				// Check if balance with key already exists - returns not found
 				balanceRepo.EXPECT().
 					FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, "test-key").
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 
 				// Get default balance succeeds
@@ -1534,7 +1533,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, cn.EntityBalance)).
 					Times(1)
 			},
 			expectedStatus: 404,

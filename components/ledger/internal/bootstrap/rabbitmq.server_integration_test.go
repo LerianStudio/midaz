@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"

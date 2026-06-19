@@ -7,7 +7,7 @@ package utils
 import (
 	"testing"
 
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	"github.com/LerianStudio/lib-observability/metrics"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -454,7 +453,7 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				operationRouteRepo.EXPECT().
 					FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -585,31 +584,6 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 					Update(gomock.Any(), "OperationRoute", operationRouteID.String(), gomock.Any()).
 					Return(nil).
 					Times(1)
-
-				// Query.GetOperationRouteByID
-				operationRouteRepo.EXPECT().
-					FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
-					Return(&mmodel.OperationRoute{
-						ID:             operationRouteID,
-						OrganizationID: orgID,
-						LedgerID:       ledgerID,
-						Title:          "Updated Cashin Route",
-						Description:    "Updated description",
-						OperationType:  "source",
-						CreatedAt:      time.Now().Add(-time.Hour),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetOperationRouteByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
-					Return(&mongodb.Metadata{
-						EntityID:   operationRouteID.String(),
-						EntityName: "OperationRoute",
-						Data:       map[string]any{"category": "updated"},
-					}, nil).
-					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -657,30 +631,6 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 					Return(nil).
 					Times(1)
 
-				// Query.GetOperationRouteByID
-				operationRouteRepo.EXPECT().
-					FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
-					Return(&mmodel.OperationRoute{
-						ID:             operationRouteID,
-						OrganizationID: orgID,
-						LedgerID:       ledgerID,
-						Title:          "Route with Account",
-						OperationType:  "source",
-						Account: &mmodel.AccountRule{
-							RuleType: "alias",
-							ValidIf:  "@new_account",
-						},
-						CreatedAt: time.Now().Add(-time.Hour),
-						UpdatedAt: time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetOperationRouteByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
-					Return(nil, nil).
-					Times(1)
-
 				// ReloadOperationRouteCache is called when Account is updated
 				operationRouteRepo.EXPECT().
 					FindTransactionRouteIDs(gomock.Any(), operationRouteID).
@@ -705,7 +655,7 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				operationRouteRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, operationRouteID, gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -889,7 +839,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 
 				operationRouteRepo.EXPECT().
 					Delete(gomock.Any(), orgID, ledgerID, operationRouteID).
-					Return(pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())).
+					Return(pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,

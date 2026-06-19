@@ -7,12 +7,12 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -37,7 +37,7 @@ func TestGetOperationByID(t *testing.T) {
 
 	expectedMetadata := &mongodb.Metadata{
 		EntityID:   operationID.String(),
-		EntityName: reflect.TypeOf(operation.Operation{}).Name(),
+		EntityName: constant.EntityOperation,
 		Data:       mongodb.JSON{"key": "value"},
 	}
 
@@ -55,7 +55,7 @@ func TestGetOperationByID(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), operationID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -99,7 +99,7 @@ func TestGetOperationByID_WithoutMetadata(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), operationID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(nil, nil).
 		Times(1)
 
@@ -174,7 +174,7 @@ func TestGetOperationByID_ErrorMetadataRepo(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), operationID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperation, operationID.String()).
 		Return(nil, metadataError).
 		Times(1)
 

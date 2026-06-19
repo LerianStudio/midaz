@@ -12,8 +12,9 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
@@ -33,7 +34,7 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 		return now, nil
 	}
 
-	logger := commons.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	if transactionInput.TransactionDate.After(now) {
 		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
@@ -54,28 +55,28 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 
 // ValidateBalancesRules function with some validates in accounts operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
-	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, spanValidateBalances := tracer.Start(ctx, "transaction.validate_balances_rules")
 	defer spanValidateBalances.End()
 
 	if len(balances) != (len(validate.From) + len(validate.To)) {
 		err := pkg.ValidateBusinessError(pkgConstant.ErrAccountIneligibility, "ValidateAccounts")
-		opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_balances_rules", err)
+		tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_balances_rules", err)
 
 		return err
 	}
 
 	for _, balance := range balances {
 		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
+			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate source balance", libLog.Err(err))
 
 			return err
 		}
 
 		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate destination balance", err)
+			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate destination balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate destination balance", libLog.Err(err))
 
 			return err
@@ -376,7 +377,7 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) (st
 // Skipped for CREATED transactions because their balance operations (simple
 // DEBIT/CREDIT) do not branch on RouteValidationEnabled.
 func PropagateRouteValidation(ctx context.Context, validate *Responses, transactionStatus string) {
-	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "transaction.propagate_route_validation")
 	defer span.End()
@@ -547,7 +548,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		destinationsTotal decimal.Decimal
 	)
 
-	logger, tracer, _, _ := commons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "transaction.validate_send_source_and_distribute")
 	defer span.End()

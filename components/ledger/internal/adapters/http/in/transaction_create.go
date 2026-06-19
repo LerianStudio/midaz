@@ -14,9 +14,10 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -30,7 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-//nolint:gocognit // Will be refactored into smaller functions.
+//nolint:gocognit,gocyclo // Will be refactored into smaller functions.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -49,7 +50,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 	var preBalances []*mmodel.Balance
 
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction_operations")
 	defer span.End()
@@ -560,7 +561,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
@@ -631,7 +632,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -681,7 +682,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -707,7 +708,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
@@ -764,7 +765,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -816,7 +817,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -944,7 +945,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -964,9 +965,10 @@ func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transac
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
 }
 
+//nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
 func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
@@ -1196,7 +1198,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    transactionInput.Route,
+		Route:                    transactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  transactionInput.RouteID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{

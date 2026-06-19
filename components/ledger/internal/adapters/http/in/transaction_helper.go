@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
@@ -126,7 +126,7 @@ type balanceRef struct {
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
 func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
 	balanceByAliasKey := make(map[string]balanceRef, len(balances))

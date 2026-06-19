@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -25,7 +24,7 @@ import (
 
 // TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error
 func TestGetAllMetadataTransactions(t *testing.T) {
-	collection := reflect.TypeOf(transaction.Transaction{}).Name()
+	collection := constant.EntityTransaction
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
@@ -145,7 +144,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(transaction.Transaction{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityTransaction, filter).
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
@@ -156,7 +155,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	mockMetadataRepo.EXPECT().
 		FindByEntityIDs(
 			gomock.Any(),
-			reflect.TypeOf(operation.Operation{}).Name(),
+			constant.EntityOperation,
 			[]string{"op1-" + txID1Str, "op2-" + txID2Str},
 		).
 		Return(opMeta, nil)
@@ -201,7 +200,7 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 
-	collection := reflect.TypeOf(transaction.Transaction{}).Name()
+	collection := constant.EntityTransaction
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"k": "v"},
 		Limit:    10,

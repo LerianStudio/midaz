@@ -6,104 +6,82 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
-	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-
-	// CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
-	// If key != "default", it validates that the default balance exists and that the account type allows additional balances.
-
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	"go.opentelemetry.io/otel/attribute"
 )
 
-func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+// CreateDefaultBalance creates the default balance for a newly-created
+// account or asset. The balance key is hardcoded to
+// constant.DefaultBalanceKey and the direction to constant.DirectionCredit.
+//
+// Additional (non-default) balances are created via CreateAdditionalBalance,
+// which is exposed through the POST /balances HTTP endpoint and applies
+// its own validation rules (reserved keys, direction, settings).
+//
+// This function is the bootstrap path called inline from CreateAccount and
+// CreateAsset; it is not exposed via an HTTP route. The input's Key field
+// is ignored — the contract is encoded in the function name.
+func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_balance_sync")
+	ctx, span := tracer.Start(ctx, "command.create_default_balance")
 	defer span.End()
 
-	normalizedKey := strings.ToLower(strings.TrimSpace(input.Key))
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", input.OrganizationID.String()),
+		attribute.String("app.request.ledger_id", input.LedgerID.String()),
+		attribute.String("app.request.account_id", input.AccountID.String()),
+		attribute.String("app.request.asset_code", input.AssetCode),
+		attribute.String("app.request.account_type", input.AccountType),
+	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating balance for account id: %v with key: %v", input.AccountID, normalizedKey))
-
-	if normalizedKey != constant.DefaultBalanceKey {
-		existsDefault, err := uc.BalanceRepo.ExistsByAccountIDAndKey(ctx, input.OrganizationID, input.LedgerID, input.AccountID, constant.DefaultBalanceKey)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check default balance existence", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check default balance existence: %v", err))
-
-			return nil, err
-		}
-
-		if !existsDefault {
-			berr := pkg.ValidateBusinessError(constant.ErrDefaultBalanceNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Default balance not found", berr)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Default balance not found: %v", berr))
-
-			return nil, berr
-		}
-
-		// Validate additional balance not allowed for external account type
-		if input.AccountType == constant.ExternalAccountType {
-			err := pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), input.Alias)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance not allowed for external account type", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Additional balance not allowed for external account type: %v", err))
-
-			return nil, err
-		}
-	}
-
-	existsKey, err := uc.BalanceRepo.ExistsByAccountIDAndKey(ctx, input.OrganizationID, input.LedgerID, input.AccountID, normalizedKey)
+	// Defensive duplicate guard. The account is normally brand-new at this
+	// point, so no balance exists; this check catches retried compensation
+	// paths and other edge cases where an orphan default row could already
+	// be present.
+	existsKey, err := uc.BalanceRepo.ExistsByAccountIDAndKey(ctx, input.OrganizationID, input.LedgerID, input.AccountID, constant.DefaultBalanceKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check if balance already exists", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check if balance already exists: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to check if balance already exists", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to check if balance already exists", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if existsKey {
-		err := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance key already exists", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Balance key already exists: %v", err))
+		err := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, constant.DefaultBalanceKey)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Default balance already exists", err)
 
 		return nil, err
 	}
 
-	// Default balances (created alongside an account or asset) always use
-	// the "credit" direction. The migration defines direction as NOT NULL
-	// with a CHECK constraint (credit|debit), so we must set an explicit
-	// value rather than relying on the DB default — the INSERT column list
-	// includes "direction" and would otherwise send an empty string and
-	// fail the CHECK. Setting it here also ensures the Go model stays
-	// consistent with the persisted row returned by RETURNING.
-	now := time.Now()
+	balanceUUID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for balance", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for balance", libLog.Err(err))
 
-	balanceUUID, uuidErr := libCommons.GenerateUUIDv7()
-	if uuidErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for balance", uuidErr)
-		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for balance", libLog.Err(uuidErr))
-
-		return nil, uuidErr
+		return nil, err
 	}
+
+	// Default balances always use the "credit" direction. The migration
+	// defines direction as NOT NULL with a CHECK constraint (credit|debit),
+	// so we set the value explicitly rather than relying on the DB default —
+	// the INSERT column list includes "direction" and would otherwise send
+	// an empty string and fail the CHECK. Setting it here also keeps the
+	// Go model consistent with the persisted row returned by RETURNING.
+	now := time.Now()
 
 	newBalance := &mmodel.Balance{
 		ID:             balanceUUID.String(),
 		Alias:          input.Alias,
-		Key:            normalizedKey,
+		Key:            constant.DefaultBalanceKey,
 		OrganizationID: input.OrganizationID.String(),
 		LedgerID:       input.LedgerID.String(),
 		AccountID:      input.AccountID.String(),
@@ -118,9 +96,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 	created, err := uc.BalanceRepo.Create(ctx, newBalance)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create balance on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create balance on repo: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to create balance on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to create balance on repo", libLog.Err(err))
 
 		return nil, err
 	}

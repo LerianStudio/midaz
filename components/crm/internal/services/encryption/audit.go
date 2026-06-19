@@ -8,10 +8,10 @@ import (
 	"context"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	libRuntime "github.com/LerianStudio/lib-commons/v5/commons/runtime"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libRuntime "github.com/LerianStudio/lib-observability/runtime"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"

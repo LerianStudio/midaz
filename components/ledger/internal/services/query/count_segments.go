@@ -8,15 +8,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +30,7 @@ func (uc *UseCase) CountSegments(ctx context.Context, organizationID, ledgerID u
 	count, err := uc.SegmentRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No segments found for organization: %s", organizationID.String()))
 

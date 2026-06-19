@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -25,7 +24,7 @@ import (
 
 // TestGetAllMetadataOperations is responsible to test GetAllMetadataOperations with success and error
 func TestGetAllMetadataOperations(t *testing.T) {
-	collection := reflect.TypeOf(operation.Operation{}).Name()
+	collection := constant.EntityOperation
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
@@ -119,7 +118,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
@@ -171,7 +170,7 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(nil, errors.New("metadata not found"))
 
 	uc := &UseCase{
@@ -213,7 +212,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
@@ -261,7 +260,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 	repoError := errors.New("database connection error")
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().

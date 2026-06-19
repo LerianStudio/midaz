@@ -8,10 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -19,7 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	// GetBalanceByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {
@@ -38,7 +37,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	}
 
 	if balance == nil {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
 

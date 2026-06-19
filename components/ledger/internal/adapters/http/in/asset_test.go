@@ -79,7 +79,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 					}).
 					Times(1)
 
-				// CreateBalanceSync uses BalanceRepo internally
+				// CreateDefaultBalance uses BalanceRepo internally
 				balanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(false, nil).Times(1)
@@ -227,7 +227,6 @@ func TestHandler_UpdateAsset(t *testing.T) {
 				Name: "Updated Asset Name",
 			},
 			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, assetID uuid.UUID) {
-				// Update succeeds
 				assetRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
 					Return(&mmodel.Asset{
@@ -243,32 +242,9 @@ func TestHandler_UpdateAsset(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// UpdateMetadata is called
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), "Asset", assetID.String(), gomock.Any()).
 					Return(nil).
-					Times(1)
-
-				// Retrieval after update
-				assetRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, assetID).
-					Return(&mmodel.Asset{
-						ID:             assetID.String(),
-						OrganizationID: orgID.String(),
-						LedgerID:       ledgerID.String(),
-						Name:           "Updated Asset Name",
-						Code:           "TST",
-						Type:           "commodity",
-						Status:         mmodel.Status{Code: "ACTIVE"},
-						CreatedAt:      time.Now(),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetAssetByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Asset", assetID.String()).
-					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -301,39 +277,6 @@ func TestHandler_UpdateAsset(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrAssetIDNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdateAssetInput{
-				Name: "Updated Name",
-			},
-			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, assetID uuid.UUID) {
-				// Update succeeds
-				assetRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
-					Return(&mmodel.Asset{ID: assetID.String()}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "Asset", assetID.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				assetRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, assetID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{
