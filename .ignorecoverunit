@@ -16,6 +16,10 @@
 /cmd/app/
 bootstrap.go
 
+# Fees Mongo adapters (tested via integration tests; per-operation file split, not *.mongodb.go)
+/internal/adapters/mongodb/fees/billing_package/
+/internal/adapters/mongodb/fees/pack/
+
 # Auto-generated API docs
 /api/
 

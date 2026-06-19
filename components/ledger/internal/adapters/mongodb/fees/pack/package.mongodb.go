@@ -21,7 +21,7 @@ import (
 
 // Repository provides an interface for operations related to mongo metadata entities.
 //
-//go:generate mockgen --destination=./package_mondogdb_mock.go --package=pack . Repository
+//go:generate mockgen --destination=./package_mongodb_mock.go --package=pack . Repository
 type Repository interface {
 	Create(ctx context.Context, pack *Package, organizationID uuid.UUID) (*Package, error)
 	FindList(ctx context.Context, filters http.QueryHeader) ([]*Package, error)
