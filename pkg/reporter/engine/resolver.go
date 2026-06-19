@@ -165,6 +165,16 @@ type multiTenantResolver struct {
 // datasource config name (env-derived, identical across tenants in
 // database-per-tenant mode); a nil schemas func defaults to ["public"].
 func NewMultiTenantResolver(pg PostgresManager, mongo MongoManager, schemas func(configName string) []string) TenantResolver {
+	// Fail closed at construction, symmetric with NewMultiTenantDirectProvider: a
+	// nil manager would survive here and nil-deref on the first per-tenant resolve
+	// (the db==nil guards catch a nil RETURNED connection, not a nil manager).
+	// Multi-tenant mode must never fall open to a shared pool, so a missing manager
+	// is a bootstrap programmer error — die before serving rather than risk a
+	// cross-tenant read.
+	if pg == nil || mongo == nil {
+		panic("NewMultiTenantResolver: both tenant managers are required (multi-tenant mode cannot fail open to a shared pool)")
+	}
+
 	if schemas == nil {
 		schemas = func(string) []string { return []string{"public"} }
 	}

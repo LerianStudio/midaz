@@ -48,7 +48,7 @@ func newSmokeEngine(t *testing.T, dbs map[string]*sql.DB) *fetcher.Engine {
 		names: []string{"ledger"},
 	}
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: dbs}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: dbs}, &mongoManagerFake{}, nil)
 
 	engine, err := fetcher.New(
 		fetcher.WithConnectorRegistry(NewRegistry(resolver, nil)),

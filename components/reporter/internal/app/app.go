@@ -115,6 +115,13 @@ func InitService(mode RunMode, logger libLog.Logger) (*Service, error) {
 
 		worker, err := workerBootstrap.InitWorker()
 		if err != nil {
+			// Under RUN_MODE=all the manager surface was already constructed (and
+			// opened its connections) above. Tear it down before bailing so a
+			// worker-init failure does not leak the manager's pools.
+			if svc.manager != nil {
+				svc.manager.Shutdown()
+			}
+
 			return nil, fmt.Errorf("failed to initialize reporter worker surface: %w", err)
 		}
 

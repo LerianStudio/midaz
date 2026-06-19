@@ -560,7 +560,7 @@ func TestConnectToDataSourceWithRetry_UnsupportedType(t *testing.T) {
 	}
 	externalDS := map[string]DataSource{"retry_unsupported_db": *ds}
 
-	err := ConnectToDataSourceWithRetry("retry_unsupported_db", ds, logger, externalDS)
+	err := ConnectToDataSourceWithRetry(context.Background(), "retry_unsupported_db", ds, logger, externalDS)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retry_unsupported_db")
 }
@@ -583,7 +583,7 @@ func TestConnectToDataSourceWithRetry_FatalErrorSkipsRetries(t *testing.T) {
 	}
 	externalDS := map[string]DataSource{"fatal_err_db": *ds}
 
-	err := ConnectToDataSourceWithRetry("fatal_err_db", ds, logger, externalDS)
+	err := ConnectToDataSourceWithRetry(context.Background(), "fatal_err_db", ds, logger, externalDS)
 	require.Error(t, err)
 
 	// RetryCount should be low since fatal errors skip retries
@@ -925,7 +925,7 @@ func TestExternalDatasourceConnections_UnsupportedType(t *testing.T) {
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(context.Background())
 
-	result := ExternalDatasourceConnections(logger)
+	result := ExternalDatasourceConnections(context.Background(), logger)
 	assert.NotNil(t, result)
 
 	// Unsupported type should be skipped entirely (not added to the map)
@@ -962,7 +962,7 @@ func TestExternalDatasourceConnections_MultipleDatasources(t *testing.T) {
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(context.Background())
 
-	result := ExternalDatasourceConnections(logger)
+	result := ExternalDatasourceConnections(context.Background(), logger)
 	assert.NotNil(t, result)
 
 	// The postgres datasource should be in the map (even if connection failed)
@@ -995,7 +995,7 @@ func TestExternalDatasourceConnections_CountsAvailableAndUnavailable(t *testing.
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(context.Background())
 
-	result := ExternalDatasourceConnections(logger)
+	result := ExternalDatasourceConnections(context.Background(), logger)
 	assert.NotNil(t, result)
 
 	// The datasource should be in the map but unavailable
@@ -1322,7 +1322,7 @@ func TestConnectToDataSourceWithRetry_RetriesNonFatalError(t *testing.T) {
 	}
 	externalDS := map[string]DataSource{"retry_nonfatal_db": *ds}
 
-	err := ConnectToDataSourceWithRetry("retry_nonfatal_db", ds, logger, externalDS)
+	err := ConnectToDataSourceWithRetry(context.Background(), "retry_nonfatal_db", ds, logger, externalDS)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retry_nonfatal_db")
 

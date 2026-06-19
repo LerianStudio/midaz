@@ -25,10 +25,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// sleepFunc is the function used for sleeping between retries.
-// Overridable in tests for deterministic behavior.
-var sleepFunc = time.Sleep
-
 // producerBackoff returns the publish-retry delay for the given retry attempt
 // (0-indexed) using lib-commons full-jitter exponential backoff, capped at
 // ProducerMaxBackoff. Full jitter randomizes the delay across [0, base*2^attempt)
@@ -181,7 +177,11 @@ func (prmq *ProducerRabbitMQRepository) publishMultiTenant(
 			)
 
 			spanProducer.SetAttributes(attribute.Int("app.request.rabbitmq.retry_attempt", attempt))
-			sleepFunc(sleepDuration)
+
+			if waitErr := libBackoff.WaitContext(ctx, sleepDuration); waitErr != nil {
+				logger.Log(ctx, clog.LevelWarn, "Multi-tenant publish retry interrupted by context cancellation", clog.String("tenant_id", tenantID), clog.Err(waitErr))
+				return waitErr
+			}
 		}
 
 		channel, chanErr := prmq.rabbitMQManager.GetChannel(ctx, tenantID)
@@ -267,7 +267,10 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 				clog.Int("max_attempts", constant.ProducerMaxRetries+1),
 			)
 
-			sleepFunc(sleepDuration)
+			if waitErr := libBackoff.WaitContext(ctx, sleepDuration); waitErr != nil {
+				logger.Log(ctx, clog.LevelWarn, "EnsureChannel retry interrupted by context cancellation", clog.Err(waitErr))
+				return waitErr
+			}
 
 			continue
 		}
@@ -316,7 +319,10 @@ func (prmq *ProducerRabbitMQRepository) publishSingleTenant(
 			clog.Int("max_attempts", constant.ProducerMaxRetries+1),
 		)
 
-		sleepFunc(sleepDuration)
+		if waitErr := libBackoff.WaitContext(ctx, sleepDuration); waitErr != nil {
+			logger.Log(ctx, clog.LevelWarn, "Publish retry interrupted by context cancellation", clog.Err(waitErr))
+			return waitErr
+		}
 	}
 
 	return publishErr

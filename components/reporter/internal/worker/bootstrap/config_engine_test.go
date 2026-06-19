@@ -20,7 +20,17 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	libMongo "go.mongodb.org/mongo-driver/v2/mongo"
 )
+
+// noopMongoManager is a non-nil engine.MongoManager that is never exercised. It
+// exists so a postgres-only resolver test can satisfy NewMultiTenantResolver's
+// fail-closed nil-manager guard without standing up a real mongo manager.
+type noopMongoManager struct{}
+
+func (noopMongoManager) GetDatabaseForTenant(context.Context, string) (*libMongo.Database, error) {
+	return nil, errors.New("noopMongoManager must never be called")
+}
 
 // stubConnector is a database/sql/driver.Connector that never dials. It exists
 // so a test can build a real *sql.DB handle (for dbresolver.New) without opening
@@ -190,7 +200,7 @@ func TestTenantPostgresAdapter_ViaMultiTenantResolver_PropagatesError(t *testing
 	// CategoryUnavailable *EngineError and the request is refused — it does not
 	// fall through to any single-tenant pool.
 	mgr := &fakeTenantPGManager{err: errors.New("pool exhausted")}
-	resolver := reporterEngine.NewMultiTenantResolver(newTenantPostgresAdapter(mgr), nil, nil)
+	resolver := reporterEngine.NewMultiTenantResolver(newTenantPostgresAdapter(mgr), noopMongoManager{}, nil)
 
 	_, err := resolver.ResolvePostgres(context.Background(), "tenant-x", "ledger")
 	var engineErr *fetcherEngine.EngineError

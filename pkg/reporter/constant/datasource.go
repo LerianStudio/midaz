@@ -48,10 +48,9 @@ const (
 
 // DataSource Initialization Retry Configuration
 const (
-	DataSourceMaxRetries        = 3
-	DataSourceInitialBackoff    = 1 * time.Second
-	DataSourceMaxBackoff        = 10 * time.Second
-	DataSourceBackoffMultiplier = 2.0
+	DataSourceMaxRetries     = 3
+	DataSourceInitialBackoff = 1 * time.Second
+	DataSourceMaxBackoff     = 10 * time.Second
 )
 
 // Health Check Configuration

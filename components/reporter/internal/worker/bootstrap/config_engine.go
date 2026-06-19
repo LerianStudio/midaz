@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg/reporter"
@@ -22,6 +23,12 @@ import (
 	libMongo "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// defaultInProcessSchemaCacheTTL is the fallback TTL for the in-process schema
+// cache when no positive TTL is configured. Schema is static between migrations,
+// so a long TTL is safe — a stale entry only survives until the next worker
+// restart or the next migration-driven schema change.
+const defaultInProcessSchemaCacheTTL = 10 * time.Minute
 
 // initWorkerEngine constructs the embedded extraction engine and wires it onto
 // the worker's UseCase. It is called from initWorkerDependencies AFTER the
@@ -65,12 +72,25 @@ func initWorkerEngine(
 		fetcherEngine.WithLimits(engineLimits(cfg)),
 	}
 
-	// Optional SchemaCache: wired only when a Redis repository is available
-	// (it backs the reconciler lock). A schema-cache outage degrades to fresh
-	// discovery, so its absence is not a failure.
+	// SchemaCache wiring. Database schema is static between migrations, so a
+	// cached snapshot spares every report a full information_schema scan (and the
+	// per-collection mongo field sampling). A Redis-backed cache is preferred when
+	// available (it shares the reconciler's Redis and survives process restarts);
+	// otherwise an in-process TTL cache keeps the schema hot for the lifetime of
+	// this worker. Either way a cache miss degrades to fresh discovery, so the
+	// cache is never load-bearing for correctness.
+	schemaCacheTTL := time.Duration(cfg.MultiTenantIdleTimeoutSec) * time.Second
+	if schemaCacheTTL <= 0 {
+		schemaCacheTTL = defaultInProcessSchemaCacheTTL
+	}
+
 	if redisRepo != nil {
 		opts = append(opts, fetcherEngine.WithSchemaCache(
-			reporterEngine.NewSchemaCache(redisRepo, time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second),
+			reporterEngine.NewSchemaCache(redisRepo, schemaCacheTTL),
+		))
+	} else {
+		opts = append(opts, fetcherEngine.WithSchemaCache(
+			newInProcessSchemaCache(schemaCacheTTL),
 		))
 	}
 
@@ -81,7 +101,8 @@ func initWorkerEngine(
 
 	logger.Log(context.Background(), clog.LevelInfo, "Embedded extraction engine constructed",
 		clog.Bool("multi_tenant", resolver.IsMultiTenant()),
-		clog.Bool("schema_cache", redisRepo != nil))
+		clog.Bool("schema_cache", true),
+		clog.Bool("schema_cache_redis_backed", redisRepo != nil))
 
 	return engine, nil
 }
@@ -343,4 +364,79 @@ func databaseNameOf(ds pkg.DataSource) string {
 	}
 
 	return ""
+}
+
+// inProcessSchemaCache is a minimal in-memory, TTL-bounded fetcher.SchemaCache
+// used when no Redis-backed cache is wired. It spares each report a fresh
+// information_schema scan / mongo field sampling by holding discovered snapshots
+// for the worker's lifetime. Entries are keyed by tenant ID + datasource config
+// name so a snapshot is never served across tenants; in single-tenant mode the
+// tenant ID is empty and the key collapses to the config name. A miss (absent or
+// expired) degrades to fresh discovery, so the cache is never load-bearing.
+type inProcessSchemaCache struct {
+	ttl time.Duration
+
+	mu      sync.RWMutex
+	entries map[string]inProcessSchemaEntry
+}
+
+// inProcessSchemaEntry is one cached snapshot and its expiry instant.
+type inProcessSchemaEntry struct {
+	snapshot  fetcherEngine.SchemaSnapshot
+	expiresAt time.Time
+}
+
+// Compile-time check that inProcessSchemaCache satisfies the engine's optional
+// SchemaCache port.
+var _ fetcherEngine.SchemaCache = (*inProcessSchemaCache)(nil)
+
+// newInProcessSchemaCache builds an in-process TTL schema cache. A non-positive
+// ttl is normalized to defaultInProcessSchemaCacheTTL.
+func newInProcessSchemaCache(ttl time.Duration) *inProcessSchemaCache {
+	if ttl <= 0 {
+		ttl = defaultInProcessSchemaCacheTTL
+	}
+
+	return &inProcessSchemaCache{
+		ttl:     ttl,
+		entries: make(map[string]inProcessSchemaEntry),
+	}
+}
+
+// GetSchema returns the cached snapshot for the tenant+datasource pair. An absent
+// or expired entry reports ok=false with a nil error so the engine falls back to
+// fresh discovery.
+func (c *inProcessSchemaCache) GetSchema(_ context.Context, tenant fetcherEngine.TenantContext, configName string) (fetcherEngine.SchemaSnapshot, bool, error) {
+	key := inProcessSchemaKey(tenant.TenantID, configName)
+
+	c.mu.RLock()
+	entry, ok := c.entries[key]
+	c.mu.RUnlock()
+
+	if !ok || time.Now().After(entry.expiresAt) {
+		return fetcherEngine.SchemaSnapshot{}, false, nil
+	}
+
+	return entry.snapshot, true, nil
+}
+
+// PutSchema stores the snapshot under the tenant-scoped key with the configured
+// TTL. It never fails the caller.
+func (c *inProcessSchemaCache) PutSchema(_ context.Context, tenant fetcherEngine.TenantContext, snapshot fetcherEngine.SchemaSnapshot) error {
+	key := inProcessSchemaKey(tenant.TenantID, snapshot.ConfigName)
+
+	c.mu.Lock()
+	c.entries[key] = inProcessSchemaEntry{
+		snapshot:  snapshot,
+		expiresAt: time.Now().Add(c.ttl),
+	}
+	c.mu.Unlock()
+
+	return nil
+}
+
+// inProcessSchemaKey partitions the cache by tenant so no cross-tenant schema
+// serving is structurally possible.
+func inProcessSchemaKey(tenantID, configName string) string {
+	return tenantID + ":" + configName
 }

@@ -10,28 +10,7 @@ const (
 	DefaultPrefetchCount = 1
 )
 
-// RabbitMQ Exchange and Queue names for Fetcher notification consumer (Consumer 2).
-// The exchange is OWNED by the Fetcher service (topic type). The Reporter binds
-// its own queue to consume notifications with routing keys job.completed.reporter
-// and job.failed.reporter.
-const (
-	FetcherJobEventsExchange         = "fetcher.job.events"
-	FetcherNotificationQueue         = "reporter.fetcher.job.events"
-	FetcherNotificationRoutingSource = "reporter"
-	FetcherNotificationBindCompleted = "job.completed.reporter"
-	FetcherNotificationBindFailed    = "job.failed.reporter"
-)
-
-// Extraction mapping statuses.
-const (
-	ExtractionStatusPending    = "pending"
-	ExtractionStatusProcessing = "processing"
-	ExtractionStatusCompleted  = "completed"
-	ExtractionStatusFailed     = "failed"
-)
-
-// Fetcher notification statuses (sent by Fetcher service).
-const (
-	FetcherStatusCompleted = "completed"
-	FetcherStatusFailed    = "failed"
-)
+// FetcherNotificationRoutingSource is the "source" value stamped on
+// extraction-mapping notifications the reporter emits, identifying the reporter
+// as the originator.
+const FetcherNotificationRoutingSource = "reporter"

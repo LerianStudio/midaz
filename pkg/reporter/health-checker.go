@@ -137,8 +137,14 @@ func (hc *HealthChecker) healthCheckLoop() {
 	ticker := time.NewTicker(constant.HealthCheckInterval)
 	defer ticker.Stop()
 
-	// Run initial check after a short delay
-	time.Sleep(5 * time.Second)
+	// Run initial check after a short delay, but stay interruptible: a Stop()
+	// during the delay must return promptly instead of blocking up to 5s.
+	select {
+	case <-time.After(5 * time.Second):
+	case <-hc.stopChan:
+		return
+	}
+
 	hc.performHealthChecks()
 
 	for {

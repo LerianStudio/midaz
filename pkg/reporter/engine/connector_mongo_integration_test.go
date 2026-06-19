@@ -94,7 +94,7 @@ func TestIntegration_MongoConnector_StreamsAndProjects(t *testing.T) {
 		{"_id": "h-3", "name": "Carol", "ssn": "secret"},
 	})
 
-	resolver := NewMultiTenantResolver(nil, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{}, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypeMongo)
 
@@ -141,7 +141,7 @@ func TestIntegration_MongoConnector_TenantIsolation(t *testing.T) {
 	seedCollection(t, dbA, "holders", []bson.M{{"_id": "1", "owner": "tenant-a"}})
 	seedCollection(t, dbB, "holders", []bson.M{{"_id": "1", "owner": "tenant-b"}})
 
-	resolver := NewMultiTenantResolver(nil, &mongoManagerFake{dbs: map[string]*mongo.Database{
+	resolver := NewMultiTenantResolver(&pgManagerFake{}, &mongoManagerFake{dbs: map[string]*mongo.Database{
 		"tenant-a": dbA,
 		"tenant-b": dbB,
 	}}, nil)
@@ -188,7 +188,7 @@ func TestIntegration_MongoConnector_ContextCancelMidStream(t *testing.T) {
 
 	seedCollection(t, db, "events", docs)
 
-	resolver := NewMultiTenantResolver(nil, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{}, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypeMongo)
 
@@ -229,7 +229,7 @@ func streamMongoFiltered(t *testing.T, db *mongo.Database, fields []string, filt
 
 	ctx := context.Background()
 
-	resolver := NewMultiTenantResolver(nil, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{}, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypeMongo)
 
@@ -367,7 +367,7 @@ func TestIntegration_MongoConnector_DiscoverSchema(t *testing.T) {
 
 	seedCollection(t, db, "holders", []bson.M{{"_id": "1", "name": "Alice", "email": "a@x.io"}})
 
-	resolver := NewMultiTenantResolver(nil, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{}, &mongoManagerFake{dbs: map[string]*mongo.Database{"tenant-default": db}}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypeMongo)
 

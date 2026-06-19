@@ -127,7 +127,7 @@ func initWorkerDependencies(cfg *Config, logger clog.Logger, tenantMongoManager 
 	// Connect to external datasources. The embedded engine resolves and queries
 	// these in-process (and the crm fan-out reuses the same pools); the
 	// HTTP-fetcher path that previously skipped direct connections is gone.
-	externalDataSourcesMap := pkg.ExternalDatasourceConnections(logger)
+	externalDataSourcesMap := pkg.ExternalDatasourceConnections(ctx, logger)
 	externalDataSources := pkg.NewSafeDataSources(externalDataSourcesMap)
 
 	healthChecker, err := pkg.NewHealthCheckerWithMetrics(&externalDataSourcesMap, circuitBreakerManager, logger, dsMetrics)

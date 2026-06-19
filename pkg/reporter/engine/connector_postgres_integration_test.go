@@ -137,7 +137,7 @@ func TestIntegration_PostgresConnector_StreamsAndProjects(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 
@@ -184,7 +184,7 @@ func streamPostgresFiltered(t *testing.T, db *sql.DB, fields []string, filters d
 
 	ctx := context.Background()
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 
@@ -314,7 +314,7 @@ func TestIntegration_PostgresConnector_DiscoverSchema(t *testing.T) {
 	_, err := db.ExecContext(ctx, `CREATE TABLE accounts (id text PRIMARY KEY, balance int)`)
 	require.NoError(t, err)
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 
@@ -359,7 +359,7 @@ func TestIntegration_PostgresConnector_TenantIsolation(t *testing.T) {
 	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{
 		"tenant-a": dbA,
 		"tenant-b": dbB,
-	}}, nil, nil)
+	}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 
@@ -405,7 +405,7 @@ func TestIntegration_PostgresConnector_ContextCancelMidStream(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 
@@ -457,7 +457,7 @@ func TestIntegration_PostgresConnector_LargeResultStreamsBounded(t *testing.T) {
 		`INSERT INTO big (payload) SELECT $1 FROM generate_series(1, $2)`, payload, rowCount)
 	require.NoError(t, err)
 
-	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, nil, nil)
+	resolver := NewMultiTenantResolver(&pgManagerFake{dbs: map[string]*sql.DB{"tenant-default": db}}, &mongoManagerFake{}, nil)
 	reg := NewRegistry(resolver, nil)
 	factory, _ := reg.Connector(DatasourceTypePostgres)
 

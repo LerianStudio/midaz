@@ -6,7 +6,6 @@ package rabbitmq
 
 import (
 	"context"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,16 +41,22 @@ func newTestProducer() *ProducerRabbitMQRepository {
 	return &ProducerRabbitMQRepository{conn: conn}
 }
 
-// TestProducerDefault_RetryBehavior groups all tests that modify the package-level
-// sleepFunc variable to prevent data races. These subtests run sequentially.
-// NOTE: Cannot use t.Parallel() because subtests modify the package-level sleepFunc variable.
+// TestProducerDefault_RetryBehavior exercises the retry loop's interaction with
+// context cancellation. The retry wait now goes through libBackoff.WaitContext
+// (the ctx-timeout seam replacing the old overridable sleepFunc), so a cancelled
+// or deadline-exceeded context aborts the loop and surfaces the context error
+// instead of blocking through the remaining backoff windows.
 func TestProducerDefault_RetryBehavior(t *testing.T) {
-	t.Run("Error - EnsureChannelRetryExhaustion", func(t *testing.T) {
-		// Override sleepFunc to be a no-op for fast tests
-		originalSleep := sleepFunc
-		sleepFunc = func(_ time.Duration) {}
+	t.Parallel()
 
-		defer func() { sleepFunc = originalSleep }()
+	t.Run("Error - RetryExhaustionWithoutBlocking", func(t *testing.T) {
+		t.Parallel()
+
+		// An already-cancelled context makes WaitContext return immediately on the
+		// first retry, so the loop terminates fast without real backoff sleeps. The
+		// publish still fails (no broker), so an error is returned.
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 
 		producer := newTestProducer()
 
@@ -61,47 +66,20 @@ func TestProducerDefault_RetryBehavior(t *testing.T) {
 			OutputFormat: "pdf",
 		}
 
-		_, err := producer.ProducerDefault(context.Background(), "test-exchange", "test-key", msg)
+		_, err := producer.ProducerDefault(ctx, "test-exchange", "test-key", msg)
 
-		// Should fail after exhausting all retries
 		require.Error(t, err)
 	})
 
-	t.Run("Success - SleepIsCalledOnRetry", func(t *testing.T) {
-		var sleepCallCount atomic.Int32
+	t.Run("Error - DeadlineInterruptsRetryWait", func(t *testing.T) {
+		t.Parallel()
 
-		originalSleep := sleepFunc
-		sleepFunc = func(_ time.Duration) {
-			sleepCallCount.Add(1)
-		}
-
-		defer func() { sleepFunc = originalSleep }()
-
-		producer := newTestProducer()
-
-		msg := model.ReportMessage{
-			ReportID:     uuid.New(),
-			TemplateID:   uuid.New(),
-			OutputFormat: "pdf",
-		}
-
-		_, _ = producer.ProducerDefault(context.Background(), "test-exchange", "test-key", msg)
-
-		// Sleep should be called exactly ProducerMaxRetries times
-		// (once per retry, not for the final failed attempt)
-		assert.Equal(t, int32(constant.ProducerMaxRetries), sleepCallCount.Load(),
-			"sleep should be called exactly %d times (once per retry before the final failure)", constant.ProducerMaxRetries)
-	})
-
-	t.Run("Success - SleepReceivesPositiveDuration", func(t *testing.T) {
-		var sleepDurations []time.Duration
-
-		originalSleep := sleepFunc
-		sleepFunc = func(d time.Duration) {
-			sleepDurations = append(sleepDurations, d)
-		}
-
-		defer func() { sleepFunc = originalSleep }()
+		// A short deadline lets the first attempt fail and the first retry wait be
+		// interrupted by WaitContext, so the call returns well before the full
+		// ProducerMaxRetries backoff schedule (which would otherwise span seconds)
+		// elapses.
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
 
 		producer := newTestProducer()
 
@@ -111,19 +89,14 @@ func TestProducerDefault_RetryBehavior(t *testing.T) {
 			OutputFormat: "pdf",
 		}
 
-		_, _ = producer.ProducerDefault(context.Background(), "test-exchange", "test-key", msg)
+		start := time.Now()
+		_, err := producer.ProducerDefault(ctx, "test-exchange", "test-key", msg)
+		elapsed := time.Since(start)
 
-		// All sleep durations should be non-negative and within bounds
-		for i, d := range sleepDurations {
-			assert.GreaterOrEqual(t, d, time.Duration(0), "sleep duration %d should be non-negative", i)
-			assert.LessOrEqual(t, d, constant.ProducerMaxBackoff, "sleep duration %d should not exceed max backoff", i)
-		}
-	})
-
-	t.Run("Success - SleepFuncDefaultIsTimeSleep", func(t *testing.T) {
-		// Restore to original default
-		sleepFunc = time.Sleep
-		assert.NotNil(t, sleepFunc, "sleepFunc should default to time.Sleep")
+		require.Error(t, err)
+		// Without ctx-aware waits the loop would block through the full backoff
+		// schedule (>> 1s). With WaitContext it returns near the deadline.
+		assert.Less(t, elapsed, time.Second, "deadline must interrupt the retry wait quickly")
 	})
 }
 

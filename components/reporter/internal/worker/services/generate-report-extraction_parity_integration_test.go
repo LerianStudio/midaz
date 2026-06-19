@@ -420,7 +420,7 @@ func parityEngineNoMongo(t *testing.T, pg *sql.DB) *fetcherEngine.Engine {
 
 	resolver := rengine.NewMultiTenantResolver(
 		&parityPGManager{dbs: map[string]*sql.DB{parityTenant: pg}},
-		nil,
+		&parityMongoManager{},
 		nil,
 	)
 

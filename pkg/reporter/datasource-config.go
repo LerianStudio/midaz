@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/mongodb"
 	pg "github.com/LerianStudio/midaz/v4/pkg/reporter/postgres"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
 	libConstant "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/lib-observability/log"
 
@@ -278,32 +279,45 @@ func isFatalError(err error) bool {
 }
 
 // ConnectToDataSourceWithRetry attempts to connect to a datasource with exponential backoff retry logic.
-func ConnectToDataSourceWithRetry(databaseName string, dataSource *DataSource, logger log.Logger, externalDataSources map[string]DataSource) error {
-	backoff := constant.DataSourceInitialBackoff
-
+// The retry wait is interruptible: a cancelled ctx (process shutdown) aborts the
+// loop and returns the context error rather than blocking through the remaining
+// backoff windows.
+func ConnectToDataSourceWithRetry(ctx context.Context, databaseName string, dataSource *DataSource, logger log.Logger, externalDataSources map[string]DataSource) error {
 	for attempt := 0; attempt <= constant.DataSourceMaxRetries; attempt++ {
 		if attempt > 0 {
-			logger.Log(context.Background(), log.LevelWarn, "Retry attempt for datasource", log.Int("attempt", attempt), log.Int("max_retries", constant.DataSourceMaxRetries), log.String("datasource", databaseName), log.Any("backoff", backoff))
-			time.Sleep(backoff)
+			// Full-jitter exponential backoff from lib-commons, capped at the
+			// configured max. attempt-1 is 0-indexed for the first retry.
+			delay := min(
+				libBackoff.ExponentialWithJitter(constant.DataSourceInitialBackoff, attempt-1),
+				constant.DataSourceMaxBackoff,
+			)
 
-			// Calculate next backoff (exponential with max cap)
-			backoff = time.Duration(float64(backoff) * constant.DataSourceBackoffMultiplier)
-			if backoff > constant.DataSourceMaxBackoff {
-				backoff = constant.DataSourceMaxBackoff
+			logger.Log(ctx, log.LevelWarn, "Retry attempt for datasource", log.Int("attempt", attempt), log.Int("max_retries", constant.DataSourceMaxRetries), log.String("datasource", databaseName), log.Any("backoff", delay))
+
+			if waitErr := libBackoff.WaitContext(ctx, delay); waitErr != nil {
+				logger.Log(ctx, log.LevelWarn, "Datasource connection retry interrupted by context cancellation", log.String("datasource", databaseName), log.Err(waitErr))
+
+				dataSource.Status = libConstant.DataSourceStatusUnavailable
+				externalDataSources[databaseName] = *dataSource
+
+				return waitErr
 			}
 		}
 
-		err := ConnectToDataSource(context.Background(), databaseName, dataSource, logger, externalDataSources)
+		err := ConnectToDataSource(ctx, databaseName, dataSource, logger, externalDataSources)
 		if err == nil {
+			// Boot-time milestone (once per datasource at worker startup), not
+			// per-request: log with context.Background() per the telemetry T7
+			// convention for sparse startup Info narration.
 			logger.Log(context.Background(), log.LevelInfo, "Successfully connected to datasource", log.String("datasource", databaseName), log.Int("attempt", attempt+1))
 			return nil
 		}
 
-		logger.Log(context.Background(), log.LevelError, "Failed to connect to datasource", log.String("datasource", databaseName), log.Int("attempt", attempt+1), log.Int("max_attempts", constant.DataSourceMaxRetries+1), log.Err(err))
+		logger.Log(ctx, log.LevelError, "Failed to connect to datasource", log.String("datasource", databaseName), log.Int("attempt", attempt+1), log.Int("max_attempts", constant.DataSourceMaxRetries+1), log.Err(err))
 
 		// Check if error is fatal (no point in retrying)
 		if isFatalError(err) {
-			logger.Log(context.Background(), log.LevelWarn, "Fatal error detected for datasource - skipping remaining retries", log.String("datasource", databaseName))
+			logger.Log(ctx, log.LevelWarn, "Fatal error detected for datasource - skipping remaining retries", log.String("datasource", databaseName))
 			break
 		}
 
@@ -313,7 +327,7 @@ func ConnectToDataSourceWithRetry(databaseName string, dataSource *DataSource, l
 		}
 	}
 
-	logger.Log(context.Background(), log.LevelError, "Exhausted all retry attempts for datasource - marking as unavailable", log.String("datasource", databaseName))
+	logger.Log(ctx, log.LevelError, "Exhausted all retry attempts for datasource - marking as unavailable", log.String("datasource", databaseName))
 
 	dataSource.Status = libConstant.DataSourceStatusUnavailable
 	externalDataSources[databaseName] = *dataSource
@@ -362,8 +376,10 @@ func ExternalDatasourceConnectionsLazy(logger log.Logger) map[string]DataSource 
 
 // ExternalDatasourceConnections initializes and returns a map of external data source connections.
 // Uses graceful degradation - continues initialization even if some datasources fail.
-// Attempts connection with retry for each datasource (use for Worker).
-func ExternalDatasourceConnections(logger log.Logger) map[string]DataSource {
+// Attempts connection with retry for each datasource (use for Worker). The ctx is
+// threaded into the retry backoff so a shutdown cancels the wait rather than
+// blocking through every backoff window.
+func ExternalDatasourceConnections(ctx context.Context, logger log.Logger) map[string]DataSource {
 	externalDataSources := make(map[string]DataSource)
 
 	dataSourceConfigs := getDataSourceConfigs(logger)
@@ -393,7 +409,7 @@ func ExternalDatasourceConnections(logger log.Logger) map[string]DataSource {
 		externalDataSources[dataSource.ConfigName] = ds
 
 		// Attempt connection with retry
-		err := ConnectToDataSourceWithRetry(dataSource.ConfigName, &ds, logger, externalDataSources)
+		err := ConnectToDataSourceWithRetry(ctx, dataSource.ConfigName, &ds, logger, externalDataSources)
 		if err != nil {
 			logger.Log(context.Background(), log.LevelError, "Datasource is UNAVAILABLE - system will continue without it", log.String("datasource", dataSource.ConfigName), log.Err(err))
 			externalDataSources[dataSource.ConfigName] = ds
