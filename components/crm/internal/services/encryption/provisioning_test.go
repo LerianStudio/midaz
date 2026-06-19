@@ -455,12 +455,12 @@ func TestProvisionRequest_Validate(t *testing.T) {
 	}
 }
 
-// TestProvisionInput_EnvelopeOnly_DefaultsFalse verifies that a ProvisionInput
-// built without the internal marker (the manual migration provisioning path used
-// by HTTP handlers) defaults envelopeOnly to false. The marker is unexported on
-// purpose: external packages cannot set it, so manual provisioning always takes
-// the default (migration) path. The mode MUST NOT be inferred from audit fields.
-func TestProvisionInput_EnvelopeOnly_DefaultsFalse(t *testing.T) {
+// TestProvisionInput_ImportLegacy_DefaultsFalse verifies that a ProvisionInput
+// built without the internal marker (the manual provisioning path used by HTTP
+// handlers) defaults importLegacy to false, i.e. the envelope-only path for new
+// organizations. The marker is unexported on purpose: external packages cannot
+// set it. The mode MUST NOT be inferred from audit fields.
+func TestProvisionInput_ImportLegacy_DefaultsFalse(t *testing.T) {
 	t.Parallel()
 
 	req := ProvisionInput{
@@ -470,8 +470,8 @@ func TestProvisionInput_EnvelopeOnly_DefaultsFalse(t *testing.T) {
 		Reason:         "Initial provisioning",
 	}
 
-	if req.envelopeOnly {
-		t.Errorf("ProvisionInput.envelopeOnly = %v, want false (manual provisioning default)", req.envelopeOnly)
+	if req.importLegacy {
+		t.Errorf("ProvisionInput.importLegacy = %v, want false (manual provisioning default)", req.importLegacy)
 	}
 }
 
@@ -484,7 +484,7 @@ func TestProvisionInput_EnvelopeOnly_DefaultsFalse(t *testing.T) {
 // envelope-only path: it constructs one fresh AEAD keyset and one fresh PRF
 // keyset, each with a non-zero PrimaryKeyID and exactly one enabled key, and
 // returns the assembled OrganizationKeyset carrying that single-key metadata.
-// This characterizes the branch reached when envelopeOnly == true.
+// This characterizes the branch reached when importLegacy == false (the default).
 func TestProvisioningService_buildProvisioningKeysets_EnvelopeOnly_SingleKeyShape(t *testing.T) {
 	t.Parallel()
 
@@ -502,7 +502,7 @@ func TestProvisioningService_buildProvisioningKeysets_EnvelopeOnly_SingleKeyShap
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Initial provisioning",
-		envelopeOnly:   true,
+		importLegacy:   false,
 	}
 
 	mount := resolveMount(concreteSvc.kekMountPath, req.TenantID)
@@ -1040,6 +1040,7 @@ func TestProvisioningService_Provision_RecoveryFromPartialFailure_MixedKeyset(t 
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Recovery from partial failure",
+		importLegacy:   true,
 	}
 
 	result, err := svc.Provision(ctx, req)
@@ -1289,7 +1290,7 @@ func (g *cancelAfterAEADGenerator) GenerateMixedPRFKeyset(ctx context.Context, m
 }
 
 // TestProvisioningService_buildProvisioningKeysets_Migration_MixedTwoKeyShape
-// pins the T-1.2.2 contract for the manual migration arm (envelopeOnly == false):
+// pins the contract for the lazy migration arm (importLegacy == true):
 // it MUST route to the mixed AEAD/PRF generators and assemble a composite keyset
 // holding TWO keys per slot — a fresh envelope PRIMARY key plus the imported
 // legacy ENABLED non-primary key — persisted into the existing
@@ -1312,7 +1313,7 @@ func TestProvisioningService_buildProvisioningKeysets_Migration_MixedTwoKeyShape
 		OrganizationID: "org-456",
 		Actor:          "admin@example.com",
 		Reason:         "Initial provisioning",
-		envelopeOnly:   false,
+		importLegacy:   true,
 	}
 
 	mount := resolveMount(concreteSvc.kekMountPath, req.TenantID)
@@ -2198,8 +2199,10 @@ func TestProvisioningService_Provision_NeverExposesRawLegacySecret(t *testing.T)
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator, DefaultProvisioningConfig(), spy, NewProtectionMetrics(nil), nil)
 
-	// envelopeOnly defaults to false => manual migration path => mixed generators.
-	result, err := svc.Provision(ctx, newProvisionReq())
+	// importLegacy => lazy migration path => mixed generators import legacy material.
+	req := newProvisionReq()
+	req.importLegacy = true
+	result, err := svc.Provision(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, mmodel.RegistryStatusActive, result.RegistryStatus)
 

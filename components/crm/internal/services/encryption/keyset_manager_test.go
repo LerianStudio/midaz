@@ -1196,8 +1196,8 @@ func TestKeysetManager_autoProvision_UsesTenantFromContext(t *testing.T) {
 		t.Errorf("autoProvision() actor = %q, want %q", lastReq.Actor, "system:auto-provision")
 	}
 
-	if lastReq.Reason != "Auto-provisioned on first encrypted field access" {
-		t.Errorf("autoProvision() reason = %q, want %q", lastReq.Reason, "Auto-provisioned on first encrypted field access")
+	if lastReq.Reason != "Lazy migration: imported legacy key material on first encrypted field access" {
+		t.Errorf("autoProvision() reason = %q, want %q", lastReq.Reason, "Lazy migration: imported legacy key material on first encrypted field access")
 	}
 }
 
@@ -2063,12 +2063,12 @@ func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *test
 	}
 }
 
-// TestKeysetManager_autoProvision_SetsEnvelopeOnly verifies that lazy
-// auto-provisioning takes the envelope-only path by setting the internal
-// ProvisionInput.envelopeOnly marker to true, without relying on audit fields
-// (Actor/Reason). Envelope-only provisioning is the correct path for brand-new
-// organizations that have no legacy key material to import.
-func TestKeysetManager_autoProvision_SetsEnvelopeOnly(t *testing.T) {
+// TestKeysetManager_autoProvision_SetsImportLegacy verifies that lazy
+// auto-provisioning takes the migration path by setting the internal
+// ProvisionInput.importLegacy marker to true, without relying on audit fields
+// (Actor/Reason). Lazy provisioning migrates an existing organization by
+// importing its legacy key material (envelope PRIMARY + legacy ENABLED).
+func TestKeysetManager_autoProvision_SetsImportLegacy(t *testing.T) {
 	t.Parallel()
 
 	provisioner := &fakeProvisioningService{}
@@ -2083,13 +2083,13 @@ func TestKeysetManager_autoProvision_SetsEnvelopeOnly(t *testing.T) {
 
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-envelope")
 
-	if err := manager.autoProvision(ctx, "org-envelope-only"); err != nil {
+	if err := manager.autoProvision(ctx, "org-migrate"); err != nil {
 		t.Fatalf("autoProvision() error = %v", err)
 	}
 
 	got := provisioner.getLastRequest()
-	if !got.envelopeOnly {
-		t.Errorf("autoProvision() envelopeOnly = %v, want true", got.envelopeOnly)
+	if !got.importLegacy {
+		t.Errorf("autoProvision() importLegacy = %v, want true", got.importLegacy)
 	}
 }
 
