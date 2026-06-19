@@ -42,7 +42,7 @@ coverage-unit:
 	@echo "------------------------------------------"
 	@echo "   Running unit tests with coverage"
 	@echo "------------------------------------------"
-	@set -e; mkdir -p $(abspath $(TEST_REPORTS_DIR)); \
+	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(abspath $(TEST_REPORTS_DIR)); \
 	cd $(MIDAZ_ROOT); \
 	if [ -n "$(PKG)" ]; then \
 	  echo "Using specified package: $(PKG)"; \
