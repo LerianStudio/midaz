@@ -44,3 +44,31 @@ updates:
           - "github/codeql-action*"
           - "aquasecurity/trivy-action"
           - "securego/gosec"
+
+  - package-ecosystem: "docker"
+    directory: "/components/ledger"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/Sao_Paulo"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/components/crm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/Sao_Paulo"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
