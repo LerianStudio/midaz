@@ -49,8 +49,9 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
 WORKDIR /app
 
-# Install Chromium and all required dependencies for chromedp
-RUN apk add --no-cache \
+# Upgrade base packages first (patches transitive openssl/libcrypto3/libssl3 to
+# the fixed alpine 3.23 build), then install Chromium and chromedp dependencies.
+RUN apk upgrade --no-cache && apk add --no-cache \
     ca-certificates \
     chromium \
     nss \
