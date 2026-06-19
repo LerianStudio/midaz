@@ -74,7 +74,11 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	payload := p.(*model.BillingPackage)
+	payload, ok := p.(*model.BillingPackage)
+	if !ok || payload == nil {
+		return http.WithError(c, feeerrors.ValidateInternalError(nil, feeconstant.EntityBillingPackage))
+	}
+
 	payload.OrganizationID = organizationID.String()
 
 	span.SetAttributes(
@@ -146,6 +150,8 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		}
 	}
 
+	const maxPaginationLimit = 100
+
 	limit := 10
 	page := 1
 
@@ -153,6 +159,11 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		parsed, errParse := strconv.Atoi(l)
 		if errParse != nil || parsed < 1 {
 			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "limit")
+			return http.WithError(c, validationErr)
+		}
+
+		if parsed > maxPaginationLimit {
+			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrPaginationLimitExceeded, "BillingPackage", maxPaginationLimit)
 			return http.WithError(c, validationErr)
 		}
 
@@ -292,7 +303,10 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	payload := p.(*model.BillingPackageUpdate)
+	payload, ok := p.(*model.BillingPackageUpdate)
+	if !ok || payload == nil {
+		return http.WithError(c, feeerrors.ValidateInternalError(nil, feeconstant.EntityBillingPackage))
+	}
 
 	span.SetAttributes(
 		attribute.Bool("app.request.payload.has_label", payload.Label != nil),

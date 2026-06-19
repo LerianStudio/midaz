@@ -15,6 +15,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
@@ -32,7 +34,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := runner.Run(context.Background()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := runner.Run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Holder backfill failed: %v\n", err)
 
 		os.Exit(1)

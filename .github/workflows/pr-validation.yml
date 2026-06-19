@@ -27,9 +27,8 @@ jobs:
         ci
         build
         revert
-      # crm is retained as a warn-only scope (require_scope: false) until the P9 code
-      # teardown removes crm-in-ledger; fees is a valid scope since fees code now
-      # lives inside the ledger binary.
+      # crm and fees are valid commit scopes even though both now live inside the
+      # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
         crm
         ledger
@@ -50,16 +49,17 @@ jobs:
       target_branches_for_source_check: 'main'
     secrets: inherit
 
-  # Required gate: regenerate every component's OpenAPI/Swagger docs and fail if the
-  # committed artifacts under components/<c>/api and postman/specs are stale. Docker is
-  # required for the openapi.yaml step (openapitools/openapi-generator-cli), which the
-  # blacksmith ubuntu runner provides.
+  # Required gate: regenerate OpenAPI/Swagger docs and fail if the committed
+  # artifacts under components/<c>/api and postman/specs are stale. The openapi.yaml
+  # step runs openapitools/openapi-generator-cli, which requires Docker on the runner.
   check-docs:
     name: Check Docs
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -75,16 +75,17 @@ jobs:
       - name: Verify docs are up to date
         run: CHECK_DOCS_REGEN=1 make check-docs
 
-  # Required gate: regenerate the reservation gRPC stubs from proto/ and fail if
-  # the committed stubs under pkg/proto are stale or uncommitted. buf and the
-  # protoc plugins run via `go run` / buf remote plugins at pinned versions
-  # (BUF_VERSION + buf.gen.yaml), so no global install is needed on the runner.
+  # Required gate: regenerate the gRPC stubs from proto/ and fail if the committed
+  # stubs under pkg/proto are stale. buf and the protoc plugins run via pinned
+  # remote plugins (BUF_VERSION + buf.gen.yaml), so no global install is needed.
   check-proto:
     name: Check Proto
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5

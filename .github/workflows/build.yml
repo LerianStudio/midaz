@@ -16,14 +16,10 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      # Reporter is ONE component (components/reporter) but emits TWO images. The
-      # two filter paths below are Dockerfile-only build contexts that exist solely
-      # to PIN the stable image names the external Helm chart depends on: their
-      # basenames derive midaz-reporter-manager (distroless, RUN_MODE=api) and
-      # midaz-reporter-worker (alpine+Chromium, RUN_MODE=worker). Both Dockerfiles
-      # compile the SAME components/reporter/cmd/app/main.go from the repo-root
-      # build context. The actual reporter source lives under components/reporter,
-      # which is listed in shared_paths below so a change there rebuilds BOTH images.
+      # The reporter-manager and reporter-worker filter paths are Dockerfile-only
+      # build contexts that pin the two image names (distroless RUN_MODE=api,
+      # alpine+Chromium RUN_MODE=worker); both compile components/reporter, which is
+      # listed under shared_paths so a source change there rebuilds both images.
       filter_paths: |-
         components/ledger
         components/tracer
@@ -45,11 +41,9 @@ jobs:
       enable_helm_dispatch: true
       helm_chart: "midaz"
       helm_detect_env_changes: true
-      # DEPLOY-GATED (P8-T20 ops lockstep, R12): this maps the four surviving
-      # midaz-* images to their Helm value-block keys (bare keys). crm/fees are
-      # collapsed into ledger and emit no image. The external midaz Helm chart MUST
-      # gain tracer/manager/worker value blocks and drop crm/plugin-fees BEFORE a
-      # real tag fans out, or co-located components build but never deploy.
+      # Maps each midaz-* image to its Helm value-block key (bare keys). The midaz
+      # Helm chart must carry matching tracer/manager/worker blocks or those images
+      # build but never deploy.
       helm_values_key_mappings: '{"midaz-ledger":"ledger","midaz-tracer":"tracer","midaz-reporter-manager":"manager","midaz-reporter-worker":"worker"}'
     secrets: inherit
 
@@ -70,10 +64,9 @@ jobs:
       deploy_in_firmino: true
       deploy_in_clotilde: true
       artifact_pattern: "gitops-tags-midaz-*"
-      # DEPLOY-GATED (P8-T20 ops lockstep, R12): DISTINCT schema from
-      # helm_values_key_mappings — keys carry a .tag SUFFIX, values are full dotted
-      # YAML paths (.image.tag). midaz-firmino-gitops MUST update these targets and
-      # drop crm/fees BEFORE a real tag fans out.
+      # Distinct schema from helm_values_key_mappings: keys carry a .tag suffix and
+      # values are full dotted YAML paths (.image.tag). The midaz-firmino-gitops repo
+      # must carry matching targets.
       yaml_key_mappings: '{"midaz-ledger.tag":".ledger.image.tag","midaz-tracer.tag":".tracer.image.tag","midaz-reporter-manager.tag":".manager.image.tag","midaz-reporter-worker.tag":".worker.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
@@ -83,19 +76,12 @@ jobs:
   # =========================
   # UPLOAD MIGRATIONS TO S3
   # =========================
-  # Ledger ships S3-uploaded migrations (onboarding + transaction), consumed
-  # out-of-band by ops for managed-Postgres customers. Tracer migrations are ALSO
-  # published to S3 (Q15-RESOLVED, overrides the P5 Decision 2 exclusion), but the
-  # publish is ADDITIVE only: tracer's runtime applied-by path is UNCHANGED — its
-  # migrations remain an ordered, hash-chained sequence applied exclusively via
-  # tracer's bootstrap migration runner (keeping ONE applied-by path is a
-  # correctness property). The S3 copy serves the managed-deploy pipeline, not the
-  # in-cluster bootstrap. KEY-LAYOUT CAVEAT (R45, Ops X2/X3 register item): the
-  # tracer s3_prefix `tracer/postgresql` must be reconciled against the
-  # managed-deploy pipeline's expected key layout before a real tag fans out — the
-  # verify-pipeline and managed-deploy-pipeline key conventions are an Ops sign-off,
-  # not settled in-repo. Reporter manager/worker have no SQL migrations. crm/fees
-  # are collapsed into ledger and emit no image/migrations.
+  # Publish ledger (onboarding + transaction) and tracer migrations to S3 for the
+  # managed-Postgres deploy pipeline. This S3 copy is additive: tracer still applies
+  # its migrations in-cluster via its own bootstrap runner (the single applied-by
+  # path, a correctness property), and these uploads do not feed that path. Caveat:
+  # the tracer s3_prefix `tracer/postgresql` must match the managed-deploy pipeline's
+  # expected key layout. Reporter has no SQL migrations.
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'

@@ -143,8 +143,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			},
 		},
 		{
-			// Replaces the former "invalid org header returns 400" case. Org is now a
-			// path segment; a non-UUID organization_id segment is rejected by the real
+			// A non-UUID organization_id path segment is rejected by the
 			// ParseUUIDPathParameters chain with 400 (ErrInvalidPathParameter).
 			name:           "non-UUID organization_id path segment returns 400",
 			payload:        &mmodel.CreateHolderAccountInput{Name: "Composite Account", AssetCode: "USD", Type: "deposit"},
@@ -182,7 +181,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 				target = validPath
 			}
 
-			req := httptest.NewRequest("POST", target, nil)
+			req := httptest.NewRequest(fiber.MethodPost, target, nil)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
 
@@ -215,7 +214,7 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 		},
 	)
 
-	req := httptest.NewRequest("POST",
+	req := httptest.NewRequest(fiber.MethodPost,
 		"/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/holders/"+holderID.String()+"/accounts", nil)
 	req.Header.Set("Content-Type", "application/json")
 

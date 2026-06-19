@@ -22,7 +22,7 @@ Midaz is a composable core banking platform built around a double-entry ledger. 
 
 ## Quickstart
 
-Prerequisites: Go 1.26.3+ and Docker.
+Prerequisites: Go 1.26.4+ and Docker.
 
 ```bash
 git clone https://github.com/LerianStudio/midaz.git

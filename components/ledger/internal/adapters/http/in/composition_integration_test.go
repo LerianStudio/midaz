@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
@@ -46,9 +45,8 @@ import (
 
 // compositionTestInfra holds the real cross-store infrastructure the composition
 // route binds: an onboarding-PG account use case and a CRM-Mongo holder/instrument
-// use case, composed behind the real composition Service and route registrar. It is
-// the integration analogue of setupAssetTestInfra; the CRM repos use a static
-// single-tenant Mongo connection (the multi-tenant key-isolation proof is F4-T14).
+// use case, composed behind the real composition Service. The CRM repos use a
+// static single-tenant Mongo connection.
 type compositionTestInfra struct {
 	pgConn      *libPostgres.Client
 	mongoConn   *libMongo.Client
@@ -88,25 +86,8 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 
 	infra := &compositionTestInfra{}
 
-	var (
-		pgContainer    *postgrestestutil.ContainerResult
-		mongoContainer *mongotestutil.ContainerResult
-		wg             sync.WaitGroup
-	)
-
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		pgContainer = postgrestestutil.SetupContainer(t)
-	}()
-
-	go func() {
-		defer wg.Done()
-		mongoContainer = mongotestutil.SetupContainer(t)
-	}()
-
-	wg.Wait()
+	pgContainer := postgrestestutil.SetupContainer(t)
+	mongoContainer := mongotestutil.SetupContainer(t)
 
 	// Onboarding-PG connection + repos for the account leg.
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
@@ -146,10 +127,8 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	infra.crmUC = &crmservices.UseCase{
 		HolderRepo:     holderRepo,
 		InstrumentRepo: infra.instrumentRepo,
-		// The compensation/retry flow under test links a genuinely persisted
-		// ledger+account, so a both-exist referential reader mirrors reality
-		// without standing up the ledger query stack inside this Mongo-scoped
-		// integration test.
+		// Both-exist referential reader: the flow under test uses a genuinely
+		// persisted ledger+account, so no ledger query stack is needed here.
 		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
 	}
 
@@ -160,10 +139,9 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 
 	infra.compService = composition.NewService(infra.commandUC, infra.instrumentCreator)
 
-	// Mount the REAL composition registrar (Gate 1 + Gate 7): auth disabled makes
-	// Authorize a pass-through, single-tenant routeOptions=nil. The account/CRM
-	// org+ledger context arrives via the static connections, so no tenant
-	// middleware is needed for the single-tenant integration proof.
+	// Auth disabled makes Authorize a pass-through; single-tenant routeOptions
+	// is nil. Org+ledger context arrives via the static connections, so no
+	// tenant middleware is needed.
 	auth := middleware.NewAuthClient("", false, nil)
 	compositionHandler := &CompositionHandler{Service: infra.compService}
 
@@ -578,12 +556,9 @@ func TestIntegration_CompositionRejectsNonexistentHolder(t *testing.T) {
 		"composition must surface the SAME holder-gate business code standalone CreateInstrument returns")
 }
 
-// TestIntegration_CompositionDependsOnUseCasesNotAdapters documents Gate 6 (c):
-// the composition Service composes the two use-case surfaces through narrow ports
-// and owns no adapters. The compile-time port satisfaction lives in
-// services/composition/ports.go (var _ AccountCreator = (*command.UseCase)(nil);
-// var _ InstrumentCreator = (*crmservices.UseCase)(nil)); here we assert the
-// mounted Service holds exactly those use-case-typed ports, never a repository.
+// TestIntegration_CompositionDependsOnUseCasesNotAdapters asserts the mounted
+// Service holds use-case-typed ports (the account command use case and the CRM
+// use case), never a repository, so it owns no adapters.
 func TestIntegration_CompositionDependsOnUseCasesNotAdapters(t *testing.T) {
 	infra := setupCompositionTestInfra(t, nil)
 

@@ -185,6 +185,7 @@ dev-setup:
 		cp .env.example .env; \
 		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
+	@$(MAKE) generate-keys
 	@$(MAKE) tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"

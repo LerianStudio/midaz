@@ -450,6 +450,7 @@ wait-for-infra:
 	@timeout=120; elapsed=0; \
 	services="midaz-postgres-primary midaz-mongodb midaz-valkey midaz-rabbitmq midaz-seaweedfs"; \
 	for svc in $$services; do \
+		elapsed=0; \
 		printf "  %-28s" "$$svc"; \
 		while true; do \
 			cid=$$(docker ps --filter "name=$$svc" --format '{{.ID}}' 2>/dev/null | head -n1); \

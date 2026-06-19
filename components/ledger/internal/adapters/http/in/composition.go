@@ -7,7 +7,6 @@ package in
 import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -89,9 +88,14 @@ func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) erro
 
 	out, err := handler.Service.CreateHolderAccount(ctx, organizationID, ledgerID, holderID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create holder account", err)
+		handleSpanByErrorClass(span, "Failed to create holder account", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to create holder account",
+		logLevel := libLog.LevelError
+		if pkg.IsBusinessError(err) {
+			logLevel = libLog.LevelWarn
+		}
+
+		logger.Log(ctx, logLevel, "Failed to create holder account",
 			libLog.String("holder_id", holderID.String()),
 			libLog.Err(err),
 		)
