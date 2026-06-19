@@ -49,7 +49,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	setOperationFields, unsetOperationFields, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, up)
+	setOperationFields, unsetOperationFields, ledgerID, errUpdateFields := uc.buildUpdateFields(ctx, logger, id, organizationID, up)
 	if errUpdateFields != nil {
 		return errUpdateFields
 	}
@@ -77,24 +77,34 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		return err
 	}
 
+	// Invalidate the cached enabled-package set for this (org,ledger): an update
+	// can change amounts, fees, waivers, or the enable flag, all of which the
+	// cached set carries. The ledger is the one resolved while building the
+	// update fields.
+	uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
+
 	return nil
 }
 
-// buildUpdateFields Build the fields that will be updated
-func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID uuid.UUID, up *model.UpdatePackageInput) (bson.M, bson.M, error) {
+// buildUpdateFields Build the fields that will be updated. It also returns the
+// package's ledger ID (resolved from the existing document) so the caller can
+// invalidate the per-(org,ledger) package cache after the update commits.
+func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, packageID, organizationID uuid.UUID, up *model.UpdatePackageInput) (bson.M, bson.M, uuid.UUID, error) {
 	setFields := bson.M{}
 	unsetFields := bson.M{}
 
 	feesAmountData, errFindFees := uc.packageRepo.
 		FindFeesAndAmountDataByPackageID(ctx, organizationID, packageID)
 	if errFindFees != nil {
-		return nil, nil, errFindFees
+		return nil, nil, uuid.Nil, errFindFees
 	}
+
+	ledgerID := feesAmountData.LedgerID
 
 	// Update amounts
 	if up.MinAmount != nil || up.MaxAmount != nil {
 		if errSetAmounts := uc.SetAmountsDataToUpdate(ctx, logger, up, feesAmountData, organizationID, &packageID, setFields); errSetAmounts != nil {
-			return nil, nil, errSetAmounts
+			return nil, nil, ledgerID, errSetAmounts
 		}
 	}
 
@@ -118,17 +128,17 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 	if up.Fee != nil {
 		errValidationFeesSet := uc.validationFeesSetUnset(ctx, feesAmountData.MinAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
 		if errValidationFeesSet != nil {
-			return nil, nil, errValidationFeesSet
+			return nil, nil, ledgerID, errValidationFeesSet
 		}
 	}
 
 	if len(setFields) == 0 && len(unsetFields) == 0 {
-		return setFields, unsetFields, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
+		return setFields, unsetFields, ledgerID, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityPackage)
 	}
 
 	setFields["updated_at"] = time.Now()
 
-	return setFields, unsetFields, nil
+	return setFields, unsetFields, ledgerID, nil
 }
 
 // validationFeesSetUnset Validate the fee struct to update correctly

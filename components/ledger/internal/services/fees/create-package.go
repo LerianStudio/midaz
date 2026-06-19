@@ -100,6 +100,10 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 		return nil, err
 	}
 
+	// Invalidate the cached enabled-package set for this (org,ledger) so the next
+	// transaction create re-fetches the now-changed set instead of a stale one.
+	uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
+
 	return resultPackModel, nil
 }
 

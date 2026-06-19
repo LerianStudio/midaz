@@ -47,6 +47,12 @@ func resolveSegmentWaivedAccounts(waivedAccounts []string) (directAliases []stri
 // segment via the in-process resolver and checks whether the account belongs to any
 // of the waived segments.
 //
+// resolver resolutions are memoized in cache (keyed by trimmed alias) for the lifetime
+// of one CalculateFee call, so an alias checked across the multiple distribution passes
+// resolves at most once. Resolved-absent results (a nil *feeshared.Account) are cached
+// too, so a missing alias is not re-queried. A nil cache disables memoization (used by
+// pure-unit tests); production always passes the per-call SegmentContext cache.
+//
 // Returns an error if segment resolution fails, so the caller can decide to fail the
 // billing rather than silently charging exempt accounts.
 //
@@ -61,6 +67,7 @@ func isAccountExemptWithSegments(
 	segmentIDs []uuid.UUID,
 	resolver feeshared.MidazResolver,
 	organizationID, ledgerID uuid.UUID,
+	cache map[string]*feeshared.Account,
 ) (bool, error) {
 	// Fast path: exact alias match avoids any resolution call.
 	if isAccountExempt(account, directAliases) {
@@ -83,16 +90,9 @@ func isAccountExemptWithSegments(
 		return false, nil
 	}
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "fee.segment_resolution.check_account_segment")
-	defer span.End()
-
-	accountDetails, err := resolver.GetAccountByAlias(ctx, organizationID, ledgerID, account)
+	accountDetails, err := resolveAccountCached(ctx, account, resolver, organizationID, ledgerID, cache)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to resolve account segment for exemption check", err)
-
-		return false, fmt.Errorf("segment resolution failed for account %s: %w", account, err)
+		return false, err
 	}
 
 	if accountDetails == nil {
@@ -110,4 +110,42 @@ func isAccountExemptWithSegments(
 	}
 
 	return false, nil
+}
+
+// resolveAccountCached returns the resolver's account for account, consulting cache
+// first (including resolved-absent nil entries) and populating it on a miss. The
+// resolution call is the expensive two-round-trip path (PG alias lookup + Mongo
+// segment read); caching collapses repeated checks of the same alias within one
+// CalculateFee call to a single resolve. A nil cache disables memoization.
+func resolveAccountCached(
+	ctx context.Context,
+	account string,
+	resolver feeshared.MidazResolver,
+	organizationID, ledgerID uuid.UUID,
+	cache map[string]*feeshared.Account,
+) (*feeshared.Account, error) {
+	key := strings.TrimSpace(account)
+	if cache != nil {
+		if cached, ok := cache[key]; ok {
+			return cached, nil
+		}
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "fee.segment_resolution.check_account_segment")
+	defer span.End()
+
+	accountDetails, err := resolver.GetAccountByAlias(ctx, organizationID, ledgerID, account)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve account segment for exemption check", err)
+
+		return nil, fmt.Errorf("segment resolution failed for account %s: %w", account, err)
+	}
+
+	if cache != nil {
+		cache[key] = accountDetails
+	}
+
+	return accountDetails, nil
 }

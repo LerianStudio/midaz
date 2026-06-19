@@ -572,6 +572,7 @@ func isAccountExemptOrSegment(account string, exemptAccounts *[]string, segmentI
 		return isAccountExemptWithSegments(
 			segCtx.Ctx, account, exemptAccounts, segmentIDs,
 			segCtx.Resolver, segCtx.OrganizationID, segCtx.LedgerID,
+			segCtx.ResolverCache,
 		)
 	}
 

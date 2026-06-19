@@ -297,6 +297,7 @@ func TestIsAccountExemptWithSegments_DirectAliasMatch(t *testing.T) {
 				nil,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -338,6 +339,7 @@ func TestIsAccountExemptWithSegments_NoSegmentIDs(t *testing.T) {
 				[]uuid.UUID{},
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -390,6 +392,7 @@ func TestIsAccountExemptWithSegments_SegmentMatch(t *testing.T) {
 				tt.segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -441,6 +444,7 @@ func TestIsAccountExemptWithSegments_SegmentNoMatch(t *testing.T) {
 				tt.segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -486,6 +490,7 @@ func TestIsAccountExemptWithSegments_MidazClientError(t *testing.T) {
 				tt.segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.Error(t, gotExemptErr)
@@ -527,6 +532,7 @@ func TestIsAccountExemptWithSegments_NilMidazClient(t *testing.T) {
 				tt.segmentIDs,
 				nil,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -576,6 +582,7 @@ func TestIsAccountExemptWithSegments_AccountHasNilSegmentID(t *testing.T) {
 				tt.segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotExemptErr)
@@ -633,6 +640,7 @@ func TestIsAccountExemptWithSegments_ExternalAccount(t *testing.T) {
 				[]uuid.UUID{segID},
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, err)

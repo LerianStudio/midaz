@@ -72,6 +72,7 @@ func TestSegmentExemption_EndToEnd_SegmentMatch(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -129,6 +130,7 @@ func TestSegmentExemption_EndToEnd_SegmentNoMatch(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -180,6 +182,7 @@ func TestSegmentExemption_EndToEnd_NilSegmentOnAccount(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -225,6 +228,7 @@ func TestSegmentExemption_EndToEnd_DirectAliasStillWorks(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -276,6 +280,7 @@ func TestSegmentExemption_EndToEnd_ExternalError_FEE0062(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.Error(t, gotErr)
@@ -350,6 +355,7 @@ func TestSegmentExemption_EndToEnd_MixedWaivedAccounts(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -403,6 +409,7 @@ func TestSegmentExemption_EndToEnd_EmptyWaivedAccounts(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, gotErr)
@@ -466,6 +473,7 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, firstErr)
@@ -479,6 +487,7 @@ func TestSegmentExemption_EndToEnd_CacheHitBehavior(t *testing.T) {
 				segmentIDs,
 				resolver,
 				testOrgID, testLedgerID,
+				nil,
 			)
 
 			assert.NoError(t, secondErr)

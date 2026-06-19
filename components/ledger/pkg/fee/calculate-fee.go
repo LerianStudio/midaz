@@ -26,11 +26,27 @@ import (
 
 // SegmentContext holds optional dependencies for segment-based waivedAccounts resolution.
 // When nil or when Resolver is nil, CalculateFee falls back to exact alias matching only.
+//
+// resolverCache memoizes Resolver.GetAccountByAlias results for the lifetime of a
+// single CalculateFee call. Segment-exemption is checked ~4× over the same account
+// set per fee (allAccountsExempt source/destination, findMaxAccount, and both loops
+// in calculateProportionalFees), each resolution being two DB round-trips (PG alias
+// lookup + Mongo segment read). The cache collapses those to at most one resolve per
+// distinct alias. Negative results (resolved-absent, *feeshared.Account == nil) are
+// cached too so a missing alias is not re-queried. A SegmentContext lives exactly one
+// transaction's fee computation, so the cache needs no invalidation and cannot leak
+// across requests. Lazily created when nil.
 type SegmentContext struct {
 	Ctx            context.Context
 	Resolver       feeshared.MidazResolver
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
+
+	// ResolverCache memoizes Resolver.GetAccountByAlias results for the lifetime of
+	// one CalculateFee call. Populate it (an empty, non-nil map) at construction so
+	// segment-exemption checks share a single resolution per distinct alias. A nil
+	// map disables memoization and every check resolves anew.
+	ResolverCache map[string]*feeshared.Account
 }
 
 // DefaultCurrencyBRL is the fallback currency when no default is configured.

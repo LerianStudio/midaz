@@ -14,6 +14,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -50,7 +51,7 @@ func (uc *UseCase) CalculateFee(ctx context.Context, cf *model.FeeCalculate, org
 		attribute.String("app.request.ledger_id", cf.LedgerID.String()),
 	)
 
-	packages, err := uc.packageRepo.FindByOrganizationIDAndLedgerID(ctx, organizationID, cf.LedgerID)
+	packages, err := uc.findPackagesCached(ctx, logger, span, organizationID, cf.LedgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find packages by organization and ledger", err)
 
@@ -100,6 +101,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 		Resolver:       uc.resolver,
 		OrganizationID: organizationID,
 		LedgerID:       cf.LedgerID,
+		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, cf, feePackage, validationResult, uc.defaultCurrency, segCtx)
@@ -140,6 +142,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 		Resolver:       uc.resolver,
 		OrganizationID: organizationID,
 		LedgerID:       cf.LedgerID,
+		ResolverCache:  make(map[string]*feeshared.Account),
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, cf, packFilter, validationResult, uc.defaultCurrency, segCtx)
