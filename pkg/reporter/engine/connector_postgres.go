@@ -456,6 +456,13 @@ func applyPostgresFilters(builder squirrel.SelectBuilder, qualified string, filt
 			continue
 		}
 
+		// Charset whitelist BEFORE the field reaches the squirrel map key (emitted
+		// verbatim and unquoted): the root-column check below validates only the
+		// dotted root, so an injection-shaped path must be rejected here.
+		if err := validateFilterField(field); err != nil {
+			return builder, err
+		}
+
 		if _, ok := validColumns[rootField(field)]; !ok {
 			return builder, NewEngineValidationError("unknown filter field " + field + " for table " + qualified)
 		}

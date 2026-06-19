@@ -462,6 +462,14 @@ func buildMongoFilter(collection string, filters map[string]model.FilterConditio
 			continue
 		}
 
+		// Charset whitelist for parity with the postgres gate. Mongo is not
+		// string-injectable (the field is a bson.M key, not interpolated SQL), but
+		// rejecting a malformed field at every gate keeps the contract uniform and
+		// applies even when field validation is skipped for an empty collection.
+		if err := validateFilterField(field); err != nil {
+			return nil, err
+		}
+
 		if !skipFieldValidation {
 			if _, ok := validFields[rootField(field)]; !ok {
 				return nil, NewEngineValidationError("unknown filter field " + field + " for collection " + collection)
