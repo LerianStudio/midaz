@@ -54,15 +54,13 @@ type KeysetGenerator interface {
 	// GenerateMixedAEADKeyset builds a composite AEAD keyset: a fresh AES-256-GCM
 	// primary key plus the imported legacy AES-GCM key (legacyHexKey) as an
 	// enabled, non-primary entry, KMS-wrapped as one keyset. It fails closed when
-	// legacy material is missing or invalid. Used only by the manual migration
-	// path; T-1.2.2 routes provision() to it.
+	// legacy material is missing or invalid. Used by the lazy migration path.
 	GenerateMixedAEADKeyset(ctx context.Context, mountPath, keyName, legacyHexKey string) (tink.KeysetBundle, error)
 
 	// GenerateMixedPRFKeyset builds a composite PRF keyset: a fresh HMAC-PRF
 	// primary key plus the imported legacy HMAC-SHA256 key (legacySecret) as an
 	// enabled, non-primary entry, KMS-wrapped as one keyset. It fails closed when
-	// legacy material is missing. Used only by the manual migration path; T-1.2.2
-	// routes provision() to it.
+	// legacy material is missing. Used by the lazy migration path.
 	GenerateMixedPRFKeyset(ctx context.Context, mountPath, keyName, legacySecret string) (tink.KeysetBundle, error)
 }
 
@@ -153,13 +151,13 @@ type ProvisionInput struct {
 	Actor          string // Who initiated the provisioning
 	Reason         string // Why provisioning was requested
 
-	// envelopeOnly selects the lazy, envelope-only provisioning path for brand-new
-	// organizations with no legacy key material to import. It is unexported on
-	// purpose: it is an internal service-package decision, not an HTTP API
-	// contract, so external callers (e.g. adapters/http/in) cannot set it. The
-	// zero value (false) is the default manual migration provisioning path.
+	// importLegacy selects the lazy migration path: import the organization's
+	// legacy key material (envelope PRIMARY + legacy ENABLED) for an existing org.
+	// It is unexported on purpose: an internal service-package decision, not an
+	// HTTP API contract, so external callers (e.g. adapters/http/in) cannot set it.
+	// The zero value (false) is the default envelope-only path for new orgs.
 	// It MUST NOT be inferred from the Actor or Reason audit fields.
-	envelopeOnly bool
+	importLegacy bool
 }
 
 // Validate validates the provision request.
@@ -296,11 +294,11 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 // the single internal branching point between envelope-only and migration
 // keyset construction.
 //
-// envelopeOnly == true selects the lazy path for brand-new organizations with no
-// legacy material: one fresh AEAD keyset plus one fresh PRF keyset. The default
-// (envelopeOnly == false) selects manual migration: it composes the imported
-// legacy key material with a fresh envelope PRIMARY, yielding a two-key keyset per
-// slot (fresh envelope PRIMARY + imported legacy ENABLED non-primary).
+// The default (importLegacy == false) selects the envelope-only path for new
+// organizations: one fresh AEAD keyset plus one fresh PRF keyset. importLegacy ==
+// true selects the lazy migration path: it composes the imported legacy key
+// material with a fresh envelope PRIMARY, yielding a two-key keyset per slot
+// (fresh envelope PRIMARY + imported legacy ENABLED non-primary).
 //
 // The context is checked before generating the PRF keyset. Provider timing is
 // measured at this service boundary (pkg/crypto/tink MUST NOT emit metrics) and
@@ -316,14 +314,13 @@ func (s *provisioningService) buildProvisioningKeysets(ctx context.Context, req 
 		err        error
 	)
 
-	if req.envelopeOnly {
-		aeadBundle, prfBundle, verbatim, err = s.generateFreshKeysets(ctx, mount, kekPath)
-	} else {
+	if req.importLegacy {
 		// Migration mode: compose the imported legacy key material with a fresh
-		// envelope PRIMARY into a single keyset per slot. It is a deliberate seam:
-		// do not collapse it into the envelope-only arm. The fresh envelope keys
+		// envelope PRIMARY into a single keyset per slot. The fresh envelope keys
 		// stay primary, so the returned primary IDs match the envelope-only shape.
 		aeadBundle, prfBundle, verbatim, err = s.generateMixedKeysets(ctx, mount, kekPath)
+	} else {
+		aeadBundle, prfBundle, verbatim, err = s.generateFreshKeysets(ctx, mount, kekPath)
 	}
 
 	if err != nil {
@@ -366,7 +363,7 @@ func (s *provisioningService) generateFreshKeysets(ctx context.Context, mount, k
 }
 
 // generateMixedKeysets generates one composite AEAD keyset and one composite PRF
-// keyset for the manual migration path, each wrapping a fresh envelope PRIMARY
+// keyset for the lazy migration path, each wrapping a fresh envelope PRIMARY
 // plus the imported legacy key as an enabled non-primary entry. It is the
 // migration arm; it delegates the shared scaffolding to generateKeysetPair,
 // supplying the two mixed generator calls.

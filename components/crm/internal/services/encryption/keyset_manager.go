@@ -473,10 +473,10 @@ func (km *KeysetManager) autoProvision(ctx context.Context, organizationID strin
 		TenantID:       tenantID,
 		OrganizationID: organizationID,
 		Actor:          "system:auto-provision",
-		Reason:         "Auto-provisioned on first encrypted field access",
-		// Lazy provisioning is always envelope-only: a new org accessed for the
-		// first time has no legacy key material to import.
-		envelopeOnly: true,
+		Reason:         "Lazy migration: imported legacy key material on first encrypted field access",
+		// Lazy provisioning migrates an existing organization: it imports the
+		// legacy key material (envelope PRIMARY + legacy ENABLED).
+		importLegacy: true,
 	})
 
 	return err
