@@ -34,19 +34,24 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      # Analysis-class filter: covers every component that has Go code in-tree
-      # (CRM now lives under components/ledger/internal/crm, so it rolls up into the
-      # components/ledger entry at path_level 2), so it differs by design from
-      # build.yml's IMAGE filter (the four image dirs only).
+      # IMAGE filter — mirrors build.yml filter_paths exactly. Each entry must have a
+      # Dockerfile at <path>/Dockerfile; the shared workflow derives the image name
+      # from the directory basename and builds from repo root (default context='.').
+      # reporter-manager (distroless/api) and reporter-worker (alpine+Chromium/worker)
+      # are the two Dockerfile-anchor dirs; both compile components/reporter, which is
+      # listed under shared_paths so a reporter source change triggers both image scans.
+      # Go source security analysis for reporter is handled by go-pr-analysis (gosec).
       filter_paths: |-
         components/ledger
         components/tracer
-        components/reporter
+        components/reporter-manager
+        components/reporter-worker
       shared_paths: |
         go.mod
         go.sum
         pkg/
         Makefile
+        components/reporter
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets: inherit
