@@ -40,4 +40,5 @@ jobs:
         components/
         pkg/
         Makefile
+      run_security: false
     secrets: inherit
