@@ -40,6 +40,15 @@ func (ds *ExternalDataSource) convertFilterConditionToMongoFilter(field string, 
 		return nil, nil
 	}
 
+	// Gate the field charset before it becomes a verbatim BSON map key. The
+	// upstream schema gate validates only the dotted ROOT against discovered
+	// fields (and short-circuits entirely for empty collections / "*"
+	// projections), so this is the single point that sees every field and the
+	// only place an injection-shaped path is guaranteed to be rejected.
+	if err := model.ValidateFieldName(field); err != nil {
+		return nil, err
+	}
+
 	if err := ds.validateFilterCondition(field, condition); err != nil {
 		return nil, err
 	}

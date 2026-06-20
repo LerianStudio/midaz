@@ -5,7 +5,6 @@
 package engine
 
 import (
-	"regexp"
 	"strings"
 	"time"
 
@@ -157,23 +156,17 @@ func rootField(field string) string {
 	return field
 }
 
-// filterFieldPattern matches a legitimate filter field reference: an identifier
-// root, optionally followed by dotted JSONB/document path segments. It bounds the
-// whole field to the SQL/Mongo identifier charset so a value like
-// "metadata.x) OR (1=1) --" can never reach a squirrel map key (where the field
-// is emitted verbatim and unquoted) and inject. Legitimate dotted paths such as
-// "metadata.foo" remain valid.
-var filterFieldPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*$`)
-
 // validateFilterField rejects a filter field whose full string is not a safe
 // dotted identifier. The connector validation gates check only the ROOT column
 // against the discovered schema, but the FULL field string is used verbatim as a
 // squirrel map key (emitted unquoted) — so a dotted path carrying SQL escapes
-// would pass the root check yet inject at the sink. This charset whitelist closes
-// that gap at every gate before the field reaches a query builder.
+// would pass the root check yet inject at the sink. It delegates the charset
+// whitelist to model.ValidateFieldName (the single source of truth shared with
+// the mongo connector) and re-wraps any rejection as the boundary's
+// CategoryValidation engine error so the contract stays unchanged.
 func validateFilterField(field string) error {
-	if !filterFieldPattern.MatchString(field) {
-		return NewEngineValidationError("invalid filter field name " + field)
+	if err := model.ValidateFieldName(field); err != nil {
+		return NewEngineValidationError(err.Error())
 	}
 
 	return nil
