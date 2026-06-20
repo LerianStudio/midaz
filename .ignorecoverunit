@@ -16,7 +16,10 @@
 /cmd/app/
 bootstrap.go
 
-# Fees Mongo adapters (tested via integration tests; per-operation file split, not *.mongodb.go)
+# Fees Mongo adapters (tested via integration tests). Both dirs hold per-operation
+# adapter files (create.go/find.go/update.go/delete.go/indexes.go) that the
+# *.mongodb.go glob above does not catch; pack additionally has a package.mongodb.go
+# (already caught), so the dir-level entry excludes the whole adapter consistently.
 /internal/adapters/mongodb/fees/billing_package/
 /internal/adapters/mongodb/fees/pack/
 
