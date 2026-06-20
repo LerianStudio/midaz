@@ -80,54 +80,6 @@ func TestTableSchema_SchemaNameField(t *testing.T) {
 	}
 }
 
-func TestQualifyTableName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		schemaName string
-		tableName  string
-		want       string
-	}{
-		{
-			name:       "with schema name",
-			schemaName: "sales",
-			tableName:  "orders",
-			want:       `"sales"."orders"`,
-		},
-		{
-			name:       "with public schema",
-			schemaName: "public",
-			tableName:  "users",
-			want:       `"public"."users"`,
-		},
-		{
-			name:       "without schema name - empty string",
-			schemaName: "",
-			tableName:  "accounts",
-			want:       "accounts",
-		},
-		{
-			name:       "handles special characters in names",
-			schemaName: "my_schema",
-			tableName:  "my_table",
-			want:       `"my_schema"."my_table"`,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := qualifyTableName(tt.schemaName, tt.tableName)
-			if got != tt.want {
-				t.Errorf("qualifyTableName(%q, %q) = %q, want %q", tt.schemaName, tt.tableName, got, tt.want)
-			}
-		})
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Ping — lightweight connectivity probe used by the HealthChecker.
 // Replaces the previous "lightweight" GetDatabaseSchema-as-ping that actually

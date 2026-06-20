@@ -8,8 +8,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
-
 	"github.com/LerianStudio/lib-observability/log"
 )
 
@@ -17,8 +15,6 @@ import (
 //
 //go:generate mockgen --destination=datasource.postgresql.mock.go --package=postgres --copyright_file=../../COPYRIGHT . Repository
 type Repository interface {
-	Query(ctx context.Context, schema []TableSchema, schemaName string, table string, fields []string, filter map[string][]any) ([]map[string]any, error)
-	QueryWithAdvancedFilters(ctx context.Context, schema []TableSchema, schemaName string, table string, fields []string, filter map[string]model.FilterCondition) ([]map[string]any, error)
 	GetDatabaseSchema(ctx context.Context, schemas []string) ([]TableSchema, error)
 	CloseConnection() error
 
@@ -26,15 +22,6 @@ type Repository interface {
 	// via *sql.DB.PingContext). Used by health checks to avoid the cost of
 	// GetDatabaseSchema, which performs a full information_schema scan.
 	Ping(ctx context.Context) error
-}
-
-// qualifyTableName returns a qualified table name with schema if provided.
-func qualifyTableName(schemaName, tableName string) string {
-	if schemaName == "" {
-		return tableName
-	}
-
-	return fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
 }
 
 // TableSchema represents the structure of a database table.

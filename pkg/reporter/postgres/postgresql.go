@@ -7,24 +7,15 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/reporter/model"
 
 	"github.com/LerianStudio/lib-observability/log"
 	_ "github.com/jackc/pgx/v5/stdlib" // Registers the "pgx" driver with database/sql via init() – required for sql.Open("pgx", ...)
 )
-
-// filterFieldPattern matches a legitimate filter field reference: an identifier
-// root optionally followed by dotted JSONB path segments. It bounds the whole
-// field to the SQL identifier charset so an injection-shaped path (e.g.
-// "metadata.x) OR (1=1) --") is rejected at HTTP request time, before it can
-// reach the worker engine's squirrel sink. Legitimate paths like "metadata.foo"
-// remain valid. Mirrors the engine connector's validateFilterField — kept local
-// because this package sits below the engine layer (it pulls in the pgx driver).
-var filterFieldPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*$`)
 
 // Connection is a hub which deals with postgres connections.
 type Connection struct {
@@ -106,8 +97,9 @@ func ValidateFieldsInSchemaPostgres(expectedFields []string, schema TableSchema,
 		// column): the schema check below validates only the dotted ROOT, so a path
 		// carrying SQL escapes would otherwise pass and reach the worker engine's
 		// verbatim squirrel map key. A malformed field is reported as missing so the
-		// caller surfaces it as a business/422-class validation failure.
-		if !filterFieldPattern.MatchString(field) {
+		// caller surfaces it as a business/422-class validation failure. The charset
+		// whitelist is shared with every other connector gate via model.ValidateFieldName.
+		if model.ValidateFieldName(field) != nil {
 			missing = append(missing, field)
 			continue
 		}
