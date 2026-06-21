@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/google/uuid"
@@ -176,6 +177,18 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 // prevent nil pointer dereference when iterating over Source, Destination,
 // or Bidirectional fields that were absent in the serialized data.
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
+	// Validate the structure before decoding into Go values. The any-typed
+	// AccountCache.ValidIf field is decoded through msgpack's interface-slice
+	// path, which preallocates make([]interface{}, 0, n) from the declared array
+	// length without bounding it — so a crafted header (e.g. array32 claiming
+	// ~2e9 elements in 5 bytes) would allocate gigabytes before reading a single
+	// element. Decoder.Skip walks the whole structure element-by-element without
+	// that preallocation, so an inconsistent length errors here, bounded by the
+	// input size, instead of exhausting process memory.
+	if err := msgpack.NewDecoder(bytes.NewReader(data)).Skip(); err != nil {
+		return err
+	}
+
 	if err := msgpack.Unmarshal(data, trcd); err != nil {
 		return err
 	}
