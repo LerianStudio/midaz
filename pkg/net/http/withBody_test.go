@@ -322,6 +322,55 @@ func TestFindUnknownFields(t *testing.T) {
 				"extraField": "not allowed",
 			},
 		},
+		{
+			// A bool field set to its zero value is dropped by json omitempty,
+			// exactly like numeric zero; it is present-and-default, not unknown.
+			name: "boolean false omitted by omitempty is not an unknown field",
+			original: map[string]any{
+				"name": "John",
+				"fees": false,
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{},
+		},
+		{
+			// The per-call skip flags live in a nested object; an explicit
+			// skip.fees=false must not be flagged as an unexpected field.
+			name: "nested boolean false skip flag is not an unknown field",
+			original: map[string]any{
+				"skip": map[string]any{"fees": false, "tracer": false},
+			},
+			marshaled: map[string]any{
+				"skip": map[string]any{},
+			},
+			expected: map[string]any{},
+		},
+		{
+			// A bool sent as true is present in the marshaled output and equal,
+			// so it produces no diff (sanity that the guard is zero-only).
+			name: "boolean true present in both is not a diff",
+			original: map[string]any{
+				"fees": true,
+			},
+			marshaled: map[string]any{
+				"fees": true,
+			},
+			expected: map[string]any{},
+		},
+		{
+			// Documented tradeoff: a zero-valued unknown field is tolerated for
+			// bools just as it already is for numerics (e.g. {"garbage": 0}).
+			// Accepting an unmapped zero is harmless — it binds to no struct
+			// field — and keeps the bool and numeric guards consistent.
+			name: "unknown bool field at zero value is tolerated like numeric zero",
+			original: map[string]any{
+				"garbage": false,
+			},
+			marshaled: map[string]any{},
+			expected:  map[string]any{},
+		},
 	}
 
 	for _, tc := range tests {

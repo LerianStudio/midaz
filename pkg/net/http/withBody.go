@@ -841,6 +841,15 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 			continue
 		}
 
+		// A boolean sent as the explicit `false` is dropped by json omitempty,
+		// so it vanishes from the marshaled map exactly like the numeric zero
+		// handled above. Treat it as present-and-zero, not as an unknown field —
+		// otherwise the per-call skip flags (skip.fees/tracer/holder) reject
+		// their own default value with a 400.
+		if b, ok := value.(bool); ok && !b {
+			continue
+		}
+
 		marshaledValue, ok := marshaled[key]
 		if !ok {
 			// A nil value in the original means the client explicitly sent "field": null.
