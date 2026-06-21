@@ -5,12 +5,41 @@
 package model
 
 import (
+	"fmt"
+
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
+
+// maxAmountExponent bounds the exponent magnitude of a parsed monetary amount.
+// shopspring/decimal comparisons (GreaterThan/LessThan) rescale both operands to
+// a common exponent, materializing 10^|exponent| as a big.Int; a crafted
+// exponent such as the string "0E0700000000" would allocate hundreds of millions
+// of digits and exhaust process memory before the comparison ever runs. No
+// legitimate monetary amount approaches this magnitude, so amounts beyond it are
+// rejected as invalid — keeping amount parsing constant-cost.
+const maxAmountExponent = 1000
+
+// parseAmountDecimal converts a user-supplied amount string to a decimal,
+// rejecting values whose exponent magnitude is large enough to weaponize
+// shopspring's rescale-on-compare into a memory-exhaustion DoS. Callers map the
+// returned error to constant.ErrConvertToDecimal, exactly as for a malformed
+// amount.
+func parseAmountDecimal(s string) (decimal.Decimal, error) {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+
+	if exp := d.Exponent(); exp > maxAmountExponent || exp < -maxAmountExponent {
+		return decimal.Decimal{}, fmt.Errorf("amount exponent %d outside safe range [-%d, %d]", exp, maxAmountExponent, maxAmountExponent)
+	}
+
+	return d, nil
+}
 
 const (
 	FlatFee        = "flatFee"
@@ -134,7 +163,7 @@ func validateCalculationRuleAndTypes(model *CalculationModel, feeKey string) err
 
 func validateCalculationValues(model *CalculationModel, minAmount, feeKey string, isDeductible bool) error {
 	for _, calc := range model.Calculations {
-		valueCalc, err := decimal.NewFromString(calc.Value)
+		valueCalc, err := parseAmountDecimal(calc.Value)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 		}
@@ -148,7 +177,7 @@ func validateCalculationValues(model *CalculationModel, minAmount, feeKey string
 			}
 
 			if calc.Type == Flat {
-				minAmountDecimal, errMinAmt := decimal.NewFromString(minAmount)
+				minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
 				if errMinAmt != nil {
 					return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
 				}
@@ -216,7 +245,7 @@ func (f *Fee) validateCalculations(feeKey string, minAmount decimal.Decimal) err
 
 // validateCalculation validates a single calculation
 func (f *Fee) validateCalculation(calc Calculation, feeKey string, minAmount decimal.Decimal) error {
-	calcValueConverted, err := decimal.NewFromString(calc.Value)
+	calcValueConverted, err := parseAmountDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}

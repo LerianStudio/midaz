@@ -87,14 +87,14 @@ func (up *UpdatePackageInput) ValidateMinAndMaxAmount() error {
 	)
 
 	if up.MinAmount != nil {
-		minRealValue, err = decimal.NewFromString(*up.MinAmount)
+		minRealValue, err = parseAmountDecimal(*up.MinAmount)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 		}
 	}
 
 	if up.MaxAmount != nil {
-		maxRealValue, err = decimal.NewFromString(*up.MaxAmount)
+		maxRealValue, err = parseAmountDecimal(*up.MaxAmount)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 		}
@@ -124,7 +124,7 @@ func (up *UpdatePackageInput) ValidateMinAndMaxAmountValue() error {
 
 // ValidateMinAmountUpdate Validate minimum amount value that will be updated
 func (up *UpdatePackageInput) ValidateMinAmountUpdate(maxAmountData decimal.Decimal) error {
-	minAmountConverted, err := decimal.NewFromString(*up.MinAmount)
+	minAmountConverted, err := parseAmountDecimal(*up.MinAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
@@ -138,7 +138,7 @@ func (up *UpdatePackageInput) ValidateMinAmountUpdate(maxAmountData decimal.Deci
 
 // ValidateMaxAmountUpdate Validate maximum amount value that will be updated
 func (up *UpdatePackageInput) ValidateMaxAmountUpdate(minAmountData decimal.Decimal) error {
-	maxAmountConverted, err := decimal.NewFromString(*up.MaxAmount)
+	maxAmountConverted, err := parseAmountDecimal(*up.MaxAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 	}
@@ -316,7 +316,7 @@ func (f *Fee) validateDeductibleFromCalculations(hasUpdatedCalculationModel bool
 
 // validateDeductibleCalculation validates a single calculation for deductible fees
 func (f *Fee) validateDeductibleCalculation(calc Calculation, minAmount decimal.Decimal, feeKey string) error {
-	valueCalc, err := decimal.NewFromString(calc.Value)
+	valueCalc, err := parseAmountDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}
@@ -461,7 +461,7 @@ func (f *Fee) validateCalculationType(calc Calculation) error {
 
 // validateCalculationValue validates calculation value based on deductible status
 func (f *Fee) validateCalculationValue(calc Calculation, existingFees map[string]Fee, updateDeductibleFrom *bool, feeKey string, minAmount decimal.Decimal) error {
-	valueCalc, err := decimal.NewFromString(calc.Value)
+	valueCalc, err := parseAmountDecimal(calc.Value)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 	}

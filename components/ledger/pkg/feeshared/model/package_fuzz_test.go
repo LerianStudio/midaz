@@ -27,6 +27,11 @@ func FuzzCreatePackageInput_Validate(f *testing.F) {
 	f.Add("Test", "100,50", "1000,00")               // Comma-separated decimals
 	f.Add("Test", "-100", "1000")                    // Negative min amount
 	f.Add("Test", "99999999999999999999.99", "0.01") // Very large min, small max
+	// Regression: a huge decimal exponent made shopspring's GreaterThan rescale
+	// materialize a ~700M-digit big.Int (memory-exhaustion DoS). parseAmountDecimal
+	// must reject these before any comparison runs.
+	f.Add("0", "0E0700000000", "0")
+	f.Add("Test", "1E2000000000", "1E-2000000000")
 
 	f.Fuzz(func(t *testing.T, feeGroupLabel, minAmount, maxAmount string) {
 		enable := true

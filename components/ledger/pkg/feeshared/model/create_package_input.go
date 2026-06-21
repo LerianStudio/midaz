@@ -9,8 +9,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	"github.com/shopspring/decimal"
 )
 
 // CreatePackageInput is a struct designed to encapsulate request create payload data.
@@ -60,12 +58,12 @@ func (cp *CreatePackageInput) ValidateFees() error {
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
 func (cp *CreatePackageInput) ValidateMinAndMaxAmount() error {
-	minRealValue, err := decimal.NewFromString(cp.MinAmount)
+	minRealValue, err := parseAmountDecimal(cp.MinAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
 	}
 
-	maxRealValue, err := decimal.NewFromString(cp.MaxAmount)
+	maxRealValue, err := parseAmountDecimal(cp.MaxAmount)
 	if err != nil {
 		return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "maximumAmount")
 	}
