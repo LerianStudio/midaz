@@ -59,10 +59,16 @@ func corsSkipPath(c *fiber.Ctx) bool {
 // sanitizeOrigins splits a comma-separated origin string, trims whitespace,
 // filters out empty segments, and validates that each remaining origin has a
 // well-formed scheme://host structure with no path, query, fragment, or
-// userinfo components. The wildcard "*" is preserved as-is since Fiber
-// handles it explicitly.
+// userinfo components.
+//
+// A bare "*" means "allow all origins": it subsumes every other entry and is
+// only valid to Fiber as the sole value. Any list containing a "*" segment
+// therefore collapses to a single "*" — leaving "*" mixed with other tokens
+// (e.g. "*,*" or "*,https://x.com") makes Fiber's cors.New() panic with
+// "Invalid origin format in configuration: *".
 //
 // This prevents Fiber's cors.New() from panicking on:
+//   - A wildcard combined with any other origin segment
 //   - Empty segments from leading/trailing/consecutive commas
 //   - Malformed origins like "://missing-scheme" that lack a scheme or host
 //   - Origins with fragments, query strings, or paths that fail Fiber's
@@ -79,8 +85,7 @@ func sanitizeOrigins(input string) string {
 		}
 
 		if p == "*" {
-			clean = append(clean, p)
-			continue
+			return "*"
 		}
 
 		if isValidOrigin(p) {

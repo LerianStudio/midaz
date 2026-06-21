@@ -80,6 +80,11 @@ func FuzzCORSMiddleware_Origins(f *testing.F) {
 	f.Add("A://*", "0")
 	f.Add("https://*", "https://any.com")
 	f.Add("https://*.example.com", "https://x.example.com")
+	// Regression: a bare "*" mixed with other segments (Fiber accepts "*" only as
+	// the sole value) made cors.New() panic ("Invalid origin format ... *").
+	// sanitizeOrigins must collapse any wildcard-bearing list to a single "*".
+	f.Add("*,*", "0")
+	f.Add("*,https://x.com", "https://x.com")
 
 	// Category 5: Security payloads
 	f.Add("<script>alert('xss')</script>", "<script>alert('xss')</script>")
