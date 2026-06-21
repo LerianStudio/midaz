@@ -9,8 +9,6 @@ services:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
-    volumes:
-      - .:/usr/src/app
     # Note: healthcheck uses wget which is included in the Alpine dev image.
     # Production (Kubernetes) uses liveness/readiness probes instead.
     # The path is /readyz (canonical Lerian readiness probe — not /health,
