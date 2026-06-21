@@ -137,3 +137,30 @@ and the shared `CheckLimitsInput.Validate()` hard-rejected nil accountID.
   still rejects a missing account (verified: 400, `0420`). A nil account matches
   only non-account-scoped limits (the matcher already treats a zero account that
   way). Unit + e2e regression added; verified live: accountless reserve → 201.
+
+### F4 — per-leg amount.asset mismatching send.asset is silently coerced — LOW, documented
+
+An adversarial sweep found that a JSON transaction whose top-level `send.asset`
+is USD but whose distribute leg carries `amount.asset: "EUR"` (an asset not even
+registered in the ledger) returns 201 — the per-leg asset is silently coerced to
+the transaction's `send.asset`. The resulting operations are both USD, the
+destination balance is USD, and double-entry stays balanced (USD in = USD out);
+**no phantom asset, no integrity break.** This is consistent with midaz's
+single-asset transaction design (the transaction asset is `send.asset`; the
+per-leg `amount.asset` is redundant on this path).
+
+- **Not fixed** (low severity + compatibility): the gap is strictness only — a
+  mismatched per-leg asset should arguably be a 4xx ("asset mismatch") rather
+  than silently coerced. Rejecting it would change currently-accepted payloads,
+  so it's a deliberate strictness decision for the team, not a money-safety fix.
+
+### Sweep result
+
+A focused adversarial sweep of the reserve + transaction surfaces (malformed
+amounts/currencies/timestamps/ids, missing required fields, transaction
+state-machine edges: self-transfer, zero value, double-commit, cancel-committed,
+revert-pending, non-existent) found **no remaining 5xx-on-bad-input or
+double-entry-integrity bugs** — every client error returns a precise 4xx (or
+409/404 for invalid state transitions), and the reserve lifecycle is idempotent.
+Not exhaustively fuzzed: org/asset/portfolio/segment CRUD, metadata edges,
+pagination, multi-leg/split and DSL transaction paths, multi-tenant, auth-on.
