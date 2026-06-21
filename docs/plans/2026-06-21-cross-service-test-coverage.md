@@ -16,9 +16,9 @@
 
 | Phase | Milestone | Epics | Tier coverage | Status |
 |-------|-----------|-------|---------------|--------|
-| 1 | Fees + CRM in-process correctness fully covered against the current stack; no new infra | 1.1, 1.2, 1.3 | Tier 1 (#4 requireHolder, #5 deductible/multi-fee) + Tier 2 (all) | Detailed |
-| 2 | Ledger↔tracer integration proven end-to-end behind a tracer-wired capability gate | 2.1, 2.2, 2.3, 2.4 | Tier 1 (#1 fee×tracer, #2 denial, #3 lifecycle) | Epic-level |
-| 3 | Each infra-gated seam covered behind a capability flag that skips cleanly when absent | 3.1, 3.2, 3.3, 3.4, 3.5 | Tier 3 (all) | Epic-level |
+| 1 | Fees + CRM in-process correctness fully covered against the current stack; no new infra | 1.1, 1.2, 1.3 | Tier 1 (#4 requireHolder, #5 deductible/multi-fee) + Tier 2 (all) | **Done** (committed `fa27b5222`, live-verified) |
+| 2 | Ledger↔tracer integration proven end-to-end behind a tracer-wired capability gate | 2.1, 2.2, 2.3, 2.4 | Tier 1 (#1 fee×tracer, #2 denial, #3 lifecycle) | **Done** (committed `0249321dd`, live-verified) |
+| 3 | Each infra-gated seam covered behind a capability flag that skips cleanly when absent | 3.1, 3.2, 3.3, 3.4, 3.5 | Tier 3 (all) | Detailed |
 
 **Why this ordering (not tier-numbered):** dependency/infra first. Phase 1 needs zero new infra and carries the highest density of money-direction bugs, and its fixture builders (multi-fee packages, requireHolder ledgers, holder+instrument) are reused by Phase 2. Phase 2 introduces one new harness capability (wire + seed tracer limits) and holds the single highest-risk cross-seam test (fee×tracer amount) — it is the program's risk front-load, gated behind that capability. Phase 3's seams each need heavier env (broker, MT, certs, auth, async) and are independent. **If you want maximal risk-first, pull Epic 2.4 (fee×tracer) ahead — flagged in its Dependencies.**
 
@@ -38,7 +38,7 @@
 
 #### Task 1.1.1: Deductible vs additive fee direction
 
-- [ ] Done
+- [x] Done
 
 **Context:** The suite covers only additive fees (`isDeductibleFrom:false` → sender pays principal + fee; `tests/e2e/flow_test.go` `TestFullLedgerFlow`, `tests/e2e/positive_test.go` `TestPercentageFee`). `Fee.IsDeductibleFrom` (`components/ledger/pkg/feeshared/model/package.go:63`) flips who bears the fee. `ValidateFees` (`create_package_input.go:41`) enforces: a deductible fee's `ReferenceAmount` must be `originalAmount`. Calibration during planning showed a deductible package built with `{applicationRule:"flatFee", calculations:[{type:"flat","10"}], referenceAmount:"originalAmount", isDeductibleFrom:true, priority:1}` is **rejected at creation with HTTP 400** — an unverified corner.
 
@@ -54,7 +54,7 @@
 
 #### Task 1.1.2: Multi-fee priority ordering and maxBetweenTypes
 
-- [ ] Done
+- [x] Done
 
 **Context:** A package's `fees` is a `map[string]Fee`; each fee has a `Priority` (`package.go:62`) and a `CalculationModel.ApplicationRule` one of `maxBetweenTypes|flatFee|percentual` (`package.go:99`). `ValidateFees` requires `priority==1` fees to use `referenceAmount:"originalAmount"`. Calibration verified `maxBetweenTypes` with `[percentage 10%, flat 5]` on a 100 transfer charges **10** (the max), `amount` 110. Untested: a package with **multiple distinct fees** at different priorities (e.g. priority 1 flat 10 + priority 2 percentage 5%) — application order and whether later fees compute on `originalAmount` vs `afterFeesAmount`.
 
@@ -70,7 +70,7 @@
 
 #### Task 1.1.3: Fee eligibility boundaries (min/max amount) and waivedAccounts
 
-- [ ] Done
+- [x] Done
 
 **Context:** `CreatePackageInput` carries `MinAmount`/`MaxAmount` (`create_package_input.go:25-26`) and `WaivedAccounts *[]string` (`:27`). A package applies only to transactions within `[min,max]`; waived accounts are exempt. The suite always used `min:0,max:1e8` (everything in range) and never set waivedAccounts.
 
@@ -94,7 +94,7 @@
 
 #### Task 1.2.1: Fee package cache invalidation on update
 
-- [ ] Done
+- [x] Done
 
 **Context:** Enabled packages are cached per `(org,ledger)` and (per project notes) invalidated on package create/update; the store is Mongo while the transaction runs on Postgres — a cross-store consistency seam. No test exercises an update-then-transact sequence.
 
@@ -110,7 +110,7 @@
 
 #### Task 1.2.2: Fee scoping by segment and transaction route
 
-- [ ] Done
+- [x] Done
 
 **Context:** `CreatePackageInput.SegmentID` and `TransactionRoute` (`create_package_input.go:22,24`) scope a package. Accounts carry a `segmentId`; transactions carry a `routeId`/`route`. No test verifies that a scoped package applies only to matching transactions.
 
@@ -134,7 +134,7 @@
 
 #### Task 1.3.1: requireHolder enforcement and the two-key holder skip
 
-- [ ] Done
+- [x] Done
 
 **Context:** `AccountingValidation.RequireHolder` (`pkg/mmodel/settings.go:66`) defaults false; all current tests use it false (`tests/e2e/harness_test.go` `createLedger`). `create_account.go:61` resolves `requireHolder` + `allowHolderSkip`, then `skip.ResolveSkipFor("holder", ...)`. The two-key model: a `skip.holder:true` is honored only when `overrides.allowHolderSkip` is set, else 422. `AccountSkip.Holder` is `json:"holder,omitempty"` (`account.go:117`) — the F1 fix means explicit `false` is now accepted.
 
@@ -150,7 +150,7 @@
 
 #### Task 1.3.2: Instrument referential validation and atomic composition
 
-- [ ] Done
+- [x] Done
 
 **Context:** Instrument create is `POST /v1/organizations/{org}/holders/{holderId}/instruments` with `{accountId, ledgerId, ...}` (`crm_routes.go:49`); project notes say Epic 4.3 shipped instrument referential validation (422). The composition endpoint `POST .../ledgers/{id}/holders/{holderId}/accounts` (`composition.go`) opens an account and *optionally* creates an instrument in one call, returning `{account, instrument}`. Current tests cover only the happy instrument link and account-only composition.
 
@@ -166,7 +166,7 @@
 
 #### Task 1.3.3: Holder soft-delete ownership integrity
 
-- [ ] Done
+- [x] Done
 
 **Context:** Holders/accounts/instruments use soft delete (`DeletedAt`, status `DELETED`). A holder owns accounts (via `holderId`) and instruments. The behavior when deleting a holder that still owns accounts/instruments is unspecified by the current suite.
 
@@ -220,45 +220,59 @@
 
 ## Phase 3 — Infra-gated cross-service seams
 
-### Epic 3.1: Streaming events
+> **Scope decision (2026-06-21, Fred — option "author all 5, verify 2"):** the workflow authors all five epics as self-gating tests. The supervisor live-verifies the two infra-feasible epics now (3.5 async — flip `RABBITMQ_TRANSACTION_ASYNC=true` + recreate ledger; 3.1 streaming — start a Redpanda broker + flip `STREAMING_ENABLED`). 3.2/3.3/3.4 ship compiling + self-gating + SKIPping; live-verification is explicitly **deferred to a full-infra env** (CI/devops) and recorded as such — NOT marked verified.
+>
+> **Cross-cutting design (mirrors Phase 2):** each epic's test lives in its own `tests/e2e/<file>.go` with a unique package-private prefix and its own `requireX(t)` gate + helpers — **no edits to `harness_test.go`**, so the five files compose with zero shared-symbol/parallel-edit conflict. Prefixes: `strm` (3.1), `mt` (3.2), `tgrpc` (3.3), `auth` (3.4), `async` (3.5). All reuse the existing harness helpers: `createOrg(t)`, `createLedger(t,orgID,allowSkips)`, `createAccount(t,f,alias)`, `fund`, `transferBody`, `call`, `mustCreate`, `str`, `availableBalance`, `atoiDecimal`, `newFixture` (`harness_test.go:95-422`); URLs from `ledgerURL()`/`tracerURL()` (`:34-35`, env-overridable). Every gate follows the `requireStack`/`requireTracer` `sync.Once`+probe+`t.Skipf` pattern (`:57`, `:314`).
 
-**Goal:** account/transaction/holder lifecycle events are emitted to the broker with the correct CloudEvents wire contract, and emit failures never fail the request.
-**Scope:** `tests/e2e/`; `pkg/streaming/events`; a local Redpanda/Kafka broker; `STREAMING_ENABLED=true`.
-**Dependencies:** Epic 1.x/2.x (resources to emit from); a `requireBroker(t)` gate.
-**Done when:** creating an account/transaction/holder produces the expected event (ce-type `studio.lerian.<resource>.<event>`, subject = aggregate id, resolved tenant, payload shape matching the JSONShape contract); with the broker down, the request still succeeds (IMPORTANT-posture non-propagation).
-**Status:** Pending
+### Epic 3.1: Streaming events — LIVE-VERIFY: feasible (start Redpanda)
 
-### Epic 3.2: Multi-tenant scoping
+**Goal:** account and transaction lifecycle events are emitted to the broker with the correct CloudEvents wire contract, and emit failures never fail the request.
+**Scope:** `tests/e2e/streaming_events_test.go` (new); `pkg/streaming/events`; a local Redpanda/Kafka broker; `STREAMING_ENABLED=true`.
+**Dependencies:** none beyond the harness; `requireBroker(t)` gate + a franz-go consumer.
+**Done when:** creating an account produces `account.created` (ce-type `studio.lerian.account.created`, subject = account id, payload top-level field set matching the events package); a posted transaction produces `transaction.posted`; with the broker down, the create still returns 201 (IMPORTANT-posture non-propagation).
+**Status:** Detailed
 
-**Goal:** tenant isolation holds across the ledger and is propagated to the tracer.
-**Scope:** `tests/e2e/`; `MULTI_TENANT_ENABLED=true` + tenant-manager + auth; the `MT` code paths.
-**Dependencies:** a `requireMultiTenant(t)` gate; auth capability (overlaps Epic 3.4).
-**Done when:** resources created under tenant A are not visible/usable under tenant B; the tenant id is propagated to the tracer on reserve; tenant DB resolution works for both onboarding and transaction managers.
-**Status:** Pending
+**Execution (detailed wave):** prefix `strm`. **Gate** `requireBroker(t)`: TCP-dial `STREAMING_BROKERS` (default `localhost:19092`); `t.Skipf` if closed. **Consumer:** build a `*kgo.Client` (`github.com/twmb/franz-go/pkg/kgo` v1.21.3, already in go.mod) consuming from the start of the relevant topic. **Events** (read exact payload shapes from `pkg/streaming/events/*.go` + their JSONShape `_test.go`): `account.created` → topic `lerian.streaming.account.created`, ce-type `studio.lerian.account.created`, subject = account id, 17 top-level payload fields (incl. `holderCheckSkipped`, `feesSkipped`/`tracerSkipped` are transaction-only); `transaction.posted` → topic `lerian.streaming.transaction.posted`, 16 fields. Emit anchor is post-commit/pre-metadata, IMPORTANT posture (`create_account.go:231`, `send_transaction_events.go:128`). **Holder.created emits NO event** (CRM-internal — `crm/services/create-holder.go` has no emit) — do NOT assert a holder event; optionally assert its absence. **Non-propagation:** with `STREAMING_ENABLED=true` pointed at a DEAD broker address, an account create still returns 201 (`EmitImportant`, `pkg/streaming/emit.go:34-63`, logs Warn, never propagates; bounded by `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`, default 5s). Note `STREAMING_ENABLED=true` + empty `STREAMING_BROKERS` → NoopEmitter fallback (`bootstrap/streaming.go:72-101`), so the dead-broker test must set a NON-empty unreachable address. **Live-verify (supervisor):** start Redpanda on `infra-network` bound to host `19092`; set `STREAMING_ENABLED=true`, `STREAMING_BROKERS=midaz-redpanda:9092` (container) / consumer reads `localhost:19092` (host), `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger`; recreate ledger; pre-provision topics.
 
-### Epic 3.3: Tracer gRPC + mTLS transport
+### Epic 3.2: Multi-tenant scoping — LIVE-VERIFY: DEFERRED (needs auth + tenant-manager)
 
-**Goal:** the reserve contract holds over the production-default gRPC+mTLS transport, not just REST.
-**Scope:** `tests/e2e/`; tracer gRPC seam (`TRACER_GRPC_PORT`, `TRACER_TLS_MODE=mtls`) + cert material; the ledger gRPC reserve client.
-**Dependencies:** Epic 2.1 (reserve fixtures); cert provisioning; a `requireTracerGRPC(t)` gate.
-**Done when:** a reserve over gRPC+mTLS produces the same outcome (201 / denial / 4xx) as the REST path for the same inputs, proving no contract drift between transports.
-**Status:** Pending
+**Goal:** tenant isolation holds across the ledger — resources under tenant A are invisible to tenant B.
+**Scope:** `tests/e2e/multitenant_test.go` (new); `MULTI_TENANT_ENABLED=true` + tenant-manager + auth; the `MT` code paths.
+**Dependencies:** `requireMultiTenant(t)` gate; a tenant-token helper. **Heavy infra — verification deferred.**
+**Done when:** with an MT-configured stack, a resource created under tenant A's token is not readable under tenant B's token (404/empty), and the same logical alias can coexist across tenants; absent MT, the test SKIPS.
+**Status:** Detailed (live-verify deferred)
 
-### Epic 3.4: Auth-on and CRM namespace flip
+**Execution (detailed wave):** prefix `mt`. **Gate** `requireMultiTenant(t)`: skip unless `E2E_MULTI_TENANT=1` (operator asserts an MT+auth stack is up) — there is **no dev bypass header** on user-facing routes (the trusted `x-tenant-id` exists only on the tracer reservation seam, `seamtenant/resolver.go:33`), so MT genuinely requires the auth path. **Token:** an unsigned JWT carrying the `tenantId` claim is accepted because the auth middleware uses `ParseUnverified` (`pkg/net/http/protected_routes.go:68-70`) and a mock plugin-auth approves it — build a `mtTenantToken(tenantID)` helper minting `jwt.SigningMethodNone` tokens with `{sub, tenantId, iat, exp}` (pattern proven in `components/tracer/tests/integration/14a_multitenant_mt_harness_test.go:286-313`). **Test:** create an org under tenant A (Authorization: Bearer tokenA), attempt to GET it under tokenB → expect not-visible; assert tenant DB resolution via context (`tmcore.GetTenantIDContext`). **Live-verify deferred:** requires standing up `MULTI_TENANT_ENABLED=true` + `PLUGIN_AUTH_ENABLED=true` + a mock plugin-auth (httptest) + mock tenant-manager (`MULTI_TENANT_URL`/`MULTI_TENANT_SERVICE_API_KEY`) + Redis (valkey is up) — devops/full-infra env.
 
-**Goal:** with auth enabled, the CRM holder/instrument routes authorize under the `midaz` namespace (the X1 flip) and protected routes reject unauthenticated calls.
-**Scope:** `tests/e2e/`; `PLUGIN_AUTH_ENABLED=true` + plugin-auth; the `midaz:{holders,instruments}` authz namespace.
-**Dependencies:** auth capability; a `requireAuth(t)` gate + token acquisition helper.
-**Done when:** an unauthenticated CRM call is rejected; an authorized call under the `midaz` namespace succeeds; the namespace flip (plugin-crm → midaz) is exercised on at least one holder and one instrument route.
-**Status:** Pending
+### Epic 3.3: Tracer gRPC + mTLS transport — LIVE-VERIFY: DEFERRED (no cert provisioning)
 
-### Epic 3.5: Async transaction processing
+**Goal:** the reserve contract holds over the production-default gRPC+mTLS transport, not just REST — no contract drift between transports.
+**Scope:** `tests/e2e/tracer_grpc_test.go` (new); the ledger gRPC reserve client (`TRACER_TRANSPORT=grpc`, `TRACER_TLS_MODE=mtls`); cert material.
+**Dependencies:** Epic 2.1 reserve fixtures (reuse `seedLimitRule`, `newEnforceFixture` from `tracer_harness_test.go`); cert provisioning; `requireTracerGRPC(t)` gate. **Heavy infra — verification deferred.**
+**Done when:** with the stack wired over gRPC+mTLS, an over-limit transfer is denied (422/0177) and an in-limit transfer commits (201) — identical to the REST outcomes Phase 2 proved; absent gRPC, the test SKIPS.
+**Status:** Detailed (live-verify deferred)
 
-**Goal:** transactions created in async mode settle correctly with eventual balance consistency.
-**Scope:** `tests/e2e/`; `RABBITMQ_TRANSACTION_ASYNC=true`; the RabbitMQ consumer path.
-**Dependencies:** a `requireAsync(t)` gate (detect async mode).
-**Done when:** an async-created transaction eventually reaches its terminal state and balances converge (poll-with-timeout), ordering is preserved for sequential transfers on the same account, and the sync vs async result is equivalent.
-**Status:** Pending
+**Execution (detailed wave):** prefix `tgrpc`. **Gate** `requireTracerGRPC(t)`: skip unless `E2E_TRACER_GRPC=1` (operator asserts a gRPC+mTLS-wired stack). **Test:** reuse the Phase 2 enforce-mode + denial scenario verbatim — it is transport-agnostic at the HTTP layer (the ledger's transport choice is internal), so the SAME `seedLimitRule`/over-limit-transfer → 422 and in-limit → 201 assertions prove no drift. The only new thing is the gate. **Live-verify deferred:** no cert-provisioning script exists in the repo (recon). Requires hand-generating a CA + ledger-client + tracer-server cert chain, mounting both (`TRACER_TLS_CERT_FILE`/`KEY_FILE`/`CA_FILE` on ledger; `..._CLIENT_CA_FILE` on tracer — `bootstrap/tls_seam.go` both sides), and setting `TRACER_TRANSPORT=grpc` + `TRACER_TLS_MODE=mtls` + `TRACER_GRPC_PORT` — devops/full-infra env. Boot fails fast if cert material is missing, so a misconfigured run won't false-pass.
+
+### Epic 3.4: Auth-on and CRM namespace flip — LIVE-VERIFY: DEFERRED (no plugin-auth)
+
+**Goal:** with auth enabled, protected routes reject unauthenticated calls and the CRM holder/instrument routes authorize under the `midaz` namespace (the X1 flip from plugin-crm).
+**Scope:** `tests/e2e/auth_namespace_test.go` (new); `PLUGIN_AUTH_ENABLED=true` + plugin-auth; the `midaz:{holders,instruments}` authz namespace.
+**Dependencies:** `requireAuth(t)` gate + token helper. **Heavy infra — verification deferred.**
+**Done when:** an unauthenticated CRM call returns 401; an authorized call under the `midaz` namespace succeeds; absent auth, the test SKIPS.
+**Status:** Detailed (live-verify deferred)
+
+**Execution (detailed wave):** prefix `auth`. **Gate** `requireAuth(t)`: skip unless `E2E_AUTH=1`. **Test:** (a) an unauthenticated POST to a holders or instruments route → 401 (`MarkTrustedAuthAssertion` returns `fiber.StatusUnauthorized`, `pkg/net/http/protected_routes.go:48-49`); (b) the namespace flip is a static fact to pin — the holders/instruments routes register `auth.Authorize("midaz", "holders"|"instruments", verb)` with `ApplicationName="midaz"` (`crm_routes.go:15-20`, `:36-53`), NOT `plugin-crm`; the test can assert an authorized call under `midaz` succeeds (with a mock-approved token). **Live-verify deferred:** no plugin-auth container in any compose; needs `PLUGIN_AUTH_ENABLED=true` + `PLUGIN_AUTH_HOST` pointed at a real or httptest-mock plugin-auth (recon: integration suite uses an httptest fake returning `{authorized:true}`) — devops/full-infra env. Token = unsigned JWT (ParseUnverified) as in 3.2.
+
+### Epic 3.5: Async transaction processing — LIVE-VERIFY: feasible (flag flip)
+
+**Goal:** transactions created in async mode settle correctly with eventual balance consistency, equivalent to the sync result.
+**Scope:** `tests/e2e/async_transaction_test.go` (new); `RABBITMQ_TRANSACTION_ASYNC=true`; the in-process RabbitMQ consumer goroutine.
+**Dependencies:** `requireAsync(t)` gate. RabbitMQ is already up (`midaz-rabbitmq`); the consumer is an in-process goroutine in the unified binary (`bootstrap/service.go:66`) — no separate worker.
+**Done when:** an async-created transfer returns 201 immediately, balances converge to the sync-equivalent final value within a poll-with-timeout, and two sequential transfers on one account both settle to the correct cumulative balance; absent async, the test SKIPS.
+**Status:** Detailed
+
+**Execution (detailed wave):** prefix `async`. **Gate** `requireAsync(t)`: skip unless `E2E_ASYNC=1` (a poll-with-timeout test passes trivially in sync mode and proves nothing, so gate on the operator's intent flag rather than a behavioral probe). **Test:** fund a source (poll until the funding inflow settles); transfer 100 → expect 201 with status `CREATED`/`APPROVED` (`transaction_create.go:1429`); **poll** `GET .../accounts/alias/{alias}/balances` until `available` reflects the debit, with a bounded timeout + clear failure on non-convergence (the async-specific behavior: balance mutation is deferred to the consumer). Equivalence: assert the final balance equals the sync arithmetic (before − 100). Ordering: two sequential transfers on one source → poll until both settle → assert cumulative balance. Idempotency key dedups replays at the API layer before enqueue (`transaction_create.go:1037-1060`). **Live-verify (supervisor):** set `RABBITMQ_TRANSACTION_ASYNC=true` in `components/ledger/.env`, recreate ledger, set `E2E_ASYNC=1`, run.
 
 ---
 
