@@ -1218,13 +1218,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Already Associated",
 			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
 		},
-		constant.ErrHolderHasInstruments: ValidationError{
+		constant.ErrHolderHasInstruments: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrHolderHasInstruments.Error(),
 			Title:      "Unable to Delete Holder",
 			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
 		},
-		constant.ErrHolderHasAccounts: ValidationError{
+		constant.ErrHolderHasAccounts: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrHolderHasAccounts.Error(),
 			Title:      "Unable to Delete Holder",

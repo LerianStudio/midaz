@@ -676,7 +676,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			validateBody:   nil,
 		},
 		{
-			name:       "holder has instruments returns 400",
+			name:       "holder has instruments returns 422",
 			hardDelete: "",
 			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				instrumentRepo.EXPECT().
@@ -684,7 +684,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 					Return(int64(1), nil).
 					Times(1)
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

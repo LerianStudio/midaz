@@ -446,11 +446,11 @@ func TestCompositionAtomicity(t *testing.T) {
 // integrity and independent instrument delete.
 //
 // Calibration outcomes (current contract):
-//   - Holder owning an ACCOUNT (no instrument): DELETE -> 400 CRM-0030 (blocked);
+//   - Holder owning an ACCOUNT (no instrument): DELETE -> 422 CRM-0030 (blocked);
 //     both the holder and the owned account stay readable. The delete guard now
 //     counts owned active accounts as well as instruments, so the account's
 //     holderId can never dangle. See F5.
-//   - Holder owning an INSTRUMENT: DELETE -> 400 CRM-0017 (blocked); holder stays
+//   - Holder owning an INSTRUMENT: DELETE -> 422 CRM-0017 (blocked); holder stays
 //     readable.
 //   - Instrument independent delete -> 204; holder unaffected.
 //   - After the instrument is gone, holder DELETE -> 204.
@@ -475,10 +475,10 @@ func TestHolderDeleteIntegrity(t *testing.T) {
 		del := crmDeleteHolder(t, f.orgID, holderID)
 		// F5 (fixed): the holder-delete guard (DeleteHolderByID) now counts owned
 		// active accounts as well as instruments. A holder that owns active accounts
-		// is blocked (400 CRM-0030, mirroring the instrument guard's CRM-0017) so the
+		// is blocked (422 CRM-0030, mirroring the instrument guard's CRM-0017) so the
 		// account's holderId can never become a dangling reference.
-		if del.status != http.StatusBadRequest {
-			t.Fatalf("delete holder owning an account: want 400 (blocked), got %d\nbody: %s", del.status, del.body)
+		if del.status != http.StatusUnprocessableEntity {
+			t.Fatalf("delete holder owning an account: want 422 (blocked), got %d\nbody: %s", del.status, del.body)
 		}
 
 		if got := crmCode(del); got != "CRM-0030" {
@@ -510,10 +510,11 @@ func TestHolderDeleteIntegrity(t *testing.T) {
 
 		// Delete is blocked while the holder owns an instrument.
 		del := crmDeleteHolder(t, f.orgID, holderID)
-		// FINDING: plan hypothesized the block would be 409/422; observed 400
-		// CRM-0017. The block fires correctly; only the status differs. See F6.
-		if del.status != http.StatusBadRequest {
-			t.Fatalf("delete holder owning an instrument: want 400 (blocked), got %d\nbody: %s", del.status, del.body)
+		// The block fires with 422 CRM-0017 (business-rule violation: a holder with
+		// dependents cannot be deleted), aligned to the 422 standard for business
+		// rules and matching the owned-account guard (CRM-0030). See F6.
+		if del.status != http.StatusUnprocessableEntity {
+			t.Fatalf("delete holder owning an instrument: want 422 (blocked), got %d\nbody: %s", del.status, del.body)
 		}
 
 		if got := crmCode(del); got != "CRM-0017" {
