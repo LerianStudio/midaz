@@ -187,9 +187,12 @@ func TestCreateAccountSelfHolderDefault(t *testing.T) {
 	}
 }
 
-// TestCreateAccountRequireHolderGate covers the T05 gate: it only fires when
-// RequireHolder is true AND an explicit HolderID is supplied; a missing holder maps
-// to ErrHolderNotFound; RequireHolder=false skips the existence check entirely.
+// TestCreateAccountRequireHolderGate covers the requireHolder gate: when
+// RequireHolder is true the account MUST name an existing holder. An absent
+// HolderID is rejected with ErrHolderRequired (422) before the self-holder
+// default can be derived; a supplied-but-unknown HolderID maps to
+// ErrHolderNotFound (404); a supplied-and-existing HolderID succeeds.
+// RequireHolder=false skips the gate entirely (self-holder default applies).
 func TestCreateAccountRequireHolderGate(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
@@ -202,6 +205,7 @@ func TestCreateAccountRequireHolderGate(t *testing.T) {
 		input                *mmodel.CreateAccountInput
 		holderExists         bool
 		expectHolderNotFound bool
+		expectHolderRequired bool
 		expectChecked        bool
 	}{
 		{
@@ -227,11 +231,12 @@ func TestCreateAccountRequireHolderGate(t *testing.T) {
 			expectChecked: false,
 		},
 		{
-			name:          "require true but no input holder -> default path, no check",
-			requireHolder: true,
-			input:         &mmodel.CreateAccountInput{Name: "D", Type: "deposit", AssetCode: "USD"},
-			holderExists:  false,
-			expectChecked: false,
+			name:                 "require true but no input holder -> ErrHolderRequired, no existence check",
+			requireHolder:        true,
+			input:                &mmodel.CreateAccountInput{Name: "D", Type: "deposit", AssetCode: "USD"},
+			holderExists:         false,
+			expectHolderRequired: true,
+			expectChecked:        false,
 		},
 	}
 
@@ -247,14 +252,22 @@ func TestCreateAccountRequireHolderGate(t *testing.T) {
 
 			_, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test")
 
-			if tt.expectHolderNotFound {
+			switch {
+			case tt.expectHolderNotFound:
 				require.Error(t, err)
 
 				var notFound pkg.EntityNotFoundError
 				require.ErrorAs(t, err, &notFound)
 				assert.Equal(t, constant.ErrHolderNotFound.Error(), notFound.Code)
 				assert.Equal(t, constant.EntityHolder, notFound.EntityType)
-			} else {
+			case tt.expectHolderRequired:
+				require.Error(t, err)
+
+				var unprocessable pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessable)
+				assert.Equal(t, constant.ErrHolderRequired.Error(), unprocessable.Code)
+				assert.Nil(t, captured, "account must not be created when a required holder is absent")
+			default:
 				require.NoError(t, err)
 			}
 

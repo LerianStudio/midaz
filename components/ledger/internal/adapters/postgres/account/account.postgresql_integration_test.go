@@ -1280,6 +1280,107 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	assert.Equal(t, int64(1), count2, "org2 should have 1 account")
 }
 
+// createHolderAccount persists an active (or soft-deleted) account owned by
+// holderID via repo.Create, then optionally soft-deletes it, so CountByHolderID
+// can be exercised against real holder_id-bearing rows.
+func createHolderAccount(t *testing.T, repo *AccountPostgreSQLRepository, orgID, ledgerID uuid.UUID, holderID, alias string, deleted bool) {
+	t.Helper()
+
+	hid := holderID
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	acc := &mmodel.Account{
+		Name:           "Holder Account",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &alias,
+		Type:           "deposit",
+		HolderID:       &hid,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(context.Background(), acc)
+	require.NoError(t, err)
+
+	if deleted {
+		parsedID, perr := uuid.Parse(created.ID)
+		require.NoError(t, perr)
+		require.NoError(t, repo.Delete(context.Background(), orgID, ledgerID, nil, parsedID))
+	}
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_CountsActiveOwned(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	otherHolderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	// 2 active accounts for the target holder.
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own2-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	// 1 soft-deleted account for the target holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@owndel-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], true)
+	// 1 active account for a different holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, otherHolderID, "@other-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	// Act
+	count, err := repo.CountByHolderID(context.Background(), orgID, holderUUID)
+
+	// Assert: only the 2 active accounts owned by the target holder count.
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_IsolatesByOrg(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, org1ID)
+
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
+
+	// Same holder id value appears under two organizations; the count must be
+	// scoped to the organization passed in.
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	createHolderAccount(t, repo, org1ID, ledger1ID, holderID, "@o1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2a-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2b-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	count1, err1 := repo.CountByHolderID(ctx, org1ID, holderUUID)
+	count2, err2 := repo.CountByHolderID(ctx, org2ID, holderUUID)
+
+	// Assert
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, int64(1), count1, "org1 should count 1 owned account")
+	assert.Equal(t, int64(2), count2, "org2 should count 2 owned accounts")
+}
+
 // ============================================================================
 // FindAll Filter Tests (Phase 1 - Account Filters)
 // ============================================================================

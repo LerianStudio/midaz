@@ -1224,6 +1224,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Unable to Delete Holder",
 			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
 		},
+		constant.ErrHolderHasAccounts: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderHasAccounts.Error(),
+			Title:      "Unable to Delete Holder",
+			Message:    "The holder cannot be deleted because it owns one or more active accounts.",
+		},
 		constant.ErrInstrumentClosingDateBeforeCreation: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInstrumentClosingDateBeforeCreation.Error(),
@@ -1247,6 +1253,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrSkipNotPermitted.Error(),
 			Title:      "Skip Not Permitted",
 			Message:    fmt.Sprintf("The %v skip requested for this operation is not permitted on this ledger. Enable the matching ledger override to allow it, or remove the skip from your request.", args...),
+		},
+		constant.ErrHolderRequired: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderRequired.Error(),
+			Title:      "Holder Required",
+			Message:    "This ledger requires every account to name an existing holder. Please provide a valid holderId and try again.",
 		},
 		constant.ErrRelatedPartyNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1675,6 +1687,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrCalculationValueFlatFee.Error(),
 			Title:      "calculation value flat invalid",
 			Message:    fmt.Sprintf("Calculation value is invalid, it cannot exceed the minimum amount %v. Please check the calculation value for Fee %v.", args...),
+		},
+		constant.ErrDeductibleFeeExceedsAmount: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeductibleFeeExceedsAmount.Error(),
+			Title:      "Deductible fee exceeds the amount it deducts from",
+			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
 		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,

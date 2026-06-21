@@ -14,12 +14,19 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// FindPackageToCalculateFee returns the Package to calculate Fee or an error if not exactly one Package is found
+// FindPackageToCalculateFee returns the Package to calculate Fee or an error if not exactly one Package is found.
+//
+// Scope is an AND of route, segment, and amount: a package applies only when
+// every constraint it carries matches the transaction. The early returns after
+// the route and segment filters are short-circuits that must not skip an
+// unverified constraint — a lone route survivor that still carries a segment
+// constraint must fall through to the segment filter, otherwise a package scoped
+// to route=A AND segment=X would be selected on the route match alone.
 func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string,
 	segmentID *uuid.UUID, amount decimal.Decimal,
 ) (*pack.Package, error) {
 	byRoute := filterByTransactionRoute(packages, transactionRoute)
-	if len(byRoute) == 1 {
+	if len(byRoute) == 1 && byRoute[0].SegmentID == nil {
 		return byRoute[0], nil
 	}
 

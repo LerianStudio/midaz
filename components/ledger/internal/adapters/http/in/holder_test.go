@@ -787,6 +787,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			uc := &services.UseCase{
 				InstrumentRepo: mockInstrumentRepo,
 				HolderRepo:     mockHolderRepo,
+				// DeleteHolderByID's ownership guard counts owned accounts after the
+				// instrument guard; the stub reports none so these cases keep their
+				// pre-guard expectations.
+				LedgerAccounts: stubInstrumentLedgerAccountReader{},
 			}
 			handler := &HolderHandler{Service: uc}
 

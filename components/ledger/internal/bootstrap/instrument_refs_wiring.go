@@ -56,3 +56,10 @@ func (a ledgerAccountReaderAdapter) AccountExists(ctx context.Context, organizat
 
 	return true, nil
 }
+
+// CountAccountsByHolder reports how many active accounts the holder owns within
+// the organization, across all ledgers. It backs the CRM holder-delete
+// ownership guard; errors propagate unchanged.
+func (a ledgerAccountReaderAdapter) CountAccountsByHolder(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error) {
+	return a.query.CountAccountsByHolderID(ctx, organizationID, holderID)
+}

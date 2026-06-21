@@ -331,6 +331,16 @@ func calculateProportionalFees(
 			}
 
 			if isToStruct {
+				// A deductible fee is carved out of the paying (destination) account.
+				// If the fee meets or exceeds that account's share, applying it would
+				// leave the recipient with zero or a negative balance. Reject the
+				// operation rather than silently dropping the fee or breaching the
+				// no-negative-balance invariant.
+				if feeApplied.GreaterThanOrEqual(amount.Value) {
+					return *amounts, updateAmountToStruct, newFeeTotalPaying,
+						pkg.ValidateBusinessError(constant.ErrDeductibleFeeExceedsAmount, "")
+				}
+
 				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target)
 			} else {
 				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)

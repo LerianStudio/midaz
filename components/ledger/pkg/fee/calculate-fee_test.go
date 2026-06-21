@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -2490,4 +2491,116 @@ func TestApplyFeeCorrection_Deductible(t *testing.T) {
 		"fee_source leg should absorb the +0.03 residual, got %s", updateAmount[legKey].Value)
 	assert.True(t, decimal.RequireFromString("128.537").Equal(updateAmount[payerKey].Value),
 		"payer balance should drop by 0.03 to keep debit==credit, got %s", updateAmount[payerKey].Value)
+}
+
+// newDeductibleFlatFeeCalc builds a single-recipient deductible flat-fee scenario
+// for the over-large-deductible guard tests. transferValue is the amount sent to
+// the sole recipient; flatValue is the deductible flat fee carved out of it.
+func newDeductibleFlatFeeCalc(transferValue, flatValue string) (*model.FeeCalculate, *pack.Package, *transaction.Responses) {
+	amount, _ := decimal.NewFromString(transferValue)
+
+	feeCalc := &model.FeeCalculate{
+		Transaction: transaction.Transaction{
+			Send: transaction.Send{
+				Asset: "BRL",
+				Value: amount,
+				Source: transaction.Source{
+					From: []transaction.FromTo{{
+						AccountAlias: "src",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: amount},
+					}},
+				},
+				Distribute: transaction.Distribute{
+					To: []transaction.FromTo{{
+						AccountAlias: "dst",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: amount},
+					}},
+				},
+			},
+		},
+	}
+
+	fee := model.Fee{
+		FeeLabel: "DeductibleFlatFee",
+		CalculationModel: &model.CalculationModel{
+			ApplicationRule: feeconstant.AppRuleFlatFee,
+			Calculations:    []model.Calculation{{Type: feeconstant.FeeTypeFlat, Value: flatValue}},
+		},
+		ReferenceAmount:  "originalAmount",
+		Priority:         1,
+		IsDeductibleFrom: func() *bool { b := true; return &b }(),
+		CreditAccount:    "@fee_account",
+	}
+
+	pkg := &pack.Package{
+		ID:             uuid.New(),
+		Fees:           map[string]model.Fee{"deductible": fee},
+		WaivedAccounts: &[]string{},
+	}
+
+	resp := &transaction.Responses{
+		From: map[string]transaction.Amount{"src": {Asset: "BRL", Value: amount}},
+		To:   map[string]transaction.Amount{"dst": {Asset: "BRL", Value: amount}},
+	}
+
+	return feeCalc, pkg, resp
+}
+
+// TestCalculateFee_DeductibleExceedsAmount_Rejected proves a deductible fee larger
+// than the amount it deducts from (flat-10 on a transfer of 5) is rejected with the
+// 0233 business error instead of being silently dropped (F-FEE-1). The recipient
+// leg must be left untouched (no negative balance, no carved fee leg).
+func TestCalculateFee_DeductibleExceedsAmount_Rejected(t *testing.T) {
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+
+	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("5", "10")
+
+	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	assert.Error(t, err)
+	assert.Equal(t, constant.ErrDeductibleFeeExceedsAmount.Error(), err.Error()[:4],
+		"over-large deductible fee should return the 0233 business error, got: %v", err)
+
+	// No fee leg emitted; recipient retains the full transfer; no negative balance.
+	_, feeLegPresent := resp.To["@fee_account->fee_source0->dst->"]
+	assert.False(t, feeLegPresent, "no fee_source leg should be emitted when the fee is rejected")
+	assert.True(t, resp.To["dst"].Value.Equal(decimal.NewFromInt(5)),
+		"recipient should retain the full 5, got %s", resp.To["dst"].Value.String())
+}
+
+// TestCalculateFee_DeductibleEqualsAmount_Rejected pins the conservative boundary:
+// a deductible fee exactly equal to the amount (flat-10 on a transfer of 10) leaves
+// the recipient nothing and is rejected, same as the over-large case. (Flagged for
+// supervisor review — reject-on-equal is the conservative money choice.)
+func TestCalculateFee_DeductibleEqualsAmount_Rejected(t *testing.T) {
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+
+	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("10", "10")
+
+	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	assert.Error(t, err)
+	assert.Equal(t, constant.ErrDeductibleFeeExceedsAmount.Error(), err.Error()[:4],
+		"deductible fee equal to the amount should return the 0233 business error, got: %v", err)
+	assert.True(t, resp.To["dst"].Value.Equal(decimal.NewFromInt(10)),
+		"recipient leg should be untouched on rejection, got %s", resp.To["dst"].Value.String())
+}
+
+// TestCalculateFee_DeductibleFitsAmount_Applied proves a normal deductible fee that
+// fits (flat-10 on a transfer of 100) still computes correctly: the recipient nets
+// 90 and the fee account receives 10. This guards against the over-large rejection
+// firing on legitimate fees.
+func TestCalculateFee_DeductibleFitsAmount_Applied(t *testing.T) {
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+
+	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("100", "10")
+
+	err := CalculateFee(logger, feeCalc, pkg, resp, "BRL", nil)
+	assert.NoError(t, err)
+
+	assert.True(t, resp.To["dst"].Value.Equal(decimal.NewFromInt(90)),
+		"recipient should net 90 (100 - 10 fee), got %s", resp.To["dst"].Value.String())
+
+	feeLeg, ok := resp.To["@fee_account->fee_source0->dst->"]
+	assert.True(t, ok, "a fee_source leg should be emitted for a fitting deductible fee")
+	assert.True(t, feeLeg.Value.Equal(decimal.NewFromInt(10)),
+		"fee account should receive 10, got %s", feeLeg.Value.String())
 }

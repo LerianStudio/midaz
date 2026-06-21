@@ -239,7 +239,11 @@ func TestCreateFeeEstimate(t *testing.T) {
 		expectResul      *model.FeeCalculate
 	}{
 		{
-			name:             "Success - Generate a fee estimate",
+			// The "iof" deductible fee is 600% of 100 = 600, carved out of a
+			// transfer of 100. A deductible fee that meets/exceeds the amount it
+			// deducts from is rejected (F-FEE-1) rather than silently emitting a
+			// fee leg that drives the recipient negative.
+			name:             "Error - Deductible fee exceeds the transfer amount",
 			feeEstimateInput: createFeeInput,
 			orgID:            orgID,
 			mockSetup: func() {
@@ -247,8 +251,9 @@ func TestCreateFeeEstimate(t *testing.T) {
 					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(packEntity, nil)
 			},
-			expectErr:   false,
-			expectResul: responseFeeInput,
+			expectErr:   true,
+			errContains: constant.ErrDeductibleFeeExceedsAmount.Error(),
+			expectResul: nil,
 		},
 		{
 			name:             "Error - Find package to create fee",

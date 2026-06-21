@@ -292,6 +292,7 @@ var (
 	ErrInvalidFeeAmount                     = errors.New("0230")
 	ErrMissingSegmentContext                = errors.New("0231")
 	ErrMidazRouteNotFound                   = errors.New("0232")
+	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
 )
 
 // Reporter template platform codes (migrated from TPL-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
@@ -539,6 +540,7 @@ var (
 	ErrInstrumentLedgerReferenceNotFound      = errors.New("0488")
 	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
 	ErrSkipNotPermitted                       = errors.New("0490")
+	ErrHolderRequired                         = errors.New("0491")
 )
 
 // List of CRM domain errors.
@@ -563,4 +565,5 @@ var (
 	ErrRelatedPartyNameRequired            = errors.New("CRM-0027")
 	ErrRelatedPartyStartDateRequired       = errors.New("CRM-0028")
 	ErrRelatedPartyEndDateInvalid          = errors.New("CRM-0029")
+	ErrHolderHasAccounts                   = errors.New("CRM-0030")
 )

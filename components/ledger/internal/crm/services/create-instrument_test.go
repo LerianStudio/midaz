@@ -29,6 +29,8 @@ type stubLedgerAccountReader struct {
 	accountExists bool
 	ledgerErr     error
 	accountErr    error
+	accountCount  int64
+	accountCntErr error
 }
 
 func (s *stubLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID) (bool, error) {
@@ -37,6 +39,10 @@ func (s *stubLedgerAccountReader) LedgerExists(_ context.Context, _, _ uuid.UUID
 
 func (s *stubLedgerAccountReader) AccountExists(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
 	return s.accountExists, s.accountErr
+}
+
+func (s *stubLedgerAccountReader) CountAccountsByHolder(_ context.Context, _, _ uuid.UUID) (int64, error) {
+	return s.accountCount, s.accountCntErr
 }
 
 func TestCreateAlias(t *testing.T) {

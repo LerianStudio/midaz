@@ -316,14 +316,19 @@ func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID,
 	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip, nil
 }
 
-// applyHolderValidation enforces that an explicitly supplied holder exists.
-// It mirrors applyAccountingValidations: it only runs when RequireHolder is true
-// and the input carries a HolderID; a missing holder maps to ErrHolderNotFound.
-// The derived self-holder default (resolveHolderID) is always resolvable and is
-// not subject to this check.
+// applyHolderValidation enforces the requireHolder gate. When RequireHolder is
+// true the account must name a real, existing holder: an absent HolderID is
+// rejected with ErrHolderRequired (KYC semantics — the derived self-holder
+// default is not an acceptable substitute), and a supplied HolderID must resolve
+// to an existing holder or it maps to ErrHolderNotFound. When RequireHolder is
+// false the gate is a no-op and the self-holder default applies.
 func (uc *UseCase) applyHolderValidation(ctx context.Context, organizationID uuid.UUID, requireHolder bool, cai *mmodel.CreateAccountInput) error {
-	if !requireHolder || libCommons.IsNilOrEmpty(cai.HolderID) {
+	if !requireHolder {
 		return nil
+	}
+
+	if libCommons.IsNilOrEmpty(cai.HolderID) {
+		return pkg.ValidateBusinessError(constant.ErrHolderRequired, constant.EntityAccount)
 	}
 
 	if ctx.Err() != nil {

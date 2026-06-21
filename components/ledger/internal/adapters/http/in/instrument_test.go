@@ -60,6 +60,12 @@ func (s stubInstrumentLedgerAccountReader) AccountExists(_ context.Context, _, _
 	return s.accountExists, nil
 }
 
+// CountAccountsByHolder satisfies the holder-delete ownership leg of the port;
+// the CreateInstrument handler tests never delete a holder, so it reports none.
+func (s stubInstrumentLedgerAccountReader) CountAccountsByHolder(_ context.Context, _, _ uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 	tests := []struct {
 		name           string

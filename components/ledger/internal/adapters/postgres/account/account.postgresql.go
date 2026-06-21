@@ -71,6 +71,11 @@ type Repository interface {
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
+	// CountByHolderID returns the number of non-deleted accounts owned by the
+	// holder within the organization, across all ledgers. It backs the CRM
+	// holder-delete ownership guard, so it counts only active (deleted_at IS NULL)
+	// accounts; soft-deleted accounts no longer pin the holder.
+	CountByHolderID(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error)
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -1210,6 +1215,49 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	}
 
 	_, spanQuery := tracer.Start(ctx, "postgres.count.query")
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	spanQuery.End()
+
+	return count, nil
+}
+
+func (r *AccountPostgreSQLRepository) CountByHolderID(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_accounts_by_holder")
+	defer span.End()
+
+	count := int64(0)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	builder := squirrel.Select("COUNT(*)").
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"holder_id": holderID}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return count, err
+	}
+
+	_, spanQuery := tracer.Start(ctx, "postgres.count_by_holder.query")
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {

@@ -30,4 +30,9 @@ type LedgerAccountReader interface {
 	// AccountExists reports whether an account with accountID exists within the
 	// ledger. Absence is (false, nil); other errors propagate.
 	AccountExists(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (bool, error)
+	// CountAccountsByHolder reports how many active accounts the holder owns
+	// within the organization, across all ledgers. It backs the holder-delete
+	// ownership guard; zero means the holder owns no accounts. Errors propagate so
+	// infrastructure failures do not masquerade as "no accounts".
+	CountAccountsByHolder(ctx context.Context, organizationID, holderID uuid.UUID) (int64, error)
 }

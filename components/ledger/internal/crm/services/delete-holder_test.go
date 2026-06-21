@@ -24,22 +24,19 @@ func TestDeleteHolderByID(t *testing.T) {
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := instrument.NewMockRepository(ctrl)
 
-	uc := &UseCase{
-		HolderRepo:     mockHolderRepo,
-		InstrumentRepo: mockAliasRepo,
-	}
-
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	testCases := []struct {
-		name        string
-		holderID    uuid.UUID
-		mockSetup   func()
-		expectError bool
+		name         string
+		holderID     uuid.UUID
+		accountCount int64
+		mockSetup    func()
+		expectError  bool
 	}{
 		{
-			name:     "Success deleting holder by ID",
-			holderID: holderID,
+			name:         "Success deleting holder with no instruments and no accounts",
+			holderID:     holderID,
+			accountCount: 0,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -51,8 +48,9 @@ func TestDeleteHolderByID(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:     "Error when holder not found by ID",
-			holderID: holderID,
+			name:         "Error when holder not found by ID",
+			holderID:     holderID,
+			accountCount: 0,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -64,12 +62,26 @@ func TestDeleteHolderByID(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:     "Error when holder has linked accounts",
-			holderID: holderID,
+			name:         "Error when holder has linked instruments",
+			holderID:     holderID,
+			accountCount: 0,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(1), nil)
+			},
+			expectError: true,
+		},
+		{
+			name:         "Error when holder owns active accounts",
+			holderID:     holderID,
+			accountCount: 1,
+			mockSetup: func() {
+				// Instrument guard passes (no instruments); the account-ownership
+				// guard fires on the owned account and blocks the delete.
+				mockAliasRepo.EXPECT().
+					Count(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(int64(0), nil)
 			},
 			expectError: true,
 		},
@@ -78,6 +90,12 @@ func TestDeleteHolderByID(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			testCase.mockSetup()
+
+			uc := &UseCase{
+				HolderRepo:     mockHolderRepo,
+				InstrumentRepo: mockAliasRepo,
+				LedgerAccounts: &stubLedgerAccountReader{accountCount: testCase.accountCount},
+			}
 
 			ctx := context.Background()
 			err := uc.DeleteHolderByID(ctx, uuid.New().String(), holderID, false)
