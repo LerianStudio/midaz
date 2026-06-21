@@ -8,13 +8,24 @@ package in
 
 import (
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 )
+
+// fuzzMetricsApp is the shared Fiber app used to acquire a lightweight ctx per
+// fuzz execution. It is built once (sync.OnceValue) so each execution costs only
+// AcquireCtx/ReleaseCtx rather than a full fiber.New() plus an app.Test() HTTP
+// round-trip. That round-trip's per-exec latency provoked the Go -fuzztime
+// boundary "context deadline exceeded" flake; keeping execution cheap removes it.
+var fuzzMetricsApp = sync.OnceValue(func() *fiber.App {
+	return fiber.New(fiber.Config{DisableStartupMessage: true})
+})
 
 // safeParseErrorPeriodDaysTest creates a Fiber app that exposes a test endpoint
 // reading the errorPeriodDays query parameter via parseErrorPeriodDays. It
@@ -28,44 +39,21 @@ func safeParseErrorPeriodDaysTest(queryValue string) (panicMsg string, statusCod
 		}
 	}()
 
-	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-	})
+	// parseErrorPeriodDays reads only the errorPeriodDays query parameter via
+	// c.Query, so a directly-acquired Fiber ctx exercises the same path as a full
+	// app.Test() round-trip. The status code mirrors the handler the round-trip
+	// used (400 on error, 200 otherwise) so the caller's oracle is unchanged.
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Request.SetRequestURI("/test?errorPeriodDays=" + url.QueryEscape(queryValue))
 
-	app.Get("/test", func(c *fiber.Ctx) error {
-		days, err := parseErrorPeriodDays(c)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		}
+	c := fuzzMetricsApp().AcquireCtx(fctx)
+	defer fuzzMetricsApp().ReleaseCtx(c)
 
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"days": days,
-		})
-	})
-
-	// Build the request URL with the fuzzed query parameter
-	url := "/test?errorPeriodDays=" + queryValue
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return "", 0, "", err
+	if _, err := parseErrorPeriodDays(c); err != nil {
+		return "", http.StatusBadRequest, "", nil
 	}
 
-	resp, err := app.Test(req, -1)
-	if err != nil {
-		return "", 0, "", err
-	}
-
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", resp.StatusCode, "", err
-	}
-
-	return "", resp.StatusCode, string(bodyBytes), nil
+	return "", http.StatusOK, "", nil
 }
 
 // FuzzParseErrorPeriodDays_Value fuzz tests the parseErrorPeriodDays function
@@ -176,44 +164,17 @@ func FuzzParseErrorPeriodDays_EmptyParam(f *testing.F) {
 			}
 		}()
 
-		app := fiber.New(fiber.Config{
-			DisableStartupMessage: true,
-		})
+		// Vary the full query string so the parameter may be absent, duplicated,
+		// or malformed. parseErrorPeriodDays reads only via c.Query, so a directly
+		// acquired ctx exercises that path without an app.Test() round-trip.
+		fctx := &fasthttp.RequestCtx{}
+		fctx.Request.SetRequestURI("/test?" + queryString)
 
-		app.Get("/test", func(c *fiber.Ctx) error {
-			days, err := parseErrorPeriodDays(c)
-			if err != nil {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": err.Error(),
-				})
-			}
+		c := fuzzMetricsApp().AcquireCtx(fctx)
+		defer fuzzMetricsApp().ReleaseCtx(c)
 
-			return c.Status(fiber.StatusOK).JSON(fiber.Map{
-				"days": days,
-			})
-		})
-
-		url := "/test?" + queryString
-
-		req, err := http.NewRequest(http.MethodGet, url, nil)
-		if err != nil {
-			// Malformed URL is acceptable for fuzzed inputs
-			return
-		}
-
-		resp, err := app.Test(req, -1)
-		if err != nil {
-			return
-		}
-
-		defer resp.Body.Close()
-
-		_, _ = io.ReadAll(resp.Body)
-
-		// Invariant: response status must be 200 (valid) or 400 (invalid input)
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadRequest {
-			t.Errorf("unexpected HTTP status %d for queryString=%q; expected 200 or 400",
-				resp.StatusCode, queryString)
-		}
+		// Invariant: must never panic (a server fault) for any query string; the
+		// returned value/error itself is exercised by FuzzParseErrorPeriodDays_Value.
+		_, _ = parseErrorPeriodDays(c)
 	})
 }

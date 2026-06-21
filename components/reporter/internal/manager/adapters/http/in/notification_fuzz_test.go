@@ -8,14 +8,24 @@ package in
 
 import (
 	"math"
-	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 )
+
+// fuzzNotificationApp is the shared Fiber app used to acquire a lightweight ctx
+// per fuzz execution. It is built once (sync.OnceValue) so each execution costs
+// only AcquireCtx/ReleaseCtx rather than a full fiber.New() plus an app.Test()
+// HTTP round-trip — keeping execution cheap enough to avoid the Go -fuzztime
+// boundary "context deadline exceeded" flake the round-trip provoked.
+var fuzzNotificationApp = sync.OnceValue(func() *fiber.App {
+	return fiber.New(fiber.Config{DisableStartupMessage: true})
+})
 
 // FuzzNotification_ParseLimit fuzz tests parseNotificationLimit by injecting
 // random strings as the "limit" query parameter. The function must never panic
@@ -55,29 +65,27 @@ func FuzzNotification_ParseLimit(f *testing.F) {
 			raw = raw[:512]
 		}
 
-		// URL-encode the raw value to ensure it survives as a query parameter
-		encoded := url.QueryEscape(raw)
-		target := "/v1/deadlines/notifications?limit=" + encoded
+		// A panic in parseNotificationLimit is a crash — surface it as a failure
+		// rather than letting it abort the fuzz worker silently.
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("parseNotificationLimit panicked for input %q: %v", raw, r)
+			}
+		}()
 
-		app := fiber.New(fiber.Config{DisableStartupMessage: true})
+		// parseNotificationLimit reads only the limit query parameter via c.Query,
+		// so a directly-acquired ctx exercises the same path as an app.Test()
+		// round-trip without the per-exec HTTP cost. URL-encode the raw value so
+		// it survives intact as the query parameter.
+		target := "/v1/deadlines/notifications?limit=" + url.QueryEscape(raw)
 
-		var limit int
-		var parseErr error
+		fctx := &fasthttp.RequestCtx{}
+		fctx.Request.SetRequestURI(target)
 
-		app.Get("/v1/deadlines/notifications", func(c *fiber.Ctx) error {
-			limit, parseErr = parseNotificationLimit(c)
-			return c.SendStatus(200)
-		})
+		c := fuzzNotificationApp().AcquireCtx(fctx)
+		defer fuzzNotificationApp().ReleaseCtx(c)
 
-		req := httptest.NewRequest("GET", target, nil)
-
-		resp, err := app.Test(req)
-		if err != nil {
-			// Framework error during fuzzing is acceptable
-			return
-		}
-
-		defer resp.Body.Close()
+		limit, parseErr := parseNotificationLimit(c)
 
 		// Invariant 1: Must never return both a valid limit AND an error
 		if parseErr != nil && limit != 0 {
