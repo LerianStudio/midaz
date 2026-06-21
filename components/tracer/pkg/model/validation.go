@@ -504,6 +504,20 @@ func (r *ValidationRequest) validateMetadata() error {
 	return nil
 }
 
+// transactionTypePtr returns nil when no transaction type was supplied. Scope
+// matching uses a nil TransactionType to mean "no type filter"; a pointer to the
+// empty string slips past those != nil guards as a present-but-empty value and
+// breaks downstream resolution. The reserve path deliberately permits an absent
+// type (ValidateForReserve), so the ledger's typeless reserve must normalize to
+// nil here rather than &"".
+func (r *ValidationRequest) transactionTypePtr() *TransactionType {
+	if r.TransactionType == "" {
+		return nil
+	}
+
+	return &r.TransactionType
+}
+
 // ToCheckLimitsInput converts ValidationRequest to CheckLimitsInput for limit checking.
 // Used by Validation Orchestration to prepare input for Limit Checking.
 func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
@@ -511,7 +525,7 @@ func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 		Amount:               r.Amount,
 		Currency:             r.Currency,
 		AccountID:            r.Account.ID,
-		TransactionType:      &r.TransactionType,
+		TransactionType:      r.transactionTypePtr(),
 		SubType:              r.SubType,
 		TransactionTimestamp: r.TransactionTimestamp,
 	}
@@ -539,7 +553,7 @@ func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 func (r *ValidationRequest) ToTransactionScope() *Scope {
 	scope := &Scope{
 		AccountID:       &r.Account.ID,
-		TransactionType: &r.TransactionType,
+		TransactionType: r.transactionTypePtr(),
 		SubType:         r.SubType,
 	}
 

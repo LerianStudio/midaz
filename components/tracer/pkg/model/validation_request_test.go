@@ -327,6 +327,32 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 		assert.Equal(t, timestamp, input.TransactionTimestamp)
 	})
 
+	// Regression: an empty transaction type must normalize to a nil pointer, not
+	// a pointer to "". Scope matching uses TransactionType == nil to mean "no type
+	// filter"; a &"" slips past those guards and breaks reserve resolution
+	// (the ledger sends a typeless reserve, which previously 500'd).
+	t.Run("empty transaction type yields nil pointer, set type yields pointer", func(t *testing.T) {
+		base := func(tt TransactionType) *ValidationRequest {
+			return &ValidationRequest{
+				RequestID:            testutil.MustDeterministicUUID(50),
+				TransactionType:      tt,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: testutil.FixedTime(),
+				Account:              AccountContext{ID: testutil.MustDeterministicUUID(51)},
+			}
+		}
+
+		emptyInput := base("").ToCheckLimitsInput()
+		assert.Nil(t, emptyInput.TransactionType, "empty type must produce a nil pointer")
+		assert.Nil(t, base("").ToTransactionScope().TransactionType, "empty type must produce a nil scope pointer")
+
+		setReq := base(TransactionTypePix)
+		setInput := setReq.ToCheckLimitsInput()
+		require.NotNil(t, setInput.TransactionType)
+		assert.Equal(t, TransactionTypePix, *setInput.TransactionType)
+	})
+
 	t.Run("handles nil segment and portfolio", func(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(40)
 		req := &ValidationRequest{
