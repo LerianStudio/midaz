@@ -362,6 +362,24 @@ test-e2e:
 .PHONY: test-bdd
 test-bdd: test-e2e
 
+# Ledger end-to-end suite — exercises the full ledger + CRM + fees money path
+# over HTTP (org -> ledger -> asset -> accounts -> fund -> transfer ->
+# holder/instrument -> fee package -> fee-bearing transaction) against an
+# ALREADY-RUNNING stack. Bring it up first with `make up`. Unlike the tracer
+# godog suite above it self-gates: if the ledger is unreachable the tests skip
+# rather than fail. Override LEDGER_URL / TRACER_URL to target a remote stack.
+LEDGER_URL ?= http://localhost:3002
+TRACER_URL ?= http://localhost:4020
+
+.PHONY: test-ledger-e2e
+test-ledger-e2e:
+	$(call print_title,Running ledger + CRM + fees end-to-end suite)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@echo "Targeting ledger at: $(LEDGER_URL)  (tracer at: $(TRACER_URL))"
+	@echo "Tests skip if the stack is unreachable — run 'make up' first."
+	LEDGER_URL=$(LEDGER_URL) TRACER_URL=$(TRACER_URL) \
+	  go test -tags e2e -v -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e/...
+
 # Full CI test matrix — one command, one exit code.
 #
 # Sequences the deterministic, self-contained legs (testcontainers only, no live
