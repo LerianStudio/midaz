@@ -2,6 +2,12 @@ services:
   ledger:
     container_name: midaz-ledger
     restart: always
+    # The distroless runtime defaults WORKDIR to /home/nonroot, but the ledger
+    # resolves its migration source from the relative path
+    # "components/ledger/migrations/{onboarding,transaction}" which the Dockerfile
+    # stages at the absolute /components/ledger/migrations/... . Pin working_dir to
+    # / so the relative path resolves to the staged files.
+    working_dir: /
     build:
       context: ../../
       dockerfile: ./components/ledger/Dockerfile
@@ -9,8 +15,6 @@ services:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
-    volumes:
-      - .:/usr/src/app
     networks:
       - infra-network
 
