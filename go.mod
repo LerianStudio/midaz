@@ -119,6 +119,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
 	github.com/twmb/franz-go v1.21.3
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	go.mongodb.org/mongo-driver/v2 v2.6.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.66.0
 	go.uber.org/automaxprocs v1.6.0
@@ -195,7 +196,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

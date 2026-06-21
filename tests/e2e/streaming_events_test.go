@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
 // Epic 3.1 — streaming events. These tests consume the live Kafka-compatible
@@ -136,13 +137,96 @@ func strmRequireBroker(t *testing.T) {
 
 		_ = conn.Close()
 		strmBrokerUp = true
+
+		// Pre-provision the event catalog before any test triggers a create.
+		// lib-streaming's producer does NOT request auto-topic-creation (no
+		// kgo.AllowAutoTopicCreation in producer_kgo.go), so a missing topic both
+		// fails the emit AND trips lib-streaming's circuit breaker, poisoning
+		// every later emit. Creating the topics here keeps the breaker closed.
+		strmEnsureTopics(t, brokers)
 	})
 
 	if !strmBrokerUp {
-		t.Skipf("streaming broker not reachable at %s — start Redpanda bound to host 19092 on infra-network, "+
-			"set STREAMING_ENABLED=true + STREAMING_BROKERS, and pre-provision topics (see CLAUDE.md Streaming/Local testing)",
+		t.Skipf("streaming broker not reachable at %s — start Redpanda bound to host 19092 on infra-network "+
+			"and set STREAMING_ENABLED=true + STREAMING_BROKERS (topics are auto-provisioned by this test)",
 			brokers[0])
 	}
+}
+
+// strmEnsureTopics idempotently creates every event-catalog topic on the broker
+// via a CreateTopics admin request, so the ledger's producer — which does not
+// auto-create topics — always has a destination. Single partition / single
+// replica (dev broker); TOPIC_ALREADY_EXISTS (36) is ignored. Best-effort: a
+// transport error is logged and a genuinely absent topic surfaces later as a
+// consume miss in the test itself.
+func strmEnsureTopics(t *testing.T, brokers []string) {
+	t.Helper()
+
+	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.ClientID("e2e-strm-admin"))
+	if err != nil {
+		t.Logf("streaming: admin client for topic provisioning failed: %v", err)
+		return
+	}
+	defer cl.Close()
+
+	req := kmsg.NewPtrCreateTopicsRequest()
+
+	for _, name := range strmCatalogTopics() {
+		rt := kmsg.NewCreateTopicsRequestTopic()
+		rt.Topic = name
+		rt.NumPartitions = 1
+		rt.ReplicationFactor = 1
+		req.Topics = append(req.Topics, rt)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := req.RequestWith(ctx, cl)
+	if err != nil {
+		t.Logf("streaming: CreateTopics request failed: %v", err)
+		return
+	}
+
+	for _, ct := range resp.Topics {
+		if ct.ErrorCode != 0 && ct.ErrorCode != 36 { // 36 = TOPIC_ALREADY_EXISTS
+			msg := ""
+			if ct.ErrorMessage != nil {
+				msg = *ct.ErrorMessage
+			}
+
+			t.Logf("streaming: create topic %s: code=%d %s", ct.Topic, ct.ErrorCode, msg)
+		}
+	}
+}
+
+// strmCatalogTopics builds the lerian.streaming.* names for the full event
+// catalog (mirrors pkg/streaming/events). Every topic the ledger may emit to
+// during a test's fixtures is created so no missing-topic emit trips the
+// producer circuit breaker.
+func strmCatalogTopics() []string {
+	families := map[string][]string{
+		"organization":      {"created", "updated", "deleted"},
+		"ledger":            {"created", "updated", "deleted"},
+		"account":           {"created", "updated", "deleted"},
+		"asset":             {"created", "updated", "deleted"},
+		"portfolio":         {"created", "updated", "deleted"},
+		"segment":           {"created", "updated", "deleted"},
+		"operation_route":   {"created", "updated", "deleted"},
+		"transaction_route": {"created", "updated", "deleted"},
+		"balance":           {"created", "config_changed", "deleted", "overdraft-drawn", "overdraft-repaid", "overdraft-cleared"},
+		"transaction":       {"posted", "committed", "canceled", "reverted"},
+	}
+
+	var topics []string
+
+	for resource, events := range families {
+		for _, e := range events {
+			topics = append(topics, strmTopicPrefix+resource+"."+e)
+		}
+	}
+
+	return topics
 }
 
 // strmConsumeMatch consumes topic from the beginning with a short poll loop
