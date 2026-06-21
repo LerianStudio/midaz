@@ -118,25 +118,22 @@ Exercising the tracer integration end-to-end (ledger `tracer.mode: enforce`,
   code 0414) via `ValidateForReserve` — confirmed. Unit regression added; verified
   live: ledger reserve now returns 201, `tracerSkipped:false`.
 
-### F3 — reserve with no account (external-only source) still 500s — OPEN (documented)
+### F3 — reserve with no account (external-only source) returned 500 — FIXED
 
 While verifying F2, a reserve with **no `account`** object (the ledger's
-external-only-source case) still returns 500: `AccountContext.ID` is `uuid.Nil`,
-and the shared `CheckLimitsInput.Validate()`
-(`components/tracer/pkg/model/check_limits.go:78`) hard-rejects nil accountID,
-mapped to 500.
+external-only-source case) still returned 500: `AccountContext.ID` is `uuid.Nil`,
+and the shared `CheckLimitsInput.Validate()` hard-rejected nil accountID.
 
 - Same pattern as F2: the reserve path is intentionally relaxed
-  (`ValidateForReserve` does not require an account — the design comment on
-  `validateAmountCurrencyTimestamp` states account-requiredness "differs between
-  the two paths"), and the ledger's reserve-client comment explicitly expects
-  "the relaxed reserve validation accepts" `uuid.Nil`. But the shared downstream
-  `CheckLimitsInput.Validate` re-imposes the strict check → 500.
-- **Not fixed here** (larger, deferred): unlike F2's localized producer fix, F3
-  needs the account-required check relocated to the validate-path request layer
-  and the scope builder taught to treat a nil/zero accountID as "no account
-  scope" — a change to shared validation + scope-matching semantics on a sellable
-  service. **Impact is narrow:** it only affects reserve legs with no internal
-  source account (e.g. external-sourced inflows on an enforce ledger); ordinary
-  internal-source transfers are unaffected (and now work, post-F2). Recommend
-  the same relaxation-mirroring fix as F2, in a follow-up.
+  (`ValidateForReserve` does not require an account — the design comment states
+  account-requiredness "differs between the two paths", and the ledger's
+  reserve-client comment expects "the relaxed reserve validation accepts"
+  `uuid.Nil`). But the shared downstream `CheckLimitsInput.Validate` re-imposed
+  the strict check → 500.
+- **Fix:** mirror the request-layer split (`Validate` vs `ValidateForReserve`)
+  at the input layer — add `CheckLimitsInput.ValidateForReserve()` that permits a
+  nil account, and have the reserve resolver call it. The synchronous
+  `Validate()` is unchanged (still requires an account), so `/v1/validations`
+  still rejects a missing account (verified: 400, `0420`). A nil account matches
+  only non-account-scoped limits (the matcher already treats a zero account that
+  way). Unit + e2e regression added; verified live: accountless reserve → 201.

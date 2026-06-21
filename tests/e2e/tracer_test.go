@@ -49,6 +49,15 @@ func TestTracerReserveContract(t *testing.T) {
 		}
 	})
 
+	t.Run("no account reserves (F3 regression — was 500)", func(t *testing.T) {
+		p := reservePayload("")
+		delete(p, "account") // external-only source: no internal account UUID
+		r := call(t, http.MethodPost, reserve, p)
+		if r.status != http.StatusCreated {
+			t.Fatalf("accountless reserve: want 201, got %d\nbody: %s", r.status, r.body)
+		}
+	})
+
 	t.Run("valid transactionType reserves", func(t *testing.T) {
 		r := call(t, http.MethodPost, reserve, reservePayload("PIX"))
 		if r.status != http.StatusCreated {

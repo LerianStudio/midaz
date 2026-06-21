@@ -60,9 +60,25 @@ func NewCheckLimitsInput(amount decimal.Decimal, currency string, accountID uuid
 	return input, nil
 }
 
-// Validate ensures CheckLimitsInput has valid values.
+// Validate ensures CheckLimitsInput has valid values for the synchronous
+// check-limits path, where an account is mandatory.
 // Returns ErrCheckLimitsNilInput if called on a nil receiver.
 func (i *CheckLimitsInput) Validate() error {
+	return i.validate(true)
+}
+
+// ValidateForReserve runs the same checks as Validate but permits a nil
+// AccountID. The two-phase reserve path (ValidationRequest.ValidateForReserve)
+// accepts a transaction whose only source is an external account, which has no
+// internal account UUID to scope on; a nil account then matches only
+// non-account-scoped limits. Account presence on the synchronous /validations
+// path is still enforced upstream by ValidationRequest.Validate, so the
+// requirement lives in the orchestrators, not here.
+func (i *CheckLimitsInput) ValidateForReserve() error {
+	return i.validate(false)
+}
+
+func (i *CheckLimitsInput) validate(requireAccount bool) error {
 	if i == nil {
 		return constant.ErrCheckLimitsNilInput
 	}
@@ -75,7 +91,7 @@ func (i *CheckLimitsInput) Validate() error {
 		return constant.ErrCheckLimitsInvalidCurrency
 	}
 
-	if i.AccountID == uuid.Nil {
+	if requireAccount && i.AccountID == uuid.Nil {
 		return constant.ErrCheckLimitsInvalidAccountID
 	}
 

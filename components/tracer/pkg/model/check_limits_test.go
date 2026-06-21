@@ -114,6 +114,27 @@ func TestNewCheckLimitsInput_InvalidAccountID(t *testing.T) {
 	assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidAccountID)
 }
 
+// TestCheckLimitsInput_ValidateForReserve_AllowsNilAccount guards the F3 fix:
+// the reserve path tolerates a nil account (external-only source) while the
+// synchronous Validate keeps requiring it. Core checks still apply to both.
+func TestCheckLimitsInput_ValidateForReserve_AllowsNilAccount(t *testing.T) {
+	t.Parallel()
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            uuid.Nil, // external-only source: no internal account
+		TransactionTimestamp: testutil.FixedTime(),
+	}
+
+	require.NoError(t, input.ValidateForReserve(), "reserve must accept a nil account")
+	assert.ErrorIs(t, input.Validate(), constant.ErrCheckLimitsInvalidAccountID, "synchronous validate must still require an account")
+
+	// Core checks still apply on the reserve path.
+	bad := &model.CheckLimitsInput{Amount: decimal.Zero, Currency: "USD", TransactionTimestamp: testutil.FixedTime()}
+	assert.ErrorIs(t, bad.ValidateForReserve(), constant.ErrCheckLimitsInvalidAmount, "reserve must still reject a non-positive amount")
+}
+
 func TestNewCheckLimitsInput_InvalidSegmentID(t *testing.T) {
 	t.Parallel()
 

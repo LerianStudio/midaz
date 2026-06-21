@@ -59,7 +59,9 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 		return nil, false, constant.ErrCheckLimitsNilInput
 	}
 
-	if err := input.Validate(); err != nil {
+	// Reserve permits a nil account (external-only source); account presence on
+	// the synchronous validate path is enforced upstream by ValidationRequest.
+	if err := input.ValidateForReserve(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid input", err)
 		return nil, false, err
 	}
