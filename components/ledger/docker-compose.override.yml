@@ -1,0 +1,11 @@
+# Local override: the distroless image defaults WORKDIR to /home/nonroot, but the
+# ledger resolves its migration source from the RELATIVE path
+# "components/ledger/migrations/{onboarding,transaction}", which the Dockerfile
+# stages at the absolute /components/ledger/migrations/... . Pin working_dir to /
+# so the relative path resolves to the staged files. Also drop the inherited
+# "- .:/usr/src/app" dev bind mount, which is meaningless against a distroless
+# binary and is not where the app looks anyway.
+services:
+  ledger:
+    working_dir: /
+    volumes: !reset []
