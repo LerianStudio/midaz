@@ -24,7 +24,6 @@ import (
 	"github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	opentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 	"go.opentelemetry.io/otel/trace"
@@ -57,15 +56,15 @@ func NewRoutes(lg log.Logger, tl *opentelemetry.Telemetry, templateHandler *Temp
 	f := fiber.New(fiberCfg)
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
+	// WithTelemetry injects tracer/logger into the context, opens the server span,
+	// and records the http.server.request.duration metric. otelfiber is deliberately
+	// not used here: as an outer middleware it captured the UserContext at entry and
+	// restored it in a deferred SetUserContext, wiping the tenant.id OTel baggage that
+	// the downstream tenant middleware writes — before WithTelemetry recorded the
+	// duration metric, so the metric lost its tenant_id label. Removing it also drops
+	// the duplicate server span and the redundant http.server.duration metric.
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(RecoverMiddleware())
-	f.Use(otelfiber.Middleware(
-		otelfiber.WithNext(func(c *fiber.Ctx) bool {
-			// Skip tracing for health/ready endpoints to reduce noise
-			path := c.Path()
-			return path == "/health" || path == "/readyz"
-		}),
-	))
 	f.Use(SecurityHeaders())
 	f.Use(CORSMiddleware(corsConfig))
 	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
