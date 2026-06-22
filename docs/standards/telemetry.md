@@ -1,6 +1,6 @@
 # Telemetry Standard
 
-This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code) and `components/tracer`. (The reporter is no longer in this monorepo — it ships from its own standalone repo; the canonical reporter `file:line` examples below are preserved as evidence from the 2026-06-07 audit, when the reporter still lived here.) It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
+This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code) and `components/tracer`. It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
 
 Two rules — **T5** (span-error helper by class) and **T8** (single-point logging) — are defined **only here** and referenced by `error-handling.md`. They are not restated there; do not duplicate them.
 
@@ -78,7 +78,7 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 **Rationale:** Interpolating into the message destroys field-level queryability and is the single largest violation class in the codebase (~1,450 sites). Constant messages with typed fields keep logs aggregatable and parseable, and stop accidental interpolation of sensitive values into the message string (see T9).
 
-**Canonical example:** [`pkg/rabbitmq/retry.go:81`](../../pkg/rabbitmq/retry.go) — constant message `"Max retries exceeded, sending to DLQ"` with `log.Int(...)`, `log.String(...)`, `log.Err(err)` fields (lines 81–86), in the shared retry engine that reporter-worker delegates to. reporter and tracer have zero `fmt.Sprintf`-in-logger violations.
+**Canonical example:** [`pkg/rabbitmq/retry.go:81`](../../pkg/rabbitmq/retry.go) — constant message `"Max retries exceeded, sending to DLQ"` with `log.Int(...)`, `log.String(...)`, `log.Err(err)` fields (lines 81–86), in the shared retry engine. tracer has zero `fmt.Sprintf`-in-logger violations.
 
 **Enforcement:** `custom-lint` — flag `fmt.Sprintf`/`fmt.Sprintln` as an argument to `logger.Log`/`logger.Info`/etc., and any `.Infof(`/`.Errorf(`/`.Warnf(`/`.Debugf(` logger method.
 
@@ -96,7 +96,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** The audit found inverted discipline (ledger-http: 192 Info vs 9 Debug) where per-request narration drowns the rare milestones that Info is meant to surface and duplicates information already captured by spans. A closed Info list keeps production logs scannable and makes per-request noise a mechanical violation.
 
-**Canonical example:** [`components/reporter/internal/worker/bootstrap/service.go:166`](../../components/reporter/internal/worker/bootstrap/service.go) — `app.Info("Flushing telemetry...")` is a genuine one-time shutdown milestone (the only sanctioned Info shape).
+**Canonical example:** [`components/ledger/internal/bootstrap/config.go:409`](../../components/ledger/internal/bootstrap/config.go) — `logger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component", ...)` is a genuine one-time boot milestone (the only sanctioned Info shape).
 
 **Enforcement:** `custom-lint` — flag Info-level calls whose message matches `^(Initiating|Retrieving|Trying to|Successfully|Starting)\b` outside bootstrap packages.
 
@@ -166,34 +166,6 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 - `domain_operation_duration_ms` — histogram (ms). Labels: `component`, `operation`.
 
 `operation` is a fixed compile-time set per component (T11): no caller-derived values. One table per component.
-
-### reporter
-
-`component = "reporter"`. Shared by both the reporter-manager (HTTP use cases) and reporter-worker (RabbitMQ-consumer use cases); the families aggregate across both binaries. Operation-name constants live in `components/reporter/internal/manager/services/metrics.go` and `components/reporter/internal/worker/services/metrics.go`.
-
-| operation | binary | use-case entrypoint |
-| --- | --- | --- |
-| `create_template` | manager | `(*UseCase).CreateTemplate` |
-| `update_template` | manager | `(*UseCase).UpdateTemplateByID` |
-| `delete_template` | manager | `(*UseCase).DeleteTemplateByID` |
-| `get_template` | manager | `(*UseCase).GetTemplateByID` |
-| `list_templates` | manager | `(*UseCase).GetAllTemplates` |
-| `create_report` | manager | `(*UseCase).CreateReport` |
-| `get_report` | manager | `(*UseCase).GetReportByID` |
-| `list_reports` | manager | `(*UseCase).GetAllReports` |
-| `download_report` | manager | `(*UseCase).DownloadReport` |
-| `send_report_queue` | manager | `(*UseCase).SendReportQueueReports` |
-| `create_deadline` | manager | `(*UseCase).CreateDeadline` |
-| `update_deadline` | manager | `(*UseCase).UpdateDeadlineByID` |
-| `delete_deadline` | manager | `(*UseCase).DeleteDeadlineByID` |
-| `deliver_deadline` | manager | `(*UseCase).DeliverDeadline` |
-| `list_deadlines` | manager | `(*UseCase).GetAllDeadlines` |
-| `get_datasource_details` | manager | `(*UseCase).GetDataSourceDetailsByID` |
-| `validate_schema` | manager | `(*UseCase).ValidateSchemaViaProvider` |
-| `generate_report` | worker | `(*UseCase).GenerateReport` (whole pipeline) |
-| `process_notification` | worker | `(*UseCase).ProcessFetcherNotification` |
-
-The `MetricsFactory` is wired at each bootstrap from `telemetry.MetricsFactory` (manager: `initHandlers`; worker: `initWorkerDependencies`). A nil factory (telemetry disabled / single-tenant without OTel) makes emission a no-op.
 
 ### ledger
 
@@ -288,11 +260,11 @@ The `MetricsFactory` is wired at each bootstrap from `telemetry.MetricsFactory` 
 
 **Rule:** Telemetry MUST be wired exactly once at bootstrap via `libOpentelemetry.NewTelemetry(...)` followed by `ApplyGlobals()`. Telemetry flush/shutdown MUST happen **last** in the teardown sequence, after all other components have stopped.
 
-**Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for all three services; reporter-worker is the cleanest reference.
+**Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for both services.
 
 **Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:415`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 430.
 
-**Canonical example (flush last):** [`components/reporter/internal/worker/bootstrap/service.go:164`](../../components/reporter/internal/worker/bootstrap/service.go) — `// Flush telemetry (must be last to capture shutdown spans)` followed by `ShutdownTelemetry()` (lines 164–168).
+**Canonical example (flush last):** [`components/ledger/internal/bootstrap/unified-server.go:146`](../../components/ledger/internal/bootstrap/unified-server.go) — the `ServerManager` is the single owner of telemetry teardown; it `ShutdownTelemetry()` only AFTER the HTTP drain completes (intent comment at lines 146–150), so spans from in-flight requests are exported before the exporter closes.
 
 **Enforcement:** `review-only` — teardown ordering is sequence-dependent and not mechanically gateable; verify at review of bootstrap changes.
 

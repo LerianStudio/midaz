@@ -9,8 +9,9 @@
 > missing/mismatched grants), so the order of code deploy vs. tenant-manager policy migration is
 > load-bearing in BOTH directions (forward and rollback).
 >
-> Related docs: `docs/auth/RBAC-NAMESPACES.md` (authoritative for X1), `docs/plans/reporter-engine-migration.md`,
-> `CLAUDE.md` (architecture), `docs/standards/telemetry.md`, `docs/standards/error-handling.md`.
+> Related docs: `docs/auth/RBAC-NAMESPACES.md` (authoritative for X1),
+> `docs/architecture/ledger-tracer-topology.md`, `CLAUDE.md` (architecture),
+> `docs/standards/telemetry.md`, `docs/standards/error-handling.md`.
 
 ---
 
@@ -126,10 +127,6 @@ Confirm ALL of the following. If any is unchecked, do not start the forward proc
       old `plugin-crm:*` keys briefly) to avoid a hard cutover gap. **VERIFY whether tenant-manager
       supports holding both key sets simultaneously — the docs do not confirm this** (see Known Gaps).
 - [ ] Rollback plan reviewed: you know how to revert grants `midaz:*` → `plugin-crm:*` if you roll back code.
-- [ ] **Reporter / secrets readiness** (these ship in the same v4 release and have their own one-way
-      manual steps — see "v4 deploy residuals" below): the renamed secrets
-      `CRYPTO_HASH_SECRET_KEY_CRM`, `CRYPTO_ENCRYPT_SECRET_KEY_CRM`, the `DATASOURCE_CRM_*` vars, and
-      `RUN_MODE` per reporter Deployment are all staged.
 - [ ] Fees grants left **untouched** (no `plugin-fees` changes in this release).
 - [ ] Local/dev with auth disabled confirmed unaffected (no policy work needed there).
 
@@ -158,9 +155,8 @@ The window between "v4 code live" and "new grants live" is a hard-403 window for
    - **VERIFY tenant-manager allows both key sets at once** before relying on this. If it does not,
      skip to the hard-cutover variant below.
 
-2. **Deploy v4 code** to the environment (ledger unified binary + reporter, per the deploy-residuals
-   section). With both grant sets present, CRM routes authorize the moment the binary starts checking
-   `midaz:*`.
+2. **Deploy v4 code** to the environment (ledger unified binary). With both grant sets present, CRM
+   routes authorize the moment the binary starts checking `midaz:*`.
 
 3. **Smoke test CRM authz** (see Verification). Confirm holder/instrument GET/POST/PATCH/DELETE return
    non-403 for a tenant that should have access, and 403 for one that should not.
@@ -185,8 +181,8 @@ Re-check the migration matrix. The 403 carries no namespace hint, so trust the m
 ## ROLLBACK PROCEDURE — reverting a v4 release
 
 > **The X1 doc has NO documented reverse procedure** (`RBAC-NAMESPACES.md` has no "Rollback" section —
-> confirmed gap). The steps below are derived from the fail-closed enforcement model and the deploy
-> residuals; treat sequencing details marked **VERIFY** as unconfirmed.
+> confirmed gap). The steps below are derived from the fail-closed enforcement model; treat sequencing
+> details marked **VERIFY** as unconfirmed.
 
 Rolling back v4 → pre-v4 re-introduces the old `plugin-crm` namespace literals in `auth.Authorize`.
 If tenants are now on `midaz:*` grants, those grants **orphan again** and all CRM routes 403. So the
@@ -195,7 +191,7 @@ policy state must be reverted alongside the code.
 ### Rollback decision — when, and the point of no return
 
 - **Roll back if:** authorized tenants see sustained CRM `403`s after the X1 cutover that the migration
-  matrix cannot explain; reporter `/readyz` stays red; or reporter logs show secret-decrypt failures.
+  matrix cannot explain.
 - **Point of no return for fast rollback** is forward step 4 (decommissioning the old `plugin-crm:*` grants):
   - **Before** forward step 4 — if you parked the old grants — rollback is fast: roll the code back and the
     still-present `plugin-crm:*` grants satisfy the pre-v4 checks the instant the old binary starts.
@@ -215,16 +211,16 @@ policy state must be reverted alongside the code.
      satisfied the instant the old binary starts, minimizing the 403 window.
 
 2. **Roll back the code** (git revert / redeploy the pre-v4 image). Reverting code is sufficient to
-   restore: module import path, reporter binary file structure (git handles the file moves),
-   fetcher HTTP client code, notification consumer, reconciler, and the env-var **names** the old code reads.
+   restore the module import path and the env-var **names** the old code reads.
 
-3. **Reverse the v4 deploy residuals that code rollback does NOT undo** — see the next section. These
-   are manual operator steps.
+3. **Review the one-way doors that code rollback does NOT undo** — see the next section. The
+   load-bearing one is the tenant-manager grant revert (step 1 above); the module-path note is
+   informational. Confirm none was missed before declaring rollback complete.
 
 4. **Decommission the new `midaz:*` CRM grants** once the rollback is confirmed healthy (optional —
    may park them for a re-roll-forward lane).
 
-5. **Smoke test** CRM authz on the rolled-back (pre-v4) binary, plus the reporter/ledger health checks.
+5. **Smoke test** CRM authz on the rolled-back (pre-v4) binary, plus the ledger health checks.
 
 ---
 
@@ -238,69 +234,21 @@ before declaring rollback complete.**
   `tenant-manager`. The `midaz:*` grants issued during X1 must be reverted to `plugin-crm:*` by
   Fred + plugin-auth, or CRM routes 403. (`RBAC-NAMESPACES.md` — no automated reverse path.)
 
-### Secrets & environment (must be renamed/restored by hand)
-- **CRM crypto secret keys.** v4 renamed `CRYPTO_HASH_SECRET_KEY_PLUGIN_CRM` →
-  `CRYPTO_HASH_SECRET_KEY_CRM` and `CRYPTO_ENCRYPT_SECRET_KEY_PLUGIN_CRM` →
-  `CRYPTO_ENCRYPT_SECRET_KEY_CRM` (commit `c367752e9`; vars `CRYPTO_HASH_SECRET_KEY_CRM` /
-  `CRYPTO_ENCRYPT_SECRET_KEY_CRM` in `components/reporter/.env.example`).
-  Pre-v4 code reads the `*_PLUGIN_CRM` names. **Rename the Kubernetes Secrets / env back** or the
-  rolled-back reporter cannot decrypt.
-- **Datasource vars.** `DATASOURCE_CRM_*` (config name `crm`) → revert to `DATASOURCE_PLUGIN_CRM_*`
-  (config name `plugin_crm`).
-- **Deleted fetcher vars.** v4 removed `FETCHER_URL`, `FETCHER_ENABLED`, `M2M_TOKEN_PROVIDER_*`,
-  `FETCHER_RECONCILER_INTERVAL` (commit `9d244290d`). v4 has **no code path that reads `FETCHER_*` at
-  all.** Pre-v4 reporter REQUIRES them and the **fetcher service must be running** (it was spun down
-  in v4 infra consolidation). Restore the vars AND re-create the fetcher deployment, or the
-  rolled-back reporter fails initializing its fetcher HTTP client.
-- **`RUN_MODE`.** New in v4 only; pre-v4 binaries ignore it. Remove `RUN_MODE` from the rolled-back
-  Deployments.
-
-### Deploy topology
-- **Reporter binary split.** v4 ships ONE binary at `components/reporter` selected by `RUN_MODE`
-  (`api` :4005 distroless / `worker` :4006 alpine+Chromium / `all` = dev only). Pre-v4 is TWO separate
-  binaries. On rollback, **restore two Deployment templates** (reporter-manager, reporter-worker).
-  Git restores the two source trees from history automatically; the **Helm/Deployment manifests are
-  manual.** (`reporter/cmd/app/main.go:50`, `reporter/internal/app/app.go:61-72`,
-  reporter-{manager,worker}/Dockerfile anchors.)
-- **Port `:4006` overlap (returning fetcher ↔ v4 worker).** The retired pre-v4 fetcher service bound
-  `:4006` (`FETCHER_URL=http://fetcher:4006`), the SAME port the v4 reporter-worker uses for `HEALTH_PORT`
-  (`reporter/internal/worker/bootstrap/config.go:23`). Separate pods don't hard-collide, but a stale v4
-  reporter-worker Deployment left up while the fetcher returns can produce **Service/route overlap on
-  `:4006`**. **Tear down the v4 reporter Deployments (or confirm no `:4006` Service overlap) BEFORE
-  re-creating the fetcher deployment.**
-- **Mode-aware config validation gap.** A v4 pod that ran `RUN_MODE=api` may have been deployed with
-  partial config (e.g. no RabbitMQ/S3, which only the worker validates —
-  `reporter/internal/manager/bootstrap/config.go:133-249`,
-  `reporter/internal/worker/bootstrap/config_validation.go:18-76`). Pre-v4 used **unified validation**
-  and will **fail to start** if that full config is absent. **Ensure FULL config is present before
-  rolling back**, or migrate Deployment-by-Deployment.
-- **Readyz probes.** v4 probes are mode-aware (`reporter/internal/manager/adapters/http/in/readyz_handler.go:98-114`,
-  `reporter/internal/worker/bootstrap/health-server.go:145-156`). Pre-v4 unified probe expects full
-  config; same mitigation as above.
-
-### Stored data / templates
-- **Report templates referencing `{{ crm.* }}`.** If any report template was authored/stored
-  (MongoDB reporter-db) in the v4 era using the `crm` datasource token, pre-v4 code does NOT recognize
-  `crm` and the template breaks. **Manually migrate stored templates** `{{ crm.* }}` → `{{ plugin_crm.* }}`.
-  **VERIFY the template storage format** — if templates are code-generated rather than stored, this is
-  moot (see Known Gaps).
+### Module path
 - **Module path `/v4`.** `go.mod:1` is `github.com/LerianStudio/midaz/v4`. Internal deploy rollback
   works via git+rebuild, but any **external library consumer** importing `midaz/v4` sees a breaking
-  import path on rollback to `v3` and must migrate imports. (Monorepo-wide bump; reporter/ledger/tracer
-  do not publish independently.)
+  import path on rollback to `v3` and must migrate imports. (Monorepo-wide bump; ledger and tracer do
+  not publish independently.)
 
 ### Data that is SAFE (no action needed)
-- **`extraction_mapping` MongoDB collection.** Deleted in v4, but v4's in-process synchronous
-  extraction never writes it. Pre-v4 code sees an empty collection = same as a fresh start. No cleanup.
-  (`docs/plans/reporter-engine-migration.md:124`.)
-- **`aliases_<orgId>` / `holders_<orgId>` collections.** Org-scoped names are a pre-existing ledger
-  pattern, NOT a v4 change. Reporter reads them in-process; rollback is read-safe.
+- **`aliases_<orgId>` / `holders_<orgId>` collections.** The org-scoped CRM collection names are a
+  pre-existing ledger pattern, NOT a v4 change; the `aliases_<orgId>` storage name predates the v4
+  instruments rename. Rollback is read-safe — no collection migration is required.
   (`components/ledger/internal/crm/adapters/mongodb/instrument/instrument.mongodb.go`.)
-- **Ledger fee collections.** Reporter only READS these; it never writes them. Fee-collection schema
-  is a LEDGER concern — if ledger is rolled back, handle its fee schema separately. Reporter rollback
-  alone is safe here. (`components/ledger/pkg/fee/`.)
-- **Postgres migrations.** No v4-specific reporter migrations; reporter runs none (read-only on
-  external datasources). Ledger/tracer own their own migration dirs independently.
+- **Ledger fee collections.** Fee-collection schema is a LEDGER concern — if ledger is rolled back,
+  handle its fee schema separately (see Known Gaps). (`components/ledger/pkg/fee/`.)
+- **Postgres migrations.** Ledger and tracer own their own migration dirs independently; roll each
+  back per its own migration history.
 
 ---
 
@@ -333,19 +281,12 @@ Pass criteria:
 
 - **CRM authz:** same curl checks as (A); authorized tenant must be non-403, proving the
   `plugin-crm:*` grants were restored in `tenant-manager`.
-- **Reporter readiness:** both rolled-back deployments report ready.
+- **Ledger readiness:** the rolled-back ledger reports ready on its single port.
   ```
-  curl -i https://<reporter-manager-host>:4005/readyz   # REST API surface
-  curl -i https://<reporter-worker-host>:4006/readyz    # consumer + health surface
+  curl -i https://<ledger-host>:3002/readyz
   ```
-  A failing `/readyz` on the rolled-back reporter most likely means partial config carried over from
-  v4 mode-aware validation — supply the full unified config.
-- **Fetcher dependency:** confirm the fetcher service is running and the pre-v4 reporter initialized
-  its fetcher HTTP client (no `FETCHER_URL` missing errors in logs). Logs are structured per
-  `docs/standards/telemetry.md`; search by the immediate failing resource, not by broad scope IDs.
-- **Reports render:** generate one report end-to-end and confirm the final artifact lands in S3.
-- **No secret-decrypt errors:** confirm the `*_PLUGIN_CRM` crypto keys were restored (no decrypt
-  failures in reporter logs).
+  Logs are structured per `docs/standards/telemetry.md`; search by the immediate failing resource, not
+  by broad scope IDs.
 
 ### C. Observability probes (adjust labels to your deployment)
 
@@ -377,22 +318,16 @@ re-check the migration matrix. The series falling to zero confirms the window cl
    grants for a tenant simultaneously (to avoid a hard-cutover 403 window) is **NOT confirmed in the
    facts. VERIFY** before choosing the graceful forward path; otherwise use the hard-cutover variant.
 3. **Helm chart location.** No Helm manifests exist inside this repo; the deploy manifests
-   (RUN_MODE per Deployment, image keys, env) live in a separate infra repo. **VERIFY and update them
-   there** for both forward and rollback.
-4. **Fetcher retirement runbook.** v4 retired the fetcher service infra-side, but no fetcher
-   spin-up/spin-down runbook was found. **VERIFY the fetcher can be re-created** before committing to
-   a reporter rollback.
-5. **Multi-tenant service availability.** v4 reporter multi-tenancy needs `MULTI_TENANT_URL` →
-   tenant-manager service when `MULTI_TENANT_ENABLED=true`. **VERIFY** this service is reachable in the
-   target environment (it may be staging/dev only). Multi-tenancy is config-driven and reversible
+   (image keys, env) live in a separate infra repo. **VERIFY and update them there** for both forward
+   and rollback.
+4. **Multi-tenant service availability.** Multi-tenancy needs `MULTI_TENANT_URL` → tenant-manager
+   service when `MULTI_TENANT_ENABLED=true`. **VERIFY** this service is reachable in the target
+   environment (it may be staging/dev only). Multi-tenancy is config-driven and reversible
    (`MULTI_TENANT_ENABLED=false`) — no data one-way door.
-6. **Report template storage format.** Whether report templates are stored blobs (then `{{ crm.* }}`
-   migration is breaking) or code-generated (then safe) is **UNCERTAIN. VERIFY** the storage layer
-   before assuming the template migration is or isn't required.
-7. **Ledger fee-collection write schema.** If ledger v4 wrote fee collections with a schema differing
-   from v3, a ledger rollback without a down-migration can fail. This is a **ledger** concern outside
-   reporter; **VERIFY** with the ledger owner if ledger is rolled back in the same window.
-8. **Exact CRM route paths/version prefix.** The curl examples are illustrative. **VERIFY** against
+5. **Ledger fee-collection write schema.** If ledger v4 wrote fee collections with a schema differing
+   from v3, a ledger rollback without a down-migration can fail. This is a **ledger** concern;
+   **VERIFY** with the ledger owner if ledger is rolled back in the same window.
+6. **Exact CRM route paths/version prefix.** The curl examples are illustrative. **VERIFY** against
    `components/ledger/internal/adapters/http/in/routes.go` and `crm_routes.go` for the deployed build.
 
 ---
@@ -403,7 +338,4 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 - `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:36-53`) — the flip and authz calls.
 - `components/ledger/internal/adapters/http/in/routes.go` (`:19-20`, `:183-189`) — namespace helpers.
 - `components/ledger/internal/adapters/http/in/fees_routes.go` (`:19`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
-- `docs/plans/reporter-engine-migration.md` — reporter in-process engine migration, deleted env/collections.
-- Commits: `c367752e9` (plugin_crm → crm rename), `9d244290d` (retire fetcher HTTP path), `bfa9b4b69` (reporter binary consolidation).
-- `components/reporter/.env.example` (vars `CRYPTO_*_SECRET_KEY_CRM`, `DATASOURCE_CRM_*`), `reporter/internal/{manager,worker}/bootstrap/` — config & validation.
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.

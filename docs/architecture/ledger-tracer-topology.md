@@ -2,9 +2,7 @@
 
 > **Status: canonical topology reference.** This document is the single source of truth for
 > how the ledger and tracer products relate at deploy time, where the seams are, and
-> what the runtime contracts demand of an operator. The **Reporter** is no longer part of this
-> monorepo — it ships from its own standalone repo and integrates over the wire; it is referenced
-> here only as an external integration, not as an in-repo component.
+> what the runtime contracts demand of an operator.
 >
 > **Helm charts and Kubernetes manifests are intentionally NOT in this repository** — they are owned
 > by the infra team in a downstream repo. This repo has no `helm/`, `k8s/`, or `deploy/` directory
@@ -32,15 +30,12 @@
 The two components are **separately-sellable products**, each shipping as its own OCI image under
 the **Elastic License 2.0** (`LICENSE:1`). This product boundary — not a technical limitation — is
 *why* the tracer is not embedded into the ledger binary: a customer can license and run the
-ledger alone, or add the tracer as a distinct product. The **Reporter** is likewise a separately-sellable
-product, but it lives in its own standalone repo (no longer in this monorepo) and integrates with the
-ledger over the wire.
+ledger alone, or add the tracer as a distinct product.
 
 | Tier | Image / build context | Binary source | Base image | Port(s) | License | Notes |
 |---|---|---|---|---|---|---|
 | **Ledger** (unified) | `components/ledger/Dockerfile` | `components/ledger/cmd/app/main.go` (`Dockerfile:19`) | distroless `static-debian12` (default tag), run as nonroot via `USER nonroot:nonroot` (`Dockerfile:28`), static `CGO_ENABLED=0 -tags netgo` (`Dockerfile:13-31`) | `:3002` (`EXPOSE 3002`, `Dockerfile:26`) | Elastic-2.0 | One binary serving onboarding + transaction + CRM (holders/instruments) + fees; routes register under the `midaz` authz namespace via `protectedMidaz(...)` (`routes.go`). No embedded `HEALTHCHECK` — relies on orchestrator probes. |
 | **Tracer** | `components/tracer/Dockerfile` | `components/tracer/cmd/app/main.go` | distroless `static-debian12:nonroot`, `GOMEMLIMIT=1800MiB` baked (`Dockerfile`) | `:4020` REST seam (`EXPOSE 4020`); optional gRPC seam on a separate port (see §6) | Elastic-2.0 | A separate `Dockerfile.dev` uses `alpine:3.23` with a `wget` `HEALTHCHECK` against `/readyz` on `SERVER_PORT` (`Dockerfile.dev`). |
-| **Reporter** | *(external standalone repo)* | — | — | — | Elastic-2.0 | Async report generation. No longer built from this monorepo; integrates over the wire as an external service. |
 
 ---
 

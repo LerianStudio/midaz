@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. (The Reporter is no longer part of this monorepo — it ships from its own standalone repo and integrates over the wire.) Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v5 tenant-manager.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v5 tenant-manager.
 
 ---
 
@@ -10,8 +10,7 @@ Midaz is a source-available core banking platform in a single Go monorepo: a dou
 ledger plus real-time transaction validation/fraud prevention (Tracer), CRM (holders/instruments),
 and a fee engine — all in one repository, building from one
 root `go.mod`. It is no longer "just a ledger"; the consolidation folded the surrounding banking
-capabilities into the same repo. Async report generation (Reporter) ships from its own standalone
-repo and integrates over the wire. Transactional messaging (PIX, cards, wires) and governance
+capabilities into the same repo. Transactional messaging (PIX, cards, wires) and governance
 integrations remain external/marketplace. It implements a financial hierarchy:
 
 ```
@@ -41,8 +40,7 @@ Key capabilities:
 
 Three deploy units: two Go services + infra. **CRM and fees are not deploy units** — CRM is a
 package tree (`components/ledger/internal/crm`) imported by the ledger binary, and fees are embedded in the
-ledger binary. Both are served on the ledger port `:3002`. (The Reporter is no longer part of this
-monorepo — it ships from its own standalone repo and integrates over the wire.)
+ledger binary. Both are served on the ledger port `:3002`.
 
 | Deploy unit | Port | Description | Data Stores |
 |-------------|------|-------------|-------------|
@@ -96,7 +94,6 @@ midaz/
 │   │   ├── cmd/app/
 │   │   ├── internal/
 │   │   └── migrations/      # Tracer's own SQL migrations
-│   │   # Reporter is no longer in this repo — it ships from its own standalone repo
 │   └── infra/               # DEPLOY UNIT — Docker Compose backing stack (single source)
 │       ├── docker-compose.yml
 │       ├── postgres/        # Init scripts
@@ -388,7 +385,7 @@ secret (the ledger presents a client cert, the tracer verifies it against its cl
 ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
 service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
 the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
-[docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
+[docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -763,7 +760,7 @@ loaded by `libStreaming.LoadConfig()` with franz-go defaults.
 | TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
 | TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
 
-Seam topology and TLS posture: [docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
+Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 #### Fee Engine
 | Variable | Default | Description |
@@ -820,7 +817,7 @@ REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; d
 `SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
 server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
 `TRACER_TLS_MODE=mtls`; see
-[docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
+[docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 ### 6.4 Infrastructure
 

@@ -2,7 +2,7 @@
 
 ## What Is This?
 
-Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships three deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, and the Infra backing stack. (The Reporter is no longer part of this monorepo — it ships from its own standalone repo and integrates over the wire.) Licensed under the Elastic License 2.0 (source-available, not open-source).
+Midaz is a **source-available core banking platform** written in Go, built around a double-entry ledger. One Go monorepo ships three deploy surfaces: the unified ledger HTTP API (onboarding + transaction + CRM + fees), the Tracer real-time transaction-validation / fraud-prevention API, and the Infra backing stack. Licensed under the Elastic License 2.0 (source-available, not open-source).
 
 ## Quick Facts
 
@@ -20,8 +20,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
-> `transaction_create.go`). Tracer is a separate co-located Go service; the Reporter lives in its
-> own standalone repo (no longer in this monorepo) and integrates over the wire.
+> `transaction_create.go`). Tracer is a separate co-located Go service.
 
 ## Get Running
 
@@ -55,7 +54,6 @@ components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fee
   (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
 
 components/tracer/     → Separate Go service deploy unit
-  (Reporter is no longer in this repo — it ships from its own standalone repo)
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)

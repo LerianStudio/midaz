@@ -90,14 +90,14 @@ CRM by this flip; the fee namespace stays distinct by design.
 # Cross-monorepo namespace strategy (Epic 3.3 — auth-stabilization)
 
 The section above scopes R9/X1 to the **ledger binary** and the CRM flip. This section widens the
-lens to the **whole monorepo**: after consolidation, five authz namespaces ship across the four Go
+lens to the **whole monorepo**: after consolidation, four authz namespaces ship across the two Go
 deploy units. This is a **decision document only** — it records options + a recommendation for the
 owner and **defers all execution to the X1 gate**. No namespace literal is changed by this doc.
 
-## 1. Current state — five namespaces across four deploy units
+## 1. Current state — four namespaces across two deploy units
 
 `auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v2.8.0, global RBAC check) is called
-under five distinct namespace literals across the monorepo:
+under four distinct namespace literals across the monorepo:
 
 | Namespace | Deploy unit | Resources (verified) | Source (file:line) |
 |-----------|-------------|----------------------|--------------------|
@@ -105,30 +105,28 @@ under five distinct namespace literals across the monorepo:
 | `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go:20` (`routingName = "routing"`, helper `protectedRouting` at `:187`) |
 | `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go:19` (`feesApplicationName = "plugin-fees"`) |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go:7` (`const ApplicationName = "tracer"`); wired via `bootstrap/config.go:1154` → `AppName`, consumed at `middleware/auth_guard.go:87` |
-| `reporter` | reporter-manager (`:4005`) | `templates`, `reports`, `deadlines`, `data-source`, `metrics` | `pkg/reporter/constant/app.go:7` (`const ApplicationName = "reporter"`); routes at `components/reporter/internal/manager/adapters/http/in/routes.go` |
 
-> **Audit-ref check:** every ref in the Epic 3.3 brief is accurate as written — `tracer` at
-> `pkg/constant/app.go:7`, `reporter` at `pkg/reporter/constant/app.go:7`, `routing` splitting
+> **Audit-ref check:** every ref above is accurate as written — `tracer` at
+> `components/tracer/pkg/constant/app.go:7`, and `routing` splitting
 > `account-types`/`operation-routes`/`transaction-routes` from their `midaz` siblings inside the
-> **same ledger binary**. No corrections needed. (reporter-worker has health-only `:4006`, no REST
-> API, so it contributes no namespace.)
+> **same ledger binary**. Three of the four namespaces (`midaz`/`routing`/`plugin-fees`) ship from
+> the one ledger binary; only `tracer` is a separate deploy unit.
 
 ## 2. Consequence — silent 403 across the platform
 
-The five literals are independent **policy keys** in tenant-manager. A grant under one key is
+The four literals are independent **policy keys** in tenant-manager. A grant under one key is
 invisible to the others. So a tenant provisioned with `midaz:*` (a natural "give me everything"
-grant) **silently 403s** every `routing`, `plugin-fees`, `tracer`, and `reporter` resource:
+grant) **silently 403s** every `routing`, `plugin-fees`, and `tracer` resource:
 
 ```
 midaz:transactions:post     → 200   (granted)
 routing:operation-routes:post → 403  (no routing grant — silent)
 plugin-fees:packages:post     → 403  (no plugin-fees grant — silent)
 tracer:audit-events:get       → 403  (no tracer grant — silent)
-reporter:reports:post         → 403  (no reporter grant — silent)
 ```
 
 Failure mode is the worst kind: **silent 403, no hint that the answer is "wrong namespace".** To
-authorize one logical platform, an integrator must provision grants in **five namespaces** and
+authorize one logical platform, an integrator must provision grants in **four namespaces** and
 discover the boundaries by hitting 403s. Three of those boundaries (`midaz`/`routing`/`plugin-fees`)
 live in a single binary, which makes the split especially non-obvious.
 
@@ -162,7 +160,7 @@ Three independent sub-decisions:
 |---|----------|---------|-----------|
 | **A** | `routing` vs `midaz` | **(A1) Unify** `routing` into `midaz` — they share one binary and one midaz domain. **(A2) Keep split.** | A1 erases a same-binary footgun (the least defensible split — `account-types` is a sibling of `assets`). Cost: one-time policy re-key for `routing:*` grants. A2 costs nothing now but leaves the most surprising boundary in place. |
 | **B** | `plugin-fees` | **(B1) Keep separate** per the R9 closure recorded above ("the fee namespace stays distinct by design"). **(B2) Fold** into `midaz`. | B1 preserves the deliberate fee/billing separation already ratified under R9 — fees is a distinct product surface with its own Mongo tenant client keyed on the same literal. B2 buys one fewer namespace at the cost of reopening a settled R9 decision and entangling billing grants with ledger grants. |
-| **C** | `tracer` / `reporter` | **(C1) Keep per-deploy-unit** namespaces with documented grant bundles. **(C2) Align** under `midaz`. | C1 keeps operational clarity: each separately-deployed service owns its policy surface, deployable/grantable in isolation. C2 creates one mega-namespace spanning four deploy units — a single `midaz:*` grant would then authorize the audit log and the report engine, widening blast radius and coupling unrelated release cadences. |
+| **C** | `tracer` | **(C1) Keep per-deploy-unit** namespace with a documented grant bundle. **(C2) Align** under `midaz`. | C1 keeps operational clarity: the separately-deployed tracer owns its policy surface, deployable/grantable in isolation. C2 would fold a separate deploy unit's policy surface into `midaz` — a single `midaz:*` grant would then authorize the audit log too, widening blast radius and coupling unrelated release cadences. |
 
 **Recommendation (one call, owner-gated):**
 
@@ -170,14 +168,14 @@ Three independent sub-decisions:
   least-defensible split. This is the single highest-value change.
 - **B1 — keep `plugin-fees` separate.** Honors the R9 closure; do not reopen a settled decision for
   marginal grant-count savings.
-- **C1 — keep `tracer` and `reporter` per-deploy-unit**, but ship a **documented grant bundle** (the
-  table in §1 plus a published "platform grant set") so integrators provision all five knowingly
-  instead of discovering them via 403s. Per-deploy-unit namespaces match the deploy topology and
-  keep release cadences decoupled; the silent-403 problem is solved by **documentation**, not by
+- **C1 — keep `tracer` per-deploy-unit**, but ship a **documented grant bundle** (the
+  table in §1 plus a published "platform grant set") so integrators provision all of them knowingly
+  instead of discovering them via 403s. A per-deploy-unit namespace matches the deploy topology and
+  keeps release cadences decoupled; the silent-403 problem is solved by **documentation**, not by
   collapsing the boundary.
 
-Net: the platform moves from **five → four** namespaces (`midaz` absorbs `routing`; `plugin-fees`,
-`tracer`, `reporter` stay), and the residual split is documented as a published grant bundle. This
+Net: the platform moves from **four → three** namespaces (`midaz` absorbs `routing`; `plugin-fees`
+and `tracer` stay), and the residual split is documented as a published grant bundle. This
 trades a small one-time `routing` migration for permanent removal of the most surprising footgun,
 while keeping the operationally-meaningful boundaries that track deploy units.
 
@@ -205,7 +203,6 @@ routing:transaction-routes:{get,post,patch,delete} →  midaz:transaction-routes
 # UNCHANGED — no migration
 plugin-fees:*   (B1 — stays distinct)
 tracer:*        (C1 — stays distinct; documented grant bundle)
-reporter:*      (C1 — stays distinct; documented grant bundle)
 ```
 
 Sequencing within the single X1 release:
@@ -216,7 +213,7 @@ Sequencing within the single X1 release:
 2. **Policy:** tenant-manager re-issues `plugin-crm:*` **and** `routing:*` grants under `midaz` in
    one migration window, executed with the plugin-auth team.
 3. **Docs:** publish the platform grant bundle (the §1 table, post-unification: `midaz` +
-   `plugin-fees` + `tracer` + `reporter`) so integrators see the full four-namespace set up front.
+   `plugin-fees` + `tracer`) so integrators see the full three-namespace set up front.
 
 **This document decides nothing unilaterally.** It records the current state, the consequence, the
 trust model, and a recommended option set. Execution — including whether to accept A1 at all — is

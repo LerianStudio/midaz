@@ -37,26 +37,22 @@ Services after `make up`:
 | --- | --- |
 | Ledger API | http://localhost:3002 |
 | Tracer | http://localhost:4020 |
-| Reporter Manager | http://localhost:4005 |
-| Reporter Worker | http://localhost:4006 (health only) |
 
 Full guide, API references, and best practices: [docs.lerian.studio](https://docs.lerian.studio).
 
 ## Architecture
 
-All four Go units build from the single root module (`github.com/LerianStudio/midaz/v4`) and ship under a single unified version.
+Both Go units build from the single root module (`github.com/LerianStudio/midaz/v4`) and ship under a single unified version.
 
 | Unit | Port | Role | Stores |
 | --- | --- | --- | --- |
 | Ledger | :3002 | Unified binary: onboarding + transaction + CRM + fees, in-process | PostgreSQL, MongoDB |
 | Tracer | :4020 | Real-time validation/fraud: CEL rules, spending limits, hash-chained audit | PostgreSQL |
-| Reporter Manager | :4005 | REST API for templates/reports/deadlines; queues jobs on RabbitMQ | MongoDB, RabbitMQ |
-| Reporter Worker | :4006 | RabbitMQ consumer; renders reports to object storage (health-only port) | MongoDB, RabbitMQ, object storage |
 | Infra | — | docker-compose stack | — |
 
-Infrastructure: PostgreSQL 17 (primary/replica), MongoDB replica set, RabbitMQ, Valkey, SeaweedFS (S3-compatible object storage), and Grafana/OpenTelemetry.
+Infrastructure: PostgreSQL 17 (primary/replica), MongoDB replica set, RabbitMQ, Valkey, and Grafana/OpenTelemetry.
 
-The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL`. The transport is gRPC by default with a selectable REST fallback (`TRACER_TRANSPORT`), authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`) or delegated to a service-mesh sidecar (`mesh`), forwarding a trusted `x-tenant-id` for per-tenant pool resolution. See [docs/architecture/ledger-tracer-reporter-topology.md](docs/architecture/ledger-tracer-reporter-topology.md).
+The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL`. The transport is gRPC by default with a selectable REST fallback (`TRACER_TRANSPORT`), authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`) or delegated to a service-mesh sidecar (`mesh`), forwarding a trusted `x-tenant-id` for per-tenant pool resolution. See [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 CRM routes register under the `midaz` authorization namespace; the coordinated tenant-manager RBAC policy migration is the X1 release gate (see [docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)).
 

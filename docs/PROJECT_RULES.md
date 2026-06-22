@@ -46,11 +46,9 @@ Services split into:
 |-------------|-------------|------|
 | **`components/ledger`** | Unified binary: single process serving onboarding + transaction + CRM (holders/instruments) + fees | 3002 |
 | **`components/tracer`** | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | 4020 |
-| **`components/reporter`** (api surface, `RUN_MODE=api`) | Async report-generation REST API (templates, reports, deadlines) | 4005 |
-| **`components/reporter`** (worker surface, `RUN_MODE=worker`) | Headless RabbitMQ consumer rendering report artifacts (health probe only) | 4006 (HEALTH_PORT) |
 | **`components/infra`** | Single consolidated docker-compose for shared infra (no Go build) | - |
 
-There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/ledger/internal/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer is a co-located but separate Go service deploy unit. Reporter is a single Go binary at `components/reporter` (`RUN_MODE=api|worker|all`) deployed split as an api Deployment (:4005) and a worker Deployment (:4006) from one image; the `components/reporter-{manager,worker}` dirs survive only as Dockerfile image-name anchors. All use the single root `go.mod`.
+There is no standalone "microservices" deployment of onboarding, transaction, CRM, or fees: they are folded into the single `components/ledger` binary on :3002. CRM is a package tree under `components/ledger/internal/crm` (no `cmd/`, no `internal/`) imported by the ledger binary; fees are embedded at `components/ledger/pkg/fee` (engine), `pkg/feeshared` (shared types), and `internal/services/fees` (use cases). Tracer is a co-located but separate Go service deploy unit. All use the single root `go.mod`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -89,8 +87,8 @@ server := bootstrap.NewUnifiedServer(
 
 ### Component Layout
 
-This layout describes the Go service deploy units only — `ledger`, `tracer`, and `reporter`
-(one binary, `RUN_MODE=api|worker|all` split). `components/ledger/internal/crm` is the exception: it is a package tree (no `cmd/`, no
+This layout describes the Go service deploy units only — `ledger` and `tracer`.
+`components/ledger/internal/crm` is the exception: it is a package tree (no `cmd/`, no
 `internal/`) imported by the ledger binary, holding only `adapters/mongodb/` and `services/`
 (plus shared models); its entire HTTP surface lives in the ledger tree at
 `components/ledger/internal/adapters/http/in/`. `components/infra` is docker-compose only.
@@ -127,7 +125,6 @@ components/{service}/
 | `constant/` | Error codes (4-digit core + `CRM-` prefixed), enums, constants | `errors.go`, `account.go`, `transaction.go` |
 | `net/http/` | HTTP utilities, error handling, Fiber middleware | HTTP response helpers |
 | `mtransaction/` | Transaction domain logic (balance validations, operation calculations); formerly `pkg/transaction` | `input.go`, `overdraft.go`, direction/refund/time helpers |
-| `reporter/` | Shared reporter library (domain, infra clients, templating, integration test harness) | `circuit-breaker.go`, `datasource/`, `mongodb/`, `pdf/` |
 | `streaming/` | lib-streaming event modeling (`pkgStreaming`) | `emit.go`, `tenant.go`, `events/` |
 | `gold/` | Transaction DSL parser (ANTLR4-based, **deprecated** - use `/dsl` endpoint) | `Transaction.g4`, `parser/`, `transaction/` |
 | `mongo/` | MongoDB connection utilities | `ExtractMongoPortAndParameters` |
@@ -141,9 +138,7 @@ components/{service}/
 | `ledger` | 3002 | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees | Single Go service deploy unit; absorbs `crm` and fees |
 | `crm` | - | Customer/holder management, instruments | Package tree (no `cmd/`, no `internal/`) imported by the ledger binary; its HTTP surface lives in the ledger tree at `components/ledger/internal/adapters/http/in/` and registers under the `midaz` authz namespace. Not a deploy unit, emits no image. |
 | `tracer` | 4020 | Transaction validation / fraud-prevention API (CEL rules, spending limits, audit trail) | Separate Go service deploy unit |
-| `reporter` (api) | 4005 | Async report-generation REST API (templates, reports, deadlines) | `RUN_MODE=api` surface of the unified `components/reporter` binary; deployed as its own image/Deployment |
-| `reporter` (worker) | 4006 (HEALTH_PORT) | Headless RabbitMQ consumer rendering report artifacts | `RUN_MODE=worker` surface of the same binary; health probe only, no business REST surface |
-| `infra` | - | Single consolidated docker-compose for shared infra (PostgreSQL, MongoDB, Valkey, RabbitMQ, otel-lgtm, SeaweedFS) | Infrastructure-only, no Go build |
+| `infra` | - | Single consolidated docker-compose for shared infra (PostgreSQL, MongoDB, Valkey, RabbitMQ, otel-lgtm) | Infrastructure-only, no Go build |
 
 ### Component Capabilities Matrix
 
