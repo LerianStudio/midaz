@@ -33,7 +33,6 @@ jobs:
         crm
         ledger
         tracer
-        reporter
         fees
         api
         pkg

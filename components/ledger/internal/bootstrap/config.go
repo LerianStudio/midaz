@@ -347,8 +347,7 @@ func InitServers() (*Service, error) {
 //     comes from the JWT, so disabling auth allows cross-tenant data access.
 //  2. Production requires auth even single-tenant — lib-auth fail-opens when
 //     disabled, so a production deploy that forgets PLUGIN_AUTH_ENABLED=true
-//     would serve every business endpoint unauthenticated. Mirrors
-//     reporter-manager's validateProductionConfig posture. Non-production
+//     would serve every business endpoint unauthenticated. Non-production
 //     (local/dev/staging) keeps Warn-free boot for developer onboarding.
 func validateBootAuthGates(cfg *Config) error {
 	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {

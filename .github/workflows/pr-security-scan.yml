@@ -37,21 +37,14 @@ jobs:
       # IMAGE filter — mirrors build.yml filter_paths exactly. Each entry must have a
       # Dockerfile at <path>/Dockerfile; the shared workflow derives the image name
       # from the directory basename and builds from repo root (default context='.').
-      # reporter-manager (distroless/api) and reporter-worker (alpine+Chromium/worker)
-      # are the two Dockerfile-anchor dirs; both compile components/reporter, which is
-      # listed under shared_paths so a reporter source change triggers both image scans.
-      # Go source security analysis for reporter is handled by go-pr-analysis (gosec).
       filter_paths: |-
         components/ledger
         components/tracer
-        components/reporter-manager
-        components/reporter-worker
       shared_paths: |
         go.mod
         go.sum
         pkg/
         Makefile
-        components/reporter
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets: inherit

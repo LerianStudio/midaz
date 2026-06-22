@@ -5,8 +5,7 @@
 # coverage-integration, test-bench, test-all, wait-for-services) lives in
 # mk/test-go.mk. This file sets the root-level knobs and keeps the monorepo-only
 # orchestration: the `test` entrypoint, the CHAOS-aware integration discovery,
-# ci-tests, test-fuzz, test-property, test-reporter-chaos, test-chaos-system, and
-# the godog e2e alias.
+# ci-tests, test-fuzz, test-property, test-chaos-system, and the godog e2e alias.
 # ------------------------------------------------------
 TEST_LEDGER_URL ?= http://localhost:3000
 TEST_HEALTH_WAIT ?= 60
@@ -24,37 +23,16 @@ TEST_AUTH_PASSWORD ?=
 # FUZZTIME: duration per fuzz target (default: 10s)
 FUZZ ?=
 FUZZTIME ?= 10s
-# FUZZTIME_FUZZY: duration for the reporter fuzzy suite (tests/reporter/fuzzy).
-# These targets fuzz over LIVE HTTP endpoints, so every baseline-corpus input is
-# a real round-trip (template/report/deadline create against Mongo+RabbitMQ).
-# Gathering baseline coverage alone takes ~25s+ for the larger seed sets, and
-# -fuzztime bounds the baseline phase as well as fuzzing — so the 10s default
-# kills these targets before they fuzz. Pure in-process fuzzers elsewhere keep
-# the fast 10s default; only this suite needs the larger budget. 90s leaves
-# headroom for baseline gathering on a cold or fatigued Docker daemon, where
-# per-seed HTTP latency can double.
-FUZZTIME_FUZZY ?= 90s
-# FUZZMINIMIZETIME: bound on crash-input minimization. Live-HTTP targets have
-# been observed minimizing for 15+ minutes unbounded (each candidate is a real
-# round-trip); the crasher is written to testdata either way, so a short bound
-# loses nothing.
+# FUZZMINIMIZETIME: bound on crash-input minimization. The crasher is written to
+# testdata either way, so a short bound loses nothing.
 FUZZMINIMIZETIME ?= 20s
-# FUZZPARALLEL_FUZZY: fuzz worker count for the live-HTTP fuzzy suite. The
-# default (GOMAXPROCS, ~18 here) is wrong for HTTP targets: throughput is
-# bound by the single in-process server, and that many worker processes create
-# the memory/daemon pressure that kills workers mid-run ("fuzzing process
-# terminated without fuzzing: EOF"). A small pool loses no real throughput.
-FUZZPARALLEL_FUZZY ?= 4
-# FUZZWALL / FUZZWALL_FUZZY: hard wall-clock cap (seconds) per fuzz target,
-# enforced with GNU timeout. Go IGNORES go test's -timeout while fuzzing
-# (observed: a wedged live-HTTP target sat 4.5h under -test.timeout=10m), so
-# without an external bound one hung target hangs the whole sweep forever.
-# timeout kills the whole process group (go test, the test binary, and the
-# manager/worker child processes); ryuk then reaps the orphaned containers.
-# Exit 124 is treated as environmental — retried once, never a fuzz finding.
-# If `timeout` is absent (bare macOS without coreutils), the cap is skipped.
+# FUZZWALL: hard wall-clock cap (seconds) per fuzz target, enforced with GNU
+# timeout. Go IGNORES go test's -timeout while fuzzing, so without an external
+# bound one hung target hangs the whole sweep forever. timeout kills the whole
+# process group; exit 124 is treated as environmental — retried once, never a
+# fuzz finding. If `timeout` is absent (bare macOS without coreutils), the cap is
+# skipped.
 FUZZWALL ?= 180
-FUZZWALL_FUZZY ?= 600
 
 # Integration env prefix consumed by mk/test-go.mk: the root integration suite is
 # CHAOS-aware, so it threads CHAOS through to the test process. The trailing space
@@ -113,13 +91,8 @@ test-chaos-system:
 # fuzzing engaged (silent no-op). Untagged fuzz files still compile under
 # -tags=fuzz, so building with the tag is strictly safe — nothing is lost.
 #
-# Discovery walks ./components ./pkg ./tests. The ./tests leg reaches the
-# reporter fuzzy suite (tests/reporter/fuzzy), whose TestMain starts the
-# manager + worker + infra via testcontainers. NOTE: each per-target
-# `go test -fuzz` invocation re-runs that TestMain, so every fuzzy target in
-# the full sweep stands up a cold container stack (minutes per target). This
-# is slow but correct; scope with FUZZ=<target> to fuzz a single one.
-# ALLOW_INSECURE_TLS=true is exported so the fuzzy suite's services start.
+# Discovery walks ./components ./pkg ./tests. ALLOW_INSECURE_TLS=true is exported
+# so any target whose package boots TLS-aware infra can start.
 #
 # The full sweep (no FUZZ=) is a pass/fail gate, time-boxed at FUZZTIME per
 # target. It visits every discovered target — no fail-fast mid-sweep — then
@@ -130,30 +103,20 @@ test-chaos-system:
 #      "fuzz:" progress lines that `go test -fuzz` prints only when a target
 #      actually fuzzes, so a false `ok` no longer passes.
 #
-# Environmental vs real failures (sweep only): the reporter fuzzy suite boots a
-# 6-container stack per target via testcontainers. Under sustained churn Docker
-# Desktop degrades and the slowest container (RabbitMQ) can miss its readiness
-# window, surfacing as "Failed to start infrastructure" / "failed to start
-# containers". That is environmental, not a fuzz finding. The sweep handles it
-# distinctly:
-#   - HEALTH GATE: before each fuzzy-suite target, poll `docker info` for up to
-#     ~60s. A dead/unresponsive daemon fails the target immediately — no point
-#     fuzzing into it — without conflating it with a crash.
-#   - INFRA RETRY: a target that fails AND whose output carries the infra
-#     signature is retried ONCE after a 15s settle. A real crash / test failure
-#     (no infra signature) is NEVER retried — crash-gating stays strict so
-#     genuine findings are never masked. If the retry also fails, it gates.
-#     The signature also covers the Go coordinator's "context deadline
-#     exceeded" flake at the -fuzztime boundary (a worker mid-exec when the
-#     engine's internal context expires reports FAIL with no failing input);
-#     the "Failing input written" guard keeps real findings exempt from retry.
-#   - WALL-CLOCK CAP: each target runs under GNU timeout (FUZZWALL /
-#     FUZZWALL_FUZZY) because Go ignores -timeout while fuzzing — a wedged
-#     target would otherwise hang the sweep indefinitely. Exit 124 follows the
-#     same retry-once path; a second timeout gates as a hung target.
+# Environmental vs real failures (sweep only): a target that fails AND whose
+# output carries an infra-startup signature is retried ONCE after a 15s settle.
+# A real crash / test failure (no infra signature) is NEVER retried — crash-
+# gating stays strict so genuine findings are never masked. The signature also
+# covers the Go coordinator's "context deadline exceeded" flake at the -fuzztime
+# boundary (a worker mid-exec when the engine's internal context expires reports
+# FAIL with no failing input); the "Failing input written" guard keeps real
+# findings exempt from retry. Each target runs under GNU timeout (FUZZWALL)
+# because Go ignores -timeout while fuzzing — a wedged target would otherwise
+# hang the sweep indefinitely. Exit 124 follows the same retry-once path; a
+# second timeout gates as a hung target.
 #
 # The FUZZ=<target> branch gates the same two modes but fails fast on the one
-# target (no health gate, no infra retry). The `ci` target deliberately
+# target (no infra retry). The `ci` target deliberately
 # EXCLUDES fuzz (time-boxed mutation runs are not part of the deterministic CI
 # matrix); this gate applies only when test-fuzz is invoked directly — and when
 # invoked, it gates.
@@ -174,7 +137,6 @@ test-fuzz:
 	    echo "Error: Fuzz target '$(FUZZ)' not found"; exit 1; \
 	  fi; \
 	  fuzztime=$(FUZZTIME); pflag=""; wall=$(FUZZWALL); \
-	  case "$$pkg" in *tests/reporter/fuzzy*) fuzztime=$(FUZZTIME_FUZZY); pflag="-parallel=$(FUZZPARALLEL_FUZZY)"; wall=$(FUZZWALL_FUZZY);; esac; \
 	  echo "Running fuzz target: $(FUZZ) for $$fuzztime (wall-clock cap $$wall s)"; \
 	  tcmd=""; \
 	  if command -v timeout >/dev/null 2>&1; then tcmd="timeout -k 10 $$wall"; fi; \
@@ -211,22 +173,8 @@ test-fuzz:
 	  for target in $$targets; do \
 	    pkg=$$(grep -r "func $$target" --include='*_test.go' -l ./components ./pkg ./tests 2>/dev/null | head -1 | xargs dirname); \
 	    fuzztime=$(FUZZTIME); \
-	    is_fuzzy=0; pflag=""; wall=$(FUZZWALL); \
-	    case "$$pkg" in *tests/reporter/fuzzy*) fuzztime=$(FUZZTIME_FUZZY); is_fuzzy=1; pflag="-parallel=$(FUZZPARALLEL_FUZZY)"; wall=$(FUZZWALL_FUZZY);; esac; \
+	    pflag=""; wall=$(FUZZWALL); \
 	    echo "━━━ $$target ($$pkg) [fuzztime=$$fuzztime] ━━━"; \
-	    if [ $$is_fuzzy -eq 1 ]; then \
-	      waited=0; \
-	      until docker info >/dev/null 2>&1; do \
-	        if [ $$waited -ge 60 ]; then break; fi; \
-	        echo "  waiting for docker daemon... ($$waited s)"; sleep 5; waited=$$((waited+5)); \
-	      done; \
-	      if ! docker info >/dev/null 2>&1; then \
-	        echo "[error] $$target skipped: docker daemon unresponsive after $$waited s"; \
-	        failed="$$failed $$target"; \
-	        echo ""; \
-	        continue; \
-	      fi; \
-	    fi; \
 	    out=$$(mktemp); \
 	    status=0; \
 	    run_fuzz_once "$$target" "$$fuzztime" "$$pkg" "$$out" "$$pflag" "$$wall" || status=$$?; \
@@ -266,8 +214,9 @@ test-fuzz:
 
 # Property-based tests (`property` build tag).
 # These suites compile only under -tags=property and use testcontainers, so no
-# external Docker stack is required. Discovery defaults to ./tests/reporter/property
-# (the only property-tagged suite today); override with PKG to scope elsewhere.
+# external Docker stack is required. Discovery defaults to the ./tests tree;
+# override with PKG to scope elsewhere. With no property-tagged suite present the
+# target is a clean no-op ("No property test packages found").
 #
 # NOTE: run with -p=1 to avoid testcontainers overwhelming Docker when packages
 # create containers in parallel (same rationale as test-integration).
@@ -277,7 +226,7 @@ test-property:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
-	pkg=$${PKG:-./tests/reporter/property/...}; \
+	pkg=$${PKG:-./tests/...}; \
 	pkgs=$$(go list -tags=property $$pkg 2>/dev/null | tr '\n' ' '); \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No property test packages found"; \
@@ -289,35 +238,6 @@ test-property:
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
 	  else \
 	    go test -tags=property -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
-	  fi; \
-	fi
-
-# Compile-gated chaos tests (`chaos` build tag).
-# Distinct from test-chaos-system: that target runs the env-gated, live-stack
-# system suite under ./tests/chaos (no build tag, gated by CHAOS=1 + TestMain).
-# This target runs the chaos-tagged, testcontainers-based suites (today only
-# ./tests/reporter/chaos) that compile solely under -tags=chaos. Override PKG to
-# scope elsewhere. Run with -p=1 for the same testcontainers rationale as
-# test-integration.
-.PHONY: test-reporter-chaos
-test-reporter-chaos:
-	$(call print_title,Running compile-gated chaos tests (-tags=chaos))
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
-	pkg=$${PKG:-./tests/reporter/chaos/...}; \
-	pkgs=$$(go list -tags=chaos $$pkg 2>/dev/null | tr '\n' ' '); \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No chaos-tagged test packages found"; \
-	else \
-	  echo "Packages: $$pkgs"; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    gotestsum --format testname -- \
-	      -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 900s $(GO_TEST_LDFLAGS) \
-	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
-	  else \
-	    go test -tags=chaos -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 900s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) $$pkgs; \
 	  fi; \
 	fi
@@ -383,12 +303,10 @@ test-ledger-e2e:
 # Full CI test matrix — one command, one exit code.
 #
 # Sequences the deterministic, self-contained legs (testcontainers only, no live
-# docker-compose stack required), reaching ./tests/reporter via the property and
-# chaos legs and the test-integration glob widening to ./tests:
+# docker-compose stack required), with the test-integration glob spanning ./tests:
 #   1. test-unit            (-race, UNTAGGED — bare `go test` discovers unit pkgs)
-#   2. test-integration     (-tags=integration -p 1; glob now reaches ./tests/reporter/integration)
-#   3. test-property        (-tags=property -p 1; ./tests/reporter/property)
-#   4. test-reporter-chaos  (-tags=chaos   -p 1; ./tests/reporter/chaos)
+#   2. test-integration     (-tags=integration -p 1; glob spans ./components ./pkg ./tests)
+#   3. test-property        (-tags=property -p 1; ./tests tree)
 # Each leg is a separate $(MAKE) invocation under `set -e`, so the first failing
 # leg aborts the run and `make ci-tests` returns its non-zero exit code.
 #
@@ -407,8 +325,7 @@ ci-tests:
 	@set -e; \
 	$(MAKE) test-unit; \
 	$(MAKE) test-integration; \
-	$(MAKE) test-property; \
-	$(MAKE) test-reporter-chaos
+	$(MAKE) test-property
 
 #-------------------------------------------------------
 # Coverage aggregator

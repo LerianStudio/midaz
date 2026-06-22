@@ -9,7 +9,6 @@ MIDAZ_ROOT := $(shell pwd)
 INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRACER_DIR := ./components/tracer
-REPORTER_DIR := ./components/reporter
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
@@ -18,7 +17,7 @@ PKG_DIR := ./pkg
 # Adding a future component means editing ONLY this list, nothing else.
 # Infra is config-only (no Go build, no image) and is sequenced separately
 # by the service-lifecycle targets.
-GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR) $(REPORTER_DIR)
+GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR)
 
 # Pinned golangci-lint version for the root-only lint recipes (tests/ + pkg/ legs
 # and dev-setup), which do NOT include mk/quality.mk. Components inherit the
@@ -117,7 +116,6 @@ help:
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make tracer COMMAND=<cmd>         - Run command in tracer component"
-	@echo "  make reporter COMMAND=<cmd>       - Run command in reporter component (unified api+worker)"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
@@ -439,10 +437,9 @@ clear-envs:
 # Service Commands
 #-------------------------------------------------------
 
-# Block until the shared infra services report healthy. Adopted from
-# reporter — midaz's cross-compose `depends_on` does not work across
-# separate compose projects, so the components must wait explicitly.
-# Covers the SeaweedFS object store and KEDA autoscaler added in P8-T09.
+# Block until the shared infra services report healthy. midaz's cross-compose
+# `depends_on` does not work across separate compose projects, so the components
+# must wait explicitly.
 .PHONY: wait-for-infra
 wait-for-infra:
 	$(call print_title,Waiting for infrastructure services to be healthy)
@@ -567,7 +564,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra ledger tracer reporter all-components
+.PHONY: infra ledger tracer all-components
 infra:
 	$(call print_title,Running command in infra component)
 	@if [ -z "$(COMMAND)" ]; then \
@@ -591,14 +588,6 @@ tracer:
 		exit 1; \
 	fi
 	@cd $(TRACER_DIR) && $(MAKE) $(COMMAND)
-
-reporter:
-	$(call print_title,Running command in reporter component)
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(REPORTER_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call print_title,Running command across all components)

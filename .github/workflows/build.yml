@@ -16,21 +16,14 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.33.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      # The reporter-manager and reporter-worker filter paths are Dockerfile-only
-      # build contexts that pin the two image names (distroless RUN_MODE=api,
-      # alpine+Chromium RUN_MODE=worker); both compile components/reporter, which is
-      # listed under shared_paths so a source change there rebuilds both images.
       filter_paths: |-
         components/ledger
         components/tracer
-        components/reporter-manager
-        components/reporter-worker
       shared_paths: |
         go.mod
         go.sum
         pkg/
         Makefile
-        components/reporter
       path_level: '2'
       app_name_prefix: "midaz"
       enable_dockerhub: true
@@ -44,7 +37,7 @@ jobs:
       # Maps each midaz-* image to its Helm value-block key (bare keys). The midaz
       # Helm chart must carry matching tracer/manager/worker blocks or those images
       # build but never deploy.
-      helm_values_key_mappings: '{"midaz-ledger":"ledger","midaz-tracer":"tracer","midaz-reporter-manager":"manager","midaz-reporter-worker":"worker"}'
+      helm_values_key_mappings: '{"midaz-ledger":"ledger","midaz-tracer":"tracer"}'
     secrets: inherit
 
   # =========================
@@ -67,7 +60,7 @@ jobs:
       # Distinct schema from helm_values_key_mappings: keys carry a .tag suffix and
       # values are full dotted YAML paths (.image.tag). The midaz-firmino-gitops repo
       # must carry matching targets.
-      yaml_key_mappings: '{"midaz-ledger.tag":".ledger.image.tag","midaz-tracer.tag":".tracer.image.tag","midaz-reporter-manager.tag":".manager.image.tag","midaz-reporter-worker.tag":".worker.image.tag"}'
+      yaml_key_mappings: '{"midaz-ledger.tag":".ledger.image.tag","midaz-tracer.tag":".tracer.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       enable_docker_login: false
@@ -81,7 +74,7 @@ jobs:
   # its migrations in-cluster via its own bootstrap runner (the single applied-by
   # path, a correctness property), and these uploads do not feed that path. Caveat:
   # the tracer s3_prefix `tracer/postgresql` must match the managed-deploy pipeline's
-  # expected key layout. Reporter has no SQL migrations.
+  # expected key layout.
   upload-onboarding-migrations:
     needs: [build]
     if: needs.build.result == 'success'

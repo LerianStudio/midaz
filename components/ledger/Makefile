@@ -100,7 +100,7 @@ test:
 # `run` comes from mk/docker.mk (go run cmd/app/main.go .env).
 
 # API documentation is generated from the repo root: `make generate-docs`
-# (postman/generator/generate-docs.sh covers ledger, tracer and reporter-manager).
+# (postman/generator/generate-docs.sh covers ledger and tracer).
 
 #-------------------------------------------------------
 # Setup Commands

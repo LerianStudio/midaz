@@ -17,7 +17,7 @@ GENERATOR_DIR="${ROOT_DIR}/postman/generator"
 SPECS_DIR="${ROOT_DIR}/postman/specs"
 
 # Components to process (each must have a cmd/app/main.go entry point)
-COMPONENTS=("ledger" "tracer" "reporter")
+COMPONENTS=("ledger" "tracer")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
@@ -207,7 +207,6 @@ consolidate_openapi() {
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
             components/ledger/api/openapi.yaml \
             components/tracer/api/openapi.yaml \
-            components/reporter/api/openapi.yaml \
             --prefix-tags-with-info-prop title \
             -o postman/specs/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
@@ -243,7 +242,7 @@ consolidate_openapi() {
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         echo "        Consolidated spec is missing required securityScheme(s): ${missing}."
-        echo "        Expected both BearerAuth (ledger+reporter) and ApiKeyAuth (tracer)."
+        echo "        Expected both BearerAuth (ledger) and ApiKeyAuth (tracer)."
         return 1
     fi
 

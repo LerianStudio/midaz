@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/mock v0.6.0
-	go.uber.org/zap v1.28.0
+	go.uber.org/zap v1.28.0 // indirect
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 )
@@ -78,7 +78,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0 // indirect
 	go.opentelemetry.io/otel/log v0.20.0 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
@@ -98,7 +98,6 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/fetcher/pkg/engine v1.0.1
 	github.com/LerianStudio/lib-commons/v5 v5.5.0
 	github.com/LerianStudio/lib-observability v1.0.1
 	github.com/LerianStudio/lib-streaming v1.5.1
@@ -132,23 +131,8 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.28 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.28 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.31.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.43.2 // indirect
-	github.com/aws/smithy-go v1.27.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -161,24 +145,18 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
-	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
-	github.com/gobwas/httphead v0.1.0 // indirect
-	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
-	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
-	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-memdb v1.3.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
-	github.com/mdelapenya/tlscert v0.2.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
@@ -223,24 +201,4 @@ require (
 	github.com/valyala/fasthttp v1.71.0
 	golang.org/x/sys v0.45.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
-)
-
-// reporter-unique direct dependencies folded in for the two-component co-location (P6).
-require (
-	github.com/aws/aws-sdk-go-v2 v1.41.12
-	github.com/aws/aws-sdk-go-v2/config v1.32.23
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.22
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.2
-	github.com/chromedp/cdproto v0.0.0-20260427013145-5737772c319b
-	github.com/chromedp/chromedp v0.15.1
-	github.com/flosch/pongo2/v6 v6.1.0
-	github.com/go-resty/resty/v2 v2.17.2
-	github.com/go-sql-driver/mysql v1.7.1
-	github.com/microsoft/go-mssqldb v1.7.0
-	github.com/sijms/go-ora/v2 v2.9.0
-	github.com/testcontainers/testcontainers-go/modules/mongodb v0.42.0
-	github.com/testcontainers/testcontainers-go/modules/mssql v0.42.0
-	github.com/testcontainers/testcontainers-go/modules/mysql v0.42.0
-	github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.42.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.42.0
 )

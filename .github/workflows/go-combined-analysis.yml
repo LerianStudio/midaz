@@ -32,7 +32,7 @@ jobs:
       # under components/ledger at path_level 2). Differs from build.yml's image
       # filter, which lists only the image dirs. The tracer BDD suite is not gated
       # here; it runs as a separate job (`make tracer COMMAND=test-e2e`).
-      filter_paths: '["components/ledger", "components/tracer", "components/reporter"]'
+      filter_paths: '["components/ledger", "components/tracer"]'
       path_level: 2
       app_name_prefix: "midaz"
       go_version: "1.26.4"
