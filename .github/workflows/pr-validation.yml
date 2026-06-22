@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.36.4
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.36.5
     with:
       pr_title_scopes: |
         crm
@@ -43,5 +43,4 @@ jobs:
         components/
         pkg/
         Makefile
-      dockerfile_path: "components/ledger/Dockerfile"
     secrets: inherit

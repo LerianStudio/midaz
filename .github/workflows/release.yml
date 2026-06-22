@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.4
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.5
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       app_name_prefix: "midaz"
