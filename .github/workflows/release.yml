@@ -2,33 +2,36 @@ name: Release
 
 on:
   push:
-    branches:
-      - develop
-      - release-candidate
-      - main
-    paths-ignore:
-      - '.gitignore'
-      - '**/*.env'   # Ignores all .env files
-      - '*.env'      # Ignores .env files in the root directory
-      - '**/*.md'    # Ignores all .md files
-      - '*.md'       # Ignores .md files in the root directory
-      - '**/*.txt'   # Ignores all .env files
-      - '*.txt'      # Ignores .env files in the root directory
-      - '.github/**' # Ignores all GitHub config (workflows, templates, dependabot, labeler, etc.)
-    tags-ignore: ['**']
+    branches: [develop, release-candidate, main]
+    tags: ['**']
 
 permissions:
+  id-token: write
   contents: write
   issues: write
   pull-requests: write
+  packages: write
 
 jobs:
-  # =========================
-  # RELEASE
-  # =========================
-  release:
-    name: Create Release
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.28.9
+  pipeline:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.6
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      enable_changelog: ${{ github.ref == 'refs/heads/main' }}
+      release_single_app: true
+      app_name_prefix: "midaz"
+      filter_paths: |
+        components/crm
+        components/ledger
+      shared_paths: |
+        go.mod
+        go.sum
+        pkg/
+        Makefile
+      enable_gitops_artifacts: true
+      enable_helm_dispatch: true
+      helm_chart: "midaz"
+      helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
+      gitops_yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
+      enable_apidog_e2e: true
+      s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false}]'
     secrets: inherit
