@@ -25,7 +25,7 @@ type CreatePackageInput struct {
 	MinAmount        string         `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
 	MaxAmount        string         `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
 	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
-	Fee              map[string]Fee `json:"fees" validate:"dive"`
+	Fee              map[string]Fee `json:"fees" validate:"required,min=1,dive"`
 	Enable           *bool          `json:"enable" validate:"required"`
 } //	@name	CreatePackageInput
 
