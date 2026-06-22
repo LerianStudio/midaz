@@ -1707,6 +1707,7 @@ definitions:
     required:
     - enable
     - feeGroupLabel
+    - fees
     - ledgerId
     - maximumAmount
     - minimumAmount

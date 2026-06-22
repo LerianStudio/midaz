@@ -8,7 +8,7 @@ set -euo pipefail
 
 # OpenAPI documentation guardrail.
 #
-# (a) PARITY CHECK (always): asserts that the shared metadata blocks of the three
+# (a) PARITY CHECK (always): asserts that the shared metadata blocks of the two
 #     HTTP components' swagger.json are identical, so the published specs do not
 #     drift in contact/license/terms/schemes/version/title.
 # (b) DRIFT CHECK (CHECK_DOCS_REGEN=1 only): regenerates the docs and asserts the
@@ -17,8 +17,7 @@ set -euo pipefail
 # (c) SECURITY COVERAGE (always, ledger only): asserts every ledger operation
 #     carries a .security requirement, so the secure-by-default contract cannot
 #     regress to a dangling securityDefinition (audit finding C1). Scoped to
-#     ledger: tracer's /health, /readyz and /version are intentionally public,
-#     and reporter already secures all its operations.
+#     ledger: tracer's /health, /readyz and /version are intentionally public.
 
 # Root directory of the repo (this script lives in postman/generator/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -26,7 +25,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENERATOR_DIR="${ROOT_DIR}/postman/generator"
 
 # Components whose swagger.json must agree on shared metadata.
-PARITY_COMPONENTS=("ledger" "tracer" "reporter")
+PARITY_COMPONENTS=("ledger" "tracer")
 
 # Colors for output
 GREEN='\033[0;32m'

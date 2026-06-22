@@ -10682,6 +10682,7 @@ components:
       required:
       - enable
       - feeGroupLabel
+      - fees
       - ledgerId
       - maximumAmount
       - minimumAmount

@@ -12186,6 +12186,7 @@ const docTemplate = `{
             "required": [
                 "enable",
                 "feeGroupLabel",
+                "fees",
                 "ledgerId",
                 "maximumAmount",
                 "minimumAmount"
