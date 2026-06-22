@@ -443,9 +443,9 @@ clear-envs:
 .PHONY: wait-for-infra
 wait-for-infra:
 	$(call print_title,Waiting for infrastructure services to be healthy)
-	@echo "Waiting for Postgres / Mongo / Valkey / RabbitMQ / SeaweedFS ..."
+	@echo "Waiting for Postgres / Mongo / Valkey / RabbitMQ ..."
 	@timeout=120; elapsed=0; \
-	services="midaz-postgres-primary midaz-mongodb midaz-valkey midaz-rabbitmq midaz-seaweedfs"; \
+	services="midaz-postgres-primary midaz-mongodb midaz-valkey midaz-rabbitmq"; \
 	for svc in $$services; do \
 		elapsed=0; \
 		printf "  %-28s" "$$svc"; \
