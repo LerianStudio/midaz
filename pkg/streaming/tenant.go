@@ -19,13 +19,13 @@ import (
 
 // DefaultTenantID is the literal tenant ID stamped onto outbound CloudEvents
 // when the service is running in single-tenant mode (or any path where the
-// multi-tenant middleware did not populate the context). lib-streaming
-// requires a non-empty TenantID — emitting with an empty value returns
-// streaming.ErrMissingTenantID.
+// multi-tenant middleware did not populate the context).
 //
 // Convention: the value "default" signals "no specific tenant scope" to
 // downstream consumers. Real multi-tenant deployments emit a resolved UUID;
-// the literal "default" can never collide with one.
+// the literal "default" can never collide with one. midaz stamps this
+// explicit marker rather than leaving the tenant empty so every emission
+// carries a self-describing ce-tenantid header.
 const DefaultTenantID = "default"
 
 // ResolveTenantID returns the request-scoped tenant ID for streaming

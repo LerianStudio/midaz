@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz/v4
 go 1.26.4
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.8.0
+	github.com/LerianStudio/lib-auth/v2 v2.8.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -98,9 +98,9 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-commons/v5 v5.5.0
-	github.com/LerianStudio/lib-observability v1.0.1
-	github.com/LerianStudio/lib-streaming v1.5.1
+	github.com/LerianStudio/lib-commons/v5 v5.8.0
+	github.com/LerianStudio/lib-observability v1.1.0
+	github.com/LerianStudio/lib-streaming v1.6.2
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1
