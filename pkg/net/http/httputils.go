@@ -399,6 +399,12 @@ func (q *QueryHeader) ApplyDefaultDateRange() {
 	}
 
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	if maxDateRangeMonths < 0 {
+		// A negative configured value would push StartDate ahead of EndDate,
+		// silently yielding empty results. Treat it as 0 (unbounded start).
+		maxDateRangeMonths = 0
+	}
+
 	q.StartDate, q.EndDate = defaultPaginationDateRange(time.Now(), maxDateRangeMonths)
 }
 
