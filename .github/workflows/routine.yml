@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   routine:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.36.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.36.6
     with:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}
