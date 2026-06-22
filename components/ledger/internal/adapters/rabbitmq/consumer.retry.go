@@ -14,7 +14,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
-	reporterConstant "github.com/LerianStudio/midaz/v4/pkg/reporter/constant"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -24,6 +23,14 @@ import (
 // blips without unbounded redelivery; the durable copy lives in the Redis backup
 // hash, so DLQ routing is flow-control, not durability.
 const maxMessageRetries = 3
+
+// consumerRetryInitialBackoff is the base delay for the exponential backoff that
+// paces transient-failure republishes; consumerRetryMaxBackoff caps that delay so
+// a long-lived outage does not stretch the inter-attempt wait without bound.
+const (
+	consumerRetryInitialBackoff = 1 * time.Second
+	consumerRetryMaxBackoff     = 30 * time.Second
+)
 
 // publishChannel abstracts the AMQP channel surface needed to republish a message
 // for retry. The lib-commons connection channel satisfies it; tests inject a spy.
@@ -67,8 +74,8 @@ func NewConsumerRetryManager(channelFunc func() publishChannel, logger libLog.Lo
 		classifier: pkgRabbitmq.NewDefaultClassifier(),
 		backoff: func(attempt int) time.Duration {
 			return min(
-				libBackoff.ExponentialWithJitter(reporterConstant.RetryInitialBackoff, attempt),
-				reporterConstant.RetryMaxBackoff,
+				libBackoff.ExponentialWithJitter(consumerRetryInitialBackoff, attempt),
+				consumerRetryMaxBackoff,
 			)
 		},
 		channelFunc: channelFunc,
