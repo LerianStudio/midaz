@@ -632,6 +632,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		dispatcherOpts := []tmevent.DispatcherOption{
 			tmevent.WithDispatcherLogger(logger),
 			tmevent.WithCacheTTL(cacheTTL),
+			// Ownership signal for lib-commons' tenant.cache.invalidate handling: report a
+			// tenant as owned when midaz has a live consumer goroutine for it. Stats()
+			// reflects live goroutines, so this stays accurate even when the tier-1 cache
+			// entry has TTL-expired (the default cache-based check would miss it and skip
+			// the reload that restarts the consumer, leaving it stopped).
+			tmevent.WithTenantOwnershipChecker(func(tenantID string) bool {
+				if rmq == nil || rmq.multiTenantConsumer == nil {
+					return false
+				}
+
+				for _, id := range rmq.multiTenantConsumer.Stats().TenantIDs {
+					if id == tenantID {
+						return true
+					}
+				}
+
+				return false
+			}),
 			tmevent.WithOnTenantAdded(func(ctx context.Context, tenantID string) {
 				if tenantClient != nil {
 					_ = tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName)
