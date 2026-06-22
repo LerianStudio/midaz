@@ -10,12 +10,12 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.5.0; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
-- Four Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/reporter` (unified binary, `RUN_MODE=api|worker|all`; deployed split as api :4005 + worker :4006 — health-only, no REST API, a RabbitMQ consumer — from one image), `components/infra`.
+- Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`. The reporter is no longer a midaz component — it lives in its own standalone repo and integrates over the wire (see `docs/architecture/`).
 - Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/instruments) + fees on :3002.
 - CRM is folded into ledger: `components/ledger/internal/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `midaz` authz namespace (flipped from `plugin-crm`; the tenant-manager policy migration is the X1 release gate — see `docs/auth/RBAC-NAMESPACES.md`). There is no standalone CRM service.
 - Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go` (HTTP handler layer), after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation.
-- Tracer and reporter are co-located components; reporter is a single Go binary at `components/reporter` (with `internal/manager` + `internal/worker` surfaces) deployed split as two `RUN_MODE` Deployments from one image. The two Dockerfile-only `components/reporter-{manager,worker}` dirs survive solely as CI image-name anchors.
-- Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`; `pkg/reporter` is the reporter shared lib) and `tests` (root; `tests/reporter` holds reporter suites).
+- Tracer is a co-located but separate Go service deploy unit at `components/tracer` (:4020); it integrates with ledger over the reservation seam (gRPC/mTLS — see `docs/architecture/`).
+- Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`) and `tests` (root).
 
 ## Architecture
 
