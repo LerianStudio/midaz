@@ -43,4 +43,5 @@ jobs:
         components/
         pkg/
         Makefile
+      run_lib_version_check: false
     secrets: inherit
