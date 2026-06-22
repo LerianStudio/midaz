@@ -2,33 +2,47 @@ name: Release
 
 on:
   push:
-    branches:
-      - develop
-      - release-candidate
-      - main
-    paths-ignore:
-      - '.gitignore'
-      - '**/*.env'   # Ignores all .env files
-      - '*.env'      # Ignores .env files in the root directory
-      - '**/*.md'    # Ignores all .md files
-      - '*.md'       # Ignores .md files in the root directory
-      - '**/*.txt'   # Ignores all .env files
-      - '*.txt'      # Ignores .env files in the root directory
-      - '.github/**' # Ignores all GitHub config (workflows, templates, dependabot, labeler, etc.)
-    tags-ignore: ['**']
+    branches: [develop, release-candidate, main]
+    tags: ['**']
 
 permissions:
+  id-token: write
   contents: write
   issues: write
   pull-requests: write
+  packages: write
 
 jobs:
-  # =========================
-  # RELEASE
-  # =========================
-  release:
-    name: Create Release
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.33.0
+  pipeline:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.6
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      enable_changelog: ${{ github.ref == 'refs/heads/main' }}
+      release_single_app: true
+      app_name_prefix: "midaz"
+      # Image/release filter: the two image-bearing components. CRM rolls up under
+      # components/ledger (a ledger package tree, not a standalone image); reporter
+      # was extracted out of this repo entirely.
+      filter_paths: |
+        components/ledger
+        components/tracer
+      shared_paths: |
+        go.mod
+        go.sum
+        pkg/
+        Makefile
+      enable_gitops_artifacts: true
+      enable_helm_dispatch: true
+      helm_chart: "midaz"
+      # Maps each midaz-* image to its Helm value-block key (bare keys). The midaz
+      # Helm chart must carry matching ledger/tracer blocks or those images build
+      # but never deploy.
+      helm_values_key_mappings: '{"midaz-ledger": "ledger", "midaz-tracer": "tracer"}'
+      # Distinct schema from helm_values_key_mappings: keys carry a .tag suffix and
+      # values are full dotted YAML paths (.image.tag).
+      gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag"}'
+      enable_apidog_e2e: true
+      # Publish ledger (onboarding + transaction) and tracer migrations to S3 for the
+      # managed-Postgres deploy pipeline. This S3 copy is additive: tracer still applies
+      # its migrations in-cluster via its own bootstrap runner.
+      s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
     secrets: inherit

@@ -1,30 +1,49 @@
 version: 2
 updates:
-  # Go modules - single root module (monorepo has ONE go.mod at repo root)
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+      timezone: "America/Sao_Paulo"
     target-branch: "develop"
     open-pull-requests-limit: 10
     labels:
       - "area: dependencies"
     commit-message:
-      prefix: "chore(deps)"
-
-  # GitHub Actions
+      prefix: "chore"
+      include: "scope"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+      timezone: "America/Sao_Paulo"
     target-branch: "develop"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - "area: ci/cd"
     commit-message:
-      prefix: "ci(deps)"
+      prefix: "chore"
+      include: "scope"
+    ignore:
+      - dependency-name: "LerianStudio/*"
+    groups:
+      actions-core:
+        patterns:
+          - "actions/*"
+      docker-actions:
+        patterns:
+          - "docker/*"
+      security-actions:
+        patterns:
+          - "github/codeql-action*"
+          - "aquasecurity/trivy-action"
+          - "securego/gosec"
 
   # Docker - ledger (image-bearing component)
   - package-ecosystem: "docker"
@@ -32,13 +51,14 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      timezone: "America/Sao_Paulo"
     target-branch: "develop"
     open-pull-requests-limit: 5
     labels:
       - "area: build"
-      - "component: ledger"
     commit-message:
-      prefix: "build(deps)"
+      prefix: "chore"
+      include: "scope"
 
   # Docker - tracer (image-bearing component)
   - package-ecosystem: "docker"
@@ -46,10 +66,25 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      timezone: "America/Sao_Paulo"
     target-branch: "develop"
     open-pull-requests-limit: 5
     labels:
       - "area: build"
-      - "component: tracer"
     commit-message:
-      prefix: "build(deps)"
+      prefix: "chore"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/components/infra"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "America/Sao_Paulo"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    labels:
+      - "area: build"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

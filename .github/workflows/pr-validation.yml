@@ -3,30 +3,20 @@ name: PR Validation
 on:
   pull_request:
     branches: [develop, release-candidate, main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
+  actions: read
   contents: read
-  pull-requests: write
+  id-token: write
   issues: write
+  pull-requests: write
+  security-events: write
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.33.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.36.6
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      pr_title_types: |
-        feat
-        fix
-        docs
-        style
-        refactor
-        perf
-        test
-        chore
-        ci
-        build
-        revert
       # crm and fees are valid commit scopes even though both now live inside the
       # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
@@ -40,12 +30,26 @@ jobs:
         migrations
         scripts
         deps
-        workflows
-      require_scope: false
-      enable_auto_labeler: false
-      enforce_source_branches: true
-      allowed_source_branches: 'develop|release-candidate|hotfix/*'
-      target_branches_for_source_check: 'main'
+        ci
+        docs
+        tests
+      go_version: "1.26.4"
+      golangci_lint_version: "v2.4.0"
+      app_name_prefix: "midaz"
+      # Analysis-class filter: every component dir with in-tree Go code. CRM rolls
+      # up under components/ledger (a ledger package tree, not a standalone
+      # component); reporter was extracted out of this repo entirely.
+      filter_paths: |
+        components/ledger
+        components/tracer
+      go_private_modules: "github.com/LerianStudio/*"
+      ignore_file: ".trivyignore"
+      shared_paths: |
+        go.mod
+        go.sum
+        components/
+        pkg/
+        Makefile
     secrets: inherit
 
   # Required gate: regenerate OpenAPI/Swagger docs and fail if the committed
