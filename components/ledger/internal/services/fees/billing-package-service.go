@@ -26,6 +26,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // BillingPackageService handles business logic for billing package CRUD operations.
@@ -220,6 +221,47 @@ func (s *BillingPackageService) validateMaintenanceCreate(ctx context.Context, b
 			libOpentelemetry.HandleSpanBusinessErrorEvent(childSpan, "Maintenance credit account validation failed on Midaz", errCredit)
 
 			return errCredit
+		}
+	}
+
+	// Validate the alias-based target accounts to be charged exist on Midaz at
+	// creation time, so a package can never be created referencing accounts that
+	// do not exist. Without this, a bad target alias would only surface later,
+	// during billing calculation.
+	if err := s.validateAccountTargetExists(ctx, childSpan, bp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateAccountTargetExists validates that an alias-based maintenance account
+// target references accounts that exist on Midaz. Aliases are deduplicated
+// (preserving order) to avoid redundant resolver calls.
+//
+// Segment- and portfolio-based targets are intentionally not checked for
+// existence here: Midaz exposes no segment/portfolio existence endpoint to the
+// fee resolver, their UUIDs are already validated structurally by
+// AccountTarget.Validate, and a valid-but-empty segment or portfolio is a
+// legitimate state. Those targets are resolved at billing-calculation time.
+func (s *BillingPackageService) validateAccountTargetExists(ctx context.Context, span trace.Span, bp *model.BillingPackage) error {
+	if bp.AccountTarget == nil || len(bp.AccountTarget.Aliases) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(bp.AccountTarget.Aliases))
+
+	for _, alias := range bp.AccountTarget.Aliases {
+		if _, ok := seen[alias]; ok {
+			continue
+		}
+
+		seen[alias] = struct{}{}
+
+		if err := s.resolveAccountExists(ctx, bp.OrganizationID, bp.LedgerID, alias); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account target alias validation failed on Midaz", err)
+
+			return err
 		}
 	}
 

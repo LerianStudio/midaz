@@ -913,6 +913,75 @@ func TestValidateMaintenanceCreate_CreditAccountFails(t *testing.T) {
 	}
 }
 
+// validMaintenanceBillingPackageWithAliases returns a valid maintenance-type
+// BillingPackage whose AccountTarget targets accounts by alias instead of segment.
+func validMaintenanceBillingPackageWithAliases(aliases ...string) *model.BillingPackage {
+	bp := validMaintenanceBillingPackage()
+	bp.AccountTarget = &model.AccountTarget{Aliases: aliases}
+
+	return bp
+}
+
+func TestValidateMaintenanceCreate_AccountTargetAliases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success - all target aliases exist on Midaz (deduplicated)", func(t *testing.T) {
+		t.Parallel()
+
+		svc, mockRepo, mockMidaz := newTestBillingPackageService(t)
+
+		// The duplicated alias must be validated exactly once.
+		bp := validMaintenanceBillingPackageWithAliases("acc-a@midaz", "acc-b@midaz", "acc-a@midaz")
+		orgUUID := uuid.MustParse(bp.OrganizationID)
+		ledgerUUID := uuid.MustParse(bp.LedgerID)
+
+		mockMidaz.EXPECT().
+			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, *bp.MaintenanceCreditAccount).
+			Return(nil)
+		mockMidaz.EXPECT().
+			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, "acc-a@midaz").
+			Return(nil).
+			Times(1)
+		mockMidaz.EXPECT().
+			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, "acc-b@midaz").
+			Return(nil).
+			Times(1)
+		mockRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, input *model.BillingPackage) (*model.BillingPackage, error) {
+				return input, nil
+			})
+
+		result, err := svc.CreateBillingPackage(context.Background(), bp)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("Error - target alias not found on Midaz fails creation", func(t *testing.T) {
+		t.Parallel()
+
+		svc, _, mockMidaz := newTestBillingPackageService(t)
+
+		bp := validMaintenanceBillingPackageWithAliases("ghost@midaz")
+		orgUUID := uuid.MustParse(bp.OrganizationID)
+		ledgerUUID := uuid.MustParse(bp.LedgerID)
+
+		mockMidaz.EXPECT().
+			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, *bp.MaintenanceCreditAccount).
+			Return(nil)
+		mockMidaz.EXPECT().
+			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, "ghost@midaz").
+			Return(errors.New("0181"))
+
+		result, err := svc.CreateBillingPackage(context.Background(), bp)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "0181")
+	})
+}
+
 func TestValidateVolumeCreate_DebitAccountAliasFails(t *testing.T) {
 	t.Parallel()
 
