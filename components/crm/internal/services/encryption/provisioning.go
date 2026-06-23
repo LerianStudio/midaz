@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
@@ -220,7 +220,7 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 // point so the exported Provision can emit exactly one audit event. The helpers
 // return their own outcome; this method never emits.
 func (s *provisioningService) provision(ctx context.Context, req ProvisionInput) (ProvisionResult, mmodel.AuditOutcome, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
 
 	ctx, span := tracer.Start(ctx, "service.protection.provision")
 	defer span.End()
@@ -438,7 +438,7 @@ func (s *provisioningService) generateKeysetPair(
 // event cannot be built it debug-logs and skips emission, and it never inspects
 // the writer's result. Emission MUST NOT affect the provisioning outcome.
 func (s *provisioningService) emitProvisioningAudit(ctx context.Context, req ProvisionInput, result ProvisionResult, outcome mmodel.AuditOutcome, provErr error) {
-	logger, _, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, _, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	actorID := req.Actor
 	if actorID == "" {

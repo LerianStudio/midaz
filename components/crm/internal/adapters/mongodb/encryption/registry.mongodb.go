@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.mongodb.org/mongo-driver/bson"
@@ -53,7 +53,7 @@ func NewRegistryMongoDBRepository(connection *libMongo.Client) (*RegistryMongoDB
 }
 
 func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.OrganizationRegistryRecord) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.save")
 	defer span.End()
@@ -105,7 +105,7 @@ func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.Org
 }
 
 func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.get")
 	defer span.End()
@@ -142,7 +142,7 @@ func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID stri
 }
 
 func (r *RegistryMongoDBRepository) Update(ctx context.Context, record *mmodel.OrganizationRegistryRecord, expectedRevision int64) error {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.update")
 	defer span.End()

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -117,7 +117,7 @@ func NewMongoDBRepository(connection *libMongo.Client) (*MongoDBRepository, erro
 // forbidden-content guard drops (without inserting) any event whose free-text
 // fields match a secret/keyset pattern.
 func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.ProtectionAuditEvent) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.audit.create")
 	defer span.End()
@@ -232,7 +232,7 @@ func safeLogFields(event *mmodel.ProtectionAuditEvent) []libLog.Field {
 // unparseable cursor is rejected with libHTTP.ErrInvalidCursor rather than
 // silently ignored.
 func (r *MongoDBRepository) FindByOrganization(ctx context.Context, organizationID string, query AuditQuery) ([]*mmodel.ProtectionAuditEvent, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.audit.find")
 	defer span.End()

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
@@ -323,7 +323,7 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 	}
 
 	// app.protection.mount_path is the resolved mount, not a secret.
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
 
 	ctx, span := tracer.Start(ctx, "service.protection.keyset_manager.unwrap")
 	defer span.End()

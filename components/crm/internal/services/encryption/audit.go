@@ -7,8 +7,8 @@ package encryption
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -81,7 +81,7 @@ func NewAuditQueryService(repo audit.Repository) AuditQueryService {
 // returned or propagated, because audit is best-effort and must not block the
 // caller. A nil event is rejected with a warning before any repository call.
 func (w *auditWriter) Emit(ctx context.Context, event *mmodel.ProtectionAuditEvent) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only the tracer is needed; the logger is injected and metrics/tracking-id are unused here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only the tracer is needed; the logger is injected and metrics/tracking-id are unused here
 
 	ctx, span := tracer.Start(ctx, "service.audit.emit")
 	defer span.End()
@@ -125,7 +125,7 @@ func (w *auditWriter) EmitAsync(ctx context.Context, event *mmodel.ProtectionAud
 }
 
 func (s *auditQueryService) GetAuditEvents(ctx context.Context, organizationID string, query audit.AuditQuery) ([]*mmodel.ProtectionAuditEvent, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.protection.get_audit_events")
 	defer span.End()

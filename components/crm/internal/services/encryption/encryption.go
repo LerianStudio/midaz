@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -265,7 +265,7 @@ func NewEncryptionService(
 //   - Uses libCommons crypto.Encrypt
 //   - Returns unmarked ciphertext
 func (s *encryptionService) Encrypt(ctx context.Context, fieldCtx FieldContext, plaintext string) (string, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
 
 	ctx, span := tracer.Start(ctx, "service.protection.encrypt_field")
 	defer span.End()
@@ -409,7 +409,7 @@ func (s *encryptionService) encryptLegacy(ctx context.Context, plaintext string)
 //   - Marked ciphertext with envelope decrypt failure returns error (no fallback)
 //   - Unmarked ciphertext when legacy read not allowed returns error
 func (s *encryptionService) Decrypt(ctx context.Context, fieldCtx FieldContext, ciphertext string) (string, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
 
 	ctx, span := tracer.Start(ctx, "service.protection.decrypt_field")
 	defer span.End()
