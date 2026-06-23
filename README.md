@@ -12,14 +12,12 @@
 
 # Lerian Midaz: Source-Available Core Banking Platform
 
-Midaz is a composable core banking platform built around a double-entry ledger. One Go monorepo ships the ledger core (onboarding, transactions, CRM, fees), real-time transaction validation and fraud prevention (Tracer), and async reporting (Reporter) — all under the [Elastic License 2.0](LICENSE), source-available. Transactional messaging (PIX, cards, wires) and governance integrations remain external and plug in via the marketplace.
+Midaz is a composable core banking platform built around a double-entry ledger. One Go monorepo ships the ledger core (onboarding, transactions, CRM, fees), real-time transaction validation and fraud prevention (Tracer) — all under the [Elastic License 2.0](LICENSE), source-available. Transactional messaging (PIX, cards, wires) and governance integrations remain external and plug in via the marketplace.
 
 ## What's in the Box
 
 - **Ledger core** (one binary): double-entry accounting over the full financial hierarchy — onboarding (organizations, ledgers, assets, portfolios, segments, accounts), n:n transactions, CRM (holders and instruments) with field-level encryption and searchable hashing so PII stays queryable without exposing plaintext, and in-process fee calculation on the transaction path.
 - **Tracer**: real-time transaction validation and fraud prevention — a CEL rule engine, multi-scope spending limits, and a hash-chained immutable audit trail for compliance.
-- **Reporter**: templated async reporting — a manager API queues jobs onto RabbitMQ and a headless worker renders HTML, PDF, CSV, XML, and TXT, storing artifacts in S3-compatible object storage.
-
 ## Quickstart
 
 Prerequisites: Go 1.26.4+ and Docker.

@@ -410,13 +410,13 @@ func TestGetBillingPackageByID_Success(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name      string
-		id        string
-		orgID     string
+		id        uuid.UUID
+		orgID     uuid.UUID
 		mockSetup func()
 	}{
 		{
@@ -425,10 +425,10 @@ func TestGetBillingPackageByID_Success(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID, orgID).
+					FindByID(gomock.Any(), bpID.String(), orgID.String()).
 					Return(&model.BillingPackage{
-						ID:             bpID,
-						OrganizationID: orgID,
+						ID:             bpID.String(),
+						OrganizationID: orgID.String(),
 						Label:          "Test Package",
 						Type:           model.BillingPackageTypeVolume,
 					}, nil)
@@ -446,7 +446,7 @@ func TestGetBillingPackageByID_Success(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
-			assert.Equal(t, bpID, result.ID)
+			assert.Equal(t, bpID.String(), result.ID)
 		})
 	}
 }
@@ -456,13 +456,13 @@ func TestGetBillingPackageByID_NotFound(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name        string
-		id          string
-		orgID       string
+		id          uuid.UUID
+		orgID       uuid.UUID
 		mockSetup   func()
 		errContains string
 	}{
@@ -472,7 +472,7 @@ func TestGetBillingPackageByID_NotFound(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID, orgID).
+					FindByID(gomock.Any(), bpID.String(), orgID.String()).
 					Return(nil, mongo.ErrNoDocuments)
 			},
 			errContains: "No billing package was found",
@@ -503,13 +503,13 @@ func TestGetAllBillingPackages_Success(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	ledgerID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ledgerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
 	tests := []struct {
 		name      string
-		orgID     string
-		ledgerID  string
+		orgID     uuid.UUID
+		ledgerID  uuid.UUID
 		limit     int
 		page      int
 		mockSetup func()
@@ -524,10 +524,10 @@ func TestGetAllBillingPackages_Success(t *testing.T) {
 			page:     1,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, "", 10, 1).
+					FindAll(gomock.Any(), orgID.String(), ledgerID.String(), "", 10, 1).
 					Return([]*model.BillingPackage{
-						{ID: uuid.New().String(), Label: "Package 1"},
-						{ID: uuid.New().String(), Label: "Package 2"},
+						{ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000001").String(), Label: "Package 1"},
+						{ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000002").String(), Label: "Package 2"},
 					}, int64(2), nil)
 			},
 			wantCount: 2,
@@ -541,7 +541,9 @@ func TestGetAllBillingPackages_Success(t *testing.T) {
 
 			ctx := context.Background()
 
-			results, total, err := svc.GetAllBillingPackages(ctx, tt.orgID, tt.ledgerID, "", tt.limit, tt.page)
+			ledgerIDArg := tt.ledgerID
+
+			results, total, err := svc.GetAllBillingPackages(ctx, tt.orgID, &ledgerIDArg, "", tt.limit, tt.page)
 
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.wantCount)
@@ -555,13 +557,13 @@ func TestUpdateBillingPackage_Success(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name      string
-		id        string
-		orgID     string
+		id        uuid.UUID
+		orgID     uuid.UUID
 		updates   map[string]any
 		mockSetup func()
 	}{
@@ -575,14 +577,14 @@ func TestUpdateBillingPackage_Success(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Update(gomock.Any(), bpID, orgID, gomock.Any()).
+					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
 					Return(nil)
 
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID, orgID).
+					FindByID(gomock.Any(), bpID.String(), orgID.String()).
 					Return(&model.BillingPackage{
-						ID:             bpID,
-						OrganizationID: orgID,
+						ID:             bpID.String(),
+						OrganizationID: orgID.String(),
 						Label:          "Updated Label",
 						Enable:         boolPtr(false),
 					}, nil)
@@ -610,13 +612,13 @@ func TestDeleteBillingPackage_Success(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name      string
-		id        string
-		orgID     string
+		id        uuid.UUID
+		orgID     uuid.UUID
 		mockSetup func()
 	}{
 		{
@@ -625,7 +627,7 @@ func TestDeleteBillingPackage_Success(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					SoftDelete(gomock.Any(), bpID, orgID).
+					SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
 					Return(nil)
 			},
 		},
@@ -649,13 +651,13 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name        string
-		id          string
-		orgID       string
+		id          uuid.UUID
+		orgID       uuid.UUID
 		mockSetup   func()
 		errContains string
 	}{
@@ -667,7 +669,7 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 				// The repo layer returns an EntityNotFoundError (FEE-0012) when matched_count is 0.
 				// The service should remap this to FEE-0052 (BillingPackageNotFound).
 				mockRepo.EXPECT().
-					SoftDelete(gomock.Any(), bpID, orgID).
+					SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
 					Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.BillingPackageCollection))
 			},
 			errContains: "No billing package was found",
@@ -697,8 +699,8 @@ func TestGetAllBillingPackages_WithTypeFilter(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	ledgerID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ledgerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
 	tests := []struct {
 		name        string
@@ -712,9 +714,9 @@ func TestGetAllBillingPackages_WithTypeFilter(t *testing.T) {
 			billingType: "volume",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, "volume", 10, 1).
+					FindAll(gomock.Any(), orgID.String(), ledgerID.String(), "volume", 10, 1).
 					Return([]*model.BillingPackage{
-						{ID: uuid.New().String(), Label: "Volume 1", Type: model.BillingPackageTypeVolume},
+						{ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000001").String(), Label: "Volume 1", Type: model.BillingPackageTypeVolume},
 					}, int64(1), nil)
 			},
 			wantCount: 1,
@@ -725,10 +727,10 @@ func TestGetAllBillingPackages_WithTypeFilter(t *testing.T) {
 			billingType: "maintenance",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, "maintenance", 10, 1).
+					FindAll(gomock.Any(), orgID.String(), ledgerID.String(), "maintenance", 10, 1).
 					Return([]*model.BillingPackage{
-						{ID: uuid.New().String(), Label: "Maintenance 1", Type: model.BillingPackageTypeMaintenance},
-						{ID: uuid.New().String(), Label: "Maintenance 2", Type: model.BillingPackageTypeMaintenance},
+						{ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000002").String(), Label: "Maintenance 1", Type: model.BillingPackageTypeMaintenance},
+						{ID: uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000003").String(), Label: "Maintenance 2", Type: model.BillingPackageTypeMaintenance},
 					}, int64(2), nil)
 			},
 			wantCount: 2,
@@ -742,7 +744,9 @@ func TestGetAllBillingPackages_WithTypeFilter(t *testing.T) {
 
 			ctx := context.Background()
 
-			results, total, err := svc.GetAllBillingPackages(ctx, orgID, ledgerID, tt.billingType, 10, 1)
+			ledgerIDArg := ledgerID
+
+			results, total, err := svc.GetAllBillingPackages(ctx, orgID, &ledgerIDArg, tt.billingType, 10, 1)
 
 			assert.NoError(t, err)
 			assert.Len(t, results, tt.wantCount)
@@ -756,8 +760,8 @@ func TestGetAllBillingPackages_RepoError(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	ledgerID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ledgerID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
 	tests := []struct {
 		name        string
@@ -768,7 +772,7 @@ func TestGetAllBillingPackages_RepoError(t *testing.T) {
 			name: "Error - FindAll repo failure",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, "", 10, 1).
+					FindAll(gomock.Any(), orgID.String(), ledgerID.String(), "", 10, 1).
 					Return(nil, int64(0), errors.New("connection timeout"))
 			},
 			errContains: "connection timeout",
@@ -781,7 +785,9 @@ func TestGetAllBillingPackages_RepoError(t *testing.T) {
 
 			ctx := context.Background()
 
-			results, total, err := svc.GetAllBillingPackages(ctx, orgID, ledgerID, "", 10, 1)
+			ledgerIDArg := ledgerID
+
+			results, total, err := svc.GetAllBillingPackages(ctx, orgID, &ledgerIDArg, "", 10, 1)
 
 			assert.Error(t, err)
 			assert.Nil(t, results)
@@ -796,8 +802,8 @@ func TestUpdateBillingPackage_FindByIDFailureAfterUpdate(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name        string
@@ -808,11 +814,11 @@ func TestUpdateBillingPackage_FindByIDFailureAfterUpdate(t *testing.T) {
 			name: "Error - FindByID fails after successful Update",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Update(gomock.Any(), bpID, orgID, gomock.Any()).
+					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
 					Return(nil)
 
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID, orgID).
+					FindByID(gomock.Any(), bpID.String(), orgID.String()).
 					Return(nil, errors.New("document not found after update"))
 			},
 			errContains: "document not found after update",
@@ -839,8 +845,8 @@ func TestUpdateBillingPackage_RepoUpdateError(t *testing.T) {
 
 	svc, mockRepo, _ := newTestBillingPackageService(t)
 
-	orgID := uuid.New().String()
-	bpID := uuid.New().String()
+	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	bpID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
 		name        string
@@ -851,7 +857,7 @@ func TestUpdateBillingPackage_RepoUpdateError(t *testing.T) {
 			name: "Error - Update repo failure",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Update(gomock.Any(), bpID, orgID, gomock.Any()).
+					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
 					Return(errors.New("write concern error"))
 			},
 			errContains: "write concern error",

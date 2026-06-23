@@ -71,18 +71,18 @@ type stubBillingPackageService struct {
 
 	// captured args
 	gotCreate        *model.BillingPackage
-	gotGetByIDID     string
-	gotGetByIDOrg    string
-	gotGetAllOrg     string
-	gotGetAllLedger  string
+	gotGetByIDID     uuid.UUID
+	gotGetByIDOrg    uuid.UUID
+	gotGetAllOrg     uuid.UUID
+	gotGetAllLedger  *uuid.UUID
 	gotGetAllType    string
 	gotGetAllLimit   int
 	gotGetAllPage    int
-	gotUpdateID      string
-	gotUpdateOrg     string
+	gotUpdateID      uuid.UUID
+	gotUpdateOrg     uuid.UUID
 	gotUpdateUpdates map[string]any
-	gotDeleteID      string
-	gotDeleteOrg     string
+	gotDeleteID      uuid.UUID
+	gotDeleteOrg     uuid.UUID
 	createCalled     bool
 	updateCalled     bool
 	deleteCalled     bool
@@ -95,14 +95,14 @@ func (s *stubBillingPackageService) CreateBillingPackage(_ context.Context, bp *
 	return s.createResult, s.createErr
 }
 
-func (s *stubBillingPackageService) GetBillingPackageByID(_ context.Context, id, organizationID string) (*model.BillingPackage, error) {
+func (s *stubBillingPackageService) GetBillingPackageByID(_ context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error) {
 	s.gotGetByIDID = id
 	s.gotGetByIDOrg = organizationID
 
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *stubBillingPackageService) GetAllBillingPackages(_ context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error) {
+func (s *stubBillingPackageService) GetAllBillingPackages(_ context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error) {
 	s.gotGetAllOrg = organizationID
 	s.gotGetAllLedger = ledgerID
 	s.gotGetAllType = billingType
@@ -112,7 +112,7 @@ func (s *stubBillingPackageService) GetAllBillingPackages(_ context.Context, org
 	return s.getAllResult, s.getAllTotal, s.getAllErr
 }
 
-func (s *stubBillingPackageService) UpdateBillingPackage(_ context.Context, id, organizationID string, updates map[string]any) (*model.BillingPackage, error) {
+func (s *stubBillingPackageService) UpdateBillingPackage(_ context.Context, id, organizationID uuid.UUID, updates map[string]any) (*model.BillingPackage, error) {
 	s.updateCalled = true
 	s.gotUpdateID = id
 	s.gotUpdateOrg = organizationID
@@ -121,7 +121,7 @@ func (s *stubBillingPackageService) UpdateBillingPackage(_ context.Context, id, 
 	return s.updateResult, s.updateErr
 }
 
-func (s *stubBillingPackageService) DeleteBillingPackage(_ context.Context, id, organizationID string) error {
+func (s *stubBillingPackageService) DeleteBillingPackage(_ context.Context, id, organizationID uuid.UUID) error {
 	s.deleteCalled = true
 	s.gotDeleteID = id
 	s.gotDeleteOrg = organizationID
@@ -232,8 +232,9 @@ func TestBillingPackageHandler_GetAllBillingPackages(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validate: func(t *testing.T, body map[string]any, stub *stubBillingPackageService) {
-				assert.Equal(t, orgUUID.String(), stub.gotGetAllOrg)
-				assert.Equal(t, ledgerID.String(), stub.gotGetAllLedger)
+				assert.Equal(t, orgUUID, stub.gotGetAllOrg)
+				require.NotNil(t, stub.gotGetAllLedger, "ledgerId must be forwarded as a non-nil pointer when present")
+				assert.Equal(t, ledgerID, *stub.gotGetAllLedger)
 				assert.Equal(t, "volume", stub.gotGetAllType)
 				assert.Equal(t, 25, stub.gotGetAllLimit)
 				assert.Equal(t, 2, stub.gotGetAllPage)
@@ -259,7 +260,7 @@ func TestBillingPackageHandler_GetAllBillingPackages(t *testing.T) {
 			stub:           &stubBillingPackageService{},
 			expectedStatus: fiber.StatusBadRequest,
 			validate: func(t *testing.T, body map[string]any, stub *stubBillingPackageService) {
-				assert.Empty(t, stub.gotGetAllOrg, "service must not be called when ledgerId is malformed")
+				assert.Equal(t, uuid.Nil, stub.gotGetAllOrg, "service must not be called when ledgerId is malformed")
 				assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), body["code"])
 			},
 		},
@@ -342,8 +343,8 @@ func TestBillingPackageHandler_GetBillingPackageByID(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validate: func(t *testing.T, body map[string]any, stub *stubBillingPackageService) {
-				assert.Equal(t, id.String(), stub.gotGetByIDID)
-				assert.Equal(t, orgUUID.String(), stub.gotGetByIDOrg)
+				assert.Equal(t, id, stub.gotGetByIDID)
+				assert.Equal(t, orgUUID, stub.gotGetByIDOrg)
 				assert.Equal(t, "Found", body["label"])
 			},
 		},
@@ -402,8 +403,8 @@ func TestBillingPackageHandler_UpdateBillingPackage(t *testing.T) {
 			expectedStatus: fiber.StatusOK,
 			validate: func(t *testing.T, body map[string]any, stub *stubBillingPackageService) {
 				require.True(t, stub.updateCalled)
-				assert.Equal(t, id.String(), stub.gotUpdateID)
-				assert.Equal(t, orgUUID.String(), stub.gotUpdateOrg)
+				assert.Equal(t, id, stub.gotUpdateID)
+				assert.Equal(t, orgUUID, stub.gotUpdateOrg)
 				// Only label + enable were set; description must be absent from the map.
 				assert.Equal(t, "New Label", stub.gotUpdateUpdates["label"])
 				assert.Equal(t, false, stub.gotUpdateUpdates["enable"])
@@ -503,8 +504,8 @@ func TestBillingPackageHandler_DeleteBillingPackage(t *testing.T) {
 			expectedStatus: fiber.StatusNoContent,
 			validate: func(t *testing.T, stub *stubBillingPackageService, body []byte) {
 				require.True(t, stub.deleteCalled)
-				assert.Equal(t, id.String(), stub.gotDeleteID)
-				assert.Equal(t, orgUUID.String(), stub.gotDeleteOrg)
+				assert.Equal(t, id, stub.gotDeleteID)
+				assert.Equal(t, orgUUID, stub.gotDeleteOrg)
 				assert.Empty(t, body, "204 must carry no body")
 			},
 		},

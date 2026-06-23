@@ -27,10 +27,10 @@ import (
 // by the billing-package handler.
 type BillingPackageUseCase interface {
 	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
-	GetBillingPackageByID(ctx context.Context, id, organizationID string) (*model.BillingPackage, error)
-	GetAllBillingPackages(ctx context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
-	UpdateBillingPackage(ctx context.Context, id, organizationID string, updates map[string]any) (*model.BillingPackage, error)
-	DeleteBillingPackage(ctx context.Context, id, organizationID string) error
+	GetBillingPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error)
+	GetAllBillingPackages(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
+	UpdateBillingPackage(ctx context.Context, id, organizationID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
+	DeleteBillingPackage(ctx context.Context, id, organizationID uuid.UUID) error
 }
 
 // BillingPackageHandler exposes the billing-package CRUD surface over HTTP.
@@ -141,13 +141,19 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	)
 
 	ledgerIDParam := c.Query("ledgerId")
+
+	var ledgerID *uuid.UUID
+
 	if ledgerIDParam != "" {
-		if _, errParse := uuid.Parse(ledgerIDParam); errParse != nil {
+		parsedLedgerID, errParse := uuid.Parse(ledgerIDParam)
+		if errParse != nil {
 			err := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "", "ledgerId")
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledgerId query parameter", err)
 
 			return http.WithError(c, err)
 		}
+
+		ledgerID = &parsedLedgerID
 	}
 
 	const maxPaginationLimit = 100
@@ -189,7 +195,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 		attribute.Int("app.request.page", page),
 	)
 
-	results, total, errGet := handler.Service.GetAllBillingPackages(ctx, organizationID.String(), ledgerIDParam, billingType, limit, page)
+	results, total, errGet := handler.Service.GetAllBillingPackages(ctx, organizationID, ledgerID, billingType, limit, page)
 	if errGet != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all billing packages", errGet)
 
@@ -248,11 +254,16 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	result, errGet := handler.Service.GetBillingPackageByID(ctx, id.String(), organizationID.String())
+	result, errGet := handler.Service.GetBillingPackageByID(ctx, id, organizationID)
 	if errGet != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve billing package", errGet)
 
-		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve BillingPackage", libLog.String("billing_package_id", id.String()))
+		logLevel := libLog.LevelError
+		if feeerrors.IsBusinessError(errGet) {
+			logLevel = libLog.LevelWarn
+		}
+
+		logger.Log(ctx, logLevel, "Failed to retrieve BillingPackage", libLog.String("billing_package_id", id.String()), libLog.Err(errGet))
 
 		return http.WithError(c, errGet)
 	}
@@ -328,7 +339,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 		return http.WithError(c, validationErr)
 	}
 
-	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id.String(), organizationID.String(), updates)
+	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, updates)
 	if errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
@@ -378,10 +389,15 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	if errDelete := handler.Service.DeleteBillingPackage(ctx, id.String(), organizationID.String()); errDelete != nil {
+	if errDelete := handler.Service.DeleteBillingPackage(ctx, id, organizationID); errDelete != nil {
 		handleSpanByErrorClass(span, "Failed to delete billing package", errDelete)
 
-		logger.Log(ctx, libLog.LevelWarn, "Failed to remove BillingPackage", libLog.String("billing_package_id", id.String()))
+		logLevel := libLog.LevelError
+		if feeerrors.IsBusinessError(errDelete) {
+			logLevel = libLog.LevelWarn
+		}
+
+		logger.Log(ctx, logLevel, "Failed to remove BillingPackage", libLog.String("billing_package_id", id.String()), libLog.Err(errDelete))
 
 		return http.WithError(c, errDelete)
 	}

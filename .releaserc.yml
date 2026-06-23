@@ -42,15 +42,6 @@ plugins:
     failComment: false
     labels: []
 
-  # Backmerge main -> develop after a stable release so develop never falls behind
-  # the released CHANGELOG/version bump. Replaces the prior manual
-  # `chore(changelog): backmerge` commits.
-  - path: "@saithodev/semantic-release-backmerge"
-    backmergeBranches:
-      - from: main
-        to: develop
-    clearWorkspace: true
-
 branches:
   - name: main
   - name: develop

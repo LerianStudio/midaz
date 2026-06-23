@@ -269,7 +269,7 @@ func (s *BillingPackageService) validateAccountTargetExists(ctx context.Context,
 }
 
 // GetBillingPackageByID retrieves a billing package by ID and organization ID.
-func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, organizationID string) (*model.BillingPackage, error) {
+func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.get_by_id")
@@ -277,14 +277,14 @@ func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, o
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	result, err := s.billingPackageRepo.FindByID(ctx, id, organizationID)
+	result, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id)
+			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id.String())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing package not found", bizErr)
 
 			return nil, bizErr
@@ -298,22 +298,28 @@ func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, o
 	return result, nil
 }
 
-// GetAllBillingPackages retrieves all billing packages for an organization and ledger with pagination.
-func (s *BillingPackageService) GetAllBillingPackages(ctx context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error) {
+// GetAllBillingPackages retrieves all billing packages for an organization and ledger
+// with pagination. A nil ledgerID lists packages across all ledgers for the organization.
+func (s *BillingPackageService) GetAllBillingPackages(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.get_all")
 	defer span.End()
 
+	ledgerIDFilter := ""
+	if ledgerID != nil {
+		ledgerIDFilter = ledgerID.String()
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.ledger_id", ledgerID),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerIDFilter),
 		attribute.Int("app.request.limit", limit),
 		attribute.Int("app.request.page", page),
 	)
 
-	results, total, err := s.billingPackageRepo.FindAll(ctx, organizationID, ledgerID, billingType, limit, page)
+	results, total, err := s.billingPackageRepo.FindAll(ctx, organizationID.String(), ledgerIDFilter, billingType, limit, page)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get all billing packages", err)
 
@@ -326,7 +332,7 @@ func (s *BillingPackageService) GetAllBillingPackages(ctx context.Context, organ
 }
 
 // UpdateBillingPackage updates a billing package by ID with the provided fields.
-func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID string, updates map[string]any) (_ *model.BillingPackage, err error) {
+func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID uuid.UUID, updates map[string]any) (_ *model.BillingPackage, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.update")
@@ -340,8 +346,8 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
 	// Build bson.M from updates and add updated_at timestamp.
@@ -356,14 +362,14 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		"$set": setFields,
 	}
 
-	if err := s.billingPackageRepo.Update(ctx, id, organizationID, &updateFields); err != nil {
+	if err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), &updateFields); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update billing package", err)
 
 		return nil, err
 	}
 
 	// Retrieve updated entity.
-	result, err := s.billingPackageRepo.FindByID(ctx, id, organizationID)
+	result, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve billing package after update", err)
 
@@ -374,7 +380,7 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 }
 
 // DeleteBillingPackage soft-deletes a billing package by ID and organization ID.
-func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID string) (err error) {
+func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID uuid.UUID) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.delete")
@@ -388,15 +394,15 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	if err := s.billingPackageRepo.SoftDelete(ctx, id, organizationID); err != nil {
+	if err := s.billingPackageRepo.SoftDelete(ctx, id.String(), organizationID.String()); err != nil {
 		// Remap a repo-layer entity-not-found to the billing-package-not-found business error.
 		var notFoundErr pkg.EntityNotFoundError
 		if errors.As(err, &notFoundErr) {
-			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id)
+			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id.String())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing package not found for deletion", bizErr)
 
 			return bizErr

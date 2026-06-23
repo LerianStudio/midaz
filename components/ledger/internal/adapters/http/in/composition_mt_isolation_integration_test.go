@@ -355,7 +355,10 @@ func postComposition(app *fiber.App, tn *compositionTenant) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("tenant %s failed to read response body: %w", tn.tenantID, err)
+	}
 	if resp.StatusCode != fiber.StatusCreated {
 		return fmt.Errorf("tenant %s composition POST got %d, want 201: %s", tn.tenantID, resp.StatusCode, string(respBody))
 	}

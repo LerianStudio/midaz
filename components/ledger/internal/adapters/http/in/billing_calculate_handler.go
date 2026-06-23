@@ -71,7 +71,11 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	payload := p.(*model.BillingCalculateRequest)
+	payload, ok := p.(*model.BillingCalculateRequest)
+	if !ok || payload == nil {
+		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
+	}
+
 	payload.OrganizationID = organizationID.String()
 
 	span.SetAttributes(
