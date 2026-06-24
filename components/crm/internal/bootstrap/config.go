@@ -74,6 +74,7 @@ type Config struct {
 	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
 	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
 	VaultMountPath                         string `env:"KMS_VAULT_MOUNT_PATH"`
+	VaultAuthMethod                        string `env:"KMS_VAULT_AUTH_METHOD"`
 }
 
 // Options contains optional dependencies that can be injected by callers.

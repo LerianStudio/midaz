@@ -53,7 +53,10 @@ func initKMS(ctx context.Context, cfg *Config, logger libLog.Logger) (*KMSResult
 
 // initVaultClient creates and authenticates a Vault client.
 func initVaultClient(ctx context.Context, cfg *Config, logger libLog.Logger) (*vault.Client, error) {
-	vaultCfg := buildVaultConfig(cfg)
+	vaultCfg, err := buildVaultConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	client, err := vault.NewClient(vaultCfg)
 	if err != nil {
@@ -108,7 +111,11 @@ func validateVaultConfig(mode crypto.EncryptionMode, cfg *Config) error {
 		return nil
 	}
 
-	vaultCfg := buildVaultConfig(cfg)
+	vaultCfg, err := buildVaultConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("envelope encryption mode requires valid vault configuration: %w", err)
+	}
+
 	if err := vaultCfg.Validate(); err != nil {
 		return fmt.Errorf("envelope encryption mode requires valid vault configuration: %w", err)
 	}
@@ -116,29 +123,27 @@ func validateVaultConfig(mode crypto.EncryptionMode, cfg *Config) error {
 	return nil
 }
 
-// DefaultVaultDevToken is the hardcoded token for local/development environments.
+// DefaultVaultDevToken is the hardcoded token used by token auth.
 // This matches the Vault dev container's default root token.
 const DefaultVaultDevToken = "root"
 
 // buildVaultConfig creates a vault.Config from the bootstrap Config.
-// Auth method selection based on deployment mode:
 //
-// For local/development environments (DEPLOYMENT_MODE=local or empty):
-//   - Uses Token auth with hardcoded root token (DefaultVaultDevToken)
-//   - AppRole credentials are ignored in local mode for simplicity
+// Authentication is driven solely by KMS_VAULT_AUTH_METHOD and is resolved only in
+// envelope mode (KMS_VENDOR=hashicorp-vault); legacy mode never reaches here.
 //
-// For production environments (DEPLOYMENT_MODE=saas, byoc):
-//   - Uses AppRole auth exclusively (more secure)
-//   - Token auth is not available in production mode
+//   - "token":   token auth with the hardcoded dev root token (local development).
+//   - "approle": AppRole auth with role_id/secret_id (development and production).
+//     Missing credentials fail closed via vault.Config.Validate.
+//   - unset/empty/invalid: fail closed with an error. There is no default.
 //
-// Whitespace-only values are treated as empty.
-func buildVaultConfig(cfg *Config) vault.Config {
-	roleID := strings.TrimSpace(cfg.VaultRoleID)
-	secretID := strings.TrimSpace(cfg.VaultSecretID)
-	hasAppRole := roleID != "" && secretID != ""
-
-	// Determine auth method and token based on deployment mode
-	authMethod, token := resolveVaultAuth(cfg.DeploymentMode, hasAppRole)
+// Safety floor: token auth is rejected when DEPLOYMENT_MODE is saas or byoc, so a
+// production deployment can never authenticate with the dev root token.
+func buildVaultConfig(cfg *Config) (vault.Config, error) {
+	authMethod, token, err := resolveVaultAuth(cfg)
+	if err != nil {
+		return vault.Config{}, err
+	}
 
 	return vault.Config{
 		Addr:       cfg.VaultAddr,
@@ -146,28 +151,37 @@ func buildVaultConfig(cfg *Config) vault.Config {
 		SecretID:   cfg.VaultSecretID,
 		Token:      token,
 		AuthMethod: authMethod,
+	}, nil
+}
+
+// resolveVaultAuth determines the Vault auth method and token from KMS_VAULT_AUTH_METHOD.
+// It fails closed for an unset, empty, or invalid auth method, and rejects token auth
+// in production (saas/byoc) so the dev root token can never be used there.
+func resolveVaultAuth(cfg *Config) (vault.AuthMethod, string, error) {
+	method, err := vault.ParseAuthMethod(cfg.VaultAuthMethod)
+	if err != nil {
+		return "", "", fmt.Errorf("KMS_VAULT_AUTH_METHOD must be set to a valid value: %w", err)
+	}
+
+	switch method {
+	case vault.AuthMethodToken:
+		if isProductionDeployment(cfg.DeploymentMode) {
+			return "", "", fmt.Errorf(
+				"KMS_VAULT_AUTH_METHOD=token is not allowed when DEPLOYMENT_MODE is %q: production requires approle",
+				strings.ToLower(strings.TrimSpace(cfg.DeploymentMode)))
+		}
+
+		return vault.AuthMethodToken, DefaultVaultDevToken, nil
+	case vault.AuthMethodAppRole:
+		return vault.AuthMethodAppRole, "", nil
+	default:
+		return "", "", fmt.Errorf("unsupported vault auth method %q", method)
 	}
 }
 
-// resolveVaultAuth determines the Vault auth method and token based on deployment mode.
-// Local/development: uses hardcoded root token for simplicity.
-// Production (saas/byoc): requires AppRole credentials.
-func resolveVaultAuth(deploymentMode string, hasAppRole bool) (vault.AuthMethod, string) {
+// isProductionDeployment reports whether the deployment mode is a production mode
+// (saas or byoc), where token auth with the dev root token is forbidden.
+func isProductionDeployment(deploymentMode string) bool {
 	mode := strings.ToLower(strings.TrimSpace(deploymentMode))
-
-	// Check if production environment (saas or byoc)
-	isProduction := mode == DeploymentModeSaaS || mode == DeploymentModeBYOC
-
-	if isProduction {
-		// Production: AppRole only
-		if hasAppRole {
-			return vault.AuthMethodAppRole, ""
-		}
-
-		// No valid auth in production without AppRole
-		return "", ""
-	}
-
-	// Local/development: always use hardcoded root token
-	return vault.AuthMethodToken, DefaultVaultDevToken
+	return mode == DeploymentModeSaaS || mode == DeploymentModeBYOC
 }

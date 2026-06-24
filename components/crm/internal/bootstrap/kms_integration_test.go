@@ -93,10 +93,11 @@ func TestIntegration_InitKMS_EnvelopeMode_LocalDeployment(t *testing.T) {
 	vaultContainer := vaulttestutil.SetupContainer(t)
 
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      vaultContainer.Address,
-		VaultMountPath: "transit",
-		DeploymentMode: "local", // Local mode uses hardcoded root token
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       vaultContainer.Address,
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "token", // token auth uses the hardcoded root token
+		DeploymentMode:  "local",
 	}
 	logger := libLog.NewNop()
 	ctx := context.Background()
@@ -117,10 +118,11 @@ func TestIntegration_InitKMS_EnvelopeMode_ProductionWithoutCredentials(t *testin
 
 	// Arrange - Production mode without AppRole credentials
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      "https://vault.example.com:8200",
-		VaultMountPath: "transit",
-		DeploymentMode: "saas",
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       "https://vault.example.com:8200",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "approle",
+		DeploymentMode:  "saas",
 		// No VaultRoleID or VaultSecretID
 	}
 	logger := libLog.NewNop()
@@ -147,12 +149,13 @@ func TestIntegration_InitKMS_EnvelopeMode_VaultUnreachable_AppRoleAuth(t *testin
 	// Arrange - Configure envelope mode with unreachable Vault address
 	// Use production mode (saas) with AppRole credentials to force network call during login
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      "http://unreachable-vault-host:8200",
-		VaultRoleID:    "fake-role-id",
-		VaultSecretID:  "fake-secret-id",
-		VaultMountPath: "transit",
-		DeploymentMode: "saas", // Production mode uses AppRole which makes network calls
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       "http://unreachable-vault-host:8200",
+		VaultRoleID:     "fake-role-id",
+		VaultSecretID:   "fake-secret-id",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "approle",
+		DeploymentMode:  "saas", // AppRole makes network calls during login
 	}
 	logger := libLog.NewNop()
 
@@ -180,10 +183,11 @@ func TestIntegration_InitKMS_TokenAuth_DeferredValidation(t *testing.T) {
 
 	// Arrange - Configure with unreachable address but local mode (token auth)
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      "http://unreachable-vault-host:8200",
-		VaultMountPath: "transit",
-		DeploymentMode: "local", // Token auth does NOT make network calls during Login()
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       "http://unreachable-vault-host:8200",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "token", // token auth does NOT make network calls during Login()
+		DeploymentMode:  "local",
 	}
 	logger := libLog.NewNop()
 	ctx := context.Background()
@@ -212,12 +216,13 @@ func TestIntegration_InitKMS_ContextCancellation_AppRoleAuth(t *testing.T) {
 
 	// Arrange - Configure with AppRole auth to force network call
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      "http://10.255.255.1:8200", // Non-routable IP
-		VaultRoleID:    "fake-role-id",
-		VaultSecretID:  "fake-secret-id",
-		VaultMountPath: "transit",
-		DeploymentMode: "saas", // AppRole makes network calls
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       "http://10.255.255.1:8200", // Non-routable IP
+		VaultRoleID:     "fake-role-id",
+		VaultSecretID:   "fake-secret-id",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "approle",
+		DeploymentMode:  "saas", // AppRole makes network calls
 	}
 	logger := libLog.NewNop()
 
@@ -240,12 +245,13 @@ func TestIntegration_InitKMS_ContextTimeout_AppRoleAuth(t *testing.T) {
 
 	// Arrange - Configure with AppRole auth to force network call
 	cfg := &Config{
-		KMSVendor:      "hashicorp-vault",
-		VaultAddr:      "http://10.255.255.1:8200", // Non-routable IP
-		VaultRoleID:    "fake-role-id",
-		VaultSecretID:  "fake-secret-id",
-		VaultMountPath: "transit",
-		DeploymentMode: "saas", // AppRole makes network calls
+		KMSVendor:       "hashicorp-vault",
+		VaultAddr:       "http://10.255.255.1:8200", // Non-routable IP
+		VaultRoleID:     "fake-role-id",
+		VaultSecretID:   "fake-secret-id",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "approle",
+		DeploymentMode:  "saas", // AppRole makes network calls
 	}
 	logger := libLog.NewNop()
 
@@ -265,84 +271,84 @@ func TestIntegration_InitKMS_ContextTimeout_AppRoleAuth(t *testing.T) {
 // buildVaultConfig Integration Tests
 // ============================================================================
 
-func TestIntegration_BuildVaultConfig_LocalMode_UsesHardcodedToken(t *testing.T) {
+func TestIntegration_BuildVaultConfig_TokenAuth_UsesHardcodedToken(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	cfg := &Config{
-		VaultAddr:      "http://localhost:8200",
-		VaultMountPath: "transit",
-		DeploymentMode: "local",
+		VaultAddr:       "http://localhost:8200",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "token",
+		DeploymentMode:  "local",
 	}
 
 	// Act
-	vaultCfg := buildVaultConfig(cfg)
+	vaultCfg, err := buildVaultConfig(cfg)
 
 	// Assert
-	assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token, "local mode should use hardcoded token")
-	assert.Equal(t, "token", string(vaultCfg.AuthMethod), "local mode should use token auth")
+	require.NoError(t, err)
+	assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token, "token auth should use hardcoded token")
+	assert.Equal(t, "token", string(vaultCfg.AuthMethod), "token auth method should select token auth")
 }
 
-func TestIntegration_BuildVaultConfig_LocalMode_IgnoresAppRoleCredentials(t *testing.T) {
-	t.Parallel()
-
-	// Arrange - AppRole credentials provided but should be ignored in local mode
-	cfg := &Config{
-		VaultAddr:      "http://localhost:8200",
-		VaultRoleID:    "role-123",
-		VaultSecretID:  "secret-456",
-		VaultMountPath: "transit",
-		DeploymentMode: "local",
-	}
-
-	// Act
-	vaultCfg := buildVaultConfig(cfg)
-
-	// Assert - should still use token auth
-	assert.Equal(t, DefaultVaultDevToken, vaultCfg.Token, "local mode should use hardcoded token")
-	assert.Equal(t, "token", string(vaultCfg.AuthMethod), "local mode should ignore AppRole")
-}
-
-func TestIntegration_BuildVaultConfig_ProductionMode_UsesAppRole(t *testing.T) {
+func TestIntegration_BuildVaultConfig_AppRoleAuth_UsesAppRole(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
 	cfg := &Config{
-		VaultAddr:      "https://vault.example.com:8200",
-		VaultRoleID:    "role-123",
-		VaultSecretID:  "secret-456",
-		VaultMountPath: "transit",
-		DeploymentMode: "saas",
+		VaultAddr:       "https://vault.example.com:8200",
+		VaultRoleID:     "role-123",
+		VaultSecretID:   "secret-456",
+		VaultMountPath:  "transit",
+		VaultAuthMethod: "approle",
+		DeploymentMode:  "saas",
 	}
 
 	// Act
-	vaultCfg := buildVaultConfig(cfg)
+	vaultCfg, err := buildVaultConfig(cfg)
 
 	// Assert
-	assert.Empty(t, vaultCfg.Token, "production mode should not set token")
-	assert.Equal(t, "approle", string(vaultCfg.AuthMethod), "production mode should use AppRole")
+	require.NoError(t, err)
+	assert.Empty(t, vaultCfg.Token, "approle auth should not set token")
+	assert.Equal(t, "approle", string(vaultCfg.AuthMethod), "approle auth method should select AppRole")
 	assert.Equal(t, cfg.VaultRoleID, vaultCfg.RoleID)
 	assert.Equal(t, cfg.VaultSecretID, vaultCfg.SecretID)
 }
 
-func TestIntegration_BuildVaultConfig_BYOCMode_UsesAppRole(t *testing.T) {
+func TestIntegration_BuildVaultConfig_UnsetAuthMethod_FailsClosed(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
+	// Arrange - no auth method set
 	cfg := &Config{
-		VaultAddr:      "https://vault.customer.com:8200",
-		VaultRoleID:    "byoc-role",
-		VaultSecretID:  "byoc-secret",
-		VaultMountPath: "crm-transit",
-		DeploymentMode: "byoc",
+		VaultAddr:      "https://vault.example.com:8200",
+		VaultMountPath: "transit",
 	}
 
 	// Act
-	vaultCfg := buildVaultConfig(cfg)
+	_, err := buildVaultConfig(cfg)
 
 	// Assert
-	assert.Empty(t, vaultCfg.Token, "byoc mode should not set token")
-	assert.Equal(t, "approle", string(vaultCfg.AuthMethod), "byoc mode should use AppRole")
+	require.Error(t, err, "unset auth method must fail closed")
+	assert.Contains(t, err.Error(), "KMS_VAULT_AUTH_METHOD")
+}
+
+func TestIntegration_BuildVaultConfig_TokenInProduction_FailsClosed(t *testing.T) {
+	t.Parallel()
+
+	// Arrange - token auth must not be allowed in production
+	cfg := &Config{
+		VaultAddr:       "https://vault.customer.com:8200",
+		VaultMountPath:  "crm-transit",
+		VaultAuthMethod: "token",
+		DeploymentMode:  "byoc",
+	}
+
+	// Act
+	_, err := buildVaultConfig(cfg)
+
+	// Assert
+	require.Error(t, err, "token auth must be rejected in production (safety floor)")
+	assert.Contains(t, err.Error(), "approle")
 }
 
 // ============================================================================
@@ -370,9 +376,10 @@ func TestIntegration_VaultClient_IsAuthenticated_AfterLogin(t *testing.T) {
 	vaultContainer := vaulttestutil.SetupContainer(t)
 
 	cfg := &Config{
-		VaultAddr:      vaultContainer.Address,
-		VaultMountPath: "transit", // Mount path is required but Transit engine isn't used for auth
-		DeploymentMode: "local",
+		VaultAddr:       vaultContainer.Address,
+		VaultMountPath:  "transit", // Mount path is required but Transit engine isn't used for auth
+		VaultAuthMethod: "token",
+		DeploymentMode:  "local",
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -531,57 +538,55 @@ func TestIntegration_Readyz_VaultChecker_LegacyModeShowsNA(t *testing.T) {
 // resolveVaultAuth Integration Tests
 // ============================================================================
 
-func TestIntegration_ResolveVaultAuth_DeploymentModes(t *testing.T) {
+func TestIntegration_ResolveVaultAuth_AuthMethods(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name           string
+		authMethod     string
 		deploymentMode string
-		hasAppRole     bool
 		wantMethod     string
 		wantToken      string
+		wantError      bool
 	}{
 		{
-			name:           "local mode uses hardcoded token",
+			name:           "token auth uses hardcoded token",
+			authMethod:     "token",
 			deploymentMode: "local",
-			hasAppRole:     false,
 			wantMethod:     "token",
 			wantToken:      DefaultVaultDevToken,
 		},
 		{
-			name:           "local mode ignores AppRole",
-			deploymentMode: "local",
-			hasAppRole:     true,
-			wantMethod:     "token",
-			wantToken:      DefaultVaultDevToken,
-		},
-		{
-			name:           "empty mode defaults to local",
+			name:           "token auth with empty deployment mode uses hardcoded token",
+			authMethod:     "token",
 			deploymentMode: "",
-			hasAppRole:     true,
 			wantMethod:     "token",
 			wantToken:      DefaultVaultDevToken,
 		},
 		{
-			name:           "saas mode uses AppRole",
+			name:           "approle auth in saas",
+			authMethod:     "approle",
 			deploymentMode: "saas",
-			hasAppRole:     true,
 			wantMethod:     "approle",
 			wantToken:      "",
 		},
 		{
-			name:           "saas mode without AppRole returns empty",
-			deploymentMode: "saas",
-			hasAppRole:     false,
-			wantMethod:     "",
-			wantToken:      "",
-		},
-		{
-			name:           "byoc mode uses AppRole",
+			name:           "approle auth in byoc",
+			authMethod:     "approle",
 			deploymentMode: "byoc",
-			hasAppRole:     true,
 			wantMethod:     "approle",
 			wantToken:      "",
+		},
+		{
+			name:       "unset auth method fails closed",
+			authMethod: "",
+			wantError:  true,
+		},
+		{
+			name:           "token auth in saas fails closed (safety floor)",
+			authMethod:     "token",
+			deploymentMode: "saas",
+			wantError:      true,
 		},
 	}
 
@@ -589,10 +594,22 @@ func TestIntegration_ResolveVaultAuth_DeploymentModes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			cfg := &Config{
+				VaultAuthMethod: tt.authMethod,
+				DeploymentMode:  tt.deploymentMode,
+			}
+
 			// Act
-			method, token := resolveVaultAuth(tt.deploymentMode, tt.hasAppRole)
+			method, token, err := resolveVaultAuth(cfg)
 
 			// Assert
+			if tt.wantError {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantMethod, string(method))
 			assert.Equal(t, tt.wantToken, token)
 		})
