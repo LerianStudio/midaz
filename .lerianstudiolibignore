@@ -1,0 +1,11 @@
+# lib-auth — pinned at current (v2.8.1 skip temporário)
+lib-auth/v2@v2.8.0
+
+# lib-commons — beta, aguardando stable
+lib-commons/v5@v5.2.0-beta.12
+
+# lib-observability — pinned at current
+lib-observability@v1.0.1
+
+# lib-streaming — pinned at current
+lib-streaming@v1.4.0

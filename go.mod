@@ -100,7 +100,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.12
+	github.com/LerianStudio/lib-commons/v5 v5.2.0
 	github.com/LerianStudio/lib-observability v1.0.1
 	github.com/LerianStudio/lib-streaming v1.4.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
