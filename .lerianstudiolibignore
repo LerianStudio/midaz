@@ -1,7 +1,7 @@
 # lib-auth — pinned at current (v2.8.1 skip temporário)
 lib-auth/v2@v2.8.0
 
-# lib-commons — beta, aguardando stable
+# lib-commons — pinned at beta while waiting to migrate to version with mongodb driver v2
 lib-commons/v5@v5.2.0-beta.12
 
 # lib-observability — pinned at current
