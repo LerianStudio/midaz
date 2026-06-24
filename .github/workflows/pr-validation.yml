@@ -3,30 +3,20 @@ name: PR Validation
 on:
   pull_request:
     branches: [develop, release-candidate, main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
+  actions: read
   contents: read
-  pull-requests: write
+  id-token: write
   issues: write
+  pull-requests: write
+  security-events: write
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-validation.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.36.6
     with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      pr_title_types: |
-        feat
-        fix
-        docs
-        style
-        refactor
-        perf
-        test
-        chore
-        ci
-        build
-        revert
       pr_title_scopes: |
         crm
         ledger
@@ -36,10 +26,21 @@ jobs:
         migrations
         scripts
         deps
-        workflows
-      require_scope: false
-      enable_auto_labeler: false
-      enforce_source_branches: true
-      allowed_source_branches: 'develop|release-candidate|hotfix/*'
-      target_branches_for_source_check: 'main'
+        ci
+        docs
+        tests
+      go_version: "1.26.4"
+      golangci_lint_version: "v2.4.0"
+      app_name_prefix: "midaz"
+      filter_paths: |
+        components/crm
+        components/ledger
+      go_private_modules: "github.com/LerianStudio/*"
+      ignore_file: ".trivyignore"
+      shared_paths: |
+        go.mod
+        go.sum
+        components/
+        pkg/
+        Makefile
     secrets: inherit
