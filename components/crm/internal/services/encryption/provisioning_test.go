@@ -506,7 +506,9 @@ func TestProvisioningService_buildProvisioningKeysets_EnvelopeOnly_SingleKeyShap
 		importLegacy:   false,
 	}
 
-	mount := resolveMount(concreteSvc.kekMountPath, req.TenantID)
+	mount, err := resolveMount(concreteSvc.kekMountPath, req.TenantID, concreteSvc.multiTenant)
+	require.NoError(t, err)
+
 	kekPath := concreteSvc.buildKEKPath(req.OrganizationID)
 
 	keyset, verbatim, err := concreteSvc.buildProvisioningKeysets(ctx, req, mount, kekPath)
@@ -637,7 +639,7 @@ func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
-		ProvisioningConfig{KEKMountPath: "transit"}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
+		ProvisioningConfig{KEKMountPath: "transit", MultiTenant: true}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	const tenantID = "11111111-2222-3333-4444-555555555555"
 
@@ -1317,7 +1319,9 @@ func TestProvisioningService_buildProvisioningKeysets_Migration_MixedTwoKeyShape
 		importLegacy:   true,
 	}
 
-	mount := resolveMount(concreteSvc.kekMountPath, req.TenantID)
+	mount, err := resolveMount(concreteSvc.kekMountPath, req.TenantID, concreteSvc.multiTenant)
+	require.NoError(t, err)
+
 	kekPath := concreteSvc.buildKEKPath(req.OrganizationID)
 
 	keyset, verbatim, err := concreteSvc.buildProvisioningKeysets(ctx, req, mount, kekPath)

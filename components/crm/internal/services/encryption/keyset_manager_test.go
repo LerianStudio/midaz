@@ -1848,7 +1848,7 @@ func TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount(t *te
 		prfKeyset:  prfBytes,
 	}
 
-	config := KeysetManagerConfig{BaseMountPath: "transit"}
+	config := KeysetManagerConfig{BaseMountPath: "transit", MultiTenant: true}
 	manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
 
 	// ctx carries a DIFFERENT tenant to prove the mount comes from the stored keyset, not ctx.
@@ -2010,12 +2010,18 @@ func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *test
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		tenantID string
-		want     string
+		name        string
+		tenantID    string
+		multiTenant bool
+		want        string
+		wantErr     bool
 	}{
-		{name: "default tenant -> flat base", tenantID: "default", want: "transit"},
-		{name: "real tenant -> sub-mount", tenantID: "t1", want: "transit/t1"},
+		// Single-tenant: the legacy fallback always derives the flat base.
+		{name: "single-tenant default tenant -> flat base", tenantID: "default", multiTenant: false, want: "transit"},
+		{name: "single-tenant real tenant -> flat base", tenantID: "t1", multiTenant: false, want: "transit"},
+		// Multi-tenant: a real tenant derives a sub-mount; "default" fails closed.
+		{name: "multi-tenant real tenant -> sub-mount", tenantID: "t1", multiTenant: true, want: "transit/t1"},
+		{name: "multi-tenant default tenant -> fail closed", tenantID: "default", multiTenant: true, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -2041,10 +2047,18 @@ func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *test
 				prfKeyset:  prfBytes,
 			}
 
-			config := KeysetManagerConfig{BaseMountPath: "transit"}
+			config := KeysetManagerConfig{BaseMountPath: "transit", MultiTenant: tt.multiTenant}
 			manager := NewKeysetManager(reader, unwrapper, nil, config, NewProtectionMetrics(nil))
 
 			_, err := manager.GetActivePrimitives(context.Background(), "org-legacy")
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("GetPrimitives() expected error for multi-tenant default tenant, got nil")
+				}
+
+				return
+			}
+
 			if err != nil {
 				t.Fatalf("GetPrimitives() error = %v", err)
 			}

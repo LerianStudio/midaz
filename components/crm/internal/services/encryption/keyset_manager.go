@@ -70,6 +70,11 @@ type KeysetManagerConfig struct {
 	// sub-mounts at unwrap time. Empty defaults to "transit" so single-tenant
 	// deployments are unaffected.
 	BaseMountPath string
+
+	// MultiTenant enables per-tenant mount resolution for the legacy-record
+	// fallback. When true, the tenant segment is appended and empty/"default"
+	// tenants fail closed. When false (single-tenant), the flat base is used.
+	MultiTenant bool
 }
 
 // DefaultKeysetManagerConfig returns the default configuration.
@@ -96,7 +101,8 @@ type KeysetManager struct {
 	provisioner   ProvisioningService // Required: enables lazy provisioning on first access
 	metrics       *protectionMetrics
 	cacheTTL      time.Duration
-	baseMountPath string                       // Vault Transit base mount for per-tenant resolution
+	baseMountPath string // Vault Transit base mount for per-tenant resolution
+	multiTenant   bool
 	cache         map[string]*CachedPrimitives // Key: "tenantID:organizationID"
 	mu            sync.RWMutex
 
@@ -139,6 +145,7 @@ func NewKeysetManager(
 		metrics:       metrics,
 		cacheTTL:      ttl,
 		baseMountPath: mountPath,
+		multiTenant:   config.MultiTenant,
 		cache:         make(map[string]*CachedPrimitives),
 		fetching:      make(map[string]*sync.Mutex),
 	}
@@ -319,7 +326,12 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 	// deriving from the stored tenant for legacy records.
 	mount := keyset.KEKMountPath
 	if mount == "" {
-		mount = resolveMount(km.baseMountPath, keyset.TenantID)
+		resolved, err := resolveMount(km.baseMountPath, keyset.TenantID, km.multiTenant)
+		if err != nil {
+			return nil, err
+		}
+
+		mount = resolved
 	}
 
 	// app.protection.mount_path is the resolved mount, not a secret.
