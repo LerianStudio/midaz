@@ -127,7 +127,7 @@ type balanceRef struct {
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
 func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
-	logger, _, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger := libObs.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
 	balanceByAliasKey := make(map[string]balanceRef, len(balances))
