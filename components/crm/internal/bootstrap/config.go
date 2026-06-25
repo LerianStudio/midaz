@@ -118,6 +118,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Log(context.Background(), libLog.LevelInfo, "Running in SINGLE-TENANT MODE")
 	}
 
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
+	}
+
 	// Initialize KMS (encryption mode and optional Vault client).
 	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
 	// cannot block startup indefinitely.
@@ -127,10 +131,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	kms, err := initKMS(kmsCtx, cfg, logger)
 	if err != nil {
 		return nil, err
-	}
-
-	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
 	}
 
 	// Init Open telemetry to control logs and flows

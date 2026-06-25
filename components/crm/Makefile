@@ -271,7 +271,7 @@ up:
 		echo "$(CYAN)Starting infra Vault (midaz-hc-vault, midaz-hc-vault-init)...$(NC)"; \
 		($(DOCKER_CMD) -f ../infra/docker-compose.yml up midaz-hc-vault midaz-hc-vault-init -d) || \
 			echo "$(YELLOW)NOTE: Could not start Vault automatically. Start it manually:$(NC)\n$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d && \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started (envelope mode)$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
@@ -318,7 +318,7 @@ rebuild-up:
 		echo "$(CYAN)Starting infra Vault (midaz-hc-vault, midaz-hc-vault-init)...$(NC)"; \
 		($(DOCKER_CMD) -f ../infra/docker-compose.yml up midaz-hc-vault midaz-hc-vault-init -d) || \
 			echo "$(YELLOW)NOTE: Could not start Vault automatically. Start it manually:$(NC)\n$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
-		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d && \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted (envelope mode)$(GREEN) ✔️$(NC)"; \
 	else \
 		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
