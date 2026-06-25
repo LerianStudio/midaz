@@ -23,9 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
@@ -128,7 +128,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		"$setOnInsert": record,
 	}
 
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 
 	upsertResult, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
@@ -532,7 +532,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	}
 
 	coll := db.Collection(strings.ToLower(collection))
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
 
@@ -572,7 +572,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	opts := options.Delete()
+	opts := options.DeleteOne()
 
 	coll := db.Collection(strings.ToLower(collection))
 
@@ -800,7 +800,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
 
-	_, err = coll.Indexes().DropOne(ctx, indexName)
+	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete index", err)
 

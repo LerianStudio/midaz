@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestJSON_Value(t *testing.T) {
@@ -162,7 +162,7 @@ func TestJSON_RoundTrip(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
-	objectID := primitive.NewObjectID()
+	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
@@ -227,7 +227,7 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
-	objectID := primitive.NewObjectID()
+	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
 	tests := []struct {
@@ -275,7 +275,7 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
-	objectID := primitive.NewObjectID()
+	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
 	original := &Metadata{

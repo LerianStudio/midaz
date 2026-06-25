@@ -19,8 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -79,12 +78,12 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: expectedOperationRoutes[0].ID.String(),
 			Data:     map[string]any{"key1": "value1"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: expectedOperationRoutes[1].ID.String(),
 			Data:     map[string]any{"key2": "value2"},
 		},
@@ -463,7 +462,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: operationRouteID.String(),
 			Data:     map[string]any{"category": "payment", "priority": "high"},
 		},

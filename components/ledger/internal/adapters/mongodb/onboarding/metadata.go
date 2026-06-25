@@ -10,22 +10,22 @@ import (
 	"errors"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // MetadataMongoDBModel represents the metadata into mongodb context
 type MetadataMongoDBModel struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty"`
-	EntityID   string             `bson:"entity_id"`
-	EntityName string             `bson:"entity_name"`
-	Data       JSON               `bson:"metadata"`
-	CreatedAt  time.Time          `bson:"created_at"`
-	UpdatedAt  time.Time          `bson:"updated_at"`
+	ID         bson.ObjectID `bson:"_id,omitempty"`
+	EntityID   string        `bson:"entity_id"`
+	EntityName string        `bson:"entity_name"`
+	Data       JSON          `bson:"metadata"`
+	CreatedAt  time.Time     `bson:"created_at"`
+	UpdatedAt  time.Time     `bson:"updated_at"`
 }
 
 // Metadata is a struct designed to encapsulate payload data.
 type Metadata struct {
-	ID         primitive.ObjectID
+	ID         bson.ObjectID
 	EntityID   string
 	EntityName string
 	Data       JSON
@@ -77,26 +77,26 @@ func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 
 // MetadataIndexMongoDBModel represents the metadata index into mongodb context
 type MetadataIndexMongoDBModel struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty"`
-	EntityName  string             `bson:"entity_name"`
-	MetadataKey string             `bson:"metadata_key"`
-	Unique      bool               `bson:"unique"`
-	Sparse      bool               `bson:"sparse"`
-	CreatedAt   time.Time          `bson:"created_at"`
-	UpdatedAt   time.Time          `bson:"updated_at"`
+	ID          bson.ObjectID `bson:"_id,omitempty"`
+	EntityName  string        `bson:"entity_name"`
+	MetadataKey string        `bson:"metadata_key"`
+	Unique      bool          `bson:"unique"`
+	Sparse      bool          `bson:"sparse"`
+	CreatedAt   time.Time     `bson:"created_at"`
+	UpdatedAt   time.Time     `bson:"updated_at"`
 }
 
 // MongoDBIndexInfo represents the native MongoDB index structure returned by Indexes().List()
 type MongoDBIndexInfo struct {
-	Key    primitive.D `bson:"key"`
-	Name   string      `bson:"name"`
-	Unique bool        `bson:"unique"`
-	Sparse bool        `bson:"sparse"`
+	Key    bson.D `bson:"key"`
+	Name   string `bson:"name"`
+	Unique bool   `bson:"unique"`
+	Sparse bool   `bson:"sparse"`
 }
 
 // MetadataIndex is a struct designed to encapsulate payload data.
 type MetadataIndex struct {
-	ID          primitive.ObjectID
+	ID          bson.ObjectID
 	EntityName  string
 	MetadataKey string
 	Unique      bool

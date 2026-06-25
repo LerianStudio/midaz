@@ -11,7 +11,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/iancoleman/strcase"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M {

@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	// AssetRateHandler struct contains a cqrs use case for managing asset rate.
 	libLog "github.com/LerianStudio/lib-observability/log"
