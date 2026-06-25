@@ -17,8 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -44,7 +43,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
+			Return([]*mongodb.Metadata{{ID: bson.NewObjectID()}}, nil).
 			Times(1)
 		res, err := uc.TransactionMetadataRepo.FindList(context.TODO(), collection, filter)
 
@@ -93,12 +92,12 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: opID1Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: opID2Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
@@ -205,7 +204,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: "op1",
 			Data:     map[string]interface{}{"key": "value"},
 		},
@@ -251,7 +250,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: "op1",
 			Data:     map[string]interface{}{"key": "value"},
 		},

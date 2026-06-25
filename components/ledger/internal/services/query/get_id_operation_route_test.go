@@ -16,7 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -53,7 +53,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		Times(1)
 
 	expectedMetadata := &mongodb.Metadata{
-		ID:       primitive.NewObjectID(),
+		ID:       bson.NewObjectID(),
 		EntityID: operationRouteID.String(),
 		Data:     map[string]any{"key": "value", "type": "important"},
 	}
@@ -266,7 +266,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		Times(1)
 
 	expectedMetadata := &mongodb.Metadata{
-		ID:       primitive.NewObjectID(),
+		ID:       bson.NewObjectID(),
 		EntityID: operationRouteID.String(),
 		Data:     map[string]any{"portfolio": "specific", "category": "premium"},
 	}

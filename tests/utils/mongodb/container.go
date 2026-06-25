@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -94,7 +94,7 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
 
 	clientOpts := options.Client().ApplyURI(uri)
-	client, err := mongo.Connect(ctx, clientOpts)
+	client, err := mongo.Connect(clientOpts)
 	require.NoError(tb, err, "failed to connect to MongoDB container")
 
 	// Verify connection

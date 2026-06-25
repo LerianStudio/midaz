@@ -18,7 +18,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // PostgresChecker probes a PostgreSQL connection using SELECT 1.
