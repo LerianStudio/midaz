@@ -304,6 +304,7 @@ func buildEncryptionServices(
 		legacyCrypto:         legacyCrypto,
 		metricsFactory:       metricsFactory,
 		vaultMountPath:       cfg.VaultMountPath,
+		multiTenant:          cfg.MultiTenantEnabled,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
 		legacyAESHexKey:      cfg.EncryptSecretKey,
 		legacyHMACSecret:     cfg.HashSecretKey,

@@ -49,6 +49,7 @@ type wireEncryptionServicesInput struct {
 	legacyCrypto         encryption.LegacyCrypto
 	metricsFactory       *metrics.MetricsFactory
 	vaultMountPath       string
+	multiTenant          bool
 	allowGracefulDegrade bool
 
 	// legacyAESHexKey and legacyHMACSecret are the process-level legacy key
@@ -171,7 +172,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 			legacyAESHexKey:  input.legacyAESHexKey,
 			legacyHMACSecret: input.legacyHMACSecret,
 		},
-		encryption.ProvisioningConfig{KEKMountPath: baseMountPath},
+		encryption.ProvisioningConfig{KEKMountPath: baseMountPath, MultiTenant: input.multiTenant},
 		input.auditWriter,
 		pm,
 		protectionStateResolver,
@@ -182,6 +183,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	// injected so per-tenant sub-mounts resolve consistently with provisioning.
 	keysetManagerConfig := encryption.DefaultKeysetManagerConfig()
 	keysetManagerConfig.BaseMountPath = baseMountPath
+	keysetManagerConfig.MultiTenant = input.multiTenant
 
 	keysetManager := encryption.NewKeysetManager(
 		input.keysetRepo,

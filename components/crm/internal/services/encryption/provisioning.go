@@ -68,6 +68,12 @@ type KeysetGenerator interface {
 type ProvisioningConfig struct {
 	// KEKMountPath is the KMS mount path (e.g., "transit" for Vault Transit).
 	KEKMountPath string
+
+	// MultiTenant enables per-tenant mount resolution. When true, the tenant
+	// segment is appended to the base mount and empty/"default" tenants fail
+	// closed (the bare multi-tenant base has no Transit engine). When false
+	// (single-tenant), the flat base is used verbatim.
+	MultiTenant bool
 }
 
 // DefaultProvisioningConfig returns the default configuration.
@@ -100,6 +106,7 @@ type provisioningService struct {
 	registryRepo    mongoEncryption.RegistryRepository
 	keysetGenerator KeysetGenerator
 	kekMountPath    string
+	multiTenant     bool
 	auditWriter     AuditWriter
 	metrics         *protectionMetrics
 	stateResolver   *ProtectionStateResolver
@@ -138,6 +145,7 @@ func NewProvisioningService(
 		registryRepo:    registryRepo,
 		keysetGenerator: keysetGenerator,
 		kekMountPath:    mountPath,
+		multiTenant:     config.MultiTenant,
 		auditWriter:     auditWriter,
 		metrics:         metrics,
 		stateResolver:   stateResolver,
@@ -239,6 +247,16 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return ProvisionResult{}, mmodel.AuditOutcomeFailure, fmt.Errorf("invalid provision request: %w", err)
 	}
 
+	// Fail closed before any work: in multi-tenant mode a real tenant id is
+	// required. The reserved "default" (and empty) sentinel would otherwise route
+	// to the bare multi-tenant base, which has no Transit engine.
+	if s.multiTenant && (req.TenantID == "" || req.TenantID == defaultTenantID) {
+		err := pkg.ValidateBusinessError(constant.ErrReservedTenantID, EntityOrganizationEncryption)
+		libOpenTelemetry.HandleSpanError(span, "multi-tenant provisioning requires a real tenant id", err)
+
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
+	}
+
 	// Check if already provisioned (idempotent behavior)
 	provisioned, err := s.IsProvisioned(ctx, req.OrganizationID)
 	if err != nil {
@@ -256,7 +274,13 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 
 	// KEK path is the key name; mount is resolved per-tenant (flat base for single-tenant).
 	kekPath := s.buildKEKPath(req.OrganizationID)
-	mount := resolveMount(s.kekMountPath, req.TenantID)
+
+	mount, err := resolveMount(s.kekMountPath, req.TenantID, s.multiTenant)
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "failed to resolve tenant mount", err)
+
+		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
+	}
 
 	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
 	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
