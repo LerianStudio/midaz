@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,7 +25,7 @@ import (
 	// If the transaction route cache exists in Redis, it returns the cached data as TransactionRouteCache.
 	// If not found in cache, it fetches the transaction route from database and creates the cache for future use.
 	// The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 // cacheNotFoundSentinel is the sentinel value stored in Redis when a transaction route is not found in the database.
@@ -36,7 +37,7 @@ var cacheNotFoundSentinel = []byte("NOT_FOUND")
 const sentinelTTL = time.Duration(60)
 
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()

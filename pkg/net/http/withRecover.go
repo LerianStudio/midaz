@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -47,7 +48,7 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 			if r := recover(); r != nil {
 				logger := mid.Logger
 
-				ctxLogger, _, _, _ := libCommons.NewTrackingFromContext(c.UserContext())
+				ctxLogger, _, _, _ := libObs.NewTrackingFromContext(c.UserContext())
 
 				if ctxLogger != nil {
 					logger = ctxLogger

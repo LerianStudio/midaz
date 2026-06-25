@@ -31,7 +31,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"

@@ -11,8 +11,8 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 // Service is the application glue where we put all top level components to be used.

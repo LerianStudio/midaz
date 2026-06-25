@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -49,7 +51,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 	var preBalances []*mmodel.Balance
 
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction_operations")
 	defer span.End()
@@ -560,7 +562,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
@@ -707,7 +709,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
@@ -966,7 +968,7 @@ func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transac
 
 func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
