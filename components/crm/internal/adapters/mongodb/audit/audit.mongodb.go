@@ -22,9 +22,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -466,7 +466,7 @@ func clampLimit(limit int) int64 {
 // findOptions builds the Mongo find options: sort by _id (ascending when
 // ascending is true, descending otherwise) and over-fetch one extra document
 // beyond the clamped limit so the caller can detect a further page.
-func findOptions(limit int64, ascending bool) *options.FindOptions {
+func findOptions(limit int64, ascending bool) *options.FindOptionsBuilder {
 	direction := -1
 	if ascending {
 		direction = 1

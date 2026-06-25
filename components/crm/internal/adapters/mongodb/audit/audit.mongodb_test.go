@@ -15,7 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // fixedID is a deterministic UUID used across conversion tests so the round-trip
@@ -362,9 +363,14 @@ func TestFindOptions_SortDirectionAndLimitPlusOne(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := findOptions(tc.limit, tc.ascending)
+			builder := findOptions(tc.limit, tc.ascending)
+			require.NotNil(t, builder)
 
-			require.NotNil(t, opts)
+			opts := &options.FindOptions{}
+			for _, set := range builder.List() {
+				require.NoError(t, set(opts))
+			}
+
 			require.NotNil(t, opts.Limit)
 			assert.Equal(t, tc.wantLimit, *opts.Limit, "limit must be the over-fetch value + 1")
 
