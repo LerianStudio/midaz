@@ -296,6 +296,7 @@ func TestEncryption_Provision(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -407,6 +408,7 @@ func TestEncryptionHandler_GetProvisioningStatus(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

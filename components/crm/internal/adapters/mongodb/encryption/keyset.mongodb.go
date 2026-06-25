@@ -138,10 +138,12 @@ func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string
 
 	var model KeysetMongoDBModel
 
-	// Database isolation handles multi-tenancy - filter by organization_id only
+	// Database isolation handles multi-tenancy - filter by organization_id and
+	// select the highest version document (descending sort, single result).
 	filter := bson.M{"organization_id": organizationID}
+	opts := options.FindOne().SetSort(bson.D{{Key: "version", Value: -1}})
 
-	if err := collection.FindOne(ctx, filter).Decode(&model); err != nil {
+	if err := collection.FindOne(ctx, filter, opts).Decode(&model); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, mmodel.ErrKeysetNotFound
 		}

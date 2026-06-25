@@ -172,6 +172,17 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	// ValidateParameters' date validation is intentionally bypassed for this
+	// endpoint, so the inverted-range rejection it would provide is reapplied
+	// here once both bounds are known.
+	if !startTime.IsZero() && !endTime.IsZero() && startTime.After(endTime) {
+		err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "start_date")
+
+		logger.Log(ctx, libLog.LevelWarn, "Rejected inverted audit date range", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	// Safe attributes only: org id, paging shape, and which filters are set —
 	// never the filter VALUES (action/actor/outcome) or time bounds.
 	span.SetAttributes(

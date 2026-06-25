@@ -380,6 +380,7 @@ func TestAuditHandler_GetAuditEvents(t *testing.T) {
 				"/v1/organizations/"+orgID+"/protection/audit"+tt.query, nil)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 

@@ -50,6 +50,10 @@ type MongoDBRepository struct {
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
 func NewMongoDBRepository(connection *libMongo.Client, fieldEncryptor encryption.FieldEncryptor) (*MongoDBRepository, error) {
+	if fieldEncryptor == nil {
+		return nil, fmt.Errorf("holder repository requires a non-nil FieldEncryptor")
+	}
+
 	r := &MongoDBRepository{
 		FieldEncryptor: fieldEncryptor,
 	}

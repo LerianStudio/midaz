@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -117,8 +118,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Log(context.Background(), libLog.LevelInfo, "Running in SINGLE-TENANT MODE")
 	}
 
-	// Initialize KMS (encryption mode and optional Vault client)
-	kms, err := initKMS(context.Background(), cfg, logger)
+	// Initialize KMS (encryption mode and optional Vault client).
+	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
+	// cannot block startup indefinitely.
+	kmsCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	kms, err := initKMS(kmsCtx, cfg, logger)
 	if err != nil {
 		return nil, err
 	}

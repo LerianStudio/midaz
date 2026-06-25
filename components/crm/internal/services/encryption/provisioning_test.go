@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -2536,7 +2537,11 @@ func TestProvisioningService_Provision_ResultUnchangedVsWriter(t *testing.T) {
 
 	// Wait for the async write so its (recovered) goroutine finishes before the
 	// goleak check in TestMain runs.
-	<-errRepo.called
+	select {
+	case <-errRepo.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async write")
+	}
 
 	// Repository-backed writer whose repo panics: EmitAsync recovers on its
 	// detached goroutine, so Provision is unaffected.
@@ -2550,7 +2555,11 @@ func TestProvisioningService_Provision_ResultUnchangedVsWriter(t *testing.T) {
 		assert.Equal(t, baseResult.OrganizationID, result.OrganizationID)
 	})
 
-	<-panicRepo.called
+	select {
+	case <-panicRepo.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async write")
+	}
 }
 
 // TestProvisioningService_Provision_InvalidRequest_EmitsFailure verifies a

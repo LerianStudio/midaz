@@ -77,15 +77,22 @@ type wireEncryptionServicesOutput struct {
 //   - Returns nil services; the application uses legacy libCommons crypto only.
 //
 // For envelope mode (mode == "envelope"):
-//   - Validates that all required dependencies are available.
+//   - Validates that the vault client, keyset repository, and registry
+//     repository are all available.
 //   - Wires ProtectionStateResolver with RegistryRepository.
-//   - Wires KeysetManager with KeysetRepository and VaultKeysetUnwrapper.
+//   - Builds the Tink keyset wrapper and keyset factory backed by the Vault
+//     client as KMS.
+//   - Wires ProvisioningService (keyset/registry repos, keyset generator
+//     adapter, audit writer) BEFORE KeysetManager, which depends on it for
+//     lazy provisioning.
+//   - Wires KeysetManager with the keyset repository, keyset wrapper, and
+//     ProvisioningService.
 //   - Wires EncryptionService with all dependencies.
-//   - Wires ProvisioningService with all dependencies.
 //
 // Graceful degradation (allowGracefulDegrade == true):
-//   - When envelope mode is requested but Vault is unavailable,
-//     returns nil services with degradedToLegacy=true instead of error.
+//   - Applies ONLY when the Vault client is nil: returns nil services with
+//     degradedToLegacy=true instead of an error. A missing keyset or registry
+//     repository still returns an error regardless of this flag.
 //
 // For testing with mock dependencies, use testWireEncryptionServicesWithMocks in encryption_test.go.
 func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionServicesOutput {

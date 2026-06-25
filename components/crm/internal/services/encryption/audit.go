@@ -6,6 +6,7 @@ package encryption
 
 import (
 	"context"
+	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -16,6 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+// defaultAuditEmitTimeout bounds the detached audit write started by EmitAsync.
+// The goroutine detaches from the request context (which may already be
+// cancelled), so it reapplies this timeout to prevent a goroutine leak on a hung
+// repository write.
+const defaultAuditEmitTimeout = 5 * time.Second
 
 // AuditWriter emits protection audit events on a best-effort basis.
 //
@@ -120,6 +127,9 @@ func (w *auditWriter) EmitAsync(ctx context.Context, event *mmodel.ProtectionAud
 
 	libRuntime.SafeGoWithContextAndComponent(detached, w.logger, "crm", "audit.emit_async",
 		libRuntime.KeepRunning, func(c context.Context) {
+			c, cancel := context.WithTimeout(c, defaultAuditEmitTimeout)
+			defer cancel()
+
 			w.Emit(c, event)
 		})
 }

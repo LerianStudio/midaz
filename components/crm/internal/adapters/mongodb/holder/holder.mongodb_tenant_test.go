@@ -36,7 +36,7 @@ func newPlaceholderConnection(_ string) *libMongo.Client {
 func TestNewMongoDBRepository_NilConnection(t *testing.T) {
 	t.Parallel()
 
-	repo, err := NewMongoDBRepository(nil, nil)
+	repo, err := NewMongoDBRepository(nil, &mockFieldEncryptorVersion{})
 
 	require.NoError(t, err, "constructor should not error when connection is nil")
 	require.NotNil(t, repo, "returned repository must not be nil")
@@ -47,7 +47,7 @@ func TestNewMongoDBRepository_WithPlaceholderConnection(t *testing.T) {
 
 	conn := newPlaceholderConnection("tenant-placeholder")
 
-	repo, err := NewMongoDBRepository(conn, nil)
+	repo, err := NewMongoDBRepository(conn, &mockFieldEncryptorVersion{})
 
 	require.Error(t, err, "constructor should return error with placeholder connection without active database")
 	assert.Nil(t, repo, "repository must be nil when constructor fails")

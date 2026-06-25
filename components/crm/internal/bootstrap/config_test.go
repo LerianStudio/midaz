@@ -446,6 +446,7 @@ func TestWrapTenantMiddlewareWithMetrics_PreservesError(t *testing.T) {
 	req := httptest.NewRequest(fiber.MethodGet, "/", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
 }
 

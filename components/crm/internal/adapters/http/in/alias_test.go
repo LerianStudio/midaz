@@ -331,6 +331,8 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -499,6 +501,8 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -754,6 +758,8 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -878,6 +884,8 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -985,6 +993,8 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1188,6 +1198,8 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

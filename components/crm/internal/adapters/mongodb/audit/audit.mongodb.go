@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -157,7 +158,7 @@ func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.Protection
 		// Index creation is part of the best-effort write contract: warn + drop,
 		// surfacing an error that satisfies errors.Is(err, ErrAuditWriteFailed),
 		// consistent with the insert/guard branches.
-		logger.Log(ctx, libLog.LevelWarn, "audit indexes not ensured", safeLogFields(event)...)
+		logger.Log(ctx, libLog.LevelWarn, "audit indexes not ensured", append(safeLogFields(event), libLog.Err(err))...)
 		libOpenTelemetry.HandleSpanError(span, "Failed to create audit indexes", err)
 
 		return fmt.Errorf("create audit indexes for %q: %w", auditCollection, errors.Join(constant.ErrAuditWriteFailed, err))
@@ -166,7 +167,7 @@ func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.Protection
 	model := FromEntity(event)
 
 	if _, err := collection.InsertOne(ctx, model); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "audit event insert failed", safeLogFields(event)...)
+		logger.Log(ctx, libLog.LevelWarn, "audit event insert failed", append(safeLogFields(event), libLog.Err(err))...)
 		libOpenTelemetry.HandleSpanError(span, "Failed to insert audit event", err)
 
 		return fmt.Errorf("insert audit event into %q: %w", auditCollection, errors.Join(constant.ErrAuditWriteFailed, err))
@@ -267,6 +268,15 @@ func (r *MongoDBRepository) FindByOrganization(ctx context.Context, organization
 			libOpenTelemetry.HandleSpanError(span, "invalid audit pagination cursor", err)
 
 			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		// The cursor _id is matched against UUIDv7 _id values; reject a decoded
+		// cursor whose ID is not a UUID rather than running an _id range predicate
+		// against a malformed value.
+		if _, perr := uuid.Parse(decoded.ID); perr != nil {
+			libOpenTelemetry.HandleSpanError(span, "invalid audit pagination cursor id", perr)
+
+			return nil, libHTTP.CursorPagination{}, libHTTP.ErrInvalidCursor
 		}
 
 		cursorDirection = decoded.Direction

@@ -17,6 +17,9 @@ import (
 func indexModels() []mongo.IndexModel {
 	return []mongo.IndexModel{
 		{
+			// Document uniqueness is enforced on the active-primary search token; it holds within a
+			// single keyset version. Cross-version uniqueness after PRF key rotation is a rotation-time
+			// concern (rotation is currently out of scope).
 			Keys: bson.D{{Key: "search.document", Value: 1}},
 			Options: options.Index().
 				SetUnique(true).

@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -200,10 +201,7 @@ func (c *VaultChecker) Check(ctx context.Context) DependencyCheck {
 
 // detectVaultTLS determines if the Vault address uses TLS.
 func detectVaultTLS(addr string) bool {
-	if addr == "" {
-		return false
-	}
+	addr = strings.TrimSpace(addr)
 
-	// Check for https scheme (case-insensitive)
-	return len(addr) >= 8 && (addr[:8] == "https://" || addr[:8] == "HTTPS://")
+	return strings.HasPrefix(strings.ToLower(addr), "https://")
 }

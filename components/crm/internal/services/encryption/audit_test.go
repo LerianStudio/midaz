@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -137,7 +138,11 @@ func TestAuditWriter_EmitAsync_Success(t *testing.T) {
 
 	w.EmitAsync(context.Background(), newTestEvent())
 
-	<-repo.called // deterministic wait, no time.Sleep
+	select {
+	case <-repo.called: // deterministic wait, no time.Sleep
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async write")
+	}
 	assert.Equal(t, 1, repo.callCount())
 }
 
@@ -152,7 +157,11 @@ func TestAuditWriter_EmitAsync_ParentCancelled_StillWrites(t *testing.T) {
 
 	w.EmitAsync(ctx, newTestEvent())
 
-	<-repo.called
+	select {
+	case <-repo.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async write")
+	}
 	assert.Equal(t, 1, repo.callCount(), "WithoutCancel must detach the write from parent cancellation")
 }
 
@@ -170,7 +179,11 @@ func TestAuditWriter_EmitAsync_RepoPanic_Recovered(t *testing.T) {
 	// and completed rather than crashing the process.
 	w.EmitAsync(context.Background(), newTestEvent())
 
-	<-repo.called
+	select {
+	case <-repo.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async write")
+	}
 	assert.Equal(t, 1, repo.callCount())
 }
 

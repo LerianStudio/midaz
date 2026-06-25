@@ -683,6 +683,7 @@ func parseReadyzResponse(t *testing.T, resp *testResponse) ReadyzResponse {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	var response ReadyzResponse
 	err = json.Unmarshal(body, &response)
