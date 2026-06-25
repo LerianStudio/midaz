@@ -38,7 +38,7 @@ type ProvisionEncryptionResponse struct {
 	// The unique identifier of the organization.
 	OrganizationID string `json:"organization_id" example:"00000000-0000-0000-0000-000000000000"`
 	// The path to the Key Encryption Key in Vault.
-	KEKPath string `json:"kek_path" example:"transit/keys/org-00000000-0000-0000-0000-000000000000"`
+	KEKPath string `json:"kek_path" example:"org-00000000-0000-0000-0000-000000000000"`
 	// The primary key ID for AEAD encryption.
 	AEADPrimaryKeyID uint32 `json:"aead_primary_key_id" example:"1"`
 	// The primary key ID of the PRF search-token keyset.

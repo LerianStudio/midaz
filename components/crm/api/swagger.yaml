@@ -400,16 +400,16 @@ definitions:
         type: integer
       kek_path:
         description: The path to the Key Encryption Key in Vault.
-        example: transit/keys/org-00000000-0000-0000-0000-000000000000
+        example: org-00000000-0000-0000-0000-000000000000
         type: string
-      prf_primary_key_id:
-        description: The primary key ID for PRF-based search-token operations.
-        example: 1
-        type: integer
       organization_id:
         description: The unique identifier of the organization.
         example: 00000000-0000-0000-0000-000000000000
         type: string
+      prf_primary_key_id:
+        description: The primary key ID of the PRF search-token keyset.
+        example: 1
+        type: integer
       status:
         description: The current provisioning status.
         example: active
@@ -1292,6 +1292,11 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found - encryption provisioning is unavailable when the
+            service runs in legacy mode
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
         "409":
           description: Conflict
           schema:
@@ -1331,6 +1336,11 @@ paths:
             $ref: '#/definitions/ProvisioningStatusResponse'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found - encryption provisioning is unavailable when the
+            service runs in legacy mode
           schema:
             $ref: '#/definitions/pkg.HTTPError'
         "500":

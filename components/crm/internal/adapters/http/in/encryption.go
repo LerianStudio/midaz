@@ -34,6 +34,7 @@ type EncryptionHandler struct {
 //	@Param			input				body		mmodel.ProvisionEncryptionInput	true	"Provision Input"
 //	@Success		201					{object}	mmodel.ProvisionEncryptionResponse
 //	@Failure		400					{object}	pkg.HTTPError
+//	@Failure		404					{object}	pkg.HTTPError					"Not Found - encryption provisioning is unavailable when the service runs in legacy mode"
 //	@Failure		409					{object}	pkg.HTTPError
 //	@Failure		422					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -125,6 +126,7 @@ func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
 //	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
 //	@Success		200					{object}	mmodel.ProvisioningStatusResponse
 //	@Failure		400					{object}	pkg.HTTPError
+//	@Failure		404					{object}	pkg.HTTPError					"Not Found - encryption provisioning is unavailable when the service runs in legacy mode"
 //	@Failure		500					{object}	pkg.HTTPError
 //	@Router			/v1/organizations/{organization_id}/encryption/status [get]
 func (handler *EncryptionHandler) GetProvisioningStatus(c *fiber.Ctx) error {

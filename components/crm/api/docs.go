@@ -957,6 +957,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
                     },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
                         "schema": {
@@ -1012,6 +1018,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
                         "schema": {
                             "$ref": "#/definitions/pkg.HTTPError"
                         }
@@ -1621,17 +1633,17 @@ const docTemplate = `{
                 "kek_path": {
                     "description": "The path to the Key Encryption Key in Vault.",
                     "type": "string",
-                    "example": "transit/keys/org-00000000-0000-0000-0000-000000000000"
-                },
-                "prf_primary_key_id": {
-                    "description": "The primary key ID for PRF-based search-token operations.",
-                    "type": "integer",
-                    "example": 1
+                    "example": "org-00000000-0000-0000-0000-000000000000"
                 },
                 "organization_id": {
                     "description": "The unique identifier of the organization.",
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "prf_primary_key_id": {
+                    "description": "The primary key ID of the PRF search-token keyset.",
+                    "type": "integer",
+                    "example": 1
                 },
                 "status": {
                     "description": "The current provisioning status.",
