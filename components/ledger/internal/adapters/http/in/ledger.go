@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -49,7 +50,7 @@ type LedgerHandler struct {
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
@@ -95,7 +96,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
@@ -153,7 +154,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
@@ -261,7 +262,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
@@ -316,7 +317,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
@@ -373,7 +374,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
@@ -421,7 +422,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
 	defer span.End()
@@ -479,7 +480,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
 	defer span.End()

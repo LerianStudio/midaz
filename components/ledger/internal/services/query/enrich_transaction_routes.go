@@ -8,7 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,7 +25,7 @@ import (
 //   - populated []OperationRoute when links exist
 //   - empty []OperationRoute{} (not nil) when no links exist
 func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Context, transactionRoutes []*mmodel.TransactionRoute) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.enrich_transaction_routes_with_operation_routes")
 	defer span.End()

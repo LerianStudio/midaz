@@ -11,7 +11,8 @@ import (
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -61,7 +62,7 @@ func (e MetadataEntry) Validate() error {
 // Returns nil if all entries were created successfully (or were empty).
 // Returns error if any entries failed to create after fallback.
 func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEntry) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_bulk")
 	defer span.End()
@@ -130,7 +131,7 @@ func (uc *UseCase) createMetadataForCollection(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObs.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_for_collection")
 	defer span.End()
@@ -239,7 +240,7 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObs.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
 
 	ctx, span := tracer.Start(ctx, "command.fallback_individual_metadata_create")
 	defer span.End()

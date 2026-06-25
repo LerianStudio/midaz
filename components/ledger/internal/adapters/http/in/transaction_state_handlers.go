@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libCommons "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -49,7 +50,7 @@ import (
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -107,7 +108,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -166,7 +167,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -312,7 +313,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
@@ -365,7 +366,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
 func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()

@@ -9,7 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -24,7 +25,7 @@ import (
 
 // DeleteOrganizationByID deletes an organization from the repository.
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.delete_organization_by_id")
 	defer span.End()

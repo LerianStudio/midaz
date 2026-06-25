@@ -8,9 +8,10 @@ import (
 	"context"
 	"fmt"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libCommons "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -116,7 +117,7 @@ func (p *MultiTenantProducerRepository) Close() error {
 
 // publish is the shared implementation for ProducerDefault and ProducerDefaultWithContext.
 func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, key string, message []byte, spanName string) (*string, error) {
-	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqID, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
