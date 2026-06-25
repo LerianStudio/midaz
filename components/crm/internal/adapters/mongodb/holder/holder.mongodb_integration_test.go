@@ -105,10 +105,20 @@ func TestIntegration_HolderRepo_Create_EncryptsData(t *testing.T) {
 	require.True(t, ok, "document should be stored as string")
 	assert.NotEqual(t, originalDocument, storedDoc, "document should be encrypted in storage")
 
-	// Search hash should be present
-	search, ok := rawDoc["search"].(bson.M)
+	// Search hash should be present. mongo-driver v2 decodes nested documents
+	// into bson.D (v1 produced bson.M), so look up the key on the ordered slice.
+	searchDoc, ok := rawDoc["search"].(bson.D)
 	require.True(t, ok, "search map should exist")
-	assert.NotEmpty(t, search["document"], "document hash should be generated")
+
+	var docHash any
+	for _, e := range searchDoc {
+		if e.Key == "document" {
+			docHash = e.Value
+			break
+		}
+	}
+
+	assert.NotEmpty(t, docHash, "document hash should be generated")
 }
 
 func TestIntegration_HolderRepo_Create_DuplicateDocument(t *testing.T) {
