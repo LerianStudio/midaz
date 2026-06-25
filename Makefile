@@ -645,3 +645,4 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
