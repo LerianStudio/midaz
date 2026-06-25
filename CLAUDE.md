@@ -207,23 +207,48 @@ Enabled via `MULTI_TENANT_ENABLED=true`. Requires auth enabled.
 
 **Modules**: Each module (`onboarding`, `transaction`) has independent PG and Mongo managers.
 
-## lib-commons v4 Integration
+## lib-commons v5 Integration
 
-Import prefix: `github.com/LerianStudio/lib-commons/v4/commons/...`
+Import prefix: `github.com/LerianStudio/lib-commons/v5/commons/...` (currently v5.8.0).
 
 Key packages used:
-- `libCommons` — `SetConfigFromEnvVars`, `NewTrackingFromContext`
-- `libLog` — Structured logging interface
-- `libZap` — Zap logger implementation
-- `libOpentelemetry` — Telemetry, span management
+- `libCommons` — `SetConfigFromEnvVars`, app config, env/security/pointer helpers
 - `libRedis` — Redis client (standalone/sentinel/cluster)
-- `libHTTP` — HTTP response helpers, middleware, Fiber error handler
+- `libHTTP` — HTTP response helpers, pagination, CORS, Fiber error handler (non-observability)
 - `libCircuitBreaker` — Circuit breaker pattern
 - `tmclient` — Tenant manager HTTP client
 - `tmcore` — Tenant manager core types/errors
 - `tmevent` — Tenant event dispatcher/listener
 - `tmmiddleware` — Fiber middleware for tenant DB injection
 - `tmpostgres` / `tmmongo` / `tmredis` — Per-tenant connection managers
+
+**TLS enforcement (v5.8.0+):** the postgres/mongo/redis/rabbitmq constructors enforce TLS
+based on the security tier derived from `ENV_NAME`. They refuse to connect to plaintext
+dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`).
+This is set in the `.env.example` files; unit tests that build connections set it in their `TestMain`.
+
+## lib-observability Integration
+
+Observability was extracted from lib-commons into a separate module
+`github.com/LerianStudio/lib-observability` (currently v1.1.0). Import prefix:
+`github.com/LerianStudio/lib-observability/...`
+
+- `lib-observability/log` (`libLog`) — structured logging interface
+- `lib-observability/zap` (`libZap`) — Zap logger implementation
+- `lib-observability/tracing` (`libOpentelemetry`) — telemetry, span management, redaction
+- `lib-observability/metrics` — metrics factory
+- `lib-observability/middleware` (`libMid`) — HTTP/gRPC telemetry + logging middleware (`NewTelemetryMiddleware`, `WithHTTPLogging`)
+- `lib-observability` root — context helpers: `NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`
+
+> `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
+> When only the logger is needed, use `NewLoggerFromContext(ctx)`.
+
+## MongoDB Driver
+
+Uses `go.mongodb.org/mongo-driver/v2` (v2). `bson/primitive` is consolidated into `bson`
+(`bson.ObjectID`, `bson.NewObjectID`). Note: v2 decodes nested documents into `bson.D`
+(ordered), not `bson.M` — code that type-asserts nested values as `bson.M` must also handle
+`bson.D`. `bson.D` has no `.Map()` in v2.
 
 ## Database Schemas
 
