@@ -10,16 +10,18 @@ import (
 	"reflect"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // CreateLedger creates a new ledger and persists it in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	defer span.End()

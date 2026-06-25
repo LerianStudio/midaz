@@ -14,12 +14,14 @@ import (
 	"strings"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -104,7 +106,7 @@ func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 
 // Create a new segment entity into Postgresql and returns it.
 func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_segment")
 	defer span.End()
@@ -179,7 +181,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 // FindByName find segment from the database using Organization and Ledger id and Name.
 func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment_by_name")
 	defer span.End()
@@ -241,7 +243,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 // FindAll retrieves Segment entities from the database.
 func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_segments")
 	defer span.End()
@@ -315,7 +317,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // FindByIDs retrieves Segments entities from the database using the provided IDs.
 func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segments_by_ids")
 	defer span.End()
@@ -386,7 +388,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 // Find retrieves a Segment entity from the database using the provided ID.
 func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment")
 	defer span.End()
@@ -446,7 +448,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // Update a Segment entity into Postgresql and returns the Segment updated.
 func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Segment) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_segment")
 	defer span.End()
@@ -539,7 +541,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete removes a Segment entity from the database using the provided IDs.
 func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_segment")
 	defer span.End()
@@ -591,7 +593,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 // Count retrieves the number of Segment entities in the database.
 func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_segments")
 	defer span.End()

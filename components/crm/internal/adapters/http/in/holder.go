@@ -7,14 +7,15 @@ package in
 import (
 	"fmt"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -41,7 +42,7 @@ type HolderHandler struct {
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_holder")
 	defer span.End()
@@ -88,7 +89,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_holder_by_id")
 	defer span.End()
@@ -141,7 +142,7 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_holder")
 	defer span.End()
@@ -209,7 +210,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.remove_holder_by_id")
 	defer span.End()
@@ -266,7 +267,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_holders")
 	defer span.End()

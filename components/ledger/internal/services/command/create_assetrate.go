@@ -10,8 +10,10 @@ import (
 	"reflect"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -19,11 +21,11 @@ import (
 	"github.com/google/uuid"
 
 	// CreateOrUpdateAssetRate creates or updates an asset rate.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
 	defer span.End()

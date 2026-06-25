@@ -10,7 +10,8 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -18,11 +19,11 @@ import (
 	"github.com/google/uuid"
 
 	// GetAccountByID get an Account from the repository by given id.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id")
 	defer span.End()

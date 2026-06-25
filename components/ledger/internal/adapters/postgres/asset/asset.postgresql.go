@@ -14,12 +14,14 @@ import (
 	"strings"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -106,7 +108,7 @@ func (r *AssetPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, e
 
 // Create a new asset entity into Postgresql and returns it.
 func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
 	defer span.End()
@@ -177,7 +179,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
@@ -239,7 +241,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 // FindAll retrieves Asset entities from the database with soft-deleted records.
 func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
 	defer span.End()
@@ -317,7 +319,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 // ListByIDs retrieves Assets entities from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
 	defer span.End()
@@ -393,7 +395,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 // Find retrieves an Asset entity from the database using the provided ID.
 func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
 	defer span.End()
@@ -449,7 +451,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 // Update an Asset entity into Postgresql and returns the Asset updated.
 func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
 	defer span.End()
@@ -541,7 +543,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 // Delete removes an Asset entity from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
 	defer span.End()
@@ -591,7 +593,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 // Count retrieves the total count of Asset entities from the database.
 func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_assets")
 	defer span.End()

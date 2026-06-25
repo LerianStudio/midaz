@@ -8,11 +8,13 @@ import (
 	"context"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -298,18 +300,18 @@ func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, 
 			libLog.String(libConstants.HeaderID, midazID),
 		)
 
-		ctx := libCommons.ContextWithLogger(
-			libCommons.ContextWithHeaderID(context.Background(), midazID),
+		ctx := libObs.ContextWithLogger(
+			libObs.ContextWithHeaderID(context.Background(), midazID),
 			log,
 		)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazID)
+		ctx = libObs.ContextWithHeaderID(ctx, midazID)
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
-		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+		logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 		ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-		ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
+		ctx = libObs.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
 		err := libOpentelemetry.SetSpanAttributesFromValue(spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body, nil)
 		if err != nil {
@@ -440,7 +442,7 @@ func (cr *ConsumerRoutes) processBulkFlush(
 	// Build context with trace information from first message
 	bulkCtx := cr.buildBulkContext(ctx, deliveries)
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(bulkCtx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(bulkCtx)
 
 	bulkCtx, span := tracer.Start(bulkCtx, "rabbitmq.consumer.process_bulk")
 	defer span.End()
@@ -562,8 +564,8 @@ func (cr *ConsumerRoutes) buildBulkContext(ctx context.Context, deliveries []amq
 		libLog.Int("bulk_size", len(deliveries)),
 	)
 
-	bulkCtx := libCommons.ContextWithLogger(
-		libCommons.ContextWithHeaderID(ctx, midazID),
+	bulkCtx := libObs.ContextWithLogger(
+		libObs.ContextWithHeaderID(ctx, midazID),
 		log,
 	)
 
@@ -609,19 +611,19 @@ func (cr *ConsumerRoutes) processIndividualMessage(
 		libLog.String(libConstants.HeaderID, midazID),
 	)
 
-	msgCtx := libCommons.ContextWithLogger(
-		libCommons.ContextWithHeaderID(ctx, midazID),
+	msgCtx := libObs.ContextWithLogger(
+		libObs.ContextWithHeaderID(ctx, midazID),
 		log,
 	)
 
 	msgCtx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(msgCtx, msg.Headers)
 
-	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(msgCtx)
+	logger, tracer, reqID, _ := libObs.NewTrackingFromContext(msgCtx)
 
 	msgCtx, span := tracer.Start(msgCtx, "rabbitmq.consumer.process_message_fallback")
 	defer span.End()
 
-	msgCtx = libCommons.ContextWithSpanAttributes(msgCtx, attribute.String("app.request.request_id", reqID))
+	msgCtx = libObs.ContextWithSpanAttributes(msgCtx, attribute.String("app.request.request_id", reqID))
 
 	err := handler(msgCtx, msg.Body)
 	if err != nil {

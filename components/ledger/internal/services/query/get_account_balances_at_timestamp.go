@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -19,11 +20,11 @@ import (
 	// GetAccountBalancesAtTimestamp retrieves all balance states for an account at a specific point in time.
 	// It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
 	// Balances without operations at the timestamp are returned with zero values (initial state).
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_balances_at_timestamp")
 	defer span.End()

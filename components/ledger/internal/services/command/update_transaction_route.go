@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -20,7 +21,7 @@ import (
 
 	// UpdateTransactionRoute updates a transaction route by its ID.
 	// It returns the updated transaction route and an error if the operation fails.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 // maxOperationRouteInputs defines the upper bound for the number of operation route
@@ -28,7 +29,7 @@ import (
 const maxOperationRouteInputs = 100
 
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_route")
 	defer span.End()
@@ -89,7 +90,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 // existing vs new operation routes using operation route IDs.
 // It returns arrays of operation route IDs to add and remove, or an error if validation fails.
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()

@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

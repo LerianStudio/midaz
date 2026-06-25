@@ -7,9 +7,10 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -45,7 +46,7 @@ type AccountTypeHandler struct {
 func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account_type")
 	defer span.End()
@@ -97,7 +98,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_type_by_id")
 	defer span.End()
@@ -156,7 +157,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account_type")
 	defer span.End()
@@ -222,7 +223,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_type_by_id")
 	defer span.End()
@@ -285,7 +286,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_account_types")
 	defer span.End()

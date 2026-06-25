@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"time"
 
+	libMid "github.com/LerianStudio/lib-observability/middleware"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -52,10 +54,10 @@ func NewUnifiedServer(
 	})
 
 	// Add common middleware (only once for all routes)
-	tlMid := libHTTP.NewTelemetryMiddleware(telemetry)
+	tlMid := libMid.NewTelemetryMiddleware(telemetry)
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
-	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
+	app.Use(libMid.WithHTTPLogging(libMid.WithCustomLogger(logger)))
 
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)

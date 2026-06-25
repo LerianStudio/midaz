@@ -11,9 +11,10 @@ import (
 	"reflect"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -52,7 +53,7 @@ type OperationRouteHandler struct {
 func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
@@ -139,7 +140,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
@@ -199,7 +200,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
@@ -329,7 +330,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
@@ -389,7 +390,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
 	defer span.End()
@@ -466,7 +467,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 // validateAccountRule validates account rule configuration for operation routes.
 // It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
 func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_account_rule")
 	defer span.End()
@@ -552,7 +553,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 // Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
 // based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
 	defer span.End()
@@ -771,7 +772,7 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 	operationType string,
 	entries *mmodel.AccountingEntries,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
 	defer span.End()
@@ -815,7 +816,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
 	defer span.End()
@@ -894,7 +895,7 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
 	defer span.End()
@@ -957,7 +958,7 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
 	defer span.End()
@@ -998,7 +999,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
 	defer span.End()

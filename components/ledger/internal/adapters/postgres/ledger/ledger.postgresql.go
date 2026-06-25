@@ -15,12 +15,14 @@ import (
 	"strings"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -109,7 +111,7 @@ func (r *LedgerPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, 
 
 // Create a new Ledger entity into Postgresql and returns it.
 func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_ledger")
 	defer span.End()
@@ -203,7 +205,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 // Find retrieves a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger")
 	defer span.End()
@@ -274,7 +276,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 // FindAll retrieves Ledgers entities from the database.
 func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
 	defer span.End()
@@ -376,7 +378,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 // FindByName returns error and a boolean indicating if Ledger entities exists by name
 func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger_by_name")
 	defer span.End()
@@ -430,7 +432,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 // ListByIDs retrieves Ledgers entities from the database using the provided IDs.
 func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_ledgers_by_ids")
 	defer span.End()
@@ -514,7 +516,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 // Update a Ledger entity into Postgresql and returns the Ledger updated.
 func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger")
 	defer span.End()
@@ -610,7 +612,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 // Delete removes a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_ledger")
 	defer span.End()
@@ -657,7 +659,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 // Count retrieves the number of Ledger entities in the database for the given organization ID.
 func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_ledgers")
 	defer span.End()
@@ -688,7 +690,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 // GetSettings retrieves the settings for a ledger by its ID.
 func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.get_ledger_settings")
 	defer span.End()
@@ -746,7 +748,7 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 // UpdateSettings updates the settings for a ledger using JSONB merge semantics.
 // New settings are merged with existing settings using PostgreSQL's || operator.
 func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings")
 	defer span.End()
@@ -836,7 +838,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 // Unlike UpdateSettings which merges, this method overwrites the entire settings JSONB.
 // Used by the service layer after performing application-level validation and merging.
 func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.replace_ledger_settings")
 	defer span.End()
@@ -917,7 +919,7 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 // The mergeFn receives the current settings and returns the merged settings to be written.
 // This prevents lost updates under concurrent PATCH requests.
 func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings_atomic")
 	defer span.End()
