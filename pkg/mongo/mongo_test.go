@@ -121,6 +121,37 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantSet:        bson.M{"addresses.secondary.city": "LA"},
 			wantUnset:      bson.M{"addresses.primary": "addresses.primary"},
 		},
+		{
+			// mongo-driver v2 decodes nested documents as bson.D, not bson.M.
+			// flattenBSONM must recurse into bson.D as well, otherwise the
+			// nested document is kept whole.
+			name: "v2 nested bson.D flattens to dot notation",
+			updateDocument: bson.M{
+				"metadata": bson.D{
+					{Key: "key1", Value: "v1"},
+					{Key: "key2", Value: "v2"},
+				},
+			},
+			fieldsToRemove: nil,
+			wantSet:        bson.M{"metadata.key1": "v1", "metadata.key2": "v2"},
+			wantUnset:      nil,
+		},
+		{
+			// Regression: with metadata as bson.D and a single-key removal, the
+			// $set must carry only the surviving dotted key — never the whole
+			// "metadata" object — or MongoDB rejects the update with
+			// "would create a conflict at 'metadata'".
+			name: "v2 nested bson.D with metadata key removal avoids parent conflict",
+			updateDocument: bson.M{
+				"metadata": bson.D{
+					{Key: "key1", Value: "v1"},
+					{Key: "key2", Value: "v2"},
+				},
+			},
+			fieldsToRemove: []string{"metadata.key1"},
+			wantSet:        bson.M{"metadata.key2": "v2"},
+			wantUnset:      bson.M{"metadata.key1": ""},
+		},
 	}
 
 	for _, tt := range tests {
