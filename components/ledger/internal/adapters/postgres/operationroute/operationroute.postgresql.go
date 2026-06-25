@@ -14,12 +14,12 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -39,7 +39,7 @@ import (
 // RETURNING clause on Create/Update. It mirrors the canonical column
 // order Scan'd by scanOperationRoute, but wraps the nullable string
 // columns (account_rule_type, account_rule_valid_if) in
-// COALESCE(..., '') because the OperationRoutePostgreSQLModel scans
+// COALESCE(..., ”) because the OperationRoutePostgreSQLModel scans
 // them into plain `string` fields. Rows inserted by external test
 // helpers (or future migrations) that leave these columns NULL would
 // otherwise fail Scan with "converting NULL to string is unsupported".

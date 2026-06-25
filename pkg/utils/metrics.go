@@ -152,4 +152,78 @@ var (
 		Unit:        "1",
 		Description: "Total number of readyz endpoint requests.",
 	}
+
+	// CRM protection metrics for field encryption/decryption observability.
+	// The metric type (Counter vs Histogram) is enforced at the emit site;
+	// metrics.Metric only carries Name/Unit/Description here.
+
+	// CRMProtectionModeResolutionTotal counts protection mode resolutions.
+	// Counter. Label: mode (legacy/envelope).
+	CRMProtectionModeResolutionTotal = metrics.Metric{
+		Name:        "crm_protection_mode_resolution_total",
+		Unit:        "1",
+		Description: "Total protection mode resolutions by mode (legacy/envelope).",
+	}
+
+	// CRMProtectionStatusTotal counts protection status outcomes.
+	// Counter. Label: status.
+	CRMProtectionStatusTotal = metrics.Metric{
+		Name:        "crm_protection_status_total",
+		Unit:        "1",
+		Description: "Total protection status outcomes by status.",
+	}
+
+	// CRMProtectionEncryptDecryptTotal counts encrypt/decrypt operations.
+	// Counter. Labels: path (legacy/envelope), outcome (success/failure),
+	// error_type (empty on success).
+	CRMProtectionEncryptDecryptTotal = metrics.Metric{
+		Name:        "crm_protection_encrypt_decrypt_total",
+		Unit:        "1",
+		Description: "Total encrypt/decrypt operations by path, outcome, and error_type.",
+	}
+
+	// CRMProtectionProviderOperationMs measures provider operation duration.
+	// Histogram (milliseconds). Labels: operation (wrap/unwrap), provider.
+	// Milliseconds are used because lib-commons v5 only exposes Int64Histogram,
+	// so sub-second KMS latencies (10-200ms) would truncate to zero in seconds;
+	// this mirrors the ReadyzCheckDuration precedent above.
+	CRMProtectionProviderOperationMs = metrics.Metric{
+		Name:        "crm_protection_provider_operation_ms",
+		Unit:        "ms",
+		Description: "Duration of provider wrap/unwrap operations in milliseconds by operation and provider.",
+	}
+
+	// CRMProtectionProviderOperationFailuresTotal counts provider operation failures.
+	// Counter. Labels: operation, error_code.
+	CRMProtectionProviderOperationFailuresTotal = metrics.Metric{
+		Name:        "crm_protection_provider_operation_failures_total",
+		Unit:        "1",
+		Description: "Total provider operation failures by operation and error_code.",
+	}
+
+	// CRMProtectionRegistryConflictTotal counts protection registry conflicts.
+	// Counter. No labels. DEFERRED-emit: declared so the catalog is complete, but
+	// no reachable emit site exists yet (same class as the rotation-guard metric);
+	// wire it when the registry Update conflict path lands.
+	CRMProtectionRegistryConflictTotal = metrics.Metric{
+		Name:        "crm_protection_registry_conflict_total",
+		Unit:        "1",
+		Description: "Total protection registry conflicts.",
+	}
+
+	// CRMProtectionLegacyReadTotal counts legacy-path reads.
+	// Counter. Label: organization_status.
+	CRMProtectionLegacyReadTotal = metrics.Metric{
+		Name:        "crm_protection_legacy_read_total",
+		Unit:        "1",
+		Description: "Total legacy-path reads by organization_status.",
+	}
+
+	// CRMProtectionCacheTotal counts protection cache lookups.
+	// Counter. Labels: operation, result (hit/miss).
+	CRMProtectionCacheTotal = metrics.Metric{
+		Name:        "crm_protection_cache_total",
+		Unit:        "1",
+		Description: "Total protection cache lookups by operation and result (hit/miss).",
+	}
 )

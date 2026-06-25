@@ -25,11 +25,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"

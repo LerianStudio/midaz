@@ -6,8 +6,8 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"

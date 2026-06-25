@@ -13,11 +13,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

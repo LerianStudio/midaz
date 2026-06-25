@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-observability"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"

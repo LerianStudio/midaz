@@ -8,21 +8,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-observability"
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -46,15 +45,15 @@ type Repository interface {
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
-	connection   *libMongo.Client
-	DataSecurity *libCrypto.Crypto
+	connection     *libMongo.Client
+	FieldEncryptor encryption.FieldEncryptor
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
-func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
+func NewMongoDBRepository(connection *libMongo.Client, fieldEncryptor encryption.FieldEncryptor) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
-		DataSecurity: dataSecurity,
+		FieldEncryptor: fieldEncryptor,
 	}
 
 	if connection != nil {
@@ -115,14 +114,16 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	ctx, spanCount := tracer.Start(ctx, "mongodb.create_alias.count_existing")
-	defer spanCount.End()
-
-	spanCount.SetAttributes(attributes...)
+	// Build encryption context for this alias
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       alias.ID.String(),
+	}
 
 	record := &MongoDBModel{}
 
-	if err := record.FromEntity(alias, am.DataSecurity); err != nil {
+	if err := record.FromEntity(ctx, alias, am.FieldEncryptor, encryptionCtx); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
@@ -146,14 +147,14 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "account_id") {
-				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, reflect.TypeOf(mmodel.Alias{}).Name())
+				return nil, pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityAlias)
 			}
 		}
 
 		return nil, err
 	}
 
-	result, err := record.ToEntity(am.DataSecurity)
+	result, err := record.ToEntity(ctx, am.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
@@ -204,13 +205,20 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 		libOpenTelemetry.HandleSpanError(span, "Failed to find account", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 		}
 
 		return nil, err
 	}
 
-	result, err := record.ToEntity(am.DataSecurity)
+	// Build encryption context for this alias
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
+	result, err := record.ToEntity(ctx, am.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
@@ -220,6 +228,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 	return result, nil
 }
 
+// Update updates an alias by id
 func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, holderID, id uuid.UUID, alias *mmodel.Alias, fieldsToRemove []string) (*mmodel.Alias, error) {
 	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -255,9 +264,16 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to set span attributes", err)
 	}
 
+	// Build encryption context for this alias
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
 	aliasToUpdate := &MongoDBModel{}
 
-	if err := aliasToUpdate.FromEntity(alias, am.DataSecurity); err != nil {
+	if err := aliasToUpdate.FromEntity(ctx, alias, am.FieldEncryptor, encryptionCtx); err != nil {
 		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert alias to model", err)
 
 		return nil, err
@@ -293,7 +309,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 	}
 
 	var record MongoDBModel
@@ -310,7 +326,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	result, err := record.ToEntity(am.DataSecurity)
+	result, err := record.ToEntity(ctx, am.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert alias to model", err)
 
@@ -369,7 +385,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		spanDelete.End()
 
 		if deleted.DeletedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 		}
 	} else {
 		update := bson.D{
@@ -386,11 +402,11 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		}
 
 		if updateResult.MatchedCount == 0 {
-			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+			return pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 		}
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")"))
+	logger.Log(ctx, libLog.LevelInfo, "Deleted alias", libLog.String("alias_id", id.String()), libLog.Bool("hard_delete", hardDelete))
 
 	return nil
 }

@@ -903,6 +903,231 @@
                     }
                 }
             }
+        },
+        "/v1/organizations/{organization_id}/encryption/provision": {
+            "post": {
+                "description": "Provisions an organization for envelope encryption by generating keysets and registering the organization.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Encryption"
+                ],
+                "summary": "Provision an Organization for Envelope Encryption",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provision Input",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProvisionEncryptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ProvisionEncryptionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/encryption/status": {
+            "get": {
+                "description": "Retrieves the current provisioning status for an organization's envelope encryption.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Encryption"
+                ],
+                "summary": "Get Provisioning Status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ProvisioningStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/protection/audit": {
+            "get": {
+                "description": "Returns the protection audit events for an organization, filtered by action, actor, outcome, and time range, with cursor pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Protection"
+                ],
+                "summary": "List Protection Audit Events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default 20).",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor.",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: asc or desc (default desc).",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action.",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor.",
+                        "name": "actor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by outcome: success, failure, or already_exists.",
+                        "name": "outcome",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive lower time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive upper time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.auditEventsEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1373,6 +1598,78 @@
                 }
             }
         },
+        "ProvisionEncryptionRequest": {
+            "description": "ProvisionEncryptionRequest payload",
+            "type": "object",
+            "required": [
+                "actor",
+                "reason"
+            ],
+            "properties": {
+                "actor": {
+                    "description": "The actor performing the provisioning operation.",
+                    "type": "string",
+                    "example": "admin@example.com"
+                },
+                "reason": {
+                    "description": "The reason for provisioning the organization.",
+                    "type": "string",
+                    "example": "Initial encryption setup"
+                }
+            }
+        },
+        "ProvisionEncryptionResponse": {
+            "description": "ProvisionEncryptionResponse payload",
+            "type": "object",
+            "properties": {
+                "aead_primary_key_id": {
+                    "description": "The primary key ID for AEAD encryption.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "kek_path": {
+                    "description": "The path to the Key Encryption Key in Vault.",
+                    "type": "string",
+                    "example": "org-00000000-0000-0000-0000-000000000000"
+                },
+                "organization_id": {
+                    "description": "The unique identifier of the organization.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "prf_primary_key_id": {
+                    "description": "The primary key ID of the PRF search-token keyset.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "description": "The current provisioning status.",
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
+        "ProvisioningStatusResponse": {
+            "description": "ProvisioningStatusResponse payload",
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "The unique identifier of the organization.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "provisioned": {
+                    "description": "Whether the organization has been provisioned for envelope encryption.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "status": {
+                    "description": "The current provisioning status.",
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
         "RegulatoryFields": {
             "description": "RegulatoryFields object",
             "type": "object",
@@ -1556,6 +1853,61 @@
                 },
                 "page": {
                     "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.auditEventResponse": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "actor": {
+                    "type": "string"
+                },
+                "from_status": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "to_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.auditEventsEnvelope": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapters_http_in.auditEventResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
                 },
                 "prev_cursor": {
                     "type": "string"

@@ -150,9 +150,9 @@ func TestResolveSASLMechanism_Unsupported(t *testing.T) {
 	cases := []string{
 		"OAUTHBEARER",
 		"GSSAPI",
-		"SCRAM",          // missing -SHA-xxx suffix
-		"SCRAM-SHA-1",    // not supported by franz-go
-		"plain-sha-256",  // mangled
+		"SCRAM",         // missing -SHA-xxx suffix
+		"SCRAM-SHA-1",   // not supported by franz-go
+		"plain-sha-256", // mangled
 		"unknown",
 	}
 

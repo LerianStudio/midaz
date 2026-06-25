@@ -27,7 +27,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -100,14 +100,16 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.2.0-beta.12
+	github.com/LerianStudio/lib-commons/v5 v5.2.0
 	github.com/LerianStudio/lib-observability v1.0.1
 	github.com/LerianStudio/lib-streaming v1.4.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
+	github.com/hashicorp/vault/api v1.23.0
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
+	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/twmb/franz-go v1.21.2
 	go.uber.org/goleak v1.3.0
 )
@@ -127,15 +129,25 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-playground/validator/v10 v10.30.2 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.2.0 // indirect
+	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
+	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
+	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
@@ -148,6 +160,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect

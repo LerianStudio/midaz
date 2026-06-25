@@ -12,9 +12,9 @@ import (
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
+	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"

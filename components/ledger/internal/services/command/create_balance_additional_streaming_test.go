@@ -170,4 +170,3 @@ func TestCreateAdditionalBalance_NilStreamingDoesNotPanic(t *testing.T) {
 	_, err := uc.CreateAdditionalBalance(context.Background(), uuid.New(), uuid.New(), uuid.New(), cbi)
 	require.NoError(t, err)
 }
-

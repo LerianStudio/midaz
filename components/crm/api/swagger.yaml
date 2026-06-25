@@ -376,6 +376,61 @@ definitions:
         example: Active
         type: string
     type: object
+  ProvisionEncryptionRequest:
+    description: ProvisionEncryptionRequest payload
+    properties:
+      actor:
+        description: The actor performing the provisioning operation.
+        example: admin@example.com
+        type: string
+      reason:
+        description: The reason for provisioning the organization.
+        example: Initial encryption setup
+        type: string
+    required:
+    - actor
+    - reason
+    type: object
+  ProvisionEncryptionResponse:
+    description: ProvisionEncryptionResponse payload
+    properties:
+      aead_primary_key_id:
+        description: The primary key ID for AEAD encryption.
+        example: 1
+        type: integer
+      kek_path:
+        description: The path to the Key Encryption Key in Vault.
+        example: org-00000000-0000-0000-0000-000000000000
+        type: string
+      organization_id:
+        description: The unique identifier of the organization.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      prf_primary_key_id:
+        description: The primary key ID of the PRF search-token keyset.
+        example: 1
+        type: integer
+      status:
+        description: The current provisioning status.
+        example: active
+        type: string
+    type: object
+  ProvisioningStatusResponse:
+    description: ProvisioningStatusResponse payload
+    properties:
+      organization_id:
+        description: The unique identifier of the organization.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      provisioned:
+        description: Whether the organization has been provisioned for envelope encryption.
+        example: true
+        type: boolean
+      status:
+        description: The current provisioning status.
+        example: active
+        type: string
+    type: object
   RegulatoryFields:
     description: RegulatoryFields object
     properties:
@@ -510,6 +565,42 @@ definitions:
         type: string
       page:
         type: integer
+      prev_cursor:
+        type: string
+    type: object
+  internal_adapters_http_in.auditEventResponse:
+    properties:
+      action:
+        type: string
+      actor:
+        type: string
+      from_status:
+        type: string
+      id:
+        type: string
+      outcome:
+        type: string
+      reason:
+        type: string
+      request_id:
+        type: string
+      timestamp:
+        type: string
+      to_status:
+        type: string
+    type: object
+  internal_adapters_http_in.auditEventsEnvelope:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_adapters_http_in.auditEventResponse'
+        type: array
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      organization_id:
+        type: string
       prev_cursor:
         type: string
     type: object
@@ -1167,6 +1258,163 @@ paths:
       summary: Update a Holder
       tags:
       - Holders
+  /v1/organizations/{organization_id}/encryption/provision:
+    post:
+      consumes:
+      - application/json
+      description: Provisions an organization for envelope encryption by generating
+        keysets and registering the organization.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Provision Input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/ProvisionEncryptionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/ProvisionEncryptionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found - encryption provisioning is unavailable when the
+            service runs in legacy mode
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Provision an Organization for Envelope Encryption
+      tags:
+      - Encryption
+  /v1/organizations/{organization_id}/encryption/status:
+    get:
+      description: Retrieves the current provisioning status for an organization's
+        envelope encryption.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ProvisioningStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "404":
+          description: Not Found - encryption provisioning is unavailable when the
+            service runs in legacy mode
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: Get Provisioning Status
+      tags:
+      - Encryption
+  /v1/organizations/{organization_id}/protection/audit:
+    get:
+      description: Returns the protection audit events for an organization, filtered
+        by action, actor, outcome, and time range, with cursor pagination.
+      parameters:
+      - description: "The authorization token in the 'Bearer\taccess_token' format.
+          Only required when auth plugin is enabled."
+        in: header
+        name: Authorization
+        type: string
+      - description: The unique identifier of the Organization.
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Maximum number of events to return (default 20).
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor.
+        in: query
+        name: cursor
+        type: string
+      - description: 'Sort order: asc or desc (default desc).'
+        in: query
+        name: sort_order
+        type: string
+      - description: Filter by action.
+        in: query
+        name: action
+        type: string
+      - description: Filter by actor.
+        in: query
+        name: actor
+        type: string
+      - description: 'Filter by outcome: success, failure, or already_exists.'
+        in: query
+        name: outcome
+        type: string
+      - description: Inclusive lower time bound (yyyy-mm-dd or RFC3339).
+        in: query
+        name: start_date
+        type: string
+      - description: Inclusive upper time bound (yyyy-mm-dd or RFC3339).
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapters_http_in.auditEventsEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/pkg.HTTPError'
+      summary: List Protection Audit Events
+      tags:
+      - Protection
 schemes:
 - http
 securityDefinitions:

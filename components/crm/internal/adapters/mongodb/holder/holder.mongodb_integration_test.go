@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -33,9 +34,16 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	t.Helper()
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
+
+	// Use FieldEncryptorAdapter wrapping EncryptionService with lib-commons crypto
+	// This matches production behavior when KMS vendor is none
 	crypto := testutils.SetupCrypto(t)
 
-	repo, err := NewMongoDBRepository(conn, crypto)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
+
+	repo, err := NewMongoDBRepository(conn, fe)
 	require.NoError(t, err)
 
 	return repo

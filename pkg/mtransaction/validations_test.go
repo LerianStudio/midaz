@@ -10,8 +10,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	commons "github.com/LerianStudio/lib-observability"
 	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	commons "github.com/LerianStudio/lib-observability"
 	"github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"

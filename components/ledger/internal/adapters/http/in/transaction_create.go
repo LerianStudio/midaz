@@ -13,11 +13,11 @@ import (
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"

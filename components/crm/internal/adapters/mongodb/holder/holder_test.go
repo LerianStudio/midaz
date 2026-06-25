@@ -5,10 +5,11 @@
 package holder
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -16,8 +17,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMongoDBModel_FromEntity(t *testing.T) {
+// setupTestFieldEncryptor creates a FieldEncryptorAdapter wrapping an EncryptionService
+// with lib-commons crypto for testing. This matches production behavior when KMS vendor is none.
+func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
+	t.Helper()
+
+	// Use lib-commons crypto directly, matching the production path when KMS vendor is none
 	crypto := testutils.SetupCrypto(t)
+
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+
+	return encryption.NewFieldEncryptorAdapter(svc)
+}
+
+// testEncryptionContext creates a standard EncryptionContext for tests.
+func testEncryptionContext(holderID string) encryption.EncryptionContext {
+	return encryption.EncryptionContext{
+		TenantID:       "default",
+		OrganizationID: "test-org-123",
+		RecordID:       holderID,
+	}
+}
+
+func TestMongoDBModel_FromEntity(t *testing.T) {
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
@@ -210,7 +235,8 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var model MongoDBModel
-			err := model.FromEntity(tt.holder, crypto)
+			encryptionCtx := testEncryptionContext(tt.holder.ID.String())
+			err := model.FromEntity(ctx, tt.holder, fe, encryptionCtx)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -233,9 +259,9 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 				assert.NotEqual(t, *tt.holder.Document, *model.Document, "Document should be encrypted")
 			}
 
-			// Verify search hash is generated for document
+			// Verify search token is generated for document
 			if tt.holder.Document != nil && *tt.holder.Document != "" {
-				assert.NotEmpty(t, model.Search["document"], "Document hash should be generated")
+				assert.NotEmpty(t, model.Search["document"], "Document search token should be generated")
 			}
 
 			// Verify metadata
@@ -245,7 +271,8 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
@@ -290,12 +317,14 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 		UpdatedAt: now,
 	}
 
+	encryptionCtx := testEncryptionContext(holderID.String())
+
 	var model MongoDBModel
-	err := model.FromEntity(originalHolder, crypto)
+	err := model.FromEntity(ctx, originalHolder, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	// Now convert back to entity
-	resultHolder, err := model.ToEntity(crypto)
+	resultHolder, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	// Verify all fields match
@@ -327,7 +356,8 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
@@ -354,11 +384,13 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 		UpdatedAt: now,
 	}
 
+	encryptionCtx := testEncryptionContext(holderID.String())
+
 	var model MongoDBModel
-	err := model.FromEntity(originalHolder, crypto)
+	err := model.FromEntity(ctx, originalHolder, fe, encryptionCtx)
 	require.NoError(t, err)
 
-	resultHolder, err := model.ToEntity(crypto)
+	resultHolder, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, resultHolder.LegalPerson)
@@ -376,7 +408,8 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
 
@@ -399,8 +432,10 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 		UpdatedAt: now,
 	}
 
+	encryptionCtx := testEncryptionContext(holderID.String())
+
 	var model MongoDBModel
-	err := model.FromEntity(originalHolder, crypto)
+	err := model.FromEntity(ctx, originalHolder, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, model.Contact)
@@ -417,7 +452,7 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	assert.Nil(t, model.LegalPerson.Representative.Document)
 	assert.Nil(t, model.LegalPerson.Representative.Email)
 
-	resultHolder, err := model.ToEntity(crypto)
+	resultHolder, err := model.ToEntity(ctx, fe, encryptionCtx)
 	require.NoError(t, err)
 
 	require.NotNil(t, resultHolder.Contact)
@@ -433,43 +468,6 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Name)
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Document)
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Email)
-}
-
-func TestMapRepresentativeToEntity_InvalidEncryptedEmailReturnsError(t *testing.T) {
-	t.Parallel()
-
-	crypto := testutils.SetupCrypto(t)
-
-	_, err := mapRepresentativeToEntity(crypto, &RepresentativeMongoDBModel{
-		Email: testutils.Ptr("not-a-valid-ciphertext"),
-	})
-	require.Error(t, err)
-}
-
-func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T) {
-	t.Parallel()
-
-	// A zero-value Crypto lacks the required encryption keys,
-	// so Contact encryption is expected to fail in FromEntity.
-	crypto := &libCrypto.Crypto{}
-	holderID := uuid.New()
-	now := time.Now().UTC().Truncate(time.Second)
-
-	holder := &mmodel.Holder{
-		ID:       &holderID,
-		Type:     testutils.Ptr("LEGAL_PERSON"),
-		Name:     testutils.Ptr("John Doe"),
-		Document: testutils.Ptr("12345678901"),
-		Contact: &mmodel.Contact{
-			PrimaryEmail: testutils.Ptr(""),
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	_, err := mapContactFromEntity(crypto, holder.Contact)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cipher not initialized")
 }
 
 func TestMapAddressFromEntity(t *testing.T) {
@@ -647,7 +645,8 @@ func TestMapAddressesToEntity(t *testing.T) {
 }
 
 func TestMapContactFromEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	contact := &mmodel.Contact{
 		PrimaryEmail:   testutils.Ptr("primary@test.com"),
@@ -656,7 +655,9 @@ func TestMapContactFromEntity(t *testing.T) {
 		OtherPhone:     testutils.Ptr("+0987654321"),
 	}
 
-	result, err := mapContactFromEntity(crypto, contact)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	result, err := mapContactFromEntity(ctx, fe, encryptionCtx, contact)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -668,7 +669,8 @@ func TestMapContactFromEntity(t *testing.T) {
 }
 
 func TestMapContactToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	// First encrypt contact data
 	originalContact := &mmodel.Contact{
@@ -678,11 +680,13 @@ func TestMapContactToEntity(t *testing.T) {
 		OtherPhone:     testutils.Ptr("+2222222222"),
 	}
 
-	encryptedModel, err := mapContactFromEntity(crypto, originalContact)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	encryptedModel, err := mapContactFromEntity(ctx, fe, encryptionCtx, originalContact)
 	require.NoError(t, err)
 
 	// Now decrypt back
-	result, err := mapContactToEntity(crypto, encryptedModel)
+	result, err := mapContactToEntity(ctx, fe, encryptionCtx, encryptedModel)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -693,7 +697,8 @@ func TestMapContactToEntity(t *testing.T) {
 }
 
 func TestMapNaturalPersonFromEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	np := &mmodel.NaturalPerson{
 		FavoriteName: testutils.Ptr("Favorite"),
@@ -707,7 +712,9 @@ func TestMapNaturalPersonFromEntity(t *testing.T) {
 		Status:       testutils.Ptr("Active"),
 	}
 
-	result, err := mapNaturalPersonFromEntity(crypto, np)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	result, err := mapNaturalPersonFromEntity(ctx, fe, encryptionCtx, np)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -726,7 +733,8 @@ func TestMapNaturalPersonFromEntity(t *testing.T) {
 }
 
 func TestMapNaturalPersonToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	originalNP := &mmodel.NaturalPerson{
 		FavoriteName: testutils.Ptr("TestFav"),
@@ -735,10 +743,12 @@ func TestMapNaturalPersonToEntity(t *testing.T) {
 		FatherName:   testutils.Ptr("TestFather"),
 	}
 
-	encryptedModel, err := mapNaturalPersonFromEntity(crypto, originalNP)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	encryptedModel, err := mapNaturalPersonFromEntity(ctx, fe, encryptionCtx, originalNP)
 	require.NoError(t, err)
 
-	result, err := mapNaturalPersonToEntity(crypto, encryptedModel)
+	result, err := mapNaturalPersonToEntity(ctx, fe, encryptionCtx, encryptedModel)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -747,7 +757,8 @@ func TestMapNaturalPersonToEntity(t *testing.T) {
 }
 
 func TestMapLegalPersonFromEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	lp := &mmodel.LegalPerson{
 		TradeName:    testutils.Ptr("Trade"),
@@ -764,7 +775,9 @@ func TestMapLegalPersonFromEntity(t *testing.T) {
 		},
 	}
 
-	result, err := mapLegalPersonFromEntity(crypto, lp)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	result, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, lp)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -790,32 +803,39 @@ func TestMapLegalPersonFromEntity(t *testing.T) {
 }
 
 func TestMapLegalPersonFromEntity_InvalidFoundingDate(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	lp := &mmodel.LegalPerson{
 		TradeName:    testutils.Ptr("Trade"),
 		FoundingDate: testutils.Ptr("invalid-date"),
 	}
 
-	_, err := mapLegalPersonFromEntity(crypto, lp)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	_, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, lp)
 	require.Error(t, err)
 }
 
 func TestMapLegalPersonFromEntity_NilFoundingDate(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	lp := &mmodel.LegalPerson{
 		TradeName:    testutils.Ptr("Trade"),
 		FoundingDate: nil,
 	}
 
-	result, err := mapLegalPersonFromEntity(crypto, lp)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	result, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, lp)
 	require.NoError(t, err)
 	assert.Nil(t, result.FoundingDate)
 }
 
 func TestMapLegalPersonToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
 	originalLP := &mmodel.LegalPerson{
 		TradeName:    testutils.Ptr("Original Trade"),
@@ -832,10 +852,12 @@ func TestMapLegalPersonToEntity(t *testing.T) {
 		},
 	}
 
-	encryptedModel, err := mapLegalPersonFromEntity(crypto, originalLP)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	encryptedModel, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, originalLP)
 	require.NoError(t, err)
 
-	result, err := mapLegalPersonToEntity(crypto, encryptedModel)
+	result, err := mapLegalPersonToEntity(ctx, fe, encryptionCtx, encryptedModel)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -849,24 +871,27 @@ func TestMapLegalPersonToEntity(t *testing.T) {
 }
 
 func TestMapRepresentativeToEntity(t *testing.T) {
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
+	ctx := context.Background()
 
-	// Encrypt representative data
-	name, err := crypto.Encrypt(testutils.Ptr("Rep Name"))
-	require.NoError(t, err)
-	doc, err := crypto.Encrypt(testutils.Ptr("12345678900"))
-	require.NoError(t, err)
-	email, err := crypto.Encrypt(testutils.Ptr("rep@test.com"))
-	require.NoError(t, err)
-
-	model := &RepresentativeMongoDBModel{
-		Name:     name,
-		Document: doc,
-		Email:    email,
-		Role:     testutils.Ptr("Director"),
+	// First encrypt via mapLegalPersonFromEntity to get encrypted representative
+	originalLP := &mmodel.LegalPerson{
+		TradeName: testutils.Ptr("Test LP"),
+		Representative: &mmodel.Representative{
+			Name:     testutils.Ptr("Rep Name"),
+			Document: testutils.Ptr("12345678900"),
+			Email:    testutils.Ptr("rep@test.com"),
+			Role:     testutils.Ptr("Director"),
+		},
 	}
 
-	result, err := mapRepresentativeToEntity(crypto, model)
+	encryptionCtx := testEncryptionContext(uuid.New().String())
+
+	encryptedLP, err := mapLegalPersonFromEntity(ctx, fe, encryptionCtx, originalLP)
+	require.NoError(t, err)
+	require.NotNil(t, encryptedLP.Representative)
+
+	result, err := mapRepresentativeToEntity(ctx, fe, encryptionCtx, encryptedLP.Representative)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

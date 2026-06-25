@@ -10,11 +10,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"

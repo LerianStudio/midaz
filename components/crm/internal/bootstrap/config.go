@@ -9,19 +9,23 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 )
 
@@ -66,6 +70,12 @@ type Config struct {
 	ApplicationName                        string `env:"APPLICATION_NAME"`
 	DeploymentMode                         string `env:"DEPLOYMENT_MODE"`
 	Version                                string `env:"VERSION"`
+	KMSVendor                              string `env:"KMS_VENDOR"`
+	VaultAddr                              string `env:"KMS_VAULT_ADDR"`
+	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
+	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
+	VaultMountPath                         string `env:"KMS_VAULT_MOUNT_PATH"`
+	VaultAuthMethod                        string `env:"KMS_VAULT_AUTH_METHOD"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -112,6 +122,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
 	}
 
+	// Initialize KMS (encryption mode and optional Vault client).
+	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
+	// cannot block startup indefinitely.
+	kmsCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	kms, err := initKMS(kmsCtx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	// Init Open telemetry to control logs and flows
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -132,28 +153,50 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
 	}
 
+	// Extract the metrics factory ONCE (nil when telemetry disabled) and reuse it
+	// for both encryption metrics and readyz metrics emission.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	mongoConnection, err := initMongoConnection(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	dataSecurity := &libCrypto.Crypto{
-		HashSecretKey:    cfg.HashSecretKey,
-		EncryptSecretKey: cfg.EncryptSecretKey,
-		Logger:           logger,
-	}
-
-	err = dataSecurity.InitializeCipher()
+	// Create legacy crypto based on KMS mode.
+	legacyCrypto, err := initLegacyCrypto(cfg, kms, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cipher: %w", err)
+		return nil, err
 	}
 
-	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, dataSecurity)
+	// Initialize encryption repositories for envelope mode only.
+	// In legacy mode, these remain nil (not needed for legacy encryption).
+	keysetRepo, registryRepo, auditRepo, auditWriter, err := initEncryptionRepos(kms, mongoConnection, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
+	encryptionResult, err := buildEncryptionServices(cfg, kms, logger, keysetRepo, registryRepo, auditWriter, legacyCrypto, metricsFactory)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create FieldEncryptor using FieldEncryptorAdapter wrapping EncryptionService.
+	// EncryptionService is always available (legacy or envelope mode).
+	fieldEncryptor := encryption.NewFieldEncryptorAdapter(encryptionResult.encryptionService)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Encryption service initialized",
+		libLog.String("mode", kms.Mode.String()))
+
+	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, fieldEncryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize holder repository: %w", err)
 	}
 
-	aliasMongoDBRepository, err := alias.NewMongoDBRepository(mongoConnection, dataSecurity)
+	aliasMongoDBRepository, err := alias.NewMongoDBRepository(mongoConnection, fieldEncryptor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize alias repository: %w", err)
 	}
@@ -171,6 +214,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Service: useCases,
 	}
 
+	// Create encryption handler only when provisioning service is available (envelope mode)
+	encryptionHandler := newEncryptionHandler(encryptionResult.provisioningService, logger)
+
+	// Create audit handler only when the read-side audit repository is available
+	// (envelope mode). In legacy mode auditRepo is nil, so the handler is nil and
+	// the protection audit route stays unregistered (404).
+	auditHandler := newAuditHandler(auditRepo, logger)
+
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
@@ -178,26 +229,156 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}
 
-	// Get metrics factory from telemetry for readyz metrics emission
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
-
-	// Build readyz handler with MongoDB checker
-	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, metricsFactory)
+	// Build readyz handler with MongoDB and Vault checkers (reuses the shared metricsFactory)
+	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, kms, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
 
-	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler)
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	return &Service{
-		Server:        serverAPI,
-		EventListener: eventListener,
-		Logger:        logger,
+		Server:                  serverAPI,
+		EventListener:           eventListener,
+		EncryptionMode:          kms.Mode,
+		VaultClient:             kms.VaultClient,
+		KeysetRepo:              keysetRepo,
+		RegistryRepo:            registryRepo,
+		AuditRepo:               auditRepo,
+		EncryptionService:       encryptionResult.encryptionService,
+		ProvisioningService:     encryptionResult.provisioningService,
+		ProtectionStateResolver: encryptionResult.protectionStateResolver,
+		KeysetManager:           encryptionResult.keysetManager,
+		Logger:                  logger,
 	}, nil
+}
+
+// newEncryptionHandler returns an EncryptionHandler only when a provisioning
+// service is available (envelope mode); otherwise it returns nil so the
+// provisioning endpoints stay disabled in legacy mode.
+func newEncryptionHandler(provisioningService encryption.ProvisioningService, logger libLog.Logger) *in.EncryptionHandler {
+	if provisioningService == nil {
+		return nil
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Encryption provisioning endpoints enabled")
+
+	return &in.EncryptionHandler{ProvisioningService: provisioningService}
+}
+
+// newAuditHandler returns an AuditHandler only when a read-side audit repository
+// is available (envelope mode). In legacy mode auditRepo is nil, so this returns
+// nil and the protection audit route is left unregistered (404). That 404 is the
+// correct "feature not applicable in legacy mode" behavior, not an error.
+func newAuditHandler(auditRepo audit.Repository, logger libLog.Logger) *in.AuditHandler {
+	if auditRepo == nil {
+		return nil
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Protection audit endpoint enabled")
+
+	return &in.AuditHandler{Service: encryption.NewAuditQueryService(auditRepo)}
+}
+
+// buildEncryptionServices wires the encryption services for the active KMS mode.
+// In legacy mode the services use lib-commons crypto; in envelope mode they are
+// wired with Tink and Vault dependencies and the envelope-only AuditWriter. It
+// fails hard if envelope mode is requested but its dependencies are unavailable.
+func buildEncryptionServices(
+	cfg *Config,
+	kms *KMSResult,
+	logger libLog.Logger,
+	keysetRepo mongoEncryption.KeysetRepository,
+	registryRepo mongoEncryption.RegistryRepository,
+	auditWriter encryption.AuditWriter,
+	legacyCrypto encryption.LegacyCrypto,
+	metricsFactory *metrics.MetricsFactory,
+) (wireEncryptionServicesOutput, error) {
+	encryptionResult := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:                 kms.Mode.String(),
+		vaultClient:          kms.VaultClient,
+		keysetRepo:           keysetRepo,
+		registryRepo:         registryRepo,
+		auditWriter:          auditWriter,
+		legacyCrypto:         legacyCrypto,
+		metricsFactory:       metricsFactory,
+		vaultMountPath:       cfg.VaultMountPath,
+		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
+		legacyAESHexKey:      cfg.EncryptSecretKey,
+		legacyHMACSecret:     cfg.HashSecretKey,
+	})
+	if encryptionResult.err != nil {
+		return wireEncryptionServicesOutput{}, fmt.Errorf("failed to wire encryption services: %w", encryptionResult.err)
+	}
+
+	if encryptionResult.degradedToLegacy {
+		logger.Log(context.Background(), libLog.LevelWarn, "Envelope encryption unavailable; degraded to legacy-only mode")
+	}
+
+	return encryptionResult, nil
+}
+
+// initLegacyCrypto builds the LegacyCrypto for the active KMS mode:
+//   - envelope (KMS_VENDOR=hashicorp-vault): Tink-backed LegacyKeyMaterial, used
+//     for both new encryption and reading legacy data during migration.
+//   - legacy (KMS_VENDOR=none): lib-commons crypto directly (no Tink).
+func initLegacyCrypto(cfg *Config, kms *KMSResult, logger libLog.Logger) (encryption.LegacyCrypto, error) {
+	if kms.Mode.IsEnvelope() {
+		legacyKeys, err := encryption.NewLegacyKeyMaterial(cfg.EncryptSecretKey, cfg.HashSecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize legacy key material: %w", err)
+		}
+
+		return legacyKeys, nil
+	}
+
+	crypto := &libCrypto.Crypto{
+		HashSecretKey:    cfg.HashSecretKey,
+		EncryptSecretKey: cfg.EncryptSecretKey,
+		Logger:           logger,
+	}
+	if err := crypto.InitializeCipher(); err != nil {
+		return nil, fmt.Errorf("failed to initialize legacy crypto cipher: %w", err)
+	}
+
+	return crypto, nil
+}
+
+// initEncryptionRepos constructs the envelope-only encryption repositories, the
+// read-side audit Repository, and a repository-backed AuditWriter. In legacy mode
+// it returns nil for all of them: legacy encryption needs no keyset/registry
+// repositories and has no provisioning service, so it needs neither an audit
+// reader nor an audit writer. The audit repository is therefore envelope-only and
+// never a no-op. A single auditRepo instance backs both the read path (returned
+// directly) and the write path (wrapped by NewAuditWriter).
+func initEncryptionRepos(
+	kms *KMSResult,
+	mongoConnection *libMongo.Client,
+	logger libLog.Logger,
+) (mongoEncryption.KeysetRepository, mongoEncryption.RegistryRepository, audit.Repository, encryption.AuditWriter, error) {
+	if !kms.Mode.IsEnvelope() {
+		return nil, nil, nil, nil, nil
+	}
+
+	keysetRepo, err := mongoEncryption.NewKeysetMongoDBRepository(mongoConnection)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize keyset repository: %w", err)
+	}
+
+	registryRepo, err := mongoEncryption.NewRegistryMongoDBRepository(mongoConnection)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize registry repository: %w", err)
+	}
+
+	auditRepo, err := audit.NewMongoDBRepository(mongoConnection)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize audit repository: %w", err)
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Encryption repositories initialized for envelope mode")
+
+	return keysetRepo, registryRepo, auditRepo, encryption.NewAuditWriter(auditRepo, logger), nil
 }
 
 func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, error) {
@@ -296,10 +477,12 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 // buildReadyzHandler creates the ReadyzHandler with appropriate checkers based on configuration.
 // In single-tenant mode, the MongoDB checker returns actual status.
 // In multi-tenant mode (future), database checkers would return "n/a" globally.
+// For envelope encryption mode, VaultChecker is added to monitor KMS availability.
 func buildReadyzHandler(
 	cfg *Config,
 	logger libLog.Logger,
 	mongoConnection *libMongo.Client,
+	kms *KMSResult,
 	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
 	// Build Mongo URI for TLS detection
@@ -330,6 +513,19 @@ func buildReadyzHandler(
 		// If no connection, add a skipped checker (excluded from TLS validation)
 		tlsEnabled, _ := detectMongoTLS(mongoURI)
 		checkers = append(checkers, NewNAChecker("mongo", "MongoDB client not configured", tlsEnabled))
+	}
+
+	// Vault checker - returns actual status in envelope encryption mode
+	if kms != nil && kms.Mode.IsEnvelope() && kms.VaultClient != nil {
+		vaultChecker := NewVaultChecker("vault", kms.VaultClient, cfg.VaultAddr)
+		checkers = append(checkers, vaultChecker)
+		tlsRelevantCheckers = append(tlsRelevantCheckers, vaultChecker)
+	} else if kms != nil && kms.Mode.IsEnvelope() {
+		// Envelope mode but no client - should not happen in production
+		checkers = append(checkers, NewNAChecker("vault", "Vault client not configured", detectVaultTLS(cfg.VaultAddr)))
+	} else {
+		// Legacy mode - Vault is not applicable
+		checkers = append(checkers, NewNAChecker("vault", "Legacy encryption mode (Vault not used)", false))
 	}
 
 	// Build TLS validation results from real dependency checkers only

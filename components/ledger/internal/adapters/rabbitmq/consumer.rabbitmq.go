@@ -9,11 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"

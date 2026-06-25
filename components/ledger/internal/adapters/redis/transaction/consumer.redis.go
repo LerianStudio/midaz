@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
+	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	libCommons "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
