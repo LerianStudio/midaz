@@ -301,6 +301,13 @@ type Transaction struct {
 	// that overrides the default DEBIT/CREDIT type label on constructed operations
 	// without changing accounting direction or amount. Empty by default. Internal
 	// field — populated during processing, not part of the API contract.
+	//
+	// Invariant: this marker is honored ONLY on the standard single-entry path
+	// (buildStandardOp). The double-entry PENDING/CANCELED builders do NOT apply
+	// it. Block/unblock are direct ACTIVE transfers and must never be expressed
+	// as PENDING/CANCELED double-entry flows; the IsDoubleEntrySource gate
+	// (validations.go) keeps them on the standard path by design. The producer
+	// that sets this field is the block/unblock handlers, wired in a later task.
 	OperationTypeOverride string `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
 
