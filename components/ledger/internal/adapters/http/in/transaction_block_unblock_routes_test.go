@@ -6,6 +6,7 @@ package in
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
@@ -78,13 +79,13 @@ func TestBlockUnblockRoutes_RequireAuthLikeJSON(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
 	app := registerTransactionRoutesForTest(auth, nil)
 
+	// Replace the path params with concrete values so the route matches.
+	pathReplacer := strings.NewReplacer(
+		":organization_id", "00000000-0000-0000-0000-000000000001",
+		":ledger_id", "00000000-0000-0000-0000-000000000002",
+	)
 	concretePath := func(template string) string {
-		// Replace the path params with concrete values so the route matches.
-		path := template
-		path = replaceFirst(path, ":organization_id", "00000000-0000-0000-0000-000000000001")
-		path = replaceFirst(path, ":ledger_id", "00000000-0000-0000-0000-000000000002")
-
-		return path
+		return pathReplacer.Replace(template)
 	}
 
 	for _, tc := range []struct {
@@ -95,8 +96,6 @@ func TestBlockUnblockRoutes_RequireAuthLikeJSON(t *testing.T) {
 		{name: "block", template: blockRoutePath},
 		{name: "unblock", template: unblockRoutePath},
 	} {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -111,23 +110,4 @@ func TestBlockUnblockRoutes_RequireAuthLikeJSON(t *testing.T) {
 				"%s must be guarded by the transactions:post auth chain and reject a tokenless request with 401", tc.name)
 		})
 	}
-}
-
-func replaceFirst(s, old, new string) string {
-	idx := indexOf(s, old)
-	if idx < 0 {
-		return s
-	}
-
-	return s[:idx] + new + s[idx+len(old):]
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-
-	return -1
 }

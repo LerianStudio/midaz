@@ -9,12 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,13 +33,35 @@ func TestBuildOverriddenTransaction(t *testing.T) {
 
 	handler := &TransactionHandler{}
 
+	routeID := uuid.New().String()
+	txDate := mtransaction.TransactionDate(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+
+	// newInput returns a CreateTransactionInput that populates every field
+	// BuildTransaction copies, with non-zero values, so a regression that drops
+	// any field on the override path is caught by the reference comparison below.
 	newInput := func(pending bool) *mtransaction.CreateTransactionInput {
 		return &mtransaction.CreateTransactionInput{
-			Description: "block test",
-			Pending:     pending,
-			Metadata:    map[string]any{"reason": "fraud-hold"},
+			ChartOfAccountsGroupName: "FUNDING",
+			Description:              "block test",
+			Code:                     "TR-BLOCK-1",
+			Pending:                  pending,
+			Metadata:                 map[string]any{"reason": "fraud-hold"},
+			Route:                    routeID,
+			RouteID:                  &routeID,
+			TransactionDate:          &txDate,
 			Send: mtransaction.Send{
 				Asset: "BRL",
+				Value: decimal.NewFromInt(1000),
+				Source: mtransaction.Source{
+					From: []mtransaction.FromTo{
+						{AccountAlias: "@source", Amount: &mtransaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)}},
+					},
+				},
+				Distribute: mtransaction.Distribute{
+					To: []mtransaction.FromTo{
+						{AccountAlias: "@dest", Amount: &mtransaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)}},
+					},
+				},
 			},
 		}
 	}
@@ -59,20 +83,32 @@ func TestBuildOverriddenTransaction(t *testing.T) {
 
 			input := newInput(tt.inputPending)
 
+			// Reference: the exact Transaction the JSON path would build from the
+			// same input. The override result must equal it on every copied field,
+			// differing ONLY in Pending (forced false) and OperationTypeOverride.
+			reference := input.BuildTransaction()
+
 			got := handler.buildOverriddenTransaction(input, tt.override)
 
+			// The two intentional differences.
 			assert.Equal(t, tt.override, got.OperationTypeOverride,
 				"override must be set on the built transaction")
+			assert.Empty(t, reference.OperationTypeOverride,
+				"JSON path must not set an override (guards the test against a future default)")
 			assert.False(t, got.Pending,
 				"block/unblock must be a direct ACTIVE transfer, never pending")
 			assert.Equal(t, constant.CREATED, got.InitialStatus(),
 				"non-pending transaction must resolve to CREATED (single-entry path)")
 
-			// Body fields flow through untouched (same build as the JSON path).
-			assert.Equal(t, "block test", got.Description)
-			assert.Equal(t, "BRL", got.Send.Asset)
-			assert.Equal(t, map[string]any{"reason": "fraud-hold"}, got.Metadata,
-				"metadata must flow through untouched")
+			// Everything else must match the JSON-path build byte-for-byte. Align
+			// the two known differences onto the reference, then assert full
+			// equality so dropping ANY copied field (Description, Code,
+			// ChartOfAccountsGroupName, Route, RouteID, TransactionDate, Send,
+			// Metadata) fails the test.
+			reference.Pending = false
+			reference.OperationTypeOverride = tt.override
+			assert.Equal(t, *reference, got,
+				"override result must equal the JSON-path build on all copied fields")
 		})
 	}
 }
