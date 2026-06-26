@@ -925,6 +925,11 @@ func (handler *TransactionHandler) buildStandardOp(
 	opType := amt.Operation
 	if blc.Key == constant.OverdraftBalanceKey {
 		opType = constant.OVERDRAFT
+	} else if transactionInput.OperationTypeOverride != "" {
+		// Block/unblock paths set a semantic Type label (BLOCK/UNBLOCK). It
+		// overrides only the Type, never Direction or amount. Overdraft
+		// companion rows keep their OVERDRAFT label and are excluded above.
+		opType = transactionInput.OperationTypeOverride
 	}
 
 	return &operation.Operation{

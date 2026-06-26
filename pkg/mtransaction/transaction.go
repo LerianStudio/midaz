@@ -297,6 +297,11 @@ type Transaction struct {
 	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
+	// OperationTypeOverride is a semantic Operation.Type marker (e.g. BLOCK/UNBLOCK)
+	// that overrides the default DEBIT/CREDIT type label on constructed operations
+	// without changing accounting direction or amount. Empty by default. Internal
+	// field — populated during processing, not part of the API contract.
+	OperationTypeOverride string `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
 
 // InitialStatus returns the transaction status derived from the Pending flag.
