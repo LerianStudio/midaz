@@ -21,10 +21,10 @@ import (
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	// GetAllTransactionRoutes fetch all Transaction Routes from the repository
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
+// GetAllTransactionRoutes fetch all Transaction Routes from the repository
 func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
