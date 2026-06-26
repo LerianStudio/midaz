@@ -2856,8 +2856,17 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "DEBIT",
+                            "CREDIT",
+                            "ON_HOLD",
+                            "RELEASE",
+                            "OVERDRAFT",
+                            "BLOCK",
+                            "UNBLOCK"
+                        ],
                         "type": "string",
-                        "description": "DEBIT, CREDIT",
+                        "description": "Filter by operation type",
                         "name": "type",
                         "in": "query"
                     },
@@ -6770,6 +6779,114 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
+            "post": {
+                "description": "Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. Block transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create a Block Transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key. Replays the original response for repeated requests carrying the same key.",
+                        "name": "X-Idempotency",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateTransactionInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Resource not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict, duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
             "post": {
                 "description": "Create a Transaction with the input DSL file",
@@ -7216,6 +7333,114 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
+            "post": {
+                "description": "Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. Unblock transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create an Unblock Transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key. Replays the original response for repeated requests carrying the same key.",
+                        "name": "X-Idempotency",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateTransactionInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Resource not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict, duplicate idempotency key",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -9790,7 +10015,7 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "type": {
-                    "description": "Type of operation (e.g., DEBIT, CREDIT)\nexample: DEBIT\nmaxLength: 50",
+                    "description": "Type of operation. One of: DEBIT, CREDIT, ON_HOLD, RELEASE, OVERDRAFT, BLOCK, UNBLOCK.\nDEBIT/CREDIT are standard ledger movements; ON_HOLD/RELEASE cover pending-transaction holds;\nOVERDRAFT marks system-generated overdraft companion rows; BLOCK/UNBLOCK label direct\naccount block/unblock transfers. The direction (debit/credit) is carried independently.\nexample: DEBIT\nmaxLength: 50",
                     "type": "string",
                     "maxLength": 50,
                     "example": "DEBIT"
