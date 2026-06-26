@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -16,10 +15,11 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -81,7 +81,7 @@ func TestGetAllOperations(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
 			DoAndReturn(func(ctx context.Context, collection string, entityIDs []string) ([]*mongodb.Metadata, error) {
 				assert.ElementsMatch(t, []string{op1ID, op2ID}, entityIDs)
 				return metadata, nil
@@ -137,7 +137,7 @@ func TestGetAllOperations(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
 			Return(nil, errors.New("metadata error")).
 			Times(1)
 

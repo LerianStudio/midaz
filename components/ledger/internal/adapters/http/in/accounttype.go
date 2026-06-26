@@ -7,15 +7,16 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type AccountTypeHandler struct {
@@ -30,7 +31,7 @@ type AccountTypeHandler struct {
 //	@Tags			Account Types
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
@@ -45,7 +46,7 @@ type AccountTypeHandler struct {
 func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account_type")
 	defer span.End()
@@ -83,7 +84,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Returns detailed information about an account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string				false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
 //	@Param			organization_id	path		string				true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
@@ -97,7 +98,7 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_type_by_id")
 	defer span.End()
@@ -140,7 +141,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 //	@Tags			Account Types
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
 //	@Param			organization_id	path		string							true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
@@ -156,7 +157,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account_type")
 	defer span.End()
@@ -181,19 +182,11 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	recordSafePayloadAttributes(span, payload)
 	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account type with ID: %s", id.String()), payload)
 
-	if _, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload); err != nil {
+	accountType, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get updated account type", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -209,7 +202,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 //	@Description	Deletes an existing account type identified by its UUID within the specified ledger
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
@@ -222,7 +215,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_type_by_id")
 	defer span.End()
@@ -263,7 +256,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata
 //	@Tags			Account Types
 //	@Produce		json
-//	@Param			Authorization	header		string																										true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string																										false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string																										false	"Request ID for tracing"
 //	@Param			organization_id	path		string																										true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																										true	"Ledger ID in UUID format"
@@ -285,7 +278,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_account_types")
 	defer span.End()

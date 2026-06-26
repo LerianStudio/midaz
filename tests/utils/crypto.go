@@ -5,10 +5,13 @@
 package testutils
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
 	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,4 +47,13 @@ func SetupCrypto(t *testing.T) *libCrypto.Crypto {
 	require.NoError(t, err, "failed to initialize crypto cipher for testing")
 
 	return crypto
+}
+
+// TestLegacySearchToken computes a search token using HMAC-SHA256 with TestHashKey.
+// This matches the token generation used by lib-commons LegacyCrypto.GenerateHash.
+func TestLegacySearchToken(value string) string {
+	mac := hmac.New(sha256.New, []byte(TestHashKey))
+	mac.Write([]byte(value))
+
+	return hex.EncodeToString(mac.Sum(nil))
 }

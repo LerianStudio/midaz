@@ -23,7 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // QueryHeader entity from query parameter from get apis
@@ -153,10 +153,20 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "metadata."):
 			metadata = &bson.M{key: value}
 			useMetadata = true
-		case strings.Contains(key, "limit"):
-			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "page"):
-			page, _ = strconv.Atoi(value)
+		case key == "limit":
+			parsedLimit, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+			}
+
+			limit = parsedLimit
+		case key == "page":
+			parsedPage, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
+			}
+
+			page = parsedPage
 		case strings.Contains(key, "cursor"):
 			cursor = value
 		case strings.Contains(key, "sort_order"):
@@ -267,6 +277,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
+	if page <= 0 {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
+	}
+
 	cursor, err = validatePagination(cursor, sortOrder, limit)
 	if err != nil {
 		return nil, err
@@ -358,16 +372,7 @@ func validateDates(startDate, endDate *time.Time) error {
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	if startDate.IsZero() && endDate.IsZero() {
-		now := time.Now()
-
-		defaultStartDate := time.Unix(0, 0).UTC()
-
-		if maxDateRangeMonths != 0 {
-			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
-		}
-
-		*startDate = defaultStartDate
-		*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+		*startDate, *endDate = defaultPaginationDateRange(time.Now(), maxDateRangeMonths)
 
 		return nil
 	}
@@ -388,6 +393,19 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
+func defaultPaginationDateRange(now time.Time, maxDateRangeMonths int) (time.Time, time.Time) {
+	now = now.UTC()
+
+	defaultStartDate := time.Unix(0, 0).UTC()
+	if maxDateRangeMonths != 0 {
+		defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
+	}
+
+	defaultEndDate := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	return defaultStartDate, defaultEndDate
+}
+
 type legacyCursor struct {
 	ID         string `json:"id"`
 	PointsNext bool   `json:"points_next"`
@@ -396,6 +414,10 @@ type legacyCursor struct {
 // ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) (string, error) {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+
+	if limit <= 0 {
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+	}
 
 	if limit > maxPaginationLimit {
 		return "", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)

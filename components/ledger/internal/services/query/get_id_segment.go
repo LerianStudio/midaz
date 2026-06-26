@@ -8,22 +8,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// GetSegmentByID get a Segment from the repository by given id.
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 )
 
+// GetSegmentByID get a Segment from the repository by given id.
+
 func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_segment_by_id")
 	defer span.End()
@@ -35,7 +35,7 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting segment on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, constant.EntitySegment)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segment on repo by id", err)
 
@@ -50,9 +50,9 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 	}
 
 	if segment != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String())
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntitySegment, id.String())
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, constant.EntitySegment)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb segment", err)
 

@@ -17,7 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -101,7 +101,7 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 	}
 
 	// Create an ObjectID for the metadata
-	objectID, _ := primitive.ObjectIDFromHex("507f1f77bcf86cd799439011")
+	objectID, _ := bson.ObjectIDFromHex("507f1f77bcf86cd799439011")
 
 	metadata := &mongodb.Metadata{
 		ID:         objectID,

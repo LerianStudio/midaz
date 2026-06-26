@@ -15,7 +15,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -185,7 +185,7 @@ func ValidateStruct(s any) error {
 	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
-	if k == reflect.Ptr {
+	if k == reflect.Pointer {
 		k = reflect.ValueOf(s).Elem().Kind()
 	}
 
@@ -637,7 +637,7 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 	}
 
 	switch rv.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		collectNullBytesFromPtr(rv, jsonPath, out, state)
 	case reflect.Struct:
 		collectNullBytesFromStruct(rv, out, state)
@@ -771,7 +771,7 @@ func jsonFieldName(f reflect.StructField) string {
 // parseMetadata For compliance with RFC7396 JSON Merge Patch
 func parseMetadata(s any, originalMap map[string]any) {
 	val := reflect.ValueOf(s)
-	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+	if val.Kind() != reflect.Pointer || val.Elem().Kind() != reflect.Struct {
 		return
 	}
 
@@ -800,7 +800,7 @@ func populateNullFields(s any, originalMap map[string]any) {
 	}
 
 	val := reflect.ValueOf(s)
-	if val.Kind() != reflect.Ptr || val.IsNil() {
+	if val.Kind() != reflect.Pointer || val.IsNil() {
 		return
 	}
 

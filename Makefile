@@ -587,6 +587,7 @@ dev-setup:
 	check_or_install gofumpt mvdan.cc/gofumpt@latest; \
 	check_or_install goimports golang.org/x/tools/cmd/goimports@latest; \
 	check_or_install gosec github.com/securego/gosec/v2/cmd/gosec@latest; \
+	check_or_install mockgen go.uber.org/mock/mockgen@v0.6.0; \
 	check_or_install golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@GOBIN="$$(go env GOPATH)/bin"; \
 	if ! echo "$$PATH" | tr ':' '\n' | grep -qx "$$GOBIN"; then \
@@ -644,5 +645,4 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
-
 

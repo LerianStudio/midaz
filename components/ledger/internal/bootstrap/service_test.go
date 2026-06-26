@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -263,6 +263,36 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
+}
+
+func TestNewUnifiedServer_ServesSwaggerUIAssets(t *testing.T) {
+	t.Parallel()
+
+	server := NewUnifiedServer(":0", newTestLogger(), &libOpentelemetry.Telemetry{}, nil)
+
+	for _, path := range []string{
+		"/swagger/index.html",
+		"/swagger/doc.json",
+		"/swagger/swagger-ui.css",
+		"/swagger/swagger-ui-bundle.js",
+		"/swagger/swagger-ui-standalone-preset.js",
+	} {
+		path := path
+
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequest(http.MethodGet, path, nil)
+			require.NoError(t, err)
+			req.Host = "localhost"
+
+			res, err := server.app.Test(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+		})
+	}
 }
 
 // TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed

@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -15,12 +14,12 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -79,12 +78,12 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: expectedOperationRoutes[0].ID.String(),
 			Data:     map[string]any{"key1": "value1"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: expectedOperationRoutes[1].ID.String(),
 			Data:     map[string]any{"key2": "value2"},
 		},
@@ -96,7 +95,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -214,7 +213,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -276,7 +275,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return(nil, metadataError).
 		Times(1)
 
@@ -338,7 +337,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -404,7 +403,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, metadataFilter).
 		Return([]*mongodb.Metadata{}, nil).
 		Times(1)
 
@@ -463,14 +462,14 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: operationRouteID.String(),
 			Data:     map[string]any{"category": "payment", "priority": "high"},
 		},
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperationRoute, filter).
 		Return(expectedMetadata, nil).
 		Times(1)
 

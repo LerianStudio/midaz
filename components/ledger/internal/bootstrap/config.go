@@ -16,9 +16,6 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
@@ -28,7 +25,10 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -203,6 +203,38 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// Default for all streaming knobs is OFF — a service with
+	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
+	// initialises the underlying transport. The pilot ships disabled-by-
+	// default so that existing deployments are not broken by the new
+	// dependency.
+	StreamingEnabled           bool   `env:"STREAMING_ENABLED"`
+	StreamingBrokers           string `env:"STREAMING_BROKERS"`
+	StreamingClientID          string `env:"STREAMING_CLIENT_ID"`
+	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
+	StreamingCompression       string `env:"STREAMING_COMPRESSION"`
+	StreamingRequiredAcks      string `env:"STREAMING_REQUIRED_ACKS"`
+	StreamingBatchLingerMs     int    `env:"STREAMING_BATCH_LINGER_MS"`
+
+	// --- Streaming SASL/TLS auth ---
+	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
+	// without authentication, matching the existing behaviour for local/dev
+	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
+	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then
+	// required and BuildStreamingEmitter wires the matching franz-go
+	// sasl.Mechanism into the lib-streaming Builder.
+	//
+	// SASL without TLS is rejected by lib-streaming with
+	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
+	// explicit unsafe opt-in for local/dev brokers that do not terminate
+	// TLS. It must NOT be set in production: SASL credentials cross the
+	// network in cleartext.
+	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
+	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
+	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
+	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -580,6 +612,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
+	// === Streaming producer (lib-streaming) ===
+	// Built before the UseCase so the Emitter is available for injection.
+	// When STREAMING_ENABLED=false (the documented default for this pilot)
+	// the helper returns a NoopEmitter and a no-op closer, preserving full
+	// backward compatibility with existing deployments.
+
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(context.Background(), cfg, logger, telemetry)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
+	}
+
+	if streamingClose != nil {
+		addCleanup(func() { _ = streamingClose() })
+	}
+
 	// === Use cases ===
 
 	commandUseCase := &command.UseCase{
@@ -603,6 +652,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Streaming
+		Streaming: streamingEmitter,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -752,6 +803,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                   logger,
 		Telemetry:                telemetry,
 		metricsFactory:           rmq.metricsFactory,
+		StreamingClose:           streamingClose,
+		StreamingEnabled:         cfg.StreamingEnabled,
 	}, nil
 }
 

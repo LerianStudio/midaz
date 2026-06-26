@@ -11,14 +11,19 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Overdraft event constants used in the Event envelope and routing key.
@@ -82,8 +87,16 @@ type OverdraftEventPayload struct {
 // The function is non-blocking and fire-and-forget: emission failures are
 // logged but never propagate to the caller. This mirrors the contract of
 // SendTransactionEvents.
+//
+// Cutover window: this function publishes BOTH the legacy
+// transaction.overdraft_events rabbit message AND the new lib-streaming
+// balance.overdraft_{drawn,repaid,cleared} events. The legacy rabbit
+// publish remains in place until consumers migrate to the lib-streaming
+// topics; it is removed in a follow-up task. Failures in either path are
+// independent — a lib-streaming Emit error does not prevent the rabbit
+// publish, and vice versa.
 func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Transaction) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	if !isOverdraftEventEnabled() {
 		logger.Log(ctx, libLog.LevelInfo, "Overdraft events not enabled",
@@ -155,15 +168,31 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 				libLog.String("action", ep.action),
 				libLog.Err(err))
 		}
+
+		// lib-streaming emission runs alongside the rabbit publish during
+		// the cutover window. The op reference is preserved on the
+		// overdraftEventItem so we can populate the lib-streaming payload
+		// (which needs balance/account/operation IDs that the legacy
+		// OverdraftEventPayload does not carry).
+		uc.emitBalanceOverdraftEvent(ctxSend, span, logger, tran, ep)
 	}
 }
 
 // overdraftEventItem pairs a classified action with its pre-marshal payload.
 // This is an internal type used between buildOverdraftEvents and SendOverdraftEvents
 // so that marshal errors are handled where logger and span are available.
+//
+// op carries the originating operation reference forward to the
+// lib-streaming emission site so it can populate fields the legacy
+// OverdraftEventPayload does not include (balanceId, operationId, assetCode).
 type overdraftEventItem struct {
 	action  string
 	payload OverdraftEventPayload
+	op      *operation.Operation
+	// amount, afterAvail mirror payload fields but typed for the
+	// lib-streaming payload (which expects decimal.Decimal directly).
+	amount     decimal.Decimal
+	afterAvail decimal.Decimal
 }
 
 // buildOverdraftEvents scans tran.Operations for overdraft companion
@@ -196,10 +225,77 @@ func buildOverdraftEvents(tran *transaction.Transaction) []overdraftEventItem {
 				OverdraftBalance: afterAvail,
 				Timestamp:        time.Now(),
 			},
+			op:         op,
+			amount:     amount,
+			afterAvail: afterAvail,
 		})
 	}
 
 	return items
+}
+
+// emitBalanceOverdraftEvent publishes one of the three balance.overdraft_*
+// lib-streaming events for an overdraft companion operation. IMPORTANT
+// posture: build and emit failures are span-recorded and logged at Warn,
+// never returned. Coexists with the legacy
+// transaction.overdraft_events rabbit publish during the cutover window;
+// the rabbit publish is removed in a follow-up task.
+//
+// Routes the action discriminator to the corresponding event-type
+// constructor + ToEmitRequest variant so the wire DefinitionKey,
+// topic name, and payload.Action field stay consistent. Unknown actions
+// (defense-in-depth: classifyOverdraftOperation should never return one
+// outside the drawn/repaid/cleared set) are skipped with a Warn log.
+//
+// Wire-format mapping lives in pkg/streaming/events/balance_overdraft.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitBalanceOverdraftEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction, ep overdraftEventItem) {
+	if ep.op == nil {
+		return
+	}
+
+	src := events.BalanceOverdraftSource{
+		BalanceID:        ep.op.BalanceID,
+		AccountID:        ep.op.AccountID,
+		OrganizationID:   tran.OrganizationID,
+		LedgerID:         tran.LedgerID,
+		AssetCode:        ep.op.AssetCode,
+		TransactionID:    tran.ID,
+		OperationID:      ep.op.ID,
+		Amount:           ep.amount,
+		OverdraftBalance: ep.afterAvail,
+		OccurredAt:       ep.payload.Timestamp,
+	}
+
+	var (
+		definitionKey string
+		buildFn       func(string) (libStreaming.EmitRequest, error)
+	)
+
+	switch ep.action {
+	case OverdraftActionDrawn:
+		definitionKey = events.BalanceOverdraftDrawnDefinition.Key()
+		buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewBalanceOverdraftDrawn(src).ToEmitRequestDrawn(tenantID, src.OccurredAt)
+		}
+	case OverdraftActionRepaid:
+		definitionKey = events.BalanceOverdraftRepaidDefinition.Key()
+		buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewBalanceOverdraftRepaid(src).ToEmitRequestRepaid(tenantID, src.OccurredAt)
+		}
+	case OverdraftActionCleared:
+		definitionKey = events.BalanceOverdraftClearedDefinition.Key()
+		buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewBalanceOverdraftCleared(src).ToEmitRequestCleared(tenantID, src.OccurredAt)
+		}
+	default:
+		logger.Log(ctx, libLog.LevelWarn, "Unknown overdraft action; skipping lib-streaming emit",
+			libLog.String("action", ep.action))
+
+		return
+	}
+
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 }
 
 // classifyOverdraftOperation determines the event action for a companion

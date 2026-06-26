@@ -11,14 +11,37 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
+	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto"
+	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
 )
 
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
-	EventListener *tmevent.TenantEventListener
+	EventListener  *tmevent.TenantEventListener
+	EncryptionMode crypto.EncryptionMode
+	VaultClient    *vault.Client
+	// Encryption repositories - only populated in envelope encryption mode.
+	// These are nil in legacy mode (KMS_VENDOR=none or empty).
+	KeysetRepo   mongoEncryption.KeysetRepository
+	RegistryRepo mongoEncryption.RegistryRepository
+	// AuditRepo is the read-side protection audit repository. It is only
+	// populated in envelope encryption mode and is nil in legacy mode
+	// (KMS_VENDOR=none or empty); the audit endpoint stays unregistered then.
+	AuditRepo audit.Repository
+
+	// Encryption services - only populated in envelope encryption mode.
+	// These are nil in legacy mode (KMS_VENDOR=none or empty).
+	EncryptionService       encryption.EncryptionService
+	ProvisioningService     encryption.ProvisioningService
+	ProtectionStateResolver *encryption.ProtectionStateResolver
+	KeysetManager           *encryption.KeysetManager
+
 	libLog.Logger
 }
 

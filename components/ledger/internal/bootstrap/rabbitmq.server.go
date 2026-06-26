@@ -11,9 +11,10 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
-	"github.com/LerianStudio/lib-commons/v5/commons/opentelemetry/metrics"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -66,10 +67,15 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 // Extracted as a package-level function so both the single-tenant MultiQueueConsumer
 // and the multi-tenant consumer can reuse the same logic.
 func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
+
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before processing", err)
+		return err
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
 
@@ -108,10 +114,15 @@ func (mq *MultiQueueConsumer) handlerBTOBulkQueue(ctx context.Context, messages 
 // It unmarshals all messages, extracts payloads, and calls CreateBulkTransactionOperationsAsync.
 // The metricsFactory parameter can be nil when telemetry is disabled.
 func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *command.UseCase, metricsFactory *metrics.MetricsFactory) ([]rabbitmq.BulkMessageResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update_bulk")
 	defer span.End()
+
+	if err := ctx.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before processing", err)
+		return nil, err
+	}
 
 	startTime := time.Now()
 

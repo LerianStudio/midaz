@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -21,7 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================
@@ -33,12 +34,19 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	t.Helper()
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
+
+	// Use FieldEncryptorAdapter wrapping EncryptionService with lib-commons crypto
+	// This matches production behavior when KMS vendor is none
 	crypto := testutils.SetupCrypto(t)
 
-	return &MongoDBRepository{
-		connection:   conn,
-		DataSecurity: crypto,
-	}
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
+
+	repo, err := NewMongoDBRepository(conn, fe)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================
@@ -99,10 +107,20 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	require.True(t, ok, "document should be stored as string")
 	assert.NotEqual(t, originalDocument, storedDoc, "document should be encrypted in storage")
 
-	// Search hash should be present
-	search, ok := rawDoc["search"].(bson.M)
+	// Search hash should be present. mongo-driver v2 decodes nested documents
+	// into bson.D (v1 produced bson.M), so look up the key on the ordered slice.
+	searchDoc, ok := rawDoc["search"].(bson.D)
 	require.True(t, ok, "search map should exist")
-	assert.NotEmpty(t, search["document"], "document hash should be generated")
+
+	var docHash any
+	for _, e := range searchDoc {
+		if e.Key == "document" {
+			docHash = e.Value
+			break
+		}
+	}
+
+	assert.NotEmpty(t, docHash, "document hash should be generated")
 }
 
 func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {

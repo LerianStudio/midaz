@@ -11,16 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -47,18 +47,73 @@ var ledgerColumnList = []string{
 
 // Repository provides an interface for operations related to ledger entities.
 // It defines methods for creating, finding, updating, and deleting ledgers in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=ledger.postgresql_mock.go --package=ledger . Repository
 type Repository interface {
+	// Create inserts a new Ledger and returns the persisted row scanned from
+	// RETURNING (the source of truth — not the input struct). Maps Postgres
+	// constraint violations to business errors via services.ValidatePGError.
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
+
+	// Find retrieves a single Ledger by organization and ID. Excludes
+	// soft-deleted rows (deleted_at IS NULL). Returns ErrEntityNotFound
+	// (mapped from sql.ErrNoRows) when no matching active row exists.
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
+
+	// FindAll returns a paginated list of active Ledgers for the organization,
+	// honoring the filter's date range, sort order, optional EntityIDs, name
+	// prefix, and status. Soft-deleted rows are excluded.
 	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error)
+
+	// FindByName reports whether an active Ledger with the given name exists
+	// in the organization. Returns (true, ErrLedgerNameConflict) when found,
+	// (false, nil) when not found. The boolean answers "does it exist?" — true
+	// is the conflict signal callers use to short-circuit creation.
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
+
+	// ListByIDs returns active Ledgers in the organization whose IDs are in
+	// the provided slice, ordered by created_at DESC. Returns an empty slice
+	// (not an error) when ids is empty. Soft-deleted rows are excluded.
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
+
+	// Update applies mutable fields (Name, Status) to an active Ledger and
+	// returns the persisted row scanned from RETURNING. Only operates on rows
+	// where deleted_at IS NULL. Does NOT touch settings — use UpdateSettings /
+	// ReplaceSettings / UpdateSettingsAtomic for that. Returns ErrEntityNotFound
+	// (mapped from sql.ErrNoRows) when no matching active row exists.
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
+
+	// Delete soft-deletes a Ledger by setting deleted_at = now() on rows where
+	// deleted_at IS NULL. Returns ErrEntityNotFound when no active row matches.
 	Delete(ctx context.Context, organizationID, id uuid.UUID) error
+
+	// Count returns the number of active (deleted_at IS NULL) Ledgers in the
+	// organization.
 	Count(ctx context.Context, organizationID uuid.UUID) (int64, error)
+
+	// GetSettings returns the settings JSONB of an active Ledger as a map.
+	// Returns an empty (non-nil) map when settings are absent or empty.
+	// Returns ErrEntityNotFound when the ledger does not exist or is soft-deleted.
 	GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
+
+	// UpdateSettings merges the provided settings into the ledger's existing
+	// settings JSONB and returns the merged result. Merge is shallow at the
+	// top level — nested objects are replaced, not deep-merged. Bumps
+	// updated_at. Returns ErrEntityNotFound when the ledger is absent or
+	// soft-deleted.
 	UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
+
+	// ReplaceSettings overwrites the ledger's settings JSONB with the provided
+	// map (no merge). Bumps updated_at. Intended for callers that have already
+	// performed application-level merging/validation. Returns ErrEntityNotFound
+	// when the ledger is absent or soft-deleted.
 	ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
+
+	// UpdateSettingsAtomic performs a read-modify-write under SELECT FOR UPDATE,
+	// invoking mergeFn with the current settings and persisting its result.
+	// Prevents lost updates under concurrent PATCH requests. mergeFn must be
+	// non-nil; returns ErrBadRequest otherwise. Returns ErrEntityNotFound when
+	// the ledger is absent or soft-deleted.
 	UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error)
 }
 
@@ -107,9 +162,8 @@ func (r *LedgerPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, 
 	return r.connection.Resolver(ctx)
 }
 
-// Create a new Ledger entity into Postgresql and returns it.
 func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_ledger")
 	defer span.End()
@@ -140,8 +194,21 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO ledger VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
+	// migrations add columns to ledger. Do not collapse this to table-wide VALUES.
+	ledgerColumns := strings.Join(ledgerColumnList, ", ")
+	insertQuery := fmt.Sprintf(
+		`INSERT INTO ledger (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING %s`,
+		ledgerColumns, ledgerColumns,
+	)
+
+	inserted := &LedgerPostgreSQLModel{}
+
+	var insertedSettingsJSON []byte
+
+	row := db.QueryRowContext(ctx, insertQuery,
 		record.ID,
 		record.Name,
 		record.OrganizationID,
@@ -152,9 +219,19 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		record.DeletedAt,
 		settingsJSON,
 	)
-	if err != nil {
+	if err := row.Scan(
+		&inserted.ID,
+		&inserted.Name,
+		&inserted.OrganizationID,
+		&inserted.Status,
+		&inserted.StatusDescription,
+		&inserted.CreatedAt,
+		&inserted.UpdatedAt,
+		&inserted.DeletedAt,
+		&insertedSettingsJSON,
+	); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
+		if errors.As(err, &pgErr) && pgErr != nil {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
@@ -171,31 +248,20 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		return nil, err
 	}
 
-	spanExec.End()
+	if len(insertedSettingsJSON) > 0 {
+		if err := json.Unmarshal(insertedSettingsJSON, &inserted.Settings); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
+			return nil, err
+		}
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return inserted.ToEntity(), nil
 }
 
-// Find retrieves a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger")
 	defer span.End()
@@ -264,9 +330,8 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	return ledger.ToEntity(), nil
 }
 
-// FindAll retrieves Ledgers entities from the database.
 func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
 	defer span.End()
@@ -366,9 +431,8 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	return ledgers, nil
 }
 
-// FindByName returns error and a boolean indicating if Ledger entities exists by name
 func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger_by_name")
 	defer span.End()
@@ -420,9 +484,8 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	return false, nil
 }
 
-// ListByIDs retrieves Ledgers entities from the database using the provided IDs.
 func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_ledgers_by_ids")
 	defer span.End()
@@ -504,9 +567,8 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	return ledgers, nil
 }
 
-// Update a Ledger entity into Postgresql and returns the Ledger updated.
 func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger")
 	defer span.End()
@@ -523,43 +585,62 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	record := &LedgerPostgreSQLModel{}
 	record.FromEntity(ledger)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if ledger.Name != "" {
-		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Name)
-	}
-
-	if ledger.OrganizationID != "" {
-		updates = append(updates, "organization_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.OrganizationID)
+		builder = builder.Set("name", record.Name)
 	}
 
 	if !ledger.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	builder = builder.Suffix("RETURNING " + strings.Join(ledgerColumnList, ", "))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 
-	args = append(args, record.UpdatedAt, organizationID, id)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build update query: %v", err))
 
-	query := `UPDATE ledger SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	updated := &LedgerPostgreSQLModel{}
+
+	var settingsJSON []byte
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.OrganizationID,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+		&settingsJSON,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update ledger. Rows affected is 0", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
@@ -578,31 +659,20 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		return nil, err
 	}
 
-	spanExec.End()
+	if len(settingsJSON) > 0 {
+		if err := json.Unmarshal(settingsJSON, &updated.Settings); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
+			return nil, err
+		}
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
-// Delete removes a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_ledger")
 	defer span.End()
@@ -647,9 +717,8 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	return nil
 }
 
-// Count retrieves the number of Ledger entities in the database for the given organization ID.
 func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_ledgers")
 	defer span.End()
@@ -678,9 +747,8 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 	return count, nil
 }
 
-// GetSettings retrieves the settings for a ledger by its ID.
 func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.get_ledger_settings")
 	defer span.End()
@@ -735,10 +803,9 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 	return settings, nil
 }
 
-// UpdateSettings updates the settings for a ledger using JSONB merge semantics.
-// New settings are merged with existing settings using PostgreSQL's || operator.
+// Implementation note: merges via PostgreSQL's JSONB || operator (top-level only).
 func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings")
 	defer span.End()
@@ -824,11 +891,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	return updatedSettings, nil
 }
 
-// ReplaceSettings completely replaces the settings for a ledger.
-// Unlike UpdateSettings which merges, this method overwrites the entire settings JSONB.
-// Used by the service layer after performing application-level validation and merging.
 func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.replace_ledger_settings")
 	defer span.End()
@@ -904,12 +968,9 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 	return updatedSettings, nil
 }
 
-// UpdateSettingsAtomic performs an atomic read-modify-write operation on ledger settings.
-// It uses SELECT FOR UPDATE to lock the row, preventing concurrent modifications.
-// The mergeFn receives the current settings and returns the merged settings to be written.
-// This prevents lost updates under concurrent PATCH requests.
+// Implementation note: uses SELECT FOR UPDATE inside a transaction to lock the row.
 func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings_atomic")
 	defer span.End()

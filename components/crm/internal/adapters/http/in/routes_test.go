@@ -11,6 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,6 +178,114 @@ func TestNewRouter_PublicEndpointsBypassTenantMiddleware(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode,
 				"public endpoint %s must be accessible without tenant context", tt.path)
+		})
+	}
+}
+
+func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
+	t.Parallel()
+
+	app := NewRouter(
+		&libLog.GoLogger{},
+		&libOpentelemetry.Telemetry{},
+		&middleware.AuthClient{Enabled: false},
+		nil,
+		nil,
+		&HolderHandler{},
+		&AliasHandler{},
+		nil, // EncryptionHandler - nil is acceptable for this test
+		nil, // AuditHandler - nil is acceptable for this test
+	)
+
+	for _, path := range []string{
+		"/swagger/index.html",
+		"/swagger/doc.json",
+		"/swagger/swagger-ui.css",
+		"/swagger/swagger-ui-bundle.js",
+		"/swagger/swagger-ui-standalone-preset.js",
+	} {
+		path := path
+
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	}
+}
+
+func TestNewRouter_AuditRouteRegistration(t *testing.T) {
+	t.Parallel()
+
+	// validOrgID is a syntactically valid UUID; a non-UUID value would be
+	// rejected by ParseUUIDPathParameters with 400 before reaching the handler.
+	const nonUUIDOrgID = "not-a-uuid"
+
+	tests := []struct {
+		name         string
+		auditHandler *AuditHandler
+		// wantNotFound asserts the route is ABSENT (legacy mode -> nil handler).
+		wantNotFound bool
+	}{
+		{
+			name:         "nil audit handler leaves route unregistered (legacy mode -> 404)",
+			auditHandler: nil,
+			wantNotFound: true,
+		},
+		{
+			name:         "non-nil audit handler registers route (non-UUID org -> 400 from ParseUUIDPathParameters)",
+			auditHandler: &AuditHandler{},
+			wantNotFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := NewRouter(
+				&libLog.GoLogger{},
+				&libOpentelemetry.Telemetry{},
+				&middleware.AuthClient{Enabled: false},
+				nil,
+				nil,
+				&HolderHandler{},
+				&AliasHandler{},
+				nil, // EncryptionHandler not needed for this test
+				tt.auditHandler,
+			)
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/v1/organizations/"+nonUUIDOrgID+"/protection/audit", nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					_, _ = io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+				}
+			}()
+
+			if tt.wantNotFound {
+				assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+					"route must be ABSENT when auditHandler is nil (legacy mode)")
+			} else {
+				// Route is registered: a non-UUID org id is rejected by
+				// ParseUUIDPathParameters with 400 BEFORE the handler runs,
+				// proving the route exists (it is not a 404).
+				assert.NotEqual(t, http.StatusNotFound, resp.StatusCode,
+					"route must be REGISTERED when auditHandler is non-nil")
+				assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+					"non-UUID organization_id must be rejected with 400 by ParseUUIDPathParameters")
+			}
 		})
 	}
 }

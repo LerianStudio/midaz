@@ -7,6 +7,7 @@ package operation
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -41,6 +42,21 @@ func parseDecimalOrZero(s string) decimal.Decimal {
 	}
 
 	return d
+}
+
+// inferLegacyDirectionFromType derives operation.direction from operation.type
+// for rows persisted before the direction column was populated by the write path.
+// The mapping is frozen from v3.5.3 semantics; unknown and post-v3.5.3-only types
+// return an empty string so downstream validation can surface the anomaly.
+func inferLegacyDirectionFromType(operationType string) string {
+	switch strings.ToUpper(operationType) {
+	case constant.DEBIT, constant.ONHOLD:
+		return constant.DirectionDebit
+	case constant.CREDIT, constant.RELEASE:
+		return constant.DirectionCredit
+	default:
+		return ""
+	}
 }
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -419,7 +435,11 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.Route = *t.Route
 	}
 
-	Operation.Direction = t.Direction
+	if t.Direction != "" {
+		Operation.Direction = t.Direction
+	} else {
+		Operation.Direction = inferLegacyDirectionFromType(t.Type)
+	}
 
 	if t.RouteID != nil {
 		Operation.RouteID = t.RouteID

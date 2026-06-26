@@ -12,13 +12,18 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateAsset creates an asset and metadata synchronously and ensures an external
@@ -26,7 +31,7 @@ import (
 // creates the default balance for that account.
 // The balance is created via the BalancePort interface.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
-	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
@@ -94,6 +99,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		return nil, err
 	}
+
+	uc.emitAssetCreatedEvent(ctx, span, logger, inst)
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
@@ -173,7 +180,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			AllowReceiving: true,
 		}
 
-		_, err = uc.CreateBalanceSync(ctx, balanceInput)
+		_, err = uc.CreateDefaultBalance(ctx, balanceInput)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 
@@ -199,7 +206,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 // validateAssetCode checks the provided asset code and maps validation errors to business errors.
 func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.validate_asset_code")
 	defer span.End()
@@ -224,4 +231,26 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 	}
 
 	return nil
+}
+
+// emitAssetCreatedEvent publishes the asset.created event for a
+// successfully persisted asset. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after AssetRepo.Create succeeds and
+// before CreateOnboardingMetadata runs, so a downstream Mongo failure
+// cannot mask the event. The implicit external account / default
+// balance created later in this use case go through AccountRepo and
+// BalancePort directly — NOT through UseCase.CreateAccount — so they
+// produce no account.created event.
+//
+// Wire-format mapping lives in pkg/streaming/events/asset_created.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitAssetCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Asset) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AssetCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAssetCreated(a).ToEmitRequest(tenantID, a.CreatedAt)
+		})
 }

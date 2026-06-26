@@ -282,7 +282,7 @@ local function main()
         --   - Available:   Balance calculations (DEBIT/CREDIT)
         --   - OnHold:      Balance calculations (ON_HOLD/RELEASE)
         --   - Version:     Optimistic concurrency control
-        --   - AccountType: Validation 0018 (external account cannot have positive balance)
+        --   - AccountType: External-account carve-outs (skip overdraft/floor logic)
         --   - AccountID:   Returned to Go for operation tracking
         --   - Direction:   Direction-aware overdraft gating ("credit" vs "debit")
         --   - OverdraftUsed:        Tracked when a debit exceeds Available
@@ -565,14 +565,6 @@ local function main()
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("0018")
             end
-        end
-
-        -- External accounts cannot have positive balance (they represent debt to external entities)
-        -- This validation MUST be atomic to prevent race conditions where two concurrent
-        -- transactions both credit an external account
-        if operation == "CREDIT" and balance.AccountType == "external" and isPositive(result) then
-            rollback(rollbackBalances, ttl)
-            return redis.error_reply("0018")
         end
 
         -- Only update balance and increment version if there was an actual change.

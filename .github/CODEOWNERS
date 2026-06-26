@@ -3,6 +3,7 @@
 
 # CI/CD and DevOps configurations
 .github/**                          @LerianStudio/g_github_devops
+.releaserc.yml                      @LerianStudio/g_github_devops
 .githooks/**                        @LerianStudio/g_github_devops
 
 # Components

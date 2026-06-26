@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +58,38 @@ func TestNewRouter_HealthEndpointReturns200(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
+	t.Parallel()
+
+	logger := &libLog.GoLogger{}
+	telemetry := &libOpentelemetry.Telemetry{}
+	auth := &middleware.AuthClient{Enabled: false}
+	handler := &MetadataIndexHandler{}
+
+	app := NewRouter(logger, telemetry, auth, handler)
+
+	for _, path := range []string{
+		"/swagger/index.html",
+		"/swagger/doc.json",
+		"/swagger/swagger-ui.css",
+		"/swagger/swagger-ui-bundle.js",
+		"/swagger/swagger-ui-standalone-preset.js",
+	} {
+		path := path
+
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(fiber.MethodGet, path, nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+		})
+	}
 }
 
 func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {

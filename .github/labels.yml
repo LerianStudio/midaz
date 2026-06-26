@@ -1,0 +1,118 @@
+# Label definitions for midaz
+# Synced via .github/workflows/routine.yml -> shared labels-sync.
+
+- name: "area: crm"
+  color: "fbca04"
+  description: CRM component
+
+- name: "area: ledger"
+  color: "0052cc"
+  description: Ledger component
+
+- name: "area: infra"
+  color: "0db7ed"
+  description: Infrastructure component
+
+- name: "area: pkg"
+  color: "7c3aed"
+  description: Reusable public packages
+
+- name: "area: migrations"
+  color: "0052cc"
+  description: SQL migrations
+
+- name: "area: scripts"
+  color: "f9d0c4"
+  description: Build and tooling scripts
+
+- name: "area: ci/cd"
+  color: "2088FF"
+  description: GitHub Actions workflows and release configuration
+
+- name: "area: documentation"
+  color: "0075ca"
+  description: Documentation and markdown content
+
+- name: "area: tests"
+  color: "00ADD8"
+  description: Unit, integration and end-to-end tests
+
+- name: "area: dependencies"
+  color: "ededed"
+  description: Go module dependencies
+
+- name: "area: build"
+  color: "0db7ed"
+  description: Makefile, Dockerfile and local-stack definitions
+
+- name: bug
+  color: "d73a4a"
+  description: Something is not working as expected
+
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement request
+
+- name: dependencies
+  color: "ededed"
+  description: Dependency updates (Dependabot)
+
+- name: github-actions
+  color: "2088FF"
+  description: Updates to GitHub Actions dependencies
+
+- name: breaking-change
+  color: "b60205"
+  description: Callers must update their integration after this change
+
+- name: skip-changelog
+  color: "ffffff"
+  description: This change does not need a changelog entry
+
+- name: size/XS
+  color: "3CBF00"
+  description: "PR changes < 50 lines"
+
+- name: size/S
+  color: "5D9801"
+  description: "PR changes 50-199 lines"
+
+- name: size/M
+  color: "7F7203"
+  description: "PR changes 200-499 lines"
+
+- name: size/L
+  color: "A14C05"
+  description: "PR changes 500-999 lines"
+
+- name: size/XL
+  color: "C32607"
+  description: "PR changes >= 1000 lines"
+
+- name: triage
+  color: "e4e669"
+  description: Needs initial assessment
+
+- name: stale
+  color: "795548"
+  description: No recent activity -- will be closed if not updated
+
+- name: no-stale
+  color: "fef2c0"
+  description: Exempt from stale auto-close
+
+- name: work-in-progress
+  color: "ffa500"
+  description: Active work -- exempt from stale auto-close
+
+- name: pinned
+  color: "d4a017"
+  description: Pinned discussion/tracker -- exempt from stale auto-close
+
+- name: released
+  color: "0e8a16"
+  description: Published in a stable release (set by semantic-release)
+
+- name: "released on @develop"
+  color: "c2e0c6"
+  description: Published in a develop pre-release (set by semantic-release)

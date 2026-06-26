@@ -119,10 +119,10 @@ func TestIntegration_SegmentRepository_Find_IgnoresDeletedSegment(t *testing.T) 
 }
 
 // ============================================================================
-// FindByName Tests
+// ExistsByName Tests
 // ============================================================================
 
-func TestIntegration_SegmentRepository_FindByName_ReturnsTrueForDuplicate(t *testing.T) {
+func TestIntegration_SegmentRepository_ExistsByName_ReturnsTrueForDuplicate(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 
 	repo := createRepository(t, container)
@@ -139,10 +139,10 @@ func TestIntegration_SegmentRepository_FindByName_ReturnsTrueForDuplicate(t *tes
 	ctx := context.Background()
 
 	// Act
-	isDuplicate, err := repo.FindByName(ctx, orgID, ledgerID, "Unique Segment Name")
+	exists, err := repo.ExistsByName(ctx, orgID, ledgerID, "Unique Segment Name")
 
 	// Assert
-	assert.True(t, isDuplicate, "should return true when duplicate is found")
+	assert.True(t, exists, "should return true when segment name exists")
 	require.Error(t, err, "should return error for duplicate")
 
 	var conflictErr pkg.EntityConflictError
@@ -150,7 +150,7 @@ func TestIntegration_SegmentRepository_FindByName_ReturnsTrueForDuplicate(t *tes
 	assert.Equal(t, constant.ErrDuplicateSegmentName.Error(), conflictErr.Code, "error code should be ErrDuplicateSegmentName")
 }
 
-func TestIntegration_SegmentRepository_FindByName_ReturnsFalseWhenNotFound(t *testing.T) {
+func TestIntegration_SegmentRepository_ExistsByName_ReturnsFalseWhenNotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 
 	repo := createRepository(t, container)
@@ -161,10 +161,10 @@ func TestIntegration_SegmentRepository_FindByName_ReturnsFalseWhenNotFound(t *te
 	ctx := context.Background()
 
 	// Act
-	isDuplicate, err := repo.FindByName(ctx, orgID, ledgerID, "Non Existent Segment")
+	exists, err := repo.ExistsByName(ctx, orgID, ledgerID, "Non Existent Segment")
 
 	// Assert
-	assert.False(t, isDuplicate, "should return false when no duplicate found")
+	assert.False(t, exists, "should return false when segment name does not exist")
 	require.NoError(t, err, "should not return error when no duplicate")
 }
 

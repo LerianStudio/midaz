@@ -7,33 +7,36 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
+	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteOrganizationByID deletes an organization from the repository.
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.delete_organization_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove organization for id: %s", id))
+	logger.Log(ctx, libLog.LevelInfo, "Removing organization", libLog.String("organization_id", id.String()))
 
 	if err := uc.OrganizationRepo.Delete(ctx, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, constant.EntityOrganization)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Organization ID not found: %s", id.String()))
+			logger.Log(ctx, libLog.LevelWarn, "Organization ID not found", libLog.String("organization_id", id.String()))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete organization on repo by id", err)
 
@@ -42,10 +45,23 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 
 		libOpentelemetry.HandleSpanError(span, "Failed to delete organization on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting organization: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete organization", libLog.Err(err))
 
 		return err
 	}
 
+	deletedAt := time.Now()
+	uc.emitOrganizationDeletedEvent(ctx, span, logger, id.String(), deletedAt)
+
 	return nil
+}
+
+// emitOrganizationDeletedEvent publishes the organization.deleted event for a
+// successfully soft-deleted organization. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+func (uc *UseCase) emitOrganizationDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id string, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewOrganizationDeleted(id, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

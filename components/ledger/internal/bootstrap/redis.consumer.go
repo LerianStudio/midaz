@@ -16,11 +16,12 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -248,7 +249,7 @@ func podIdentifier() string {
 }
 
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -319,16 +320,18 @@ Outer:
 // and operations, and writes the transaction via the async path.
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
+//
+//nolint:gocognit,gocyclo // Will be refactored into smaller helpers; tracked separately.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	logger := r.Logger.With(libLog.String(libConstants.HeaderID, m.HeaderID))
 
-	ctxWithLogger := libCommons.ContextWithLogger(
-		libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
+	ctxWithLogger := libObservability.ContextWithLogger(
+		libObservability.ContextWithHeaderID(msgCtx, m.HeaderID),
 		logger,
 	)
 
@@ -418,7 +421,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    m.TransactionInput.Route,
+		Route:                    m.TransactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{

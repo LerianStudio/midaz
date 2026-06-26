@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -49,6 +48,12 @@ func TestUpdateTransactionRouteSuccess(t *testing.T) {
 	expectedMetadata := map[string]any{"key": "updated_value"}
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	// Default mock: no current operation-route links when input.OperationRoutes is nil.
+	// Returns an empty map so the post-update hydration path is a no-op.
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -68,12 +73,12 @@ func TestUpdateTransactionRouteSuccess(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), expectedMetadata).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), expectedMetadata).
 		Return(nil).
 		Times(1)
 
@@ -102,6 +107,12 @@ func TestUpdateTransactionRouteNotFound(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	// Default mock: no current operation-route links when input.OperationRoutes is nil.
+	// Returns an empty map so the post-update hydration path is a no-op.
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -118,7 +129,7 @@ func TestUpdateTransactionRouteNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 	assert.Equal(t, expectedBusinessError, err)
 	assert.Nil(t, result)
 }
@@ -140,6 +151,12 @@ func TestUpdateTransactionRouteRepositoryError(t *testing.T) {
 	expectedError := errors.New("database connection error")
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	// Default mock: no current operation-route links when input.OperationRoutes is nil.
+	// Returns an empty map so the post-update hydration path is a no-op.
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -185,6 +202,12 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 	metadataError := errors.New("metadata update error")
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	// Default mock: no current operation-route links when input.OperationRoutes is nil.
+	// Returns an empty map so the post-update hydration path is a no-op.
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -198,7 +221,7 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, metadataError).
 		Times(1)
 
@@ -299,13 +322,13 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), input.Metadata).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), input.Metadata).
 		Return(nil).
 		Times(1)
 
@@ -343,7 +366,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteCount(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, constant.EntityTransactionRoute)
 	assert.Equal(t, expectedBusinessError, err)
 }
 
@@ -372,6 +395,12 @@ func TestUpdateTransactionRouteWithoutOperationRoutes(t *testing.T) {
 	}
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	// Default mock: no current operation-route links when input.OperationRoutes is nil.
+	// Returns an empty map so the post-update hydration path is a no-op.
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -389,12 +418,12 @@ func TestUpdateTransactionRouteWithoutOperationRoutes(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), input.Metadata).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), input.Metadata).
 		Return(nil).
 		Times(1)
 
@@ -454,7 +483,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedBusinessError, err)
 }
 
@@ -532,13 +561,13 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), input.Metadata).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), input.Metadata).
 		Return(nil).
 		Times(1)
 
@@ -617,13 +646,13 @@ func TestHandleOperationRouteUpdatesDiffsByRouteID(t *testing.T) {
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), gomock.Any()).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), gomock.Any()).
 		Return(nil).
 		Times(1)
 
@@ -703,13 +732,13 @@ func TestHandleOperationRouteUpdatesDuplicateInputsDeduplication(t *testing.T) {
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
 	uc.TransactionMetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRouteID.String(), gomock.Any()).
+		Update(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String(), gomock.Any()).
 		Return(nil).
 		Times(1)
 
@@ -750,7 +779,7 @@ func TestUpdateTransactionRouteEmptyOperationRoutes(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, constant.EntityTransactionRoute)
 	assert.Equal(t, expectedBusinessError, err)
 }
 
@@ -834,7 +863,7 @@ func TestHandleOperationRouteUpdates_ErrorPaths(t *testing.T) {
 				TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
 			}
 
-			toAdd, toRemove, err := uc.handleOperationRouteUpdates(
+			toAdd, toRemove, _, err := uc.handleOperationRouteUpdates(
 				context.Background(), organizationID, ledgerID, transactionRouteID, validInputs,
 			)
 
@@ -947,7 +976,7 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 				TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
 			}
 
-			toAdd, toRemove, err := uc.handleOperationRouteUpdates(
+			toAdd, toRemove, _, err := uc.handleOperationRouteUpdates(
 				context.Background(), organizationID, ledgerID, transactionRouteID, tt.newInputs,
 			)
 
@@ -1008,7 +1037,7 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
 	}
 
-	toAdd, toRemove, err := uc.handleOperationRouteUpdates(
+	toAdd, toRemove, _, err := uc.handleOperationRouteUpdates(
 		context.Background(), organizationID, ledgerID, transactionRouteID, newInputs,
 	)
 

@@ -13,8 +13,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,7 +44,7 @@ type AliasHandler struct {
 func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_alias")
 	defer span.End()
@@ -97,7 +98,7 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_alias_by_id")
 	defer span.End()
@@ -157,7 +158,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_alias")
 	defer span.End()
@@ -232,7 +233,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.remove_alias_by_id")
 	defer span.End()
@@ -303,7 +304,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_aliases")
 	defer span.End()
@@ -384,7 +385,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_related_party")
 	defer span.End()

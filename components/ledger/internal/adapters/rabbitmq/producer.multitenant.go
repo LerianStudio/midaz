@@ -8,11 +8,12 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -20,7 +21,7 @@ import (
 // for audit trail and consumer context in multi-tenant messaging.
 const headerTenantID = "X-Tenant-ID"
 
-//go:generate mockgen -source=./components/ledger/internal/adapters/rabbitmq/producer.multitenant.go -destination=./components/ledger/internal/adapters/rabbitmq/producer.multitenant_mock.go -package=rabbitmq
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=producer.multitenant.go -destination=producer.multitenant_mock.go -package=rabbitmq
 
 // PublishableChannel abstracts the amqp.Channel operations used during message
 // publishing. *amqp.Channel satisfies this interface, enabling unit-test mocking
@@ -116,7 +117,7 @@ func (p *MultiTenantProducerRepository) Close() error {
 
 // publish is the shared implementation for ProducerDefault and ProducerDefaultWithContext.
 func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, key string, message []byte, spanName string) (*string, error) {
-	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqID, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()

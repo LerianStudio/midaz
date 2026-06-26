@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -16,12 +15,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -60,12 +59,12 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID2.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
@@ -97,7 +96,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockTransactionRouteRepo.EXPECT().
@@ -132,7 +131,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 			Return(nil, errors.New("metadata repository error"))
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
@@ -157,7 +156,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 			Return(nil, nil)
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
@@ -183,14 +182,14 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockTransactionRouteRepo.EXPECT().
@@ -218,14 +217,14 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
 		}
 
 		mockMetadataRepo.EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 			Return(expectedMetadata, nil)
 
 		mockTransactionRouteRepo.EXPECT().

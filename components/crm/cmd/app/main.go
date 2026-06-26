@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
@@ -21,11 +21,11 @@ import (
 // @description				The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.
 // @host						localhost:4003
 // @BasePath					/
+// @schemes					http
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
 // @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
-// @Security					BearerAuth
 func main() {
 	libCommons.InitLocalEnvConfig()
 

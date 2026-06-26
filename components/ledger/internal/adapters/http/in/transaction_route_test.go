@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -242,7 +241,7 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionRouteID uuid.UUID) {
 				transactionRouteRepo.EXPECT().
 					FindByID(gomock.Any(), orgID, ledgerID, transactionRouteID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -366,28 +365,12 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 					Return(nil).
 					Times(1)
 
-				// GetTransactionRouteByID in query use case to return updated transaction route
+				// Post-update hydration path (no operation routes provided in
+				// the PATCH body, so the use case fetches the current join-
+				// table state). Empty map: no links to hydrate.
 				transactionRouteRepo.EXPECT().
-					FindByID(gomock.Any(), orgID, ledgerID, transactionRouteID).
-					Return(&mmodel.TransactionRoute{
-						ID:             transactionRouteID,
-						OrganizationID: orgID,
-						LedgerID:       ledgerID,
-						Title:          "Updated Payment Settlement",
-						Description:    "Updated route description",
-						CreatedAt:      time.Now().Add(-time.Hour),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetTransactionRouteByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "TransactionRoute", transactionRouteID.String()).
-					Return(&mongodb.Metadata{
-						EntityID:   transactionRouteID.String(),
-						EntityName: "TransactionRoute",
-						Data:       map[string]any{"category": "updated-settlement"},
-					}, nil).
+					FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+					Return(map[uuid.UUID][]uuid.UUID{}, nil).
 					Times(1)
 
 				// Create cache after update (error is logged but not returned)
@@ -416,7 +399,7 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionRouteID uuid.UUID) {
 				transactionRouteRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, transactionRouteID, gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -559,7 +542,7 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionRouteID uuid.UUID) {
 				transactionRouteRepo.EXPECT().
 					FindByID(gomock.Any(), orgID, ledgerID, transactionRouteID).
-					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityTransactionRoute)).
 					Times(1)
 			},
 			expectedStatus: 404,

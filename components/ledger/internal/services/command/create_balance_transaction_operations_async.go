@@ -10,13 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -42,7 +42,7 @@ import (
 // The Lua script (balance_atomic_operation.lua) does ZADD to schedule:balance-sync
 // when scheduleSync=1, which is the default for all balance-affecting transactions.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	var t transaction.TransactionProcessingPayload
 
@@ -86,7 +86,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
 
-	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to create or update transaction", err)
 
@@ -98,7 +98,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
-	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
+	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, constant.EntityTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateMetadata, "Failed to create metadata on transaction", err)
 
@@ -137,7 +137,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			}
 		}
 
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
+		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create metadata on operation", err)
 
@@ -147,7 +147,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctx, tran)
+	go uc.SendTransactionEvents(ctx, tran, phase)
 	go uc.SendOverdraftEvents(ctx, tran)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
@@ -168,7 +168,29 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
-func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, error) {
+//
+// The string return value carries the lifecycle phase the call resolved
+// to, used by SendTransactionEvents to pick the corresponding
+// lib-streaming event_type:
+//
+//   - TransactionLifecyclePhaseCreated — fresh insert via
+//     TransactionRepo.Create (L193 success). Emits transaction.posted
+//     when ParentTransactionID is nil, transaction.reverted otherwise.
+//   - TransactionLifecyclePhaseUpdated — status transition via the
+//     unique-violation idempotency branch
+//     (UpdateTransactionStatus, L198 success). Emits
+//     transaction.committed when Status.Code is APPROVED,
+//     transaction.canceled when CANCELED.
+//   - TransactionLifecyclePhaseNoop — no state change occurred (e.g.
+//     unique violation with no status transition). Callers must NOT
+//     emit a lifecycle event in this phase.
+//
+// Tracking the phase explicitly inside this function — rather than
+// inferring it from CreatedAt vs UpdatedAt downstream — keeps the
+// branch decision pinned to the actual code path that ran. Inference
+// would be fragile because both timestamps may be touched by DB
+// triggers or msgpack roundtrips before SendTransactionEvents runs.
+func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
 
@@ -201,21 +223,32 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 					logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID))
 
-					return nil, err
+					return nil, TransactionLifecyclePhaseNoop, err
 				}
+
+				// Status transition succeeded via the idempotency branch.
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("skipping to create transaction, transaction already exists: %v", tran.ID))
+
+				return tran, TransactionLifecyclePhaseUpdated, nil
 			}
 
+			// Unique violation with no eligible status transition.
+			// Caller should NOT emit a lifecycle event for this path
+			// (no state change observed on this attempt).
 			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("skipping to create transaction, transaction already exists: %v", tran.ID))
-		} else {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction on repo: %v", err.Error()))
-
-			return nil, err
+			return tran, TransactionLifecyclePhaseNoop, nil
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction on repo: %v", err.Error()))
+
+		return nil, TransactionLifecyclePhaseNoop, err
 	}
 
-	return tran, nil
+	// Fresh insert succeeded.
+	return tran, TransactionLifecyclePhaseCreated, nil
 }
 
 // CreateMetadataAsync func that create metadata into operations
@@ -241,7 +274,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 
 // CreateBTOSync func that create balance transaction operations synchronously
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_balance_transaction_operations.create_bto_sync")
 	defer span.End()
@@ -307,7 +340,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
-	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, _, reqId, _ := libObs.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	// Scope protection: a transaction that targets any internal-scope
@@ -397,7 +430,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 // This is a best-effort operation: failures are logged but do not block
 // the main transaction flow.
 func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation, actionOverride ...string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
 	defer span.End()

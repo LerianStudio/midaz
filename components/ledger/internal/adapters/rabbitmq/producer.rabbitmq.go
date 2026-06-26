@@ -10,16 +10,19 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
 // It defines methods for sending messages to a queue.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=producer.rabbitmq.go -destination=producer.rabbitmq_mock.go -package=rabbitmq
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	// ProducerDefaultWithContext sends message with explicit context timeout control.
@@ -71,7 +74,7 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelInfo, "Init sent message", libLog.String("exchange", exchange), libLog.String("key", key))
 
@@ -130,7 +133,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 // ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
 // Uses EnsureChannelWithContext to respect context deadline for connection attempts.
 func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelInfo, "Init sent message with context", libLog.String("exchange", exchange), libLog.String("key", key))
 

@@ -11,18 +11,18 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -59,7 +59,7 @@ var balanceColumnList = []string{
 // Repository provides an interface for operations related to balance template entities.
 // It defines methods for creating, finding, listing, updating, and deleting balance templates.
 //
-//go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
@@ -127,7 +127,7 @@ func (r *BalancePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 }
 
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_balance")
 	defer span.End()
@@ -215,7 +215,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 // ListByAccountIDs list Balances entity from the database using the provided accountIDs.
 func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIds []uuid.UUID) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_ids")
 	defer span.End()
@@ -307,7 +307,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 // ListByIDs retrieves balances by their balance IDs.
 func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_balance_ids")
 	defer span.End()
@@ -403,7 +403,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 // ListAll list Balances entity from the database.
 func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances")
 	defer span.End()
@@ -535,7 +535,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 
 // ListAllByAccountID list Balances entity from the database using the provided accountID.
 func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances_by_account_id")
 	defer span.End()
@@ -668,7 +668,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 
 // ListByAliases list Balances entity from the database using the provided aliases.
 func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases")
 	defer span.End()
@@ -762,7 +762,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 // ListByAliasesWithKeys list Balances entity from the database using the provided alias#key pairs.
 func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases_with_keys")
 	defer span.End()
@@ -887,7 +887,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 // Net effect: this method keeps the hot commit path narrow (no overdraft
 // coupling), while `UpdateMany` (sync worker path) owns overdraft_used durability.
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
@@ -982,7 +982,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 
 // Find retrieves a balance entity from the database using the provided ID.
 func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_balance")
 	defer span.End()
@@ -1043,7 +1043,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -1064,7 +1064,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // FindByAccountIDAndKey retrieves a balance record based on accountID and key within the specified organization and ledger.
 func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_balance_by_account_id_and_key")
 	defer span.End()
@@ -1116,7 +1116,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
@@ -1137,7 +1137,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 
 // ExistsByAccountIDAndKey returns true if a balance exists for the given accountID and key within the specified organization and ledger.
 func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.exists_balance_by_account_id_and_key")
 	defer span.End()
@@ -1191,7 +1191,7 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 
 // Delete marks a balance as deleted in the database using the ID provided
 func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_balance")
 	defer span.End()
@@ -1233,7 +1233,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance. Rows affected is 0", err)
 
@@ -1247,7 +1247,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 // DeleteAllByIDs marks all provided balances as deleted in the database using the IDs provided
 func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_balances")
 	defer span.End()
@@ -1318,7 +1318,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	}
 
 	if rowsAffected != int64(len(ids)) {
-		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balances. Rows affected mismatch", err)
 
@@ -1349,8 +1349,12 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 // The use-case layer is responsible for validating the settings payload and
 // enforcing overdraft transition invariants before calling Update — the
 // repository trusts the inbound value.
+//
+// Uses squirrel + RETURNING with conditional .Set() per field so callers can
+// PATCH any subset of {allow_sending, allow_receiving, settings} without the
+// repo emitting placeholder strings for fields the request omits.
 func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
 	defer span.End()
@@ -1358,27 +1362,19 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.update.query")
-	defer spanQuery.End()
-
-	var updates []string
-
-	var args []any
+	qb := squirrel.Update(r.tableName)
 
 	if balance.AllowSending != nil {
-		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.AllowSending)
+		qb = qb.Set("allow_sending", *balance.AllowSending)
 	}
 
 	if balance.AllowReceiving != nil {
-		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.AllowReceiving)
+		qb = qb.Set("allow_receiving", *balance.AllowReceiving)
 	}
 
 	if balance.Settings != nil {
@@ -1389,28 +1385,33 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		settingsJSON, marshalErr := json.Marshal(balance.Settings)
 		if marshalErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to marshal balance settings", marshalErr)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal balance settings: %v", marshalErr))
+			logger.Log(ctx, libLog.LevelError, "Failed to marshal balance settings", libLog.Err(marshalErr))
 
 			return nil, marshalErr
 		}
 
-		updates = append(updates, "settings = $"+strconv.Itoa(len(args)+1)+"::jsonb")
-		args = append(args, settingsJSON)
+		qb = qb.Set("settings", squirrel.Expr("?::jsonb", settingsJSON))
 	}
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, time.Now(), organizationID, ledgerID, id)
+	qb = qb.Set("updated_at", time.Now()).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
+		PlaceholderFormat(squirrel.Dollar)
 
-	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL` +
-		` RETURNING ` + strings.Join(balanceColumnList, ", ")
+	query, args, err := qb.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build update query", libLog.Err(err))
+
+		return nil, err
+	}
+
+	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
 	record := &BalancePostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, queryUpdate, args...)
+	row := db.QueryRowContext(ctx, query, args...)
 	if err = row.Scan(
 		&record.ID,
 		&record.OrganizationID,
@@ -1433,18 +1434,16 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		&record.Settings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance not found: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Balance not found for update", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update balance", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1473,7 +1472,7 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 		return 0, nil
 	}
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.sync_batch")
 	defer span.End()
@@ -1599,7 +1598,7 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 }
 
 func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_all_by_account_id")
 	defer span.End()
@@ -1657,7 +1656,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update balances. Rows affected is 0", err)
 
@@ -1672,7 +1671,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 // ListByAccountID list Balances entity from the database using the provided accountID.
 // This method does not support pagination or date filtering.
 func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id")
 	defer span.End()
@@ -1763,7 +1762,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 // It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
 // Balances without operations at the timestamp are returned with zero values (initial state).
 func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id_at_timestamp")
 	defer span.End()

@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -18,14 +17,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllMetadataOperations is responsible to test GetAllMetadataOperations with success and error
 func TestGetAllMetadataOperations(t *testing.T) {
-	collection := reflect.TypeOf(operation.Operation{}).Name()
+	collection := constant.EntityOperation
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
@@ -45,7 +43,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
+			Return([]*mongodb.Metadata{{ID: bson.NewObjectID()}}, nil).
 			Times(1)
 		res, err := uc.TransactionMetadataRepo.FindList(context.TODO(), collection, filter)
 
@@ -94,12 +92,12 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: opID1Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: opID2Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
@@ -119,7 +117,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
@@ -171,7 +169,7 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(nil, errors.New("metadata not found"))
 
 	uc := &UseCase{
@@ -206,14 +204,14 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: "op1",
 			Data:     map[string]interface{}{"key": "value"},
 		},
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
@@ -252,7 +250,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: "op1",
 			Data:     map[string]interface{}{"key": "value"},
 		},
@@ -261,7 +259,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 	repoError := errors.New("database connection error")
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityOperation, filter).
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().

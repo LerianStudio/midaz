@@ -13,9 +13,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -78,7 +79,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	ctx context.Context,
 	payloads []transaction.TransactionProcessingPayload,
 ) (*BulkResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_bulk_transaction_operations_async")
 	defer span.End()
@@ -547,14 +548,39 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
+		// Determine the lifecycle phase for this payload. The bulk
+		// consumer dispatches BOTH freshly-inserted transactions (the
+		// "created" phase consumed by transaction.posted /
+		// transaction.reverted) AND status-update payloads queued by
+		// /commit and /cancel HTTP handlers (the "updated" phase
+		// consumed by transaction.committed / transaction.canceled).
+		//
+		// Discrimination:
+		//   - insertedTxIDs is populated: the INSERT ... ON CONFLICT
+		//     bulk path ran. tx.ID present in the map means a fresh
+		//     insert; absent means it was a duplicate (already
+		//     handled by the L541 skip above) — so reaching here with
+		//     populated insertedTxIDs means phase=created.
+		//   - insertedTxIDs is empty: status-update or fallback
+		//     scenario. The sync UpdateTransactionStatus at the
+		//     handler already mutated PG; we're emitting the
+		//     post-commit notification → phase=updated.
+		phase := TransactionLifecyclePhaseUpdated
+
+		if len(insertedTxIDs) > 0 {
+			if _, wasInserted := insertedTxIDs[tx.ID]; wasInserted {
+				phase = TransactionLifecyclePhaseCreated
+			}
+		}
+
 		// Send events asynchronously with context that preserves trace but survives parent cancellation
-		go func() {
+		go func(phase string) {
 			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 			defer cancel()
 
-			uc.SendTransactionEvents(opCtx, tx)
+			uc.SendTransactionEvents(opCtx, tx, phase)
 			uc.SendOverdraftEvents(opCtx, tx)
-		}()
+		}(phase)
 	}
 }
 

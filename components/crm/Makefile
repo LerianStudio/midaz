@@ -55,7 +55,7 @@ help:
 	@echo "  make sec                         - Run security checks using gosec"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                          - Start services with Docker Compose"
+	@echo "  make up                          - Start services (auto-detects if Vault is needed from KMS_VENDOR)"
 	@echo "  make down                        - Stop services with Docker Compose"
 	@echo "  make start                       - Start existing containers"
 	@echo "  make stop                        - Stop running containers"
@@ -163,7 +163,7 @@ generate-keys:
 	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
 	@echo ""
 	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
-	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
+	@echo "$(YELLOW)     For saas/byoc, generate keys securely and store in a secrets manager.$(NC)"
 	@echo ""
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Crypto keys generated successfully$(GREEN) ✔️$(NC)"
 
@@ -264,9 +264,20 @@ build-docker:
 
 .PHONY: up
 up:
-	$(call title1,"Starting all services in detached mode")
-	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
+	$(call title1,"Starting services in detached mode")
+	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
+	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected (envelope mode)$(NC)"; \
+		echo "$(CYAN)Starting infra Vault (midaz-hc-vault, midaz-hc-vault-init)...$(NC)"; \
+		($(DOCKER_CMD) -f ../infra/docker-compose.yml up midaz-hc-vault midaz-hc-vault-init -d) || \
+			echo "$(YELLOW)NOTE: Could not start Vault automatically. Start it manually:$(NC)\n$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d && \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started (envelope mode)$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service started (legacy mode)$(GREEN) ✔️$(NC)"; \
+	fi
 
 .PHONY: start
 start:
@@ -276,7 +287,7 @@ start:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers|networks|volumes")
+	$(call title1,"Stopping services and cleaning up")
 	@if [ -f "docker-compose.yml" ]; then \
 		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
 	else \
@@ -301,8 +312,19 @@ rebuild-up:
 	$(call title1,"Rebuilding and restarting services")
 	@$(DOCKER_CMD) -f docker-compose.yml down
 	@$(DOCKER_CMD) -f docker-compose.yml build
-	@$(DOCKER_CMD) -f docker-compose.yml up -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services rebuilt and restarted successfully$(GREEN) ✔️$(NC)"
+	@KMS_VENDOR_VALUE=$$(grep -E "^KMS_VENDOR=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' "'"'"''); \
+	if [ "$$KMS_VENDOR_VALUE" = "hashicorp-vault" ]; then \
+		echo "$(CYAN)KMS_VENDOR=hashicorp-vault detected (envelope mode)$(NC)"; \
+		echo "$(CYAN)Starting infra Vault (midaz-hc-vault, midaz-hc-vault-init)...$(NC)"; \
+		($(DOCKER_CMD) -f ../infra/docker-compose.yml up midaz-hc-vault midaz-hc-vault-init -d) || \
+			echo "$(YELLOW)NOTE: Could not start Vault automatically. Start it manually:$(NC)\n$(YELLOW)  cd ../infra && docker compose up midaz-hc-vault midaz-hc-vault-init -d$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d && \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted (envelope mode)$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(CYAN)KMS_VENDOR=$$KMS_VENDOR_VALUE (legacy mode)$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml up crm -d; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) CRM service rebuilt and restarted (legacy mode)$(GREEN) ✔️$(NC)"; \
+	fi
 
 .PHONY: clean-docker
 clean-docker:
@@ -346,12 +368,18 @@ ps:
 .PHONY: generate-docs
 generate-docs:
 	$(call title1,"Generating Swagger API documentation - CRM")
-	@if ! command -v swag >/dev/null 2>&1; then \
+	@SWAG_BIN=$$(command -v swag 2>/dev/null || true); \
+	if [ -z "$$SWAG_BIN" ]; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
-	@cd $(MIDAZ_ROOT)/components/crm && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName crm
-	@docker run --rm -v ./:/plugin --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./plugin/api/crm_swagger.json -g openapi-yaml -o ./plugin/api
+		go install github.com/swaggo/swag/cmd/swag@v1.16.6; \
+		GO_BIN=$$(go env GOBIN); \
+		if [ -z "$$GO_BIN" ]; then \
+			GO_BIN="$$(go env GOPATH)/bin"; \
+		fi; \
+		SWAG_BIN="$$GO_BIN/swag"; \
+	fi; \
+	cd $(MIDAZ_ROOT)/components/crm && "$$SWAG_BIN" init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml
+	@docker run --rm -v ./:/plugin --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./plugin/api/swagger.json -g openapi-yaml -o ./plugin/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 	@if [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \

@@ -7,16 +7,16 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -53,13 +53,13 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		Times(1)
 
 	expectedMetadata := &mongodb.Metadata{
-		ID:       primitive.NewObjectID(),
+		ID:       bson.NewObjectID(),
 		EntityID: operationRouteID.String(),
 		Data:     map[string]any{"key": "value", "type": "important"},
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
 		Return(expectedMetadata, nil).
 		Times(1)
 
@@ -110,7 +110,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
 		Return(nil, nil).
 		Times(1)
 
@@ -221,7 +221,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 		Times(1)
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
 		Return(nil, metadataError).
 		Times(1)
 
@@ -266,13 +266,13 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		Times(1)
 
 	expectedMetadata := &mongodb.Metadata{
-		ID:       primitive.NewObjectID(),
+		ID:       bson.NewObjectID(),
 		EntityID: operationRouteID.String(),
 		Data:     map[string]any{"portfolio": "specific", "category": "premium"},
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRouteID.String()).
+		FindByEntity(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
 		Return(expectedMetadata, nil).
 		Times(1)
 

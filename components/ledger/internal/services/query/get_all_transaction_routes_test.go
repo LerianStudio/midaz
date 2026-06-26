@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -16,12 +15,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -75,12 +74,12 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: transactionRouteID1.String(),
 			Data:     mongodb.JSON{"key1": "value1"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: transactionRouteID2.String(),
 			Data:     mongodb.JSON{"key2": "value2"},
 		},
@@ -91,7 +90,7 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedMetadata, nil)
 
 	// Enrichment: junction returns empty map (no links)
@@ -151,7 +150,7 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: transactionRouteID1.String(),
 			Data:     mongodb.JSON{"key1": "value1"},
 		},
@@ -162,7 +161,7 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(expectedMetadata, nil)
 
 	// Enrichment: junction returns empty map (no links)
@@ -288,7 +287,7 @@ func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 		Return(expectedTransactionRoutes, expectedCursor, nil)
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
+		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return(nil, expectedMetadataError)
 
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)

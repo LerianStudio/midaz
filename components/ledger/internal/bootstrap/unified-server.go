@@ -10,10 +10,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -44,7 +45,7 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:               "Midaz Unified Ledger API",
+		AppName:               "Midaz Ledger API",
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 			return libHTTP.FiberErrorHandler(ctx, err)
@@ -52,10 +53,10 @@ func NewUnifiedServer(
 	})
 
 	// Add common middleware (only once for all routes)
-	tlMid := libHTTP.NewTelemetryMiddleware(telemetry)
+	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
-	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
+	app.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(logger)))
 
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
@@ -70,6 +71,9 @@ func NewUnifiedServer(
 	}
 
 	// Swagger documentation (unified onboarding + transaction)
+	app.Get("/swagger", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
 	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
 		fiberSwagger.InstanceName("swagger"),
 	))

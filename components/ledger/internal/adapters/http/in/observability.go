@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -90,7 +90,7 @@ func resolvePayloadValue(payload any) reflect.Value {
 		return v
 	}
 
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return reflect.Value{}
 		}

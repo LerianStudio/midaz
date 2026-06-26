@@ -1,5 +1,107 @@
 # Midaz Changelog
 
+## [3.7.6](https://github.com/LerianStudio/midaz/releases/tag/v3.7.6)
+
+- Fixes:
+  - Stop double-namespacing balance keys in multi-tenant balance-sync read path.
+
+Contributors: @ClaraTersi, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.5...v3.7.6)
+
+---
+
+## [3.7.5](https://github.com/LerianStudio/midaz/releases/tag/v3.7.5)
+
+- Fixes:
+  - Bumped lib-commons to v5.1.3 to address issues with the HTTP/1.1 tmclient transport.
+
+Contributors: @jeffersonrodrigues92
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.4...v3.7.5)
+
+---
+
+## [3.7.4](https://github.com/LerianStudio/midaz/releases/tag/v3.7.4)
+
+- Fixes:
+  - Resolved issue with subscribing to the environment-scoped tenant-events channel.
+
+Contributors: @jeffersonrodrigues92,
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.3...v3.7.4)
+
+---
+
+## [3.7.3](https://github.com/LerianStudio/midaz/releases/tag/v3.7.3)
+
+- Fixes:
+  - Align tenant-manager module name with provisioning (crm → crm-api) :bug:
+
+Contributors: @ClaraTersi, @jeffersonrodrigues92, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.2...v3.7.3)
+
+---
+
+## [3.7.2](https://github.com/LerianStudio/midaz/releases/tag/v3.7.2)
+
+- **Fixes:**
+  - Add missing line breaks in balance creation and transaction removal functions for improved readability.
+  - Implement legacy direction handling for operations and transactions.
+
+- **Improvements:**
+  - Update Go toolchain to version 1.26.3.
+
+Contributors: @ClaraTersi, @bedatty, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.1...v3.7.2)
+
+---
+
+## [3.7.1](https://github.com/LerianStudio/midaz/releases/tag/v3.7.1)
+
+- **Fixes:**
+  - Allow external accounts to hold positive balance :bug:
+
+- **Improvements:**
+  - Update CHANGELOGs for midaz:v3.7.0
+
+Contributors: @ClaraTersi, @gandalf-at-lerian, @lerian-studio,
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.7.0...v3.7.1)
+
+---
+
+## [3.7.0](https://github.com/LerianStudio/midaz/releases/tag/v3.7.0)
+
+- **Features:**
+  - Added new indexes for account filtering and enabled `pg_trgm` extension for text search.
+  - Implemented onboarding filters and enhanced filtering options for accounts and organizations with new parameters.
+  - Added filtering options for account types and portfolios.
+  - Added overdraft lifecycle event notifications via RabbitMQ.
+  - Implemented `readyz` handler with MongoDB health checks and integrated OpenTelemetry metrics.
+
+- **Fixes:**
+  - Removed semicolon from SQL comment in migration 000033.
+  - Addressed CodeRabbit review comments on `SECURITY.md`.
+  - Fixed issues with overdraft repayment and companion operations.
+  - Resolved issues with malformed overdraft rows and sensitive data in logs.
+  - Handled concurrent overdraft auto-creation gracefully via unique violation recovery.
+
+- **Improvements:**
+  - Updated Docker client initialization and cleaned up container state checks.
+  - Streamlined TLS validation by excluding non-configured checkers from readiness handler.
+  - Replaced `reflect.TypeOf` with constant entity names in validation errors.
+  - Updated Docker client imports and bumped dependencies.
+  - Standardized `SECURITY.md` across Lerian repos.
+
+Contributors: @ClaraTersi, @Ygohr, @bedatty, @gandalf-at-lerian, @lerian-studio
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.6.3...v3.7.0)
+
+---
+
 ## [3.6.3](https://github.com/LerianStudio/midaz/releases/tag/v3.6.3)
 
 - Fixes:

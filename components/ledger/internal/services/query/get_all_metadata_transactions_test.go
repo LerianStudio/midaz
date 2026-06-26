@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -18,14 +17,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error
 func TestGetAllMetadataTransactions(t *testing.T) {
-	collection := reflect.TypeOf(transaction.Transaction{}).Name()
+	collection := constant.EntityTransaction
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
@@ -45,7 +43,7 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
+			Return([]*mongodb.Metadata{{ID: bson.NewObjectID()}}, nil).
 			Times(1)
 		res, err := uc.TransactionMetadataRepo.FindList(context.TODO(), collection, filter)
 
@@ -94,12 +92,12 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: txID1Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: txID2Str,
 			Data:     map[string]interface{}{"key": "value"},
 		},
@@ -145,7 +143,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(transaction.Transaction{}).Name(), filter).
+		FindList(gomock.Any(), constant.EntityTransaction, filter).
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
@@ -156,7 +154,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	mockMetadataRepo.EXPECT().
 		FindByEntityIDs(
 			gomock.Any(),
-			reflect.TypeOf(operation.Operation{}).Name(),
+			constant.EntityOperation,
 			[]string{"op1-" + txID1Str, "op2-" + txID2Str},
 		).
 		Return(opMeta, nil)
@@ -201,7 +199,7 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 
-	collection := reflect.TypeOf(transaction.Transaction{}).Name()
+	collection := constant.EntityTransaction
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"k": "v"},
 		Limit:    10,
