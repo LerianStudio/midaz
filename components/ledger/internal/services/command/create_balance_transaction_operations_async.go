@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -41,7 +42,7 @@ import (
 // The Lua script (balance_atomic_operation.lua) does ZADD to schedule:balance-sync
 // when scheduleSync=1, which is the default for all balance-affecting transactions.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	var t transaction.TransactionProcessingPayload
 
@@ -273,7 +274,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 
 // CreateBTOSync func that create balance transaction operations synchronously
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_balance_transaction_operations.create_bto_sync")
 	defer span.End()
@@ -339,7 +340,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueueIfStatus(ctx context.Context, 
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput mtransaction.Transaction, validate *mtransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
-	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, _, reqId, _ := libObs.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	// Scope protection: a transaction that targets any internal-scope
@@ -429,7 +430,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 // This is a best-effort operation: failures are logged but do not block
 // the main transaction flow.
 func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation, actionOverride ...string) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
 	defer span.End()

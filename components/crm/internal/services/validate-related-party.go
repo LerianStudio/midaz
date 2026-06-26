@@ -10,7 +10,8 @@ import (
 	"reflect"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -25,7 +26,7 @@ var validRelatedPartyRoles = map[string]bool{
 }
 
 func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.RelatedParty) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "service.validate_related_party")
 	defer span.End()
@@ -66,7 +67,7 @@ func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.Relat
 }
 
 func (uc *UseCase) ValidateRelatedParties(ctx context.Context, parties []*mmodel.RelatedParty) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.validate_related_parties")
 	defer span.End()

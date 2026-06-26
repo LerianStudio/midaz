@@ -9,7 +9,8 @@ import (
 	"errors"
 	stdhttp "net/http"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
@@ -35,7 +36,7 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 			ctx = context.Background()
 		}
 
-		logger := libCommons.NewLoggerFromContext(ctx)
+		logger := libObs.NewLoggerFromContext(ctx)
 		logger.Log(ctx, libLog.LevelError,
 			"handler error",
 			libLog.String("method", c.Method()),

@@ -14,7 +14,7 @@ import (
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================

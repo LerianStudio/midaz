@@ -9,7 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -27,7 +28,7 @@ import (
 // DeleteAccountByID deletes an account from the repository by IDs.
 // It first deletes all balances associated with the account via the BalancePort interface.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
-	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, requestID, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()

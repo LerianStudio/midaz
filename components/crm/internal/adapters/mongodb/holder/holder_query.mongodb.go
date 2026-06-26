@@ -8,20 +8,20 @@ import (
 	"context"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // FindAll get all holders that match the query filter
 func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
-	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, reqId, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_holders")
 	defer span.End()

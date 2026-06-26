@@ -14,9 +14,9 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -91,7 +91,7 @@ func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.Org
 	filter := bson.M{"organization_id": record.OrganizationID}
 	update := bson.M{"$setOnInsert": model}
 
-	result, err := collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	result, err := collection.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to save organization registry", err)
 		return fmt.Errorf("save organization registry: %w", err)

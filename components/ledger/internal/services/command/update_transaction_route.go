@@ -8,7 +8,8 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -28,7 +29,7 @@ const maxOperationRouteInputs = 100
 
 // UpdateTransactionRoute updates a transaction route by ID.
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_route")
 	defer span.End()
@@ -160,7 +161,7 @@ func (uc *UseCase) emitTransactionRouteUpdatedEvent(ctx context.Context, span tr
 // FindByIDs round-trip to populate the streaming payload + the
 // returned entity.
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []uuid.UUID) (toAdd, toRemove []uuid.UUID, postUpdateRoutes []*mmodel.OperationRoute, err error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()

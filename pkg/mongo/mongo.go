@@ -11,7 +11,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/iancoleman/strcase"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M {
@@ -48,6 +48,11 @@ func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M
 }
 
 // flattenBSONM recursively flattens a nested BSON map.
+//
+// mongo-driver v2 decodes nested documents into bson.D (ordered), whereas v1
+// produced bson.M, so both shapes must be recursed into — otherwise a nested
+// document is kept whole and a dotted $unset on one of its fields collides with
+// the $set on the parent ("would create a conflict at <path>").
 func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 	for k, v := range m {
 		var key string
@@ -57,12 +62,26 @@ func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 			key = prefix + "." + k
 		}
 
-		if sub, ok := v.(bson.M); ok {
+		switch sub := v.(type) {
+		case bson.M:
 			flattenBSONM(sub, key, flat)
-		} else {
+		case bson.D:
+			flattenBSONM(bsonDToM(sub), key, flat)
+		default:
 			flat[key] = v
 		}
 	}
+}
+
+// bsonDToM converts an ordered bson.D into a bson.M. mongo-driver v2 dropped
+// bson.D.Map(), so the conversion is done explicitly.
+func bsonDToM(d bson.D) bson.M {
+	m := make(bson.M, len(d))
+	for _, e := range d {
+		m[e.Key] = e.Value
+	}
+
+	return m
 }
 
 // shouldUnset Checks if the key should be "unset" (removed) based on the fieldsToRemove array.

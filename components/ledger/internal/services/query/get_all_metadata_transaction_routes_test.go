@@ -20,8 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -60,12 +59,12 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID2.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
@@ -183,7 +182,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},
@@ -218,7 +217,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		expectedMetadata := []*mongodb.Metadata{
 			{
-				ID:       primitive.NewObjectID(),
+				ID:       bson.NewObjectID(),
 				EntityID: transactionRouteID1.String(),
 				Data:     mongodb.JSON{"key": "value"},
 			},

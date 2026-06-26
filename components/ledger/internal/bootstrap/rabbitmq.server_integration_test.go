@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libCommons "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -259,8 +260,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		require.NoError(t, err, "failed to marshal queue message")
 
 		// Create context with tracing
-		ctx := libCommons.ContextWithLogger(context.Background(), logger)
-		ctx = libCommons.ContextWithHeaderID(ctx, uuid.New().String())
+		ctx := libObs.ContextWithLogger(context.Background(), logger)
+		ctx = libObs.ContextWithHeaderID(ctx, uuid.New().String())
 
 		// Publish to RabbitMQ (simulating old producer)
 		t.Log("Publishing legacy format message to RabbitMQ...")
