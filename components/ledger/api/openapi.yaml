@@ -2374,10 +2374,18 @@ paths:
         name: cursor
         schema:
           type: string
-      - description: DEBIT, CREDIT
+      - description: Filter by operation type
         in: query
         name: type
         schema:
+          enum:
+          - DEBIT
+          - CREDIT
+          - ON_HOLD
+          - RELEASE
+          - OVERDRAFT
+          - BLOCK
+          - UNBLOCK
           type: string
       - description: Filter by direction
         in: query
@@ -5634,6 +5642,103 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
+    post:
+      description: Create a transaction whose resulting operations are typed BLOCK.
+        Midaz is agnostic about the business reason for blocking funds — use the metadata
+        field to record it. Block transactions are direct ACTIVE transfers (they post
+        immediately and are NOT pending), accepting the same body as the JSON create
+        endpoint.
+      parameters:
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Idempotency key. Replays the original response for repeated requests
+          carrying the same key.
+        in: header
+        name: X-Idempotency
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionInput'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict, duplicate idempotency key
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity, validation errors
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Block Transaction
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       description: Create a Transaction with the input DSL file
@@ -6029,6 +6134,103 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Internal server error
       summary: Create a Transaction without passing to distribution
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
+    post:
+      description: Create a transaction whose resulting operations are typed UNBLOCK.
+        Midaz is agnostic about the business reason for unblocking funds — use the
+        metadata field to record it. Unblock transactions are direct ACTIVE transfers
+        (they post immediately and are NOT pending), accepting the same body as the
+        JSON create endpoint.
+      parameters:
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
+        in: header
+        name: Authorization
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Idempotency key. Replays the original response for repeated requests
+          carrying the same key.
+        in: header
+        name: X-Idempotency
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionInput'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict, duplicate idempotency key
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity, validation errors
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create an Unblock Transaction
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
@@ -8886,7 +9088,10 @@ components:
           type: string
         type:
           description: |-
-            Type of operation (e.g., DEBIT, CREDIT)
+            Type of operation. One of: DEBIT, CREDIT, ON_HOLD, RELEASE, OVERDRAFT, BLOCK, UNBLOCK.
+            DEBIT/CREDIT are standard ledger movements; ON_HOLD/RELEASE cover pending-transaction holds;
+            OVERDRAFT marks system-generated overdraft companion rows; BLOCK/UNBLOCK label direct
+            account block/unblock transfers. The direction (debit/credit) is carried independently.
             example: DEBIT
             maxLength: 50
           example: DEBIT

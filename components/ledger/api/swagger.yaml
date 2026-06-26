@@ -1843,7 +1843,10 @@ definitions:
         type: string
       type:
         description: |-
-          Type of operation (e.g., DEBIT, CREDIT)
+          Type of operation. One of: DEBIT, CREDIT, ON_HOLD, RELEASE, OVERDRAFT, BLOCK, UNBLOCK.
+          DEBIT/CREDIT are standard ledger movements; ON_HOLD/RELEASE cover pending-transaction holds;
+          OVERDRAFT marks system-generated overdraft companion rows; BLOCK/UNBLOCK label direct
+          account block/unblock transfers. The direction (debit/credit) is carried independently.
           example: DEBIT
           maxLength: 50
         example: DEBIT
@@ -4618,7 +4621,15 @@ paths:
         in: query
         name: cursor
         type: string
-      - description: DEBIT, CREDIT
+      - description: Filter by operation type
+        enum:
+        - DEBIT
+        - CREDIT
+        - ON_HOLD
+        - RELEASE
+        - OVERDRAFT
+        - BLOCK
+        - UNBLOCK
         in: query
         name: type
         type: string
@@ -7983,6 +7994,84 @@ paths:
       summary: Create a Transaction Annotation using JSON
       tags:
       - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
+    post:
+      consumes:
+      - application/json
+      description: Create a transaction whose resulting operations are typed BLOCK.
+        Midaz is agnostic about the business reason for blocking funds — use the metadata
+        field to record it. Block transactions are direct ACTIVE transfers (they post
+        immediately and are NOT pending), accepting the same body as the JSON create
+        endpoint.
+      parameters:
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
+        in: header
+        name: Authorization
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Idempotency key. Replays the original response for repeated requests
+          carrying the same key.
+        in: header
+        name: X-Idempotency
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/CreateTransactionInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Resource not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict, duplicate idempotency key
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a Block Transaction
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       consumes:
@@ -8300,6 +8389,84 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Create a Transaction without passing to distribution
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
+    post:
+      consumes:
+      - application/json
+      description: Create a transaction whose resulting operations are typed UNBLOCK.
+        Midaz is agnostic about the business reason for unblocking funds — use the
+        metadata field to record it. Unblock transactions are direct ACTIVE transfers
+        (they post immediately and are NOT pending), accepting the same body as the
+        JSON create endpoint.
+      parameters:
+      - description: 'Bearer token authentication. Format: Bearer {access_token}.
+          Only required when auth plugin is enabled.'
+        in: header
+        name: Authorization
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Idempotency key. Replays the original response for repeated requests
+          carrying the same key.
+        in: header
+        name: X-Idempotency
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/CreateTransactionInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Resource not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict, duplicate idempotency key
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create an Unblock Transaction
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/metrics/count:

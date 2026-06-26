@@ -83,12 +83,13 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 // CreateTransactionBlock method that creates a block transaction
 //
 //	@Summary		Create a Block Transaction
-//	@Description	Create a direct transaction whose operations are labeled BLOCK
+//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. Block transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
@@ -96,6 +97,8 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Resource not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
 //	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block [post]
@@ -121,12 +124,13 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 // CreateTransactionUnblock method that creates an unblock transaction
 //
 //	@Summary		Create an Unblock Transaction
-//	@Description	Create a direct transaction whose operations are labeled UNBLOCK
+//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. Unblock transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
@@ -134,6 +138,8 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Resource not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
 //	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock [post]
