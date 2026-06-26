@@ -33,6 +33,8 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving transactions")
 
+	filter.ApplyDefaultDateRange()
+
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransaction, filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)

@@ -361,19 +361,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-// validateDates validates and normalizes start/end date range for pagination queries.
-// Mutates the provided pointers to apply defaults when both dates are zero.
-// Default range: last N months (via MAX_PAGINATION_MONTH_DATE_RANGE env var, default=1).
-// Set MAX_PAGINATION_MONTH_DATE_RANGE=0 for unlimited range (since epoch).
+// validateDates validates an explicit start/end date range for pagination queries.
+// It no longer applies any default window: when both dates are zero the caller
+// supplied neither, so it returns nil without mutating the pointers. The default
+// protection window is applied separately, and only for high-volume endpoints,
+// via (*QueryHeader).ApplyDefaultDateRange.
 // Enforces all-or-nothing: both dates required if any provided.
 // Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
-	// Limits query range to prevent expensive DB operations on large datasets
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
-
 	if startDate.IsZero() && endDate.IsZero() {
-		*startDate, *endDate = defaultPaginationDateRange(time.Now(), maxDateRangeMonths)
-
 		return nil
 	}
 
@@ -391,6 +387,25 @@ func validateDates(startDate, endDate *time.Time) error {
 	}
 
 	return nil
+}
+
+// ApplyDefaultDateRange fills StartDate/EndDate with the default protection
+// window (MAX_PAGINATION_MONTH_DATE_RANGE) when the caller provided neither
+// date. No-op when either date was supplied explicitly. Used only by
+// high-volume list endpoints (transactions, operations) to bound table scans.
+func (q *QueryHeader) ApplyDefaultDateRange() {
+	if !q.StartDate.IsZero() || !q.EndDate.IsZero() {
+		return
+	}
+
+	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	if maxDateRangeMonths < 0 {
+		// A negative configured value would push StartDate ahead of EndDate,
+		// silently yielding empty results. Treat it as 0 (unbounded start).
+		maxDateRangeMonths = 0
+	}
+
+	q.StartDate, q.EndDate = defaultPaginationDateRange(time.Now(), maxDateRangeMonths)
 }
 
 func defaultPaginationDateRange(now time.Time, maxDateRangeMonths int) (time.Time, time.Time) {

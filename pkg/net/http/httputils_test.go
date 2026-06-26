@@ -341,19 +341,13 @@ func TestValidateDates_BothZero(t *testing.T) {
 	startDate := time.Time{}
 	endDate := time.Time{}
 	err := validateDates(&startDate, &endDate)
+
+	// validateDates no longer fabricates a default window: when both dates are
+	// zero it returns nil and leaves the pointers untouched. The default window
+	// is applied separately via (*QueryHeader).ApplyDefaultDateRange.
 	require.NoError(t, err)
-	assert.False(t, startDate.IsZero())
-	assert.False(t, endDate.IsZero())
-
-	assert.Equal(t, 0, startDate.Hour())
-	assert.Equal(t, 0, startDate.Minute())
-	assert.Equal(t, 0, startDate.Second())
-
-	assert.Equal(t, 23, endDate.Hour())
-	assert.Equal(t, 59, endDate.Minute())
-	assert.Equal(t, 59, endDate.Second())
-
-	assert.True(t, endDate.After(startDate) || endDate.Equal(startDate))
+	assert.True(t, startDate.IsZero())
+	assert.True(t, endDate.IsZero())
 }
 
 func TestValidateDates_OnlyStartDateProvided(t *testing.T) {
@@ -392,17 +386,47 @@ func TestValidateDates_ValidDateRange(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidateDates_WithMaxDateRangeZero(t *testing.T) {
+func TestApplyDefaultDateRange_BothZeroAppliesWindow(t *testing.T) {
+	q := &QueryHeader{}
+
+	q.ApplyDefaultDateRange()
+
+	assert.False(t, q.StartDate.IsZero())
+	assert.False(t, q.EndDate.IsZero())
+	assert.True(t, q.EndDate.After(q.StartDate))
+}
+
+func TestApplyDefaultDateRange_WithMaxDateRangeZero(t *testing.T) {
 	t.Setenv("MAX_PAGINATION_MONTH_DATE_RANGE", "0")
 
-	startDate := time.Time{}
-	endDate := time.Time{}
+	q := &QueryHeader{}
 
-	err := validateDates(&startDate, &endDate)
+	q.ApplyDefaultDateRange()
 
-	require.NoError(t, err)
-	// When max is 0, startDate should be epoch
-	assert.Equal(t, int64(0), startDate.Unix())
+	// When max is 0, StartDate falls back to epoch (effectively unbounded start).
+	assert.Equal(t, int64(0), q.StartDate.Unix())
+	assert.False(t, q.EndDate.IsZero())
+}
+
+func TestApplyDefaultDateRange_ExplicitDatesNoOp(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)
+	q := &QueryHeader{StartDate: start, EndDate: end}
+
+	q.ApplyDefaultDateRange()
+
+	assert.Equal(t, start, q.StartDate)
+	assert.Equal(t, end, q.EndDate)
+}
+
+func TestApplyDefaultDateRange_OnlyStartProvidedNoOp(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	q := &QueryHeader{StartDate: start}
+
+	q.ApplyDefaultDateRange()
+
+	assert.Equal(t, start, q.StartDate)
+	assert.True(t, q.EndDate.IsZero())
 }
 
 func TestDefaultPaginationDateRange_UsesUTCDate(t *testing.T) {
