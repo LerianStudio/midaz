@@ -25,7 +25,7 @@ import (
 
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

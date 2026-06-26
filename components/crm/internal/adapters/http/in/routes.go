@@ -5,13 +5,14 @@
 package in
 
 import (
+	libMid "github.com/LerianStudio/lib-observability/middleware"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -32,13 +33,13 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
-	tlMid := libHTTP.NewTelemetryMiddleware(tl)
+	tlMid := libMid.NewTelemetryMiddleware(tl)
 
 	f.Use(ErrorCodeTransformer()) // Transform generic error codes to CRM-specific codes
 	f.Use(http.WithRecover(http.WithRecoverLogger(lg)))
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+	f.Use(libMid.WithHTTPLogging(libMid.WithCustomLogger(lg)))
 	// Public endpoints: registered BEFORE tenant middleware so they remain
 	// accessible to Kubernetes probes, load balancer health checks, and
 	// Swagger documentation without requiring a JWT or tenant context.

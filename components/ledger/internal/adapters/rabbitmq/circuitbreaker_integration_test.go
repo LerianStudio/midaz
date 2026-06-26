@@ -20,7 +20,7 @@ import (
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v5/commons/zap"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 

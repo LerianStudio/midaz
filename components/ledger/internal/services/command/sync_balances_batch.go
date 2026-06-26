@@ -7,9 +7,10 @@ package command
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libObs "github.com/LerianStudio/lib-observability"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -43,7 +44,7 @@ type SyncBalancesBatchResult struct {
 //   - Version conflicts: optimistic locking in DB update
 //   - Partial failures: keys only removed after successful DB write
 func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
-	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
 	defer span.End()

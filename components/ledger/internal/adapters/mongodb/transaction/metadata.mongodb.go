@@ -12,19 +12,20 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
@@ -92,7 +93,7 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 // If metadata for the same entity_id and entity_name already exists, the operation is a no-op.
 // This ensures that duplicate calls (e.g., from retries or bulk processing) do not create duplicate documents.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
@@ -127,7 +128,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		"$setOnInsert": record,
 	}
 
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 
 	upsertResult, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
@@ -155,7 +156,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 // NOTE: Uses $setOnInsert with upsert to ensure idempotency - if a document exists, it's not modified.
 // NOTE: The input slice is sorted in-place by EntityID. Callers should not rely on original order.
 func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection string, metadata []*Metadata) (*repository.MongoDBBulkInsertResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_bulk_metadata")
 	defer span.End()
@@ -242,7 +243,7 @@ type metadataChunkResult struct {
 // insertMetadataChunk inserts a chunk of metadata using MongoDB BulkWrite.
 // Uses UpdateOne with $setOnInsert and upsert:true for idempotency.
 func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, coll *mongo.Collection, metadata []*Metadata) (*metadataChunkResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 	_ = logger // silence unused warning - parent function handles logging
 
 	ctx, span := tracer.Start(ctx, "mongodb.insert_metadata_chunk")
@@ -309,7 +310,7 @@ func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, c
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
 func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
 	defer span.End()
@@ -403,7 +404,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
 	defer span.End()
@@ -442,7 +443,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 // FindByEntityIDs retrieves metadata from the mongodb using a list of entity_ids.
 func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity_ids")
 	defer span.End()
@@ -518,7 +519,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 // Update an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
 	defer span.End()
@@ -531,7 +532,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	}
 
 	coll := db.Collection(strings.ToLower(collection))
-	opts := options.Update().SetUpsert(true)
+	opts := options.UpdateOne().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
 
@@ -559,7 +560,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 // Delete an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
 	defer span.End()
@@ -571,7 +572,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	opts := options.Delete()
+	opts := options.DeleteOne()
 
 	coll := db.Collection(strings.ToLower(collection))
 
@@ -595,7 +596,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 
 // CreateIndex creates an index on the mongodb.
 func (mmr *MetadataMongoDBRepository) CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_index")
 	defer span.End()
@@ -655,7 +656,7 @@ type MongoDBIndexStats struct {
 
 // FindAllIndexes retrieves all indexes from the mongodb with usage statistics.
 func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_all_indexes")
 	defer span.End()
@@ -780,7 +781,7 @@ func (mmr *MetadataMongoDBRepository) FindAllIndexes(ctx context.Context, collec
 
 // DeleteIndex deletes an index from the mongodb.
 func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collection, indexName string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_index")
 	defer span.End()
@@ -799,7 +800,7 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
 
-	_, err = coll.Indexes().DropOne(ctx, indexName)
+	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete index", err)
 

@@ -6,9 +6,10 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v5/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libMid "github.com/LerianStudio/lib-observability/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
@@ -35,11 +36,11 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		},
 	})
 
-	tlMid := libHTTP.NewTelemetryMiddleware(tl)
+	tlMid := libMid.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+	f.Use(libMid.WithHTTPLogging(libMid.WithCustomLogger(lg)))
 	// Register metadata index routes
 	RegisterMetadataRoutesToApp(f, auth, mdi, nil)
 

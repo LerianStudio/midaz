@@ -19,8 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
 
@@ -57,7 +56,7 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 	// Metadata with one matching route
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: trID1.String(),
 			Data:     mongodb.JSON{"key": "value"},
 		},
@@ -137,7 +136,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: trID1.String(),
 			Data:     mongodb.JSON{"key": "value"},
 		},
@@ -201,7 +200,7 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 
 	expectedMetadata := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: trID1.String(),
 			Data:     mongodb.JSON{"key": "value"},
 		},

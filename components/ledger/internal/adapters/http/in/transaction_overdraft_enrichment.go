@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObs "github.com/LerianStudio/lib-observability"
+
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v5/commons/log"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
@@ -43,7 +44,7 @@ type companionBalanceLoader func(ctx context.Context, organizationID, ledgerID u
 // no-op for brand-new transactions — this helper fills the gap by enforcing
 // the same invariant once GetBalances has returned.
 func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger := libObs.NewLoggerFromContext(ctx)
 
 	for _, b := range balances {
 		if b == nil || b.Settings == nil {
@@ -126,7 +127,7 @@ func enrichOverdraftOperations(
 	validate *mtransaction.Responses,
 	loader companionBalanceLoader,
 ) ([]mmodel.BalanceOperation, []mtransaction.FromTo, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger := libObs.NewLoggerFromContext(ctx)
 
 	debits := collectOverdraftDebitSplits(balanceOps)
 	refunds := collectOverdraftRefundSplits(balanceOps)
