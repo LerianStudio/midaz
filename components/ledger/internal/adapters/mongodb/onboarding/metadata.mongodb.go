@@ -178,7 +178,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	if filter.UseMetadata {
 		limit := int64(filter.Limit)
 		skip := int64(filter.Page*filter.Limit - filter.Limit)
-		opts = options.Find().SetLimit(limit).SetSkip(skip)
+		opts.SetLimit(limit).SetSkip(skip)
 	}
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
