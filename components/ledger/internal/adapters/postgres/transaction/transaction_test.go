@@ -723,6 +723,80 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 			},
 		},
 		{
+			name: "revert transaction with block and unblock operations reconstructs by direction",
+			transaction: Transaction{
+				Description:              "Block/unblock transaction",
+				AssetCode:                "USD",
+				Amount:                   &totalAmount,
+				ChartOfAccountsGroupName: "BLOCK",
+				Operations: []*operation.Operation{
+					// debit-direction BLOCK leg -> becomes To (distribute) in reversal
+					{
+						Type:            pkgConstant.BLOCK,
+						Direction:       pkgConstant.DirectionDebit,
+						AccountAlias:    "@block-source",
+						AssetCode:       "USD",
+						Amount:          operation.Amount{Value: &amount100},
+						Description:     "Block debit leg",
+						ChartOfAccounts: "4001",
+					},
+					// credit-direction BLOCK leg -> becomes From (source) in reversal
+					{
+						Type:            pkgConstant.BLOCK,
+						Direction:       pkgConstant.DirectionCredit,
+						AccountAlias:    "@block-destination",
+						AssetCode:       "USD",
+						Amount:          operation.Amount{Value: &amount100},
+						Description:     "Block credit leg",
+						ChartOfAccounts: "4002",
+					},
+					// debit-direction UNBLOCK leg -> becomes To (distribute) in reversal
+					{
+						Type:            pkgConstant.UNBLOCK,
+						Direction:       pkgConstant.DirectionDebit,
+						AccountAlias:    "@unblock-source",
+						AssetCode:       "USD",
+						Amount:          operation.Amount{Value: &amount100},
+						Description:     "Unblock debit leg",
+						ChartOfAccounts: "4003",
+					},
+					// credit-direction UNBLOCK leg -> becomes From (source) in reversal
+					{
+						Type:            pkgConstant.UNBLOCK,
+						Direction:       pkgConstant.DirectionCredit,
+						AccountAlias:    "@unblock-destination",
+						AssetCode:       "USD",
+						Amount:          operation.Amount{Value: &amount100},
+						Description:     "Unblock credit leg",
+						ChartOfAccounts: "4004",
+					},
+				},
+			},
+			validate: func(t *testing.T, result mtransaction.Transaction) {
+				// credit-direction BLOCK/UNBLOCK legs become From (source), like CREDIT.
+				fromAliases := make(map[string]mtransaction.FromTo)
+				for _, from := range result.Send.Source.From {
+					fromAliases[from.AccountAlias] = from
+				}
+				require.Len(t, result.Send.Source.From, 2, "credit-direction BLOCK/UNBLOCK legs must reconstruct as From")
+				assert.Contains(t, fromAliases, "@block-destination")
+				assert.Contains(t, fromAliases, "@unblock-destination")
+				assert.True(t, fromAliases["@block-destination"].IsFrom)
+				assert.True(t, fromAliases["@unblock-destination"].IsFrom)
+
+				// debit-direction BLOCK/UNBLOCK legs become To (distribute), like DEBIT.
+				toAliases := make(map[string]mtransaction.FromTo)
+				for _, to := range result.Send.Distribute.To {
+					toAliases[to.AccountAlias] = to
+				}
+				require.Len(t, result.Send.Distribute.To, 2, "debit-direction BLOCK/UNBLOCK legs must reconstruct as To")
+				assert.Contains(t, toAliases, "@block-source")
+				assert.Contains(t, toAliases, "@unblock-source")
+				assert.False(t, toAliases["@block-source"].IsFrom)
+				assert.False(t, toAliases["@unblock-source"].IsFrom)
+			},
+		},
+		{
 			name: "revert transaction with no operations",
 			transaction: Transaction{
 				Description: "Empty operations",

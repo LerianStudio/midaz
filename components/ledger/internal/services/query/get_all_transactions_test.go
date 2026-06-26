@@ -139,6 +139,88 @@ func TestGetAllTransactions(t *testing.T) {
 		assert.Equal(t, map[string]any{"op_key2": "op_value2"}, result[0].Operations[1].Metadata)
 	})
 
+	t.Run("BlockUnblockDerivedSourceDestination", func(t *testing.T) {
+		transactionID := uuid.New()
+
+		// BLOCK/UNBLOCK operations carry a normal Direction (debit for source
+		// legs, credit for destination legs) but a semantic Type label. They
+		// must be classified by Direction exactly as DEBIT/CREDIT are.
+		operations := []*operation.Operation{
+			{
+				ID:             uuid.New().String(),
+				TransactionID:  transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Type:           constant.BLOCK,
+				Direction:      constant.DirectionDebit,
+				AccountAlias:   "block-source",
+			},
+			{
+				ID:             uuid.New().String(),
+				TransactionID:  transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Type:           constant.BLOCK,
+				Direction:      constant.DirectionCredit,
+				AccountAlias:   "block-destination",
+			},
+			{
+				ID:             uuid.New().String(),
+				TransactionID:  transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Type:           constant.UNBLOCK,
+				Direction:      constant.DirectionDebit,
+				AccountAlias:   "unblock-source",
+			},
+			{
+				ID:             uuid.New().String(),
+				TransactionID:  transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Type:           constant.UNBLOCK,
+				Direction:      constant.DirectionCredit,
+				AccountAlias:   "unblock-destination",
+			},
+		}
+
+		trans := []*transaction.Transaction{
+			{
+				ID:             transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Operations:     operations,
+			},
+		}
+
+		mockTransactionRepo.
+			EXPECT().
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			Return(trans, mockCur, nil).
+			Times(1)
+
+		mockMetadataRepo.
+			EXPECT().
+			FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
+			Return([]*mongodb.Metadata{}, nil).
+			Times(1)
+
+		mockMetadataRepo.
+			EXPECT().
+			FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+			Return([]*mongodb.Metadata{}, nil).
+			Times(1)
+
+		result, _, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
+
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Contains(t, result[0].Source, "block-source", "BLOCK debit leg must be on Source")
+		assert.Contains(t, result[0].Source, "unblock-source", "UNBLOCK debit leg must be on Source")
+		assert.Contains(t, result[0].Destination, "block-destination", "BLOCK credit leg must be on Destination")
+		assert.Contains(t, result[0].Destination, "unblock-destination", "UNBLOCK credit leg must be on Destination")
+	})
+
 	t.Run("Error_FindAll", func(t *testing.T) {
 		mockTransactionRepo.
 			EXPECT().
@@ -264,6 +346,45 @@ func TestGetOperationsByTransaction(t *testing.T) {
 			expectedSourceLen: 2,
 			expectedDestLen:   1,
 			expectedOpLen:     3,
+		},
+		{
+			name: "success with block and unblock operations classified by direction",
+			setupMocks: func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository) {
+				ops := []*operation.Operation{
+					{
+						ID:             uuid.New().String(),
+						TransactionID:  transactionID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.BLOCK,
+						Direction:      constant.DirectionDebit,
+						AccountAlias:   "block-source",
+					},
+					{
+						ID:             uuid.New().String(),
+						TransactionID:  transactionID.String(),
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.UNBLOCK,
+						Direction:      constant.DirectionCredit,
+						AccountAlias:   "unblock-dest",
+					},
+				}
+
+				mockOpRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+					Return(ops, libHTTP.CursorPagination{}, nil).
+					Times(1)
+
+				mockMetaRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+			},
+			expectedErr:       nil,
+			expectedSourceLen: 1,
+			expectedDestLen:   1,
+			expectedOpLen:     2,
 		},
 		{
 			name: "success with no operations",

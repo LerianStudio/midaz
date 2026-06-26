@@ -91,6 +91,16 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 				source = append(source, op.AccountAlias)
 			case constant.CREDIT:
 				destination = append(destination, op.AccountAlias)
+			case constant.BLOCK, constant.UNBLOCK:
+				// BLOCK/UNBLOCK operations carry a normal accounting Direction
+				// (debit-side -> Source, credit-side -> Destination), so they
+				// are classified by Direction exactly as DEBIT/CREDIT are.
+				switch op.Direction {
+				case constant.DirectionDebit:
+					source = append(source, op.AccountAlias)
+				case constant.DirectionCredit:
+					destination = append(destination, op.AccountAlias)
+				}
 			}
 		}
 
