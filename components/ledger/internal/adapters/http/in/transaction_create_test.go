@@ -19,8 +19,11 @@ import (
 // TestBuildStandardOp_OperationTypeOverride verifies the BLOCK/UNBLOCK
 // operation-type marker threaded through Transaction.OperationTypeOverride:
 //   - absent marker reproduces current behavior (Type == DEBIT/CREDIT);
-//   - present marker overrides only Type, leaving Direction untouched;
+//   - present marker overrides only Type, leaving Direction and amount untouched;
 //   - the overdraft balance key still wins, yielding Type == OVERDRAFT.
+//
+// In every case the built operation's amount must equal the input amount: the
+// override changes Type only, never Direction or amount.
 func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +121,15 @@ func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 			expectedDirection: constant.DirectionDebit,
 		},
 		{
+			name:              "UNBLOCK override on destination leg overrides Type but keeps credit Direction",
+			override:          constant.UNBLOCK,
+			balanceKey:        "default",
+			opTypeLabel:       constant.CREDIT,
+			direction:         constant.DirectionCredit,
+			expectedType:      constant.UNBLOCK,
+			expectedDirection: constant.DirectionCredit,
+		},
+		{
 			name:              "overdraft balance key wins over BLOCK override",
 			override:          constant.BLOCK,
 			balanceKey:        constant.OverdraftBalanceKey,
@@ -129,7 +141,6 @@ func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -143,6 +154,12 @@ func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 
 			require.Equal(t, tt.expectedType, op.Type, "Type label")
 			require.Equal(t, tt.expectedDirection, op.Direction, "Direction must be preserved")
+
+			// Amount must always be preserved: the override changes Type only,
+			// never Direction or amount. amt.Value is the fixed fixture input.
+			require.NotNil(t, op.Amount.Value, "amount value must be set")
+			require.True(t, op.Amount.Value.Equal(amt.Value),
+				"amount must be preserved: got %s want %s", op.Amount.Value, amt.Value)
 		})
 	}
 }
