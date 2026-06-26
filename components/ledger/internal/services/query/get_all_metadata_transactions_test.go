@@ -194,6 +194,85 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	}
 }
 
+// TestGetAllMetadataTransactionsWithBlockUnblockOperations ensures BLOCK/UNBLOCK
+// operations are derived into Source/Destination by their accounting Direction
+// (debit -> Source, credit -> Destination), exactly as DEBIT/CREDIT are.
+func TestGetAllMetadataTransactionsWithBlockUnblockOperations(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	orgIDStr := "00000000-0000-0000-0000-000000000001"
+	ledgerIDStr := "00000000-0000-0000-0000-000000000002"
+	txIDStr := "00000000-0000-0000-0000-000000000003"
+
+	orgID, _ := uuid.Parse(orgIDStr)
+	ledgerID, _ := uuid.Parse(ledgerIDStr)
+	txID, _ := uuid.Parse(txIDStr)
+
+	filter := http.QueryHeader{
+		Metadata: &bson.M{"key": "value"},
+		Limit:    10,
+		Page:     1,
+	}
+
+	metadataList := []*mongodb.Metadata{
+		{
+			ID:       bson.NewObjectID(),
+			EntityID: txIDStr,
+			Data:     map[string]any{"key": "value"},
+		},
+	}
+
+	ops := []*operation.Operation{
+		{
+			ID:           "op-block-debit",
+			Type:         constant.BLOCK,
+			Direction:    constant.DirectionDebit,
+			AccountAlias: "block-source",
+		},
+		{
+			ID:           "op-unblock-credit",
+			Type:         constant.UNBLOCK,
+			Direction:    constant.DirectionCredit,
+			AccountAlias: "unblock-destination",
+		},
+	}
+
+	transactions := []*transaction.Transaction{
+		{
+			ID:         txIDStr,
+			Operations: ops,
+		},
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityTransaction, filter).
+		Return(metadataList, nil)
+
+	mockTransactionRepo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, filter.ToCursorPagination()).
+		Return(transactions, libHTTP.CursorPagination{}, nil)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
+		Return([]*mongodb.Metadata{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Contains(t, result[0].Source, "block-source", "BLOCK debit leg must be on Source")
+	assert.Contains(t, result[0].Destination, "unblock-destination", "UNBLOCK credit leg must be on Destination")
+}
+
 // TestGetAllMetadataTransactions_NoMetadata ensures that when metadata lookup
 // returns an empty (non-nil) slice, the use case returns no transactions and no error,
 // and does not call the transaction repository.
