@@ -129,23 +129,33 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 }
 
 func (infra *blockUnblockInfra) setupRoutes() {
+	// parseParam resolves a UUID path parameter into c.Locals. A malformed value
+	// surfaces as an HTTP 400 instead of silently becoming the zero UUID (which
+	// would mask a routing/derivation bug behind a confusing not-found later).
+	parseParam := func(c *fiber.Ctx, name string) error {
+		v := c.Params(name)
+		if v == "" {
+			return nil
+		}
+
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).
+				JSON(fiber.Map{"error": "invalid path parameter " + name + ": " + v})
+		}
+
+		c.Locals(name, id)
+
+		return nil
+	}
+
 	paramMiddleware := func(c *fiber.Ctx) error {
-		if v := c.Params("organization_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("organization_id", id)
+		for _, name := range []string{"organization_id", "ledger_id", "transaction_id", "account_id"} {
+			if err := parseParam(c, name); err != nil {
+				return err
+			}
 		}
-		if v := c.Params("ledger_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("ledger_id", id)
-		}
-		if v := c.Params("transaction_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("transaction_id", id)
-		}
-		if v := c.Params("account_id"); v != "" {
-			id, _ := uuid.Parse(v)
-			c.Locals("account_id", id)
-		}
+
 		return c.Next()
 	}
 
@@ -246,7 +256,8 @@ func operationTypesByTransaction(t *testing.T, infra *blockUnblockInfra, txID uu
 	t.Helper()
 
 	rows, err := infra.pgContainer.DB.Query(
-		`SELECT type, direction FROM operation WHERE transaction_id = $1 ORDER BY direction`, txID)
+		`SELECT type, direction FROM operation WHERE transaction_id = $1 ORDER BY direction`, txID,
+	)
 	require.NoError(t, err, "should query operation rows")
 	defer rows.Close()
 

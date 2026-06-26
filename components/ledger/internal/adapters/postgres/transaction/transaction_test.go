@@ -745,18 +745,20 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 						Type:            pkgConstant.BLOCK,
 						Direction:       pkgConstant.DirectionCredit,
 						AccountAlias:    "@block-destination",
+						BalanceKey:      "reserve",
 						AssetCode:       "USD",
 						Amount:          operation.Amount{Value: &amount100},
 						Description:     "Block credit leg",
 						ChartOfAccounts: "4002",
 					},
-					// debit-direction UNBLOCK leg -> becomes To (distribute) in reversal
+					// debit-direction UNBLOCK leg -> becomes To (distribute) in reversal.
+					// BalanceKey left empty on purpose: exercises the empty -> DefaultBalanceKey default.
 					{
 						Type:            pkgConstant.UNBLOCK,
 						Direction:       pkgConstant.DirectionDebit,
 						AccountAlias:    "@unblock-source",
 						AssetCode:       "USD",
-						Amount:          operation.Amount{Value: &amount100},
+						Amount:          operation.Amount{Value: &amount200},
 						Description:     "Unblock debit leg",
 						ChartOfAccounts: "4003",
 					},
@@ -784,6 +786,14 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				assert.True(t, fromAliases["@block-destination"].IsFrom)
 				assert.True(t, fromAliases["@unblock-destination"].IsFrom)
 
+				// from-leg rigor: assert decimal value-equality and the explicit
+				// BalanceKey carried through from the credit-direction BLOCK leg.
+				require.NotNil(t, fromAliases["@block-destination"].Amount)
+				assert.True(t, fromAliases["@block-destination"].Amount.Value.Equal(amount100),
+					"BLOCK credit from-leg must carry the original amount")
+				assert.Equal(t, "reserve", fromAliases["@block-destination"].BalanceKey,
+					"explicit BalanceKey must be preserved on the reversed from-leg")
+
 				// debit-direction BLOCK/UNBLOCK legs become To (distribute), like DEBIT.
 				toAliases := make(map[string]mtransaction.FromTo)
 				for _, to := range result.Send.Distribute.To {
@@ -794,6 +804,53 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				assert.Contains(t, toAliases, "@unblock-source")
 				assert.False(t, toAliases["@block-source"].IsFrom)
 				assert.False(t, toAliases["@unblock-source"].IsFrom)
+
+				// to-leg rigor: assert decimal value-equality and the empty ->
+				// DefaultBalanceKey default on the debit-direction UNBLOCK leg
+				// (which left BalanceKey unset).
+				require.NotNil(t, toAliases["@unblock-source"].Amount)
+				assert.True(t, toAliases["@unblock-source"].Amount.Value.Equal(amount200),
+					"UNBLOCK debit to-leg must carry the original amount")
+				assert.Equal(t, pkgConstant.DefaultBalanceKey, toAliases["@unblock-source"].BalanceKey,
+					"empty BalanceKey must default to DefaultBalanceKey on the reversed to-leg")
+			},
+		},
+		{
+			name: "revert drops directionless block and unblock legs",
+			transaction: Transaction{
+				// Defensive pin: reversalLegSide has no domain-reachable path for a
+				// directionless BLOCK/UNBLOCK op — op.Direction matches neither
+				// DirectionCredit nor DirectionDebit, so both isFrom and isTo are
+				// false and buildReversalLegs skips the op entirely (no From, no To).
+				// Pinned so a future change to reversalLegSide cannot start routing a
+				// directionless op without failing here.
+				Description: "Directionless block/unblock transaction",
+				AssetCode:   "USD",
+				Amount:      &totalAmount,
+				Operations: []*operation.Operation{
+					{
+						Type:         pkgConstant.BLOCK,
+						Direction:    "", // directionless -> dropped
+						AccountAlias: "@block-directionless",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+					{
+						Type:         pkgConstant.UNBLOCK,
+						Direction:    "", // directionless -> dropped
+						AccountAlias: "@unblock-directionless",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result mtransaction.Transaction) {
+				// reversalLegSide returns (false, false) for both ops, so neither
+				// leg is reconstructed on either side.
+				assert.Empty(t, result.Send.Source.From,
+					"directionless BLOCK/UNBLOCK legs must not reconstruct as From")
+				assert.Empty(t, result.Send.Distribute.To,
+					"directionless BLOCK/UNBLOCK legs must not reconstruct as To")
 			},
 		},
 		{
