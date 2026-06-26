@@ -63,6 +63,99 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
 
+// buildOverriddenTransaction builds the Transaction exactly as the JSON path
+// does, then stamps the semantic operation-type marker (BLOCK/UNBLOCK) and
+// forces the transaction off the pending flow.
+//
+// Invariant (Epic 1.1): OperationTypeOverride is honored ONLY on the standard
+// single-entry path (buildStandardOp). The PENDING/CANCELED double-entry
+// builders silently drop it. Forcing Pending=false here guarantees
+// InitialStatus() resolves to CREATED, keeping block/unblock as direct ACTIVE
+// transfers on the path that honors the marker.
+func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransaction.CreateTransactionInput, operationType string) mtransaction.Transaction {
+	transactionInput := input.BuildTransaction()
+	transactionInput.Pending = false
+	transactionInput.OperationTypeOverride = operationType
+
+	return *transactionInput
+}
+
+// CreateTransactionBlock method that creates a block transaction
+//
+//	@Summary		Create a Block Transaction
+//	@Description	Create a direct transaction whose operations are labeled BLOCK
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
+//	@Success		201				{object}	Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block [post]
+func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_block")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*mtransaction.CreateTransactionInput)
+	transactionInput := handler.buildOverriddenTransaction(input, constant.BLOCK)
+
+	logSafePayload(ctx, logger, "Request to create a block transaction", &transactionInput)
+	recordSafePayloadAttributes(span, &transactionInput)
+
+	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+}
+
+// CreateTransactionUnblock method that creates an unblock transaction
+//
+//	@Summary		Create an Unblock Transaction
+//	@Description	Create a direct transaction whose operations are labeled UNBLOCK
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
+//	@Success		201				{object}	Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock [post]
+func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_unblock")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*mtransaction.CreateTransactionInput)
+	transactionInput := handler.buildOverriddenTransaction(input, constant.UNBLOCK)
+
+	logSafePayload(ctx, logger, "Request to create an unblock transaction", &transactionInput)
+	recordSafePayloadAttributes(span, &transactionInput)
+
+	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+}
+
 // CreateTransactionAnnotation method that create transaction using JSON
 //
 //	@Summary		Create a Transaction Annotation using JSON
@@ -212,7 +305,8 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		"/ledgers/"+c.Params("ledger_id")+
 		"/transactions/json>; rel=\"successor-version\"")
 
-	logger.Log(ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
+	logger.Log(
+		ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
 		libLog.String("request_id", c.Get("X-Request-Id")),
 		libLog.String("sunset_date", "2026-08-01"),
 	)
