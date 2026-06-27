@@ -11,6 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// FindAll accounts by holder id and filter
+// FindAll instruments by holder id and filter
 func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -66,7 +67,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		attribute.Bool("app.request.query.has_banking_details_filters", query.InstrumentBankingDetailsBranch != nil || query.InstrumentBankingDetailsAccount != nil || query.InstrumentBankingDetailsIban != nil),
 	)
 
-	filter, err := am.buildAliasFilter(query, holderID, includeDeleted)
+	filter, err := am.buildInstrumentFilter(ctx, organizationID, query, holderID, includeDeleted)
 	if err != nil {
 		recordSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
@@ -74,7 +75,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find aliases", err)
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find instruments", err)
 
 		return nil, err
 	}
@@ -85,30 +86,37 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		}
 	}()
 
-	var aliases []*MongoDBModel
+	var instruments []*MongoDBModel
 
 	for cursor.Next(ctx) {
-		var holder MongoDBModel
-		if err := cursor.Decode(&holder); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to decode aliases", err)
+		var instrument MongoDBModel
+		if err := cursor.Decode(&instrument); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode instruments", err)
 
 			return nil, err
 		}
 
-		aliases = append(aliases, &holder)
+		instruments = append(instruments, &instrument)
 	}
 
 	if err := cursor.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to iterate aliases", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate instruments", err)
 
 		return nil, err
 	}
 
-	results := make([]*mmodel.Instrument, len(aliases))
-	for i, alias := range aliases {
-		results[i], err = alias.ToEntity(am.DataSecurity)
+	results := make([]*mmodel.Instrument, len(instruments))
+	for i, instrument := range instruments {
+		// Build encryption context for each instrument
+		encryptionCtx := encryption.EncryptionContext{
+			TenantID:       encryption.ExtractTenantID(ctx),
+			OrganizationID: organizationID,
+			RecordID:       instrument.ID.String(),
+		}
+
+		results[i], err = instrument.ToEntity(ctx, am.FieldEncryptor, encryptionCtx)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to convert instrument to model", err)
 
 			return nil, err
 		}
@@ -117,7 +125,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	return results, nil
 }
 
-func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID uuid.UUID, includeDeleted bool) (bson.D, error) {
+func (am *MongoDBRepository) buildInstrumentFilter(ctx context.Context, organizationID string, query http.QueryHeader, holderID uuid.UUID, includeDeleted bool) (bson.D, error) {
 	filter := bson.D{}
 
 	if holderID != uuid.Nil {
@@ -128,6 +136,23 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
 	}
 
+	filter = am.appendBasicFilters(filter, query)
+
+	searchCtx := encryption.SearchTokenContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+	}
+
+	encryptedFilter, err := am.appendEncryptedFilters(ctx, filter, query, searchCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return am.appendMetadataFilters(encryptedFilter, query)
+}
+
+// appendBasicFilters adds non-encrypted field filters to the filter.
+func (am *MongoDBRepository) appendBasicFilters(filter bson.D, query http.QueryHeader) bson.D {
 	if !libCommons.IsNilOrEmpty(query.AccountID) {
 		filter = append(filter, bson.E{Key: "account_id", Value: *query.AccountID})
 	}
@@ -136,58 +161,102 @@ func (am *MongoDBRepository) buildAliasFilter(query http.QueryHeader, holderID u
 		filter = append(filter, bson.E{Key: "ledger_id", Value: *query.LedgerID})
 	}
 
-	if !libCommons.IsNilOrEmpty(query.Document) {
-		documentHash := am.DataSecurity.GenerateHash(query.Document)
-		filter = append(filter, bson.E{Key: "search.document", Value: documentHash})
-	}
-
-	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsAccount) {
-		bankingDetailsAccountHash := am.DataSecurity.GenerateHash(query.InstrumentBankingDetailsAccount)
-		filter = append(filter, bson.E{Key: "search.banking_details_account", Value: bankingDetailsAccountHash})
-	}
-
-	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsIban) {
-		bankingDetailsIbanHash := am.DataSecurity.GenerateHash(query.InstrumentBankingDetailsIban)
-		filter = append(filter, bson.E{Key: "search.banking_details_iban", Value: bankingDetailsIbanHash})
-	}
-
 	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsBranch) {
 		filter = append(filter, bson.E{Key: "banking_details.branch", Value: *query.InstrumentBankingDetailsBranch})
-	}
-
-	if !libCommons.IsNilOrEmpty(query.InstrumentRegulatoryFieldsParticipantDocument) {
-		participantDocHash := am.DataSecurity.GenerateHash(query.InstrumentRegulatoryFieldsParticipantDocument)
-		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: participantDocHash})
-	}
-
-	if !libCommons.IsNilOrEmpty(query.InstrumentRelatedPartyDocument) {
-		relatedPartyDocHash := am.DataSecurity.GenerateHash(query.InstrumentRelatedPartyDocument)
-		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: relatedPartyDocHash})
 	}
 
 	if !libCommons.IsNilOrEmpty(query.InstrumentRelatedPartyRole) {
 		filter = append(filter, bson.E{Key: "related_parties.role", Value: *query.InstrumentRelatedPartyRole})
 	}
 
-	if query.Metadata != nil {
-		for k, v := range *query.Metadata {
-			safeValue, err := http.ValidateMetadataValue(v)
-			if err != nil {
-				return nil, err
-			}
+	return filter
+}
 
-			key := k
-			if !strings.HasPrefix(key, "metadata.") {
-				key = "metadata." + key
-			}
+// appendEncryptedFilters adds encrypted field search filters to the filter.
+// Uses $in operator with token candidates to support key rotation during searches.
+func (am *MongoDBRepository) appendEncryptedFilters(ctx context.Context, filter bson.D, query http.QueryHeader, searchCtx encryption.SearchTokenContext) (bson.D, error) {
+	if !libCommons.IsNilOrEmpty(query.Document) {
+		searchCtx.FieldName = "document"
 
-			filter = append(filter, bson.E{Key: key, Value: safeValue})
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.Document)
+		if err != nil {
+			return nil, err
 		}
+
+		filter = append(filter, bson.E{Key: "search.document", Value: bson.M{"$in": tokens}})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsAccount) {
+		searchCtx.FieldName = "banking_details.account"
+
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.InstrumentBankingDetailsAccount)
+		if err != nil {
+			return nil, err
+		}
+
+		filter = append(filter, bson.E{Key: "search.banking_details_account", Value: bson.M{"$in": tokens}})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.InstrumentBankingDetailsIban) {
+		searchCtx.FieldName = "banking_details.iban"
+
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.InstrumentBankingDetailsIban)
+		if err != nil {
+			return nil, err
+		}
+
+		filter = append(filter, bson.E{Key: "search.banking_details_iban", Value: bson.M{"$in": tokens}})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.InstrumentRegulatoryFieldsParticipantDocument) {
+		searchCtx.FieldName = "regulatory_fields.participant_document"
+
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.InstrumentRegulatoryFieldsParticipantDocument)
+		if err != nil {
+			return nil, err
+		}
+
+		filter = append(filter, bson.E{Key: "search.regulatory_fields_participant_document", Value: bson.M{"$in": tokens}})
+	}
+
+	if !libCommons.IsNilOrEmpty(query.InstrumentRelatedPartyDocument) {
+		searchCtx.FieldName = "related_parties.document"
+
+		tokens, err := am.FieldEncryptor.GenerateSearchTokenCandidates(ctx, searchCtx, *query.InstrumentRelatedPartyDocument)
+		if err != nil {
+			return nil, err
+		}
+
+		filter = append(filter, bson.E{Key: "search.related_party_documents", Value: bson.M{"$in": tokens}})
 	}
 
 	return filter, nil
 }
 
+// appendMetadataFilters adds metadata filters to the filter.
+func (am *MongoDBRepository) appendMetadataFilters(filter bson.D, query http.QueryHeader) (bson.D, error) {
+	if query.Metadata == nil {
+		return filter, nil
+	}
+
+	for k, v := range *query.Metadata {
+		safeValue, err := http.ValidateMetadataValue(v)
+		if err != nil {
+			return nil, err
+		}
+
+		key := k
+		if !strings.HasPrefix(key, "metadata.") {
+			key = "metadata." + key
+		}
+
+		filter = append(filter, bson.E{Key: key, Value: safeValue})
+	}
+
+	return filter, nil
+}
+
+// Count returns the count of instruments for a given holder
 func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, holderID uuid.UUID) (int64, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 

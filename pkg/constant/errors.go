@@ -489,3 +489,18 @@ var (
 	ErrRelatedPartyEndDateInvalid          = errors.New("CRM-0029")
 	ErrHolderHasAccounts                   = errors.New("CRM-0030")
 )
+
+// Encryption and keyset management errors (CRM domain, string-namespaced family).
+var (
+	ErrKeysetNotFound               = errors.New("CRM-0031")
+	ErrKeysetAlreadyExists          = errors.New("CRM-0032")
+	ErrKeysetRevisionConflict       = errors.New("CRM-0033")
+	ErrRegistryNotFound             = errors.New("CRM-0034")
+	ErrRegistryAlreadyExists        = errors.New("CRM-0035")
+	ErrRegistryRevisionConflict     = errors.New("CRM-0036")
+	ErrOrganizationEncryptionFailed = errors.New("CRM-0037")
+	ErrProvisioningFailed           = errors.New("CRM-0038")
+	ErrAuditEventRequired           = errors.New("CRM-0039")
+	ErrAuditWriteFailed             = errors.New("CRM-0040")
+	ErrReservedTenantID             = errors.New("CRM-0041")
+)

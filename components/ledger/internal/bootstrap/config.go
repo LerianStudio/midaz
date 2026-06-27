@@ -190,6 +190,18 @@ type Config struct {
 	CrmHashSecretKey    string `env:"LCRYPTO_HASH_SECRET_KEY"`
 	CrmEncryptSecretKey string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 
+	// --- CRM KMS / field-encryption (envelope) config ---
+	// KMS_VENDOR selects the encryption mode: "none" (or empty) keeps legacy
+	// lib-commons crypto; "hashicorp-vault" enables KMS-backed envelope encryption
+	// for holder/instrument fields. The Vault fields are required only for envelope
+	// mode and validated then; legacy mode ignores them.
+	KMSVendor       string `env:"KMS_VENDOR"`
+	VaultAddr       string `env:"KMS_VAULT_ADDR"`
+	VaultRoleID     string `env:"KMS_VAULT_ROLE_ID"`
+	VaultSecretID   string `env:"KMS_VAULT_SECRET_ID"`
+	VaultMountPath  string `env:"KMS_VAULT_MOUNT_PATH"`
+	VaultAuthMethod string `env:"KMS_VAULT_AUTH_METHOD"`
+
 	// --- Fees MongoDB fields (MONGO_FEES_* env tags) ---
 	// Fee/billing-package collections collapsed into the unified ledger binary
 	// (P4). Namespaced MONGO_FEES_* to avoid colliding with the standalone fees
@@ -550,12 +562,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
 	}
 
-	// 4b. CRM MongoDB → holder/alias repos + handlers (collapsed from the
-	// standalone CRM service in P3). Single-tenant builds a static client +
-	// cipher; multi-tenant builds a 3rd crm-api tenant Mongo manager.
+	// 4b. CRM MongoDB → holder/instrument repos + handlers (collapsed from the
+	// standalone CRM service in P3). Single-tenant builds a static client;
+	// multi-tenant builds a 3rd crm-api tenant Mongo manager. Field encryption
+	// (legacy or KMS envelope) is wired here and injected into the repos.
+	// metricsFactory is nil at this point (telemetry is wired below); the
+	// protection-metrics seam is nil-safe and degrades to a no-op emitter.
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing CRM MongoDB...")
 
-	crmMgo, err := initCRM(internalOpts, cfg, logger)
+	crmMgo, err := initCRM(internalOpts, cfg, nil, logger)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize CRM MongoDB: %w", err)
@@ -1005,7 +1020,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	holderAccountsHandler := &httpin.HolderAccountsHandler{
 		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
-	crmRouteRegistrar := httpin.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, routeSetup.crmRouteOptions)
+	crmRouteRegistrar := httpin.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD

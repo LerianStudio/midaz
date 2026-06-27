@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/dupkey"
+	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -43,15 +43,19 @@ type Repository interface {
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
-	connection   *libMongo.Client
-	DataSecurity *libCrypto.Crypto
+	connection     *libMongo.Client
+	FieldEncryptor encryption.FieldEncryptor
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
-func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
+func NewMongoDBRepository(connection *libMongo.Client, fieldEncryptor encryption.FieldEncryptor) (*MongoDBRepository, error) {
+	if fieldEncryptor == nil {
+		return nil, fmt.Errorf("holder repository requires a non-nil FieldEncryptor")
+	}
+
 	r := &MongoDBRepository{
-		DataSecurity: dataSecurity,
+		FieldEncryptor: fieldEncryptor,
 	}
 
 	if connection != nil {
@@ -115,9 +119,16 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       holder.ID.String(),
+	}
+
 	record := &MongoDBModel{}
 
-	if err := record.FromEntity(holder, hm.DataSecurity); err != nil {
+	if err := record.FromEntity(ctx, holder, hm.FieldEncryptor, encryptionCtx); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
@@ -154,7 +165,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -219,7 +230,14 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 	spanFind.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
@@ -267,9 +285,16 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		attribute.Bool("app.request.repository_input.has_legal_person", holder.LegalPerson != nil),
 	)
 
+	// Build encryption context for this holder
+	encryptionCtx := encryption.EncryptionContext{
+		TenantID:       encryption.ExtractTenantID(ctx),
+		OrganizationID: organizationID,
+		RecordID:       id.String(),
+	}
+
 	holderToUpdate := &MongoDBModel{}
 
-	if err := holderToUpdate.FromEntity(holder, hm.DataSecurity); err != nil {
+	if err := holderToUpdate.FromEntity(ctx, holder, hm.FieldEncryptor, encryptionCtx); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
@@ -322,7 +347,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanFind.End()
 
-	result, err := record.ToEntity(hm.DataSecurity)
+	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 

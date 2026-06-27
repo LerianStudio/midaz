@@ -439,6 +439,8 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -607,6 +609,8 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -862,6 +866,8 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -986,6 +992,8 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1093,6 +1101,8 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1327,6 +1337,8 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

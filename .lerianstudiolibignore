@@ -1,0 +1,11 @@
+# lib-auth — pinned at current 
+lib-auth/v2
+
+# lib-commons — pinned at beta while waiting to migrate to version with mongodb driver v2
+lib-commons/v5
+
+# lib-observability — pinned at current
+lib-observability
+
+# lib-streaming — pinned at current
+lib-streaming

@@ -5,8 +5,11 @@
 package holder
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/stretchr/testify/assert"
@@ -21,9 +24,9 @@ import (
 func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -46,11 +49,14 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, tt.includeDeleted)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, tt.includeDeleted)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -72,9 +78,9 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	externalID := "EXT-12345"
@@ -115,11 +121,14 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -142,9 +151,9 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 func TestBuildHolderFilter_WithDocument(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	document := "12345678901"
@@ -155,7 +164,7 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 		wantDocument bool
 	}{
 		{
-			name: "includes_document_hash_when_provided",
+			name: "includes_document_tokens_with_in_operator_when_provided",
 			query: http.QueryHeader{
 				Limit:    10,
 				Page:     1,
@@ -183,11 +192,14 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter, err := repo.buildHolderFilter(tt.query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, tt.query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -196,9 +208,24 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 			for _, elem := range filter {
 				if elem.Key == "search.document" {
 					hasDocument = true
-					// Value should be a hash, not the original document
-					assert.NotEqual(t, document, elem.Value,
-						"document should be hashed, not plaintext")
+
+					// Value should be bson.M with $in operator containing token candidates
+					inFilter, ok := elem.Value.(bson.M)
+					require.True(t, ok, "search.document value should be bson.M")
+
+					inValue, hasIn := inFilter["$in"]
+					require.True(t, hasIn, "search.document should use $in operator")
+
+					// Value should be a slice of tokens
+					tokens, ok := inValue.([]string)
+					require.True(t, ok, "$in value should be []string")
+					require.NotEmpty(t, tokens, "token candidates should not be empty")
+
+					// Tokens should not contain the original document (they are hashes)
+					for _, token := range tokens {
+						assert.NotEqual(t, document, token,
+							"tokens should be hashes, not plaintext")
+					}
 				}
 			}
 
@@ -211,9 +238,9 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -259,6 +286,9 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -269,7 +299,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 				Metadata: tt.metadata,
 			}
 
-			filter, err := repo.buildHolderFilter(query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, filter)
@@ -303,9 +333,9 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	tests := []struct {
@@ -329,6 +359,9 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	orgID := "test-org-123"
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -339,7 +372,7 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 				Metadata: tt.metadata,
 			}
 
-			filter, err := repo.buildHolderFilter(query, false)
+			filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 			require.Error(t, err, "should return error for invalid metadata")
 			assert.Nil(t, filter)
@@ -352,9 +385,9 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	externalID := "EXT-COMBINED"
@@ -370,7 +403,10 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 		},
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 	require.NoError(t, err)
 	require.NotNil(t, filter)
@@ -397,17 +433,17 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 	assert.Len(t, filter, len(expectedKeys), "filter should have exactly %d keys", len(expectedKeys))
 }
 
-func TestBuildHolderFilter_HashGeneration(t *testing.T) {
+func TestBuildHolderFilter_TokenCandidatesGeneration(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
-	// Test that document hash is generated consistently
+	// Test that document token candidates are generated consistently
 	document := "12345678901"
-	expectedHash := crypto.GenerateHash(&document)
+	expectedToken := testutils.TestLegacySearchToken(document)
 
 	query := http.QueryHeader{
 		Limit:    10,
@@ -415,41 +451,55 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 		Document: &document,
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 	require.NoError(t, err)
 
-	// Find the document hash in the filter
-	var foundHash string
+	// Find the document filter with $in operator
+	var foundTokens []string
 	for _, elem := range filter {
 		if elem.Key == "search.document" {
-			foundHash = elem.Value.(string)
+			inFilter, ok := elem.Value.(bson.M)
+			require.True(t, ok, "search.document value should be bson.M")
+
+			inValue, hasIn := inFilter["$in"]
+			require.True(t, hasIn, "search.document should use $in operator")
+
+			foundTokens, ok = inValue.([]string)
+			require.True(t, ok, "$in value should be []string")
+
 			break
 		}
 	}
 
-	assert.Equal(t, expectedHash, foundHash, "document hash should match expected")
+	require.NotEmpty(t, foundTokens, "token candidates should not be empty")
+	assert.Contains(t, foundTokens, expectedToken, "token candidates should contain expected legacy token")
 
-	// Verify hash is deterministic - same input produces same hash
-	filter2, err := repo.buildHolderFilter(query, false)
+	// Verify token generation is deterministic - same input produces same tokens
+	filter2, err := repo.buildHolderFilter(ctx, orgID, query, false)
 	require.NoError(t, err)
 
-	var foundHash2 string
+	var foundTokens2 []string
 	for _, elem := range filter2 {
 		if elem.Key == "search.document" {
-			foundHash2 = elem.Value.(string)
+			inFilter := elem.Value.(bson.M)
+			foundTokens2 = inFilter["$in"].([]string)
+
 			break
 		}
 	}
 
-	assert.Equal(t, foundHash, foundHash2, "hash should be deterministic")
+	assert.Equal(t, foundTokens, foundTokens2, "token candidates should be deterministic")
 }
 
 func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	t.Parallel()
 
-	crypto := testutils.SetupCrypto(t)
+	fe := setupTestFieldEncryptor(t)
 	repo := &MongoDBRepository{
-		DataSecurity: crypto,
+		FieldEncryptor: fe,
 	}
 
 	query := http.QueryHeader{
@@ -457,7 +507,10 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 		Page:  1,
 	}
 
-	filter, err := repo.buildHolderFilter(query, false)
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
 
 	require.NoError(t, err)
 	require.NotNil(t, filter)
@@ -466,4 +519,217 @@ func TestBuildHolderFilter_EmptyQuery(t *testing.T) {
 	assert.Len(t, filter, 1, "empty query should only have deleted_at filter")
 	assert.Equal(t, "deleted_at", filter[0].Key)
 	assert.Nil(t, filter[0].Value)
+}
+
+// mockFieldEncryptorWithError implements FieldEncryptor for error testing scenarios.
+type mockFieldEncryptorWithError struct {
+	searchTokenCandidatesErr error
+}
+
+func (m *mockFieldEncryptorWithError) EncryptField(_ context.Context, _ encryption.FieldContext, plaintext string) (string, error) {
+	return plaintext, nil
+}
+
+func (m *mockFieldEncryptorWithError) DecryptField(_ context.Context, _ encryption.FieldContext, ciphertext string) (string, error) {
+	return ciphertext, nil
+}
+
+func (m *mockFieldEncryptorWithError) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, uint32, error) {
+	return "mock-token", 0, nil
+}
+
+func (m *mockFieldEncryptorWithError) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {
+	if m.searchTokenCandidatesErr != nil {
+		return nil, m.searchTokenCandidatesErr
+	}
+
+	return []string{"mock-token"}, nil
+}
+
+func TestBuildHolderFilter_GenerateSearchTokenCandidatesError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("keyset not found for organization")
+
+	mockFE := &mockFieldEncryptorWithError{
+		searchTokenCandidatesErr: expectedErr,
+	}
+
+	repo := &MongoDBRepository{
+		FieldEncryptor: mockFE,
+	}
+
+	document := "12345678901"
+	query := http.QueryHeader{
+		Limit:    10,
+		Page:     1,
+		Document: &document,
+	}
+
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
+
+	require.Error(t, err, "should return error when GenerateSearchTokenCandidates fails")
+	assert.Nil(t, filter)
+	assert.ErrorIs(t, err, expectedErr, "should propagate the original error")
+}
+
+// ============================================================================
+// Multi-Token Key Rotation Tests
+// ============================================================================
+
+// mockFieldEncryptorMultiToken implements FieldEncryptor that returns configurable
+// multiple tokens to simulate key rotation scenarios where multiple HMAC keys are active.
+type mockFieldEncryptorMultiToken struct {
+	tokens []string
+}
+
+func (m *mockFieldEncryptorMultiToken) EncryptField(_ context.Context, _ encryption.FieldContext, plaintext string) (string, error) {
+	return "encrypted-" + plaintext, nil
+}
+
+func (m *mockFieldEncryptorMultiToken) DecryptField(_ context.Context, _ encryption.FieldContext, ciphertext string) (string, error) {
+	return ciphertext, nil
+}
+
+func (m *mockFieldEncryptorMultiToken) GenerateSearchToken(_ context.Context, _ encryption.SearchTokenContext, _ string) (string, uint32, error) {
+	if len(m.tokens) > 0 {
+		return m.tokens[0], 0, nil
+	}
+
+	return "mock-token", 0, nil
+}
+
+func (m *mockFieldEncryptorMultiToken) GenerateSearchTokenCandidates(_ context.Context, _ encryption.SearchTokenContext, _ string) ([]string, error) {
+	return m.tokens, nil
+}
+
+func TestBuildHolderFilter_MultiTokenKeyRotation(t *testing.T) {
+	t.Parallel()
+
+	// Create mock that returns multiple tokens simulating key rotation scenario
+	// where old key, current key, and new key are all enabled
+	mockFE := &mockFieldEncryptorMultiToken{
+		tokens: []string{"token-old-key", "token-current-key", "token-new-key"},
+	}
+
+	repo := &MongoDBRepository{
+		FieldEncryptor: mockFE,
+	}
+
+	document := "12345678901"
+	query := http.QueryHeader{
+		Limit:    10,
+		Page:     1,
+		Document: &document,
+	}
+
+	ctx := context.Background()
+	orgID := "test-org-123"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
+	require.NoError(t, err)
+	require.NotNil(t, filter)
+
+	// Find search.document filter
+	var inFilter bson.M
+	for _, elem := range filter {
+		if elem.Key == "search.document" {
+			inFilter = elem.Value.(bson.M)
+
+			break
+		}
+	}
+
+	require.NotNil(t, inFilter, "search.document filter should be present")
+
+	tokens := inFilter["$in"].([]string)
+	assert.Len(t, tokens, 3, "should contain all three rotation tokens")
+	assert.Contains(t, tokens, "token-old-key", "should contain old key token")
+	assert.Contains(t, tokens, "token-current-key", "should contain current key token")
+	assert.Contains(t, tokens, "token-new-key", "should contain new key token")
+}
+
+func TestBuildHolderFilter_MultiTokenKeyRotation_OrderPreserved(t *testing.T) {
+	t.Parallel()
+
+	// Verify that token order is preserved (important for deterministic query plans)
+	orderedTokens := []string{"first-token", "second-token", "third-token", "fourth-token"}
+
+	mockFE := &mockFieldEncryptorMultiToken{
+		tokens: orderedTokens,
+	}
+
+	repo := &MongoDBRepository{
+		FieldEncryptor: mockFE,
+	}
+
+	document := "99988877766"
+	query := http.QueryHeader{
+		Limit:    10,
+		Page:     1,
+		Document: &document,
+	}
+
+	ctx := context.Background()
+	orgID := "test-org-456"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
+	require.NoError(t, err)
+
+	// Extract tokens from filter
+	var foundTokens []string
+	for _, elem := range filter {
+		if elem.Key == "search.document" {
+			inFilter := elem.Value.(bson.M)
+			foundTokens = inFilter["$in"].([]string)
+
+			break
+		}
+	}
+
+	require.Len(t, foundTokens, len(orderedTokens))
+	assert.Equal(t, orderedTokens, foundTokens, "token order should be preserved for deterministic queries")
+}
+
+func TestBuildHolderFilter_MultiTokenKeyRotation_SingleToken(t *testing.T) {
+	t.Parallel()
+
+	// Edge case: single token (no rotation in progress)
+	mockFE := &mockFieldEncryptorMultiToken{
+		tokens: []string{"single-active-key-token"},
+	}
+
+	repo := &MongoDBRepository{
+		FieldEncryptor: mockFE,
+	}
+
+	document := "55544433322"
+	query := http.QueryHeader{
+		Limit:    10,
+		Page:     1,
+		Document: &document,
+	}
+
+	ctx := context.Background()
+	orgID := "test-org-single"
+
+	filter, err := repo.buildHolderFilter(ctx, orgID, query, false)
+	require.NoError(t, err)
+
+	// Extract tokens from filter
+	var foundTokens []string
+	for _, elem := range filter {
+		if elem.Key == "search.document" {
+			inFilter := elem.Value.(bson.M)
+			foundTokens = inFilter["$in"].([]string)
+
+			break
+		}
+	}
+
+	require.Len(t, foundTokens, 1, "should work with single token (no rotation)")
+	assert.Equal(t, "single-active-key-token", foundTokens[0])
 }

@@ -109,7 +109,7 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 		return nil, fmt.Errorf("failed to initialize onboarding postgres: %w", err)
 	}
 
-	crm, err := initCRM(opts, cfg, logger)
+	crm, err := initCRM(opts, cfg, nil, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize CRM: %w", err)
 	}

@@ -92,7 +92,7 @@ func buildUnifiedRouteSurface() *fiber.App {
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)
 	RegisterCRMRoutesToApp(app, auth,
-		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{}, nil)
+		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{}, nil, nil, nil)
 	RegisterFeesRoutesToApp(app, auth,
 		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
 	RegisterCompositionRoutesToApp(app, auth, &CompositionHandler{}, nil)

@@ -5,10 +5,12 @@
 package instrument
 
 import (
+	"context"
+	"fmt"
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -37,6 +39,7 @@ type MongoDBModel struct {
 	HolderID         *uuid.UUID                    `bson:"holder_id,omitempty"`
 	Metadata         map[string]any                `bson:"metadata"`
 	Search           *SearchMongoDB                `bson:"search,omitempty"`
+	SearchKeyVersion uint32                        `bson:"search_key_version,omitempty"`
 	BankingDetails   *BankingMongoDBModel          `bson:"banking_details,omitempty"`
 	RegulatoryFields *RegulatoryFieldsMongoDBModel `bson:"regulatory_fields,omitempty"`
 	RelatedParties   []*RelatedPartyMongoDBModel   `bson:"related_parties,omitempty"`
@@ -77,93 +80,230 @@ type RelatedPartyMongoDBModel struct {
 	EndDate   *time.Time `bson:"end_date,omitempty"`
 }
 
-func encryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
+// stampSearchKeyVersion records the PRF keyset primary version used for the document's
+// search tokens. All of a document's tokens share one version (same org primary), so the
+// first non-zero version observed is kept; a legacy write (version 0) leaves it unset.
+func (amm *MongoDBModel) stampSearchKeyVersion(keyVersion uint32) {
+	if amm.SearchKeyVersion == 0 {
+		amm.SearchKeyVersion = keyVersion
 	}
-
-	return ds.Encrypt(value)
-}
-
-func decryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	return ds.Decrypt(value)
 }
 
 // mapBankingDetailsFromEntity encrypts and maps banking details to MongoDB model.
-func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto) (*BankingMongoDBModel, *string, *string, error) {
-	account, err := encryptOptional(ds, bd.Account)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	iban, err := encryptOptional(ds, bd.IBAN)
-	if err != nil {
-		return nil, nil, nil, err
+// The returned key version is the PRF keyset primary used for the generated search tokens.
+func mapBankingDetailsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, bd *mmodel.BankingDetails) (*BankingMongoDBModel, *string, *string, uint32, error) {
+	fieldCtx := encryption.FieldContext{
+		TenantID:       encryptionCtx.TenantID,
+		OrganizationID: encryptionCtx.OrganizationID,
+		RecordID:       encryptionCtx.RecordID,
 	}
 
 	model := &BankingMongoDBModel{
 		Branch:      bd.Branch,
-		Account:     account,
 		Type:        bd.Type,
 		OpeningDate: bd.OpeningDate,
 		CountryCode: bd.CountryCode,
 		BankID:      bd.BankID,
-		IBAN:        iban,
 	}
 
 	if bd.ClosingDate != nil {
 		model.ClosingDate = &bd.ClosingDate.Time
 	}
 
-	var accountHash, ibanHash *string
+	var (
+		accountHash, ibanHash *string
+		keyVersion            uint32
+	)
 
-	if bd.Account != nil && *bd.Account != "" {
-		hash := ds.GenerateHash(bd.Account)
-		accountHash = &hash
+	if bd.Account != nil {
+		fieldCtx.FieldName = "banking_details.account"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *bd.Account)
+		if err != nil {
+			return nil, nil, nil, 0, err
+		}
+
+		model.Account = &encrypted
+
+		if *bd.Account != "" {
+			searchCtx := encryption.SearchTokenContext{
+				TenantID:       encryptionCtx.TenantID,
+				OrganizationID: encryptionCtx.OrganizationID,
+				FieldName:      "banking_details.account",
+			}
+
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.Account)
+			if hashErr != nil {
+				return nil, nil, nil, 0, hashErr
+			}
+
+			accountHash = &hash
+			keyVersion = version
+		}
 	}
 
-	if bd.IBAN != nil && *bd.IBAN != "" {
-		hash := ds.GenerateHash(bd.IBAN)
-		ibanHash = &hash
+	if bd.IBAN != nil {
+		fieldCtx.FieldName = "banking_details.iban"
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *bd.IBAN)
+		if err != nil {
+			return nil, nil, nil, 0, err
+		}
+
+		model.IBAN = &encrypted
+
+		if *bd.IBAN != "" {
+			searchCtx := encryption.SearchTokenContext{
+				TenantID:       encryptionCtx.TenantID,
+				OrganizationID: encryptionCtx.OrganizationID,
+				FieldName:      "banking_details.iban",
+			}
+
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *bd.IBAN)
+			if hashErr != nil {
+				return nil, nil, nil, 0, hashErr
+			}
+
+			ibanHash = &hash
+			keyVersion = version
+		}
 	}
 
-	return model, accountHash, ibanHash, nil
+	return model, accountHash, ibanHash, keyVersion, nil
+}
+
+// mapBankingDetailsToEntity decrypts and maps banking details from MongoDB model.
+func mapBankingDetailsToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, bd *BankingMongoDBModel) (*mmodel.BankingDetails, error) {
+	fieldCtx := encryption.FieldContext{
+		TenantID:       encryptionCtx.TenantID,
+		OrganizationID: encryptionCtx.OrganizationID,
+		RecordID:       encryptionCtx.RecordID,
+	}
+
+	bankingDetails := &mmodel.BankingDetails{
+		Branch:      bd.Branch,
+		Type:        bd.Type,
+		OpeningDate: bd.OpeningDate,
+		CountryCode: bd.CountryCode,
+		BankID:      bd.BankID,
+	}
+
+	if bd.Account != nil {
+		fieldCtx.FieldName = "banking_details.account"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *bd.Account)
+		if err != nil {
+			return nil, err
+		}
+
+		bankingDetails.Account = &decrypted
+	}
+
+	if bd.IBAN != nil {
+		fieldCtx.FieldName = "banking_details.iban"
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *bd.IBAN)
+		if err != nil {
+			return nil, err
+		}
+
+		bankingDetails.IBAN = &decrypted
+	}
+
+	if bd.ClosingDate != nil {
+		bankingDetails.ClosingDate = &mmodel.Date{Time: *bd.ClosingDate}
+	}
+
+	return bankingDetails, nil
 }
 
 // mapRegulatoryFieldsFromEntity encrypts and maps regulatory fields to MongoDB model.
-func mapRegulatoryFieldsFromEntity(rf *mmodel.RegulatoryFields, ds *libCrypto.Crypto) (*RegulatoryFieldsMongoDBModel, *string, error) {
-	participantDocument, err := encryptOptional(ds, rf.ParticipantDocument)
-	if err != nil {
-		return nil, nil, err
+// The returned key version is the PRF keyset primary used for the generated search token.
+func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *mmodel.RegulatoryFields) (*RegulatoryFieldsMongoDBModel, *string, uint32, error) {
+	model := &RegulatoryFieldsMongoDBModel{}
+
+	var (
+		docHash    *string
+		keyVersion uint32
+	)
+
+	if rf.ParticipantDocument != nil {
+		fieldCtx := encryption.FieldContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			RecordID:       encryptionCtx.RecordID,
+			FieldName:      "regulatory_fields.participant_document",
+		}
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *rf.ParticipantDocument)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		model.ParticipantDocument = &encrypted
+
+		if *rf.ParticipantDocument != "" {
+			searchCtx := encryption.SearchTokenContext{
+				TenantID:       encryptionCtx.TenantID,
+				OrganizationID: encryptionCtx.OrganizationID,
+				FieldName:      "regulatory_fields.participant_document",
+			}
+
+			hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *rf.ParticipantDocument)
+			if hashErr != nil {
+				return nil, nil, 0, hashErr
+			}
+
+			docHash = &hash
+			keyVersion = version
+		}
 	}
 
-	model := &RegulatoryFieldsMongoDBModel{
-		ParticipantDocument: participantDocument,
+	return model, docHash, keyVersion, nil
+}
+
+// mapRegulatoryFieldsToEntity decrypts and maps regulatory fields from MongoDB model.
+func mapRegulatoryFieldsToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *RegulatoryFieldsMongoDBModel) (*mmodel.RegulatoryFields, error) {
+	result := &mmodel.RegulatoryFields{}
+
+	if rf.ParticipantDocument != nil {
+		fieldCtx := encryption.FieldContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			RecordID:       encryptionCtx.RecordID,
+			FieldName:      "regulatory_fields.participant_document",
+		}
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *rf.ParticipantDocument)
+		if err != nil {
+			return nil, err
+		}
+
+		result.ParticipantDocument = &decrypted
 	}
 
-	var docHash *string
-
-	if rf.ParticipantDocument != nil && *rf.ParticipantDocument != "" {
-		hash := ds.GenerateHash(rf.ParticipantDocument)
-		docHash = &hash
-	}
-
-	return model, docHash, nil
+	return result, nil
 }
 
 // mapRelatedPartiesFromEntity encrypts and maps related parties to MongoDB models.
-func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.Crypto) ([]*RelatedPartyMongoDBModel, []string, error) {
+// The returned key version is the PRF keyset primary used for the generated search tokens.
+func mapRelatedPartiesFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, parties []*mmodel.RelatedParty) ([]*RelatedPartyMongoDBModel, []string, uint32, error) {
 	models := make([]*RelatedPartyMongoDBModel, len(parties))
 	hashes := make([]string, 0, len(parties))
 
+	var keyVersion uint32
+
 	for i, rp := range parties {
-		encryptedDoc, err := ds.Encrypt(&rp.Document)
+		docFieldCtx := encryption.FieldContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			RecordID:       encryptionCtx.RecordID,
+			FieldName:      fmt.Sprintf("related_parties.%s.document", rp.ID),
+		}
+
+		encryptedDoc, err := fe.EncryptField(ctx, docFieldCtx, rp.Document)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		var endDate *time.Time
@@ -173,30 +313,77 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 
 		models[i] = &RelatedPartyMongoDBModel{
 			ID:        rp.ID,
-			Document:  encryptedDoc,
+			Document:  &encryptedDoc,
 			Name:      rp.Name,
 			Role:      rp.Role,
 			StartDate: rp.StartDate.Time,
 			EndDate:   endDate,
 		}
 
-		hash := ds.GenerateHash(&rp.Document)
+		searchCtx := encryption.SearchTokenContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			FieldName:      "related_parties.document",
+		}
+
+		hash, version, hashErr := fe.GenerateSearchToken(ctx, searchCtx, rp.Document)
+		if hashErr != nil {
+			return nil, nil, 0, hashErr
+		}
+
 		hashes = append(hashes, hash)
+		keyVersion = version
 	}
 
-	return models, hashes, nil
+	return models, hashes, keyVersion, nil
 }
 
-// FromEntity maps an account entity to a MongoDB Alias model
-func (amm *MongoDBModel) FromEntity(a *mmodel.Instrument, ds *libCrypto.Crypto) error {
-	document, err := encryptOptional(ds, a.Document)
-	if err != nil {
-		return err
+// mapRelatedPartiesToEntity decrypts and maps related parties from MongoDB models.
+func mapRelatedPartiesToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, parties []*RelatedPartyMongoDBModel) ([]*mmodel.RelatedParty, error) {
+	result := make([]*mmodel.RelatedParty, len(parties))
+
+	for i, rp := range parties {
+		var docValue string
+
+		if rp.Document != nil {
+			fieldCtx := encryption.FieldContext{
+				TenantID:       encryptionCtx.TenantID,
+				OrganizationID: encryptionCtx.OrganizationID,
+				RecordID:       encryptionCtx.RecordID,
+				FieldName:      fmt.Sprintf("related_parties.%s.document", rp.ID),
+			}
+
+			decrypted, err := fe.DecryptField(ctx, fieldCtx, *rp.Document)
+			if err != nil {
+				return nil, err
+			}
+
+			docValue = decrypted
+		}
+
+		var endDate *mmodel.Date
+		if rp.EndDate != nil {
+			endDate = &mmodel.Date{Time: *rp.EndDate}
+		}
+
+		result[i] = &mmodel.RelatedParty{
+			ID:        rp.ID,
+			Document:  docValue,
+			Name:      rp.Name,
+			Role:      rp.Role,
+			StartDate: mmodel.Date{Time: rp.StartDate},
+			EndDate:   endDate,
+		}
 	}
 
+	return result, nil
+}
+
+// FromEntity maps an instrument entity to a MongoDB instrument model.
+// It uses FieldEncryptor for encrypting sensitive fields with the provided EncryptionContext.
+func (amm *MongoDBModel) FromEntity(ctx context.Context, a *mmodel.Instrument, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext) error {
 	*amm = MongoDBModel{
 		ID:        a.ID,
-		Document:  document,
 		Type:      a.Type,
 		LedgerID:  a.LedgerID,
 		AccountID: a.AccountID,
@@ -208,40 +395,71 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Instrument, ds *libCrypto.Crypto) 
 
 	amm.Search = &SearchMongoDB{}
 
-	if a.Document != nil && *a.Document != "" {
-		hash := ds.GenerateHash(a.Document)
-		amm.Search.Document = &hash
+	if a.Document != nil {
+		fieldCtx := encryption.FieldContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			RecordID:       encryptionCtx.RecordID,
+			FieldName:      "document",
+		}
+
+		encrypted, err := fe.EncryptField(ctx, fieldCtx, *a.Document)
+		if err != nil {
+			return err
+		}
+
+		amm.Document = &encrypted
+
+		// Generate search token for document field
+		if *a.Document != "" {
+			searchCtx := encryption.SearchTokenContext{
+				TenantID:       encryptionCtx.TenantID,
+				OrganizationID: encryptionCtx.OrganizationID,
+				FieldName:      "document",
+			}
+
+			hash, keyVersion, hashErr := fe.GenerateSearchToken(ctx, searchCtx, *a.Document)
+			if hashErr != nil {
+				return hashErr
+			}
+
+			amm.Search.Document = &hash
+			amm.stampSearchKeyVersion(keyVersion)
+		}
 	}
 
 	if a.BankingDetails != nil {
-		bankingModel, accountHash, ibanHash, err := mapBankingDetailsFromEntity(a.BankingDetails, ds)
-		if err != nil {
-			return err
+		bankingModel, accountHash, ibanHash, keyVersion, bankingErr := mapBankingDetailsFromEntity(ctx, fe, encryptionCtx, a.BankingDetails)
+		if bankingErr != nil {
+			return bankingErr
 		}
 
 		amm.BankingDetails = bankingModel
 		amm.Search.BankingDetailsAccount = accountHash
 		amm.Search.BankingDetailsIBAN = ibanHash
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if a.RegulatoryFields != nil {
-		regulatoryModel, docHash, err := mapRegulatoryFieldsFromEntity(a.RegulatoryFields, ds)
-		if err != nil {
-			return err
+		regulatoryModel, docHash, keyVersion, regErr := mapRegulatoryFieldsFromEntity(ctx, fe, encryptionCtx, a.RegulatoryFields)
+		if regErr != nil {
+			return regErr
 		}
 
 		amm.RegulatoryFields = regulatoryModel
 		amm.Search.RegulatoryFieldsParticipantDocument = docHash
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if len(a.RelatedParties) > 0 {
-		partiesModels, partiesHashes, err := mapRelatedPartiesFromEntity(a.RelatedParties, ds)
-		if err != nil {
-			return err
+		partiesModels, partiesHashes, keyVersion, partiesErr := mapRelatedPartiesFromEntity(ctx, fe, encryptionCtx, a.RelatedParties)
+		if partiesErr != nil {
+			return partiesErr
 		}
 
 		amm.RelatedParties = partiesModels
 		amm.Search.RelatedPartyDocuments = partiesHashes
+		amm.stampSearchKeyVersion(keyVersion)
 	}
 
 	if a.Metadata == nil {
@@ -253,16 +471,11 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Instrument, ds *libCrypto.Crypto) 
 	return nil
 }
 
-// ToEntity maps a MongoDB model to an Alias entity
-func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Instrument, error) {
-	document, err := ds.Decrypt(amm.Document)
-	if err != nil {
-		return nil, err
-	}
-
-	alias := &mmodel.Instrument{
+// ToEntity maps a MongoDB model to an Instrument entity.
+// It uses FieldEncryptor for decrypting sensitive fields with the provided EncryptionContext.
+func (amm *MongoDBModel) ToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext) (*mmodel.Instrument, error) {
+	instrument := &mmodel.Instrument{
 		ID:        amm.ID,
-		Document:  document,
 		Type:      amm.Type,
 		LedgerID:  amm.LedgerID,
 		AccountID: amm.AccountID,
@@ -273,72 +486,48 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Instrument, err
 		DeletedAt: amm.DeletedAt,
 	}
 
+	if amm.Document != nil {
+		fieldCtx := encryption.FieldContext{
+			TenantID:       encryptionCtx.TenantID,
+			OrganizationID: encryptionCtx.OrganizationID,
+			RecordID:       encryptionCtx.RecordID,
+			FieldName:      "document",
+		}
+
+		decrypted, err := fe.DecryptField(ctx, fieldCtx, *amm.Document)
+		if err != nil {
+			return nil, err
+		}
+
+		instrument.Document = &decrypted
+	}
+
 	if amm.BankingDetails != nil {
-		accountNumber, err := decryptOptional(ds, amm.BankingDetails.Account)
-		if err != nil {
-			return nil, err
+		bankingDetails, bankingErr := mapBankingDetailsToEntity(ctx, fe, encryptionCtx, amm.BankingDetails)
+		if bankingErr != nil {
+			return nil, bankingErr
 		}
 
-		iban, err := decryptOptional(ds, amm.BankingDetails.IBAN)
-		if err != nil {
-			return nil, err
-		}
-
-		alias.BankingDetails = &mmodel.BankingDetails{
-			Branch:      amm.BankingDetails.Branch,
-			Account:     accountNumber,
-			Type:        amm.BankingDetails.Type,
-			OpeningDate: amm.BankingDetails.OpeningDate,
-			IBAN:        iban,
-			CountryCode: amm.BankingDetails.CountryCode,
-			BankID:      amm.BankingDetails.BankID,
-		}
-
-		if amm.BankingDetails.ClosingDate != nil {
-			alias.BankingDetails.ClosingDate = &mmodel.Date{Time: *amm.BankingDetails.ClosingDate}
-		}
+		instrument.BankingDetails = bankingDetails
 	}
 
 	if amm.RegulatoryFields != nil {
-		participantDocument, err := decryptOptional(ds, amm.RegulatoryFields.ParticipantDocument)
-		if err != nil {
-			return nil, err
+		regulatoryFields, regErr := mapRegulatoryFieldsToEntity(ctx, fe, encryptionCtx, amm.RegulatoryFields)
+		if regErr != nil {
+			return nil, regErr
 		}
 
-		alias.RegulatoryFields = &mmodel.RegulatoryFields{
-			ParticipantDocument: participantDocument,
-		}
+		instrument.RegulatoryFields = regulatoryFields
 	}
 
 	if len(amm.RelatedParties) > 0 {
-		alias.RelatedParties = make([]*mmodel.RelatedParty, len(amm.RelatedParties))
-
-		for i, rp := range amm.RelatedParties {
-			decryptedDoc, err := ds.Decrypt(rp.Document)
-			if err != nil {
-				return nil, err
-			}
-
-			docValue := ""
-			if decryptedDoc != nil {
-				docValue = *decryptedDoc
-			}
-
-			var endDate *mmodel.Date
-			if rp.EndDate != nil {
-				endDate = &mmodel.Date{Time: *rp.EndDate}
-			}
-
-			alias.RelatedParties[i] = &mmodel.RelatedParty{
-				ID:        rp.ID,
-				Document:  docValue,
-				Name:      rp.Name,
-				Role:      rp.Role,
-				StartDate: mmodel.Date{Time: rp.StartDate},
-				EndDate:   endDate,
-			}
+		relatedParties, partiesErr := mapRelatedPartiesToEntity(ctx, fe, encryptionCtx, amm.RelatedParties)
+		if partiesErr != nil {
+			return nil, partiesErr
 		}
+
+		instrument.RelatedParties = relatedParties
 	}
 
-	return alias, nil
+	return instrument, nil
 }

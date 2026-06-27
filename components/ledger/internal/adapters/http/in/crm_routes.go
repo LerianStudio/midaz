@@ -31,7 +31,11 @@ const ApplicationName = "midaz"
 //
 // hah may be nil (no ledger account-query backing); when nil the
 // holder-accounts route is not mounted.
-func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) {
+//
+// eh and auditHandler are non-nil only in envelope encryption mode
+// (KMS_VENDOR=hashicorp-vault); when nil the encryption/audit routes are not
+// mounted, matching the legacy-mode posture where no KMS provisioning surface exists.
+func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, eh *EncryptionHandler, auditHandler *AuditHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Holders
 	f.Post("/v1/organizations/:organization_id/holders", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "post"), routeOptions, http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))...)
 	f.Get("/v1/organizations/:organization_id/holders/:id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "holders", "get"), routeOptions, http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)...)
@@ -51,14 +55,25 @@ func RegisterCRMRoutesToApp(f fiber.Router, auth *middleware.AuthClient, hh *Hol
 	f.Patch("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "patch"), routeOptions, http.ParseUUIDPathParameters("instruments"), http.WithBody(new(mmodel.UpdateInstrumentInput), ah.UpdateInstrument))...)
 	f.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("instruments"), ah.DeleteInstrumentByID)...)
 	f.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "instruments", "delete"), routeOptions, http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)...)
+
+	// Encryption provisioning + protection audit (envelope mode only). In legacy
+	// mode eh and auditHandler are nil, so these routes stay unregistered.
+	if eh != nil {
+		f.Post("/v1/organizations/:organization_id/encryption/provision", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "encryption", "post"), routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.ProvisionEncryptionInput), eh.Provision))...)
+		f.Get("/v1/organizations/:organization_id/encryption/status", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "encryption", "get"), routeOptions, http.ParseUUIDPathParameters("organization"), eh.GetProvisioningStatus)...)
+	}
+
+	if auditHandler != nil {
+		f.Get("/v1/organizations/:organization_id/protection/audit", http.ProtectedRouteChain(auth.Authorize(ApplicationName, "protection", "get"), routeOptions, http.ParseUUIDPathParameters("organization"), auditHandler.GetAuditEvents)...)
+	}
 }
 
 // CreateCRMRouteRegistrar returns a registrar that mounts the CRM routes on the
 // unified ledger server. The routeOptions carries the CRM-scoped tenant
 // middleware (built in the ledger composition root) so it applies ONLY to CRM
 // routes.
-func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+func CreateCRMRouteRegistrar(auth *middleware.AuthClient, hh *HolderHandler, ah *InstrumentHandler, hah *HolderAccountsHandler, eh *EncryptionHandler, auditHandler *AuditHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
 	return func(router fiber.Router) {
-		RegisterCRMRoutesToApp(router, auth, hh, ah, hah, routeOptions)
+		RegisterCRMRoutesToApp(router, auth, hh, ah, hah, eh, auditHandler, routeOptions)
 	}
 }

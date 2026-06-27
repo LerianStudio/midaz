@@ -26,6 +26,7 @@ const (
 	EntityOrganization          = "Organization"
 	EntityPackage               = "Package"
 	EntityPortfolio             = "Portfolio"
+	EntityProtectionAuditEvent  = "ProtectionAuditEvent"
 	EntityRelatedParty          = "RelatedParty"
 	EntityReservation           = "Reservation"
 	EntityRule                  = "Rule"

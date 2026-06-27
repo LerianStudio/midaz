@@ -427,6 +427,13 @@ func buildReadyzHandler(
 			NewMongoChecker("mongo_crm", crmMgo.connection, crmMongoURI))
 	}
 
+	// Vault checker - present only in envelope encryption mode
+	// (KMS_VENDOR=hashicorp-vault); legacy mode has no Vault client.
+	if crmMgo.encryption != nil && crmMgo.encryption.vaultClient != nil {
+		checkers = append(checkers,
+			NewVaultChecker("vault", crmMgo.encryption.vaultClient, cfg.VaultAddr))
+	}
+
 	// Redis checker
 	if redisConnection != nil {
 		checkers = append(checkers,

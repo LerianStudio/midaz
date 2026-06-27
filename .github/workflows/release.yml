@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.36.6
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.40.3
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true

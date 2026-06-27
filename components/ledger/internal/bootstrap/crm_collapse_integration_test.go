@@ -238,7 +238,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 				func(c *fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
-		httpin.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, panicOptions)
+		httpin.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet,
 			"/v1/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
@@ -357,7 +357,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 			crmTenantMiddleware.WithTenantDB,
 		},
 	}
-	httpin.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, crmRouteOptions)
+	httpin.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, nil, nil, crmRouteOptions)
 
 	// Create one holder per tenant, addressing tenants ONLY via the JWT.
 	idA := createHolderHTTP(t, app, tenantA, orgID, "Tenant A Holder", "11111111111")
@@ -394,7 +394,7 @@ func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fibe
 
 	// Auth disabled: Authorize becomes a pass-through, single-tenant routeOptions=nil.
 	auth := middleware.NewAuthClient("", false, nil)
-	httpin.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil)
+	httpin.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil, nil, nil)
 
 	return app
 }
