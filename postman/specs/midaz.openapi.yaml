@@ -988,6 +988,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
+      security:
+        - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
         - Midaz_Ledger_API_Encryption
@@ -1039,6 +1041,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
+      security:
+        - BearerAuth: []
       summary: Get Provisioning Status
       tags:
         - Midaz_Ledger_API_Encryption
@@ -8990,6 +8994,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/pkg.HTTPError'
           description: Internal Server Error
+      security:
+        - BearerAuth: []
       summary: List Protection Audit Events
       tags:
         - Midaz_Ledger_API_Protection

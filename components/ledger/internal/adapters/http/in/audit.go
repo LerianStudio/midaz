@@ -85,6 +85,7 @@ var allowedAuditOutcomes = map[string]struct{}{
 //	@Success		200					{object}	in.auditEventsEnvelope
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
+//	@Security		BearerAuth
 //	@Router			/v1/organizations/{organization_id}/protection/audit [get]
 func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 	ctx := c.UserContext()

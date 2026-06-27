@@ -1011,6 +1011,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/encryption/provision": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Provisions an organization for envelope encryption by generating keysets and registering the organization.",
                 "consumes": [
                     "application/json"
@@ -1088,6 +1093,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/encryption/status": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves the current provisioning status for an organization's envelope encryption.",
                 "produces": [
                     "application/json"
@@ -10432,6 +10442,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/protection/audit": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the protection audit events for an organization, filtered by action, actor, outcome, and time range, with cursor pagination.",
                 "produces": [
                     "application/json"

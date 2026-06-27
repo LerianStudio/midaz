@@ -5128,6 +5128,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
       - Encryption
@@ -5166,6 +5168,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: Get Provisioning Status
       tags:
       - Encryption
@@ -11474,6 +11478,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/pkg.HTTPError'
+      security:
+      - BearerAuth: []
       summary: List Protection Audit Events
       tags:
       - Protection
