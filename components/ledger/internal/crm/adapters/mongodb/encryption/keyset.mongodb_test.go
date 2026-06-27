@@ -18,15 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func TestKeysetMongoDBRepositoryImplementsRepository(t *testing.T) {
-	t.Parallel()
-
-	repo, err := NewKeysetMongoDBRepository(nil)
-
-	require.NoError(t, err)
-	require.Implements(t, (*KeysetRepository)(nil), repo)
-}
-
 func TestNewKeysetMongoDBRepository_NilConnection(t *testing.T) {
 	t.Parallel()
 
@@ -330,7 +321,7 @@ func TestKeysetMongoDBRepository_getDatabase_TwoTenants_ResolveToDifferentDataba
 }
 
 func validTestKeyset() *mmodel.OrganizationKeyset {
-	now := time.Now().UTC()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	return &mmodel.OrganizationKeyset{
 		OrganizationID:    "org-test",

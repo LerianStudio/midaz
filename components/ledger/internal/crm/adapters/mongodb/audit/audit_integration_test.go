@@ -100,10 +100,7 @@ func TestIntegration_AuditRepo_Create_BuildsAllSixIndexes(t *testing.T) {
 	byKey := make(map[string]bson.M, len(indexes))
 
 	for _, idx := range indexes {
-		keys, ok := idx["key"].(bson.M)
-		require.True(t, ok, "index key must be a document")
-
-		byKey[keyString(keys)] = idx
+		byKey[keyString(t, idx["key"])] = idx
 	}
 
 	// New org_id-led / _id-tailed query indexes (tenant_id dropped — physical
@@ -397,8 +394,14 @@ func TestIntegration_AuditRepo_FindByOrganization_InvalidCursorRejected(t *testi
 	assert.Equal(t, libHTTP.CursorPagination{}, pagination)
 }
 
-// keyString renders an index key document as a stable comparable string.
-func keyString(keys bson.M) string {
+// keyString renders an index key document as a stable comparable string. The
+// driver may decode the key field as either bson.M (unordered) or bson.D
+// (ordered), so it normalizes both into a lookup map before rendering.
+func keyString(t *testing.T, key any) string {
+	t.Helper()
+
+	keys := normalizeKey(t, key)
+
 	// Field set covering both the new org_id-led indexes and the legacy keys, so
 	// the test can assert presence of the new set and absence of the old.
 	order := []string{"tenant_id", "organization_id", "action", "actor_id", "outcome", "_id", "timestamp", "request_id", "expires_at"}
@@ -419,6 +422,29 @@ func keyString(keys bson.M) string {
 	}
 
 	return out
+}
+
+// normalizeKey collapses an index key document into a field->direction map,
+// accepting either bson.M (unordered) or bson.D (ordered) since mongo-driver/v2
+// may return either representation for index metadata.
+func normalizeKey(t *testing.T, key any) bson.M {
+	t.Helper()
+
+	switch k := key.(type) {
+	case bson.M:
+		return k
+	case bson.D:
+		out := make(bson.M, len(k))
+		for _, e := range k {
+			out[e.Key] = e.Value
+		}
+
+		return out
+	default:
+		require.Failf(t, "unexpected index key type", "got %T", key)
+
+		return nil
+	}
 }
 
 // numToString normalizes a numeric index direction (int32/int64/float64) to its string form.

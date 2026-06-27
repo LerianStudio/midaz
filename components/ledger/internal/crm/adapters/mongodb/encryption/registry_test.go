@@ -13,10 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fixedRegistryTime is a deterministic UTC instant shared by the registry
+// conversion tests so fixtures never depend on the wall clock.
+var fixedRegistryTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 func TestRegistryFromEntity(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := fixedRegistryTime
 
 	entity := &mmodel.OrganizationRegistryRecord{
 		TenantID:             "tenant-a",
@@ -79,7 +83,7 @@ func TestRegistryFromEntity_CopiesSlice(t *testing.T) {
 func TestRegistryMongoDBModel_ToEntity(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := fixedRegistryTime
 
 	model := &RegistryMongoDBModel{
 		TenantID:             "tenant-a",
@@ -144,7 +148,7 @@ func TestRegistryMongoDBModel_ToEntity_CopiesSlice(t *testing.T) {
 func TestRegistryConversion_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := fixedRegistryTime
 
 	original := &mmodel.OrganizationRegistryRecord{
 		TenantID:             "tenant-a",

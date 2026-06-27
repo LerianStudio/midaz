@@ -194,7 +194,7 @@ func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 	// Assert
 	require.Error(t, err, "should return error for non-existent alias")
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
+	assert.Contains(t, err.Error(), "instrument ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
@@ -220,7 +220,7 @@ func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 	// Assert
 	require.Error(t, err, "should not find soft-deleted alias")
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "alias ID does not exist")
+	assert.Contains(t, err.Error(), "instrument ID does not exist")
 }
 
 func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
@@ -456,7 +456,7 @@ func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 	// Assert
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
+	assert.Contains(t, err.Error(), "instrument ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
@@ -553,7 +553,7 @@ func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 
 	// Assert
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "alias ID does not exist", "should return ErrInstrumentNotFound")
+	assert.Contains(t, err.Error(), "instrument ID does not exist", "should return ErrInstrumentNotFound")
 }
 
 // ============================================================================

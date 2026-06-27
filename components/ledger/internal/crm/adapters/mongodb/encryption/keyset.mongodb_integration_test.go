@@ -42,7 +42,7 @@ func createKeysetRepository(t *testing.T, container *mongotestutil.ContainerResu
 
 // createValidKeyset creates a valid OrganizationKeyset for testing.
 func createValidKeyset(organizationID string) *mmodel.OrganizationKeyset {
-	now := time.Now().UTC().Truncate(time.Second)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	return &mmodel.OrganizationKeyset{
 		OrganizationID: organizationID,

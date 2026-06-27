@@ -34,8 +34,8 @@ func TestEncryption_Provision(t *testing.T) {
 	// response-shape forward-guard case below to assert the rendered body never
 	// echoes such material.
 	const (
-		httpSentinelLegacyAESHex     = "5345435245544145534b45595345435245544145534b4559"
-		httpSentinelLegacyHMACSecret = "SENTINEL-LEGACY-HMAC-SECRET-DO-NOT-LEAK"
+		httpSentinelLegacyAESHex     = "not-a-real-aes-key-test-marker-aaaaaaaaaaaaaaaaaa"
+		httpSentinelLegacyHMACSecret = "not-a-real-hmac-test-marker-do-not-leak"
 	)
 
 	tests := []struct {

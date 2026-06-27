@@ -28,7 +28,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/crypto"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
@@ -62,7 +64,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 			CrmEncryptSecretKey:    testutils.TestEncryptKey,
 		}
 
-		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, &libLog.GoLogger{})
+		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, nil, &libLog.GoLogger{})
 		require.NoError(t, err, "initCRM single-tenant must succeed")
 		require.NotNil(t, crm.connection, "single-tenant must build a static Mongo connection")
 		require.NotNil(t, crm.holderHandler, "holder handler must be wired")
@@ -100,12 +102,12 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 	// through the real route-scoped middleware; this one isolates the repo layer.
 	t.Run("multi_tenant_cross_tenant_non_contamination", func(t *testing.T) {
 		container := mongotestutil.SetupContainer(t)
-		cipher := testutils.SetupCrypto(t)
+		fieldEncryptor := cipherFieldEncryptor(t, testutils.SetupCrypto(t))
 
 		// MT-style repos: nil static connection => DB comes from context per request.
-		holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
+		holderRepo, err := holder.NewMongoDBRepository(nil, fieldEncryptor)
 		require.NoError(t, err)
-		instrumentRepo, err := instrument.NewMongoDBRepository(nil, cipher)
+		instrumentRepo, err := instrument.NewMongoDBRepository(nil, fieldEncryptor)
 		require.NoError(t, err)
 
 		uc := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
@@ -152,12 +154,20 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		_, err = uc.GetHolderByID(ctxB, orgID, *hA.ID, false)
 		require.Error(t, err, "tenant B MUST NOT find tenant A's holder (no cross-tenant leak)")
 
-		// And the lists must not bleed across tenants either.
+		// And the lists must not bleed across tenants either — checked from BOTH
+		// sides so a leak in either direction is caught.
 		listA, err := uc.GetAllHolders(ctxA, orgID, http.QueryHeader{Limit: 100, Page: 1}, false)
 		require.NoError(t, err)
 		for _, h := range listA {
 			require.NotNil(t, h.Name)
 			assert.NotEqual(t, "Tenant B Holder", *h.Name, "tenant A list must not contain tenant B data")
+		}
+
+		listB, err := uc.GetAllHolders(ctxB, orgID, http.QueryHeader{Limit: 100, Page: 1}, false)
+		require.NoError(t, err)
+		for _, h := range listB {
+			require.NotNil(t, h.Name)
+			assert.NotEqual(t, "Tenant A Holder", *h.Name, "tenant B list must not contain tenant A data")
 		}
 	})
 
@@ -170,7 +180,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 			CrmHashSecretKey:       testutils.TestHashKey,
 			CrmEncryptSecretKey:    testutils.TestEncryptKey,
 		}
-		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, &libLog.GoLogger{})
+		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, nil, &libLog.GoLogger{})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = crm.connection.Close(context.Background()) })
 
@@ -213,7 +223,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 			CrmHashSecretKey:       testutils.TestHashKey,
 			CrmEncryptSecretKey:    testutils.TestEncryptKey,
 		}
-		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, &libLog.GoLogger{})
+		crm, err := initCRM(&Options{MultiTenantEnabled: false}, cfg, nil, &libLog.GoLogger{})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = crm.connection.Close(context.Background()) })
 
@@ -329,10 +339,10 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 
 	// MT repos: nil static connection => DB resolved from the request context the
 	// middleware populates.
-	cipher := testutils.SetupCrypto(t)
-	holderRepo, err := holder.NewMongoDBRepository(nil, cipher)
+	fieldEncryptor := cipherFieldEncryptor(t, testutils.SetupCrypto(t))
+	holderRepo, err := holder.NewMongoDBRepository(nil, fieldEncryptor)
 	require.NoError(t, err)
-	instrumentRepo, err := instrument.NewMongoDBRepository(nil, cipher)
+	instrumentRepo, err := instrument.NewMongoDBRepository(nil, fieldEncryptor)
 	require.NoError(t, err)
 	useCases := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 	holderHandler := &httpin.HolderHandler{Service: useCases}
@@ -397,6 +407,22 @@ func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fibe
 	httpin.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil, nil, nil)
 
 	return app
+}
+
+// cipherFieldEncryptor wraps the test cipher in the legacy-mode FieldEncryptor
+// the holder/instrument repositories require, reusing the same wiring the
+// single-tenant/legacy bootstrap path uses (wireEncryptionServices + adapter).
+func cipherFieldEncryptor(t *testing.T, cipher encryption.LegacyCrypto) encryption.FieldEncryptor {
+	t.Helper()
+
+	wired := wireEncryptionServices(wireEncryptionServicesInput{
+		mode:           crypto.EncryptionModeLegacy.String(),
+		legacyCrypto:   cipher,
+		vaultMountPath: defaultKEKMountPath,
+	})
+	require.NoError(t, wired.err)
+
+	return encryption.NewFieldEncryptorAdapter(wired.encryptionService)
 }
 
 // newFakeTenantManagerMongo returns a tenant-manager stub that serves the

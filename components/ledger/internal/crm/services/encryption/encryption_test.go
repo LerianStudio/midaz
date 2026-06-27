@@ -51,7 +51,7 @@ func (f *serviceTestRegistryRepo) Update(_ context.Context, _ *mmodel.Organizati
 	return nil
 }
 
-// serviceTestKeysetRepo implements mongoEncryption.KeysetRepository for encryption service tests.
+// serviceTestKeysetRepo implements encryption.KeysetRepository for encryption service tests.
 type serviceTestKeysetRepo struct {
 	keysets map[string]*mmodel.OrganizationKeyset
 	err     error
@@ -1940,13 +1940,12 @@ func TestService_GenerateSearchTokenCandidates_NilLegacyKeyMaterial(t *testing.T
 		FieldName:      "document",
 	}
 
-	// Should return empty slice when legacy key material is nil
+	// Fail closed: a missing legacy crypto impl must surface an error, never an
+	// empty token that a caller would persist/query as if it were valid.
 	tokens, err := svc.GenerateSearchTokenCandidates(ctx, searchCtx, "value")
-	require.NoError(t, err)
-
-	// Legacy mode with nil crypto returns single empty string
-	require.Len(t, tokens, 1)
-	assert.Empty(t, tokens[0], "token MUST be empty when legacy crypto is nil")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy crypto is required")
+	assert.Nil(t, tokens, "no tokens must be returned when legacy crypto is nil")
 }
 
 // ---------------------------------------------------------------------------

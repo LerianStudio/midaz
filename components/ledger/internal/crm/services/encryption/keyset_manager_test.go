@@ -23,7 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/tests/helpers"
 )
 
-// fakeKeysetRepo is a test double for mongoEncryption.KeysetRepository.
+// fakeKeysetRepo is a test double for encryption.KeysetRepository.
 type fakeKeysetRepo struct {
 	mu     sync.Mutex
 	keyset *mmodel.OrganizationKeyset

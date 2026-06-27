@@ -17,7 +17,7 @@ import (
 func TestKeysetFromEntity(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	rotatedAt := now.Add(time.Hour)
 
 	entity := &mmodel.OrganizationKeyset{
@@ -67,7 +67,7 @@ func TestKeysetFromEntity_NilEntity(t *testing.T) {
 func TestKeysetMongoDBModel_ToEntity(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	rotatedAt := now.Add(time.Hour)
 
 	model := &KeysetMongoDBModel{
@@ -119,7 +119,7 @@ func TestKeysetMongoDBModel_ToEntity_NilModel(t *testing.T) {
 func TestKeysetConversion_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	original := &mmodel.OrganizationKeyset{
 		TenantID:       "tenant-a",

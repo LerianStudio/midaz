@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ import (
 // observable — the CRM HTTP envelope (code/title/message) deliberately omits the
 // entity field, so the typed error is the right place to pin it.
 func TestInstrumentEntityFieldContract(t *testing.T) {
-	err := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())
+	err := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
 
 	notFound, ok := err.(pkg.EntityNotFoundError)
 	require.True(t, ok, "ErrInstrumentNotFound must map to EntityNotFoundError")
@@ -123,7 +122,7 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			setupMocks: func(instrumentRepo *instrument.MockRepository, holderRepo *holder.MockRepository, orgID string, holderID uuid.UUID) {
 				holderRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, false).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -534,7 +533,7 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				instrumentRepo.EXPECT().
 					Find(gomock.Any(), orgID, holderID, instrumentID, false).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -677,7 +676,7 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				instrumentRepo.EXPECT().
 					Update(gomock.Any(), orgID, holderID, instrumentID, gomock.Any(), gomock.Any()).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -917,7 +916,7 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID uuid.UUID) {
 				instrumentRepo.EXPECT().
 					Delete(gomock.Any(), orgID, holderID, instrumentID, false).
-					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
+					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)).
 					Times(1)
 			},
 			expectedStatus: 404,
@@ -1028,7 +1027,7 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			setupMocks: func(instrumentRepo *instrument.MockRepository, orgID string, holderID, instrumentID, relatedPartyID uuid.UUID) {
 				instrumentRepo.EXPECT().
 					DeleteRelatedParty(gomock.Any(), orgID, holderID, instrumentID, relatedPartyID).
-					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, reflect.TypeOf(mmodel.Instrument{}).Name())).
+					Return(pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)).
 					Times(1)
 			},
 			expectedStatus: 404,

@@ -31,6 +31,10 @@ func setupTestFieldEncryptor(t *testing.T) encryption.FieldEncryptor {
 	return encryption.NewFieldEncryptorAdapter(svc)
 }
 
+// fixedTestTime is a deterministic, second-aligned UTC timestamp used across
+// instrument adapter tests so setup and assertions share the same value.
+var fixedTestTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // testEncryptionContext returns a standard encryption context for tests.
 func testEncryptionContext(instrumentID uuid.UUID) encryption.EncryptionContext {
 	return encryption.EncryptionContext{
@@ -43,7 +47,7 @@ func testEncryptionContext(instrumentID uuid.UUID) encryption.EncryptionContext 
 func TestMongoDBModel_FromEntity(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 	holderID := uuid.New()
 
@@ -334,7 +338,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 	holderID := uuid.New()
 	relatedPartyID := uuid.New()
@@ -424,7 +428,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
@@ -454,7 +458,7 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
@@ -486,7 +490,7 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 
 	originalAlias := &mmodel.Instrument{
@@ -520,7 +524,7 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 	holderID := uuid.New()
 
@@ -633,7 +637,7 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 	fe := &failingFieldEncryptor{failOnEncrypt: true}
 	ctx := context.Background()
 	instrumentID := uuid.New()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 
 	alias := &mmodel.Instrument{
 		ID:        &instrumentID,
@@ -668,7 +672,7 @@ func TestRelatedPartyAAD_UsesIDNotIndex(t *testing.T) {
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 
 	// Create three related parties with distinct IDs
@@ -743,7 +747,7 @@ func TestRelatedPartyAAD_DifferentIDsProduceDifferentCiphertexts(t *testing.T) {
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := fixedTestTime
 	instrumentID := uuid.New()
 
 	// Two related parties with SAME document but DIFFERENT IDs

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	mongoEncryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto/kms/vault"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -26,11 +27,9 @@ func TestResolveEncryptionMode(t *testing.T) {
 		expectError   bool
 		errorContains string
 	}{
-		{
-			name:         "empty vendor defaults to legacy mode",
-			kmsVendor:    "",
-			expectedMode: crypto.EncryptionModeLegacy,
-		},
+		// The empty-vendor (env-fallback) case lives in the non-parallel
+		// TestResolveEncryptionMode_FromEnvironment so it can control KMS_VENDOR;
+		// here every case sets an explicit vendor to stay environment-independent.
 		{
 			name:         "none vendor resolves to legacy mode",
 			kmsVendor:    "none",
@@ -348,6 +347,20 @@ func TestResolveVaultAuth(t *testing.T) {
 			expectError:    true,
 			errorContains:  "approle",
 		},
+		{
+			name:           "token auth rejected for unrecognized deployment mode (fail closed)",
+			authMethod:     "token",
+			deploymentMode: "staging",
+			expectError:    true,
+			errorContains:  "local",
+		},
+		{
+			name:           "token auth rejected for typo'd deployment mode (fail closed)",
+			authMethod:     "token",
+			deploymentMode: "prod",
+			expectError:    true,
+			errorContains:  "local",
+		},
 	}
 
 	for _, tt := range tests {
@@ -375,7 +388,7 @@ func TestResolveVaultAuth(t *testing.T) {
 	}
 }
 
-func TestIsProductionDeployment(t *testing.T) {
+func TestIsLocalDeployment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -383,20 +396,22 @@ func TestIsProductionDeployment(t *testing.T) {
 		deploymentMode string
 		want           bool
 	}{
-		{name: "saas is production", deploymentMode: "saas", want: true},
-		{name: "byoc is production", deploymentMode: "byoc", want: true},
-		{name: "local is not production", deploymentMode: "local", want: false},
-		{name: "empty is not production", deploymentMode: "", want: false},
-		{name: "unknown is not production", deploymentMode: "staging", want: false},
-		{name: "uppercase SAAS is production", deploymentMode: "SAAS", want: true},
-		{name: "whitespace-padded byoc is production", deploymentMode: "  byoc  ", want: true},
+		{name: "local is local", deploymentMode: "local", want: true},
+		{name: "empty resolves to local (default)", deploymentMode: "", want: true},
+		{name: "whitespace-only resolves to local (default)", deploymentMode: "  ", want: true},
+		{name: "uppercase LOCAL is local", deploymentMode: "LOCAL", want: true},
+		{name: "whitespace-padded local is local", deploymentMode: "  local  ", want: true},
+		{name: "saas is not local", deploymentMode: "saas", want: false},
+		{name: "byoc is not local", deploymentMode: "byoc", want: false},
+		{name: "unrecognized value is not local", deploymentMode: "staging", want: false},
+		{name: "typo is not local", deploymentMode: "prod", want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, isProductionDeployment(tt.deploymentMode))
+			assert.Equal(t, tt.want, isLocalDeployment(tt.deploymentMode))
 		})
 	}
 }
@@ -515,7 +530,7 @@ func newWiringVaultClient(t *testing.T) *vault.Client {
 	return client
 }
 
-// mockKeysetRepo implements mongoEncryption.KeysetRepository for wiring tests.
+// mockKeysetRepo implements encryption.KeysetRepository for wiring tests.
 type mockKeysetRepo struct{}
 
 func (m *mockKeysetRepo) Save(_ context.Context, _ *mmodel.OrganizationKeyset) error { return nil }
@@ -554,6 +569,6 @@ func (m *mockRegistryRepo) Update(_ context.Context, _ *mmodel.OrganizationRegis
 // Compile-time assertions that the mocks satisfy the repository interfaces the
 // wiring input fields require.
 var (
-	_ mongoEncryption.KeysetRepository   = (*mockKeysetRepo)(nil)
+	_ encryption.KeysetRepository        = (*mockKeysetRepo)(nil)
 	_ mongoEncryption.RegistryRepository = (*mockRegistryRepo)(nil)
 )

@@ -28,7 +28,7 @@ import (
 // Fakes and Helpers
 // ---------------------------------------------------------------------------
 
-// fakeKeysetRepoForProv implements mongoEncryption.KeysetRepository for provisioning tests.
+// fakeKeysetRepoForProv implements encryption.KeysetRepository for provisioning tests.
 type fakeKeysetRepoForProv struct {
 	keysets    map[string]*mmodel.OrganizationKeyset
 	saveErr    error
@@ -2047,7 +2047,7 @@ func TestProvisioningService_getExistingProvisionResult_NilRegistry(t *testing.T
 	require.Error(t, err)
 }
 
-// fakeKeysetRepoNilNil implements mongoEncryption.KeysetRepository returning (nil, nil) from Get.
+// fakeKeysetRepoNilNil implements encryption.KeysetRepository returning (nil, nil) from Get.
 type fakeKeysetRepoNilNil struct{}
 
 func (f *fakeKeysetRepoNilNil) Get(_ context.Context, _ string) (*mmodel.OrganizationKeyset, error) {
