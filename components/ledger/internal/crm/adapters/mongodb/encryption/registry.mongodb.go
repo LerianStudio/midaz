@@ -53,7 +53,7 @@ func NewRegistryMongoDBRepository(connection *libMongo.Client) (*RegistryMongoDB
 }
 
 func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.OrganizationRegistryRecord) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.save")
 	defer span.End()
@@ -105,7 +105,7 @@ func (r *RegistryMongoDBRepository) Save(ctx context.Context, record *mmodel.Org
 }
 
 func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.get")
 	defer span.End()
@@ -142,7 +142,7 @@ func (r *RegistryMongoDBRepository) Get(ctx context.Context, organizationID stri
 }
 
 func (r *RegistryMongoDBRepository) Update(ctx context.Context, record *mmodel.OrganizationRegistryRecord, expectedRevision int64) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.registry.update")
 	defer span.End()

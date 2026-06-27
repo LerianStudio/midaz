@@ -228,7 +228,7 @@ func (s *provisioningService) Provision(ctx context.Context, req ProvisionInput)
 // point so the exported Provision can emit exactly one audit event. The helpers
 // return their own outcome; this method never emits.
 func (s *provisioningService) provision(ctx context.Context, req ProvisionInput) (ProvisionResult, mmodel.AuditOutcome, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // NewTrackingFromContext returns 4 values; only the tracer is needed here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.protection.provision")
 	defer span.End()

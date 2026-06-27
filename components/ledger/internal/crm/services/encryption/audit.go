@@ -88,7 +88,7 @@ func NewAuditQueryService(repo audit.Repository) AuditQueryService {
 // returned or propagated, because audit is best-effort and must not block the
 // caller. A nil event is rejected with a warning before any repository call.
 func (w *auditWriter) Emit(ctx context.Context, event *mmodel.ProtectionAuditEvent) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only the tracer is needed; the logger is injected and metrics/tracking-id are unused here
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.audit.emit")
 	defer span.End()

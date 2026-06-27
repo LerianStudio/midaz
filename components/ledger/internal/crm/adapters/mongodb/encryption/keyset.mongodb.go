@@ -55,7 +55,7 @@ func NewKeysetMongoDBRepository(connection *libMongo.Client) (*KeysetMongoDBRepo
 }
 
 func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.save")
 	defer span.End()
@@ -118,7 +118,7 @@ func (r *KeysetMongoDBRepository) Save(ctx context.Context, keyset *mmodel.Organ
 }
 
 func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.get")
 	defer span.End()
@@ -158,7 +158,7 @@ func (r *KeysetMongoDBRepository) Get(ctx context.Context, organizationID string
 
 // GetByVersion returns the keyset document for an organization at an exact version.
 func (r *KeysetMongoDBRepository) GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.get_by_version")
 	defer span.End()
@@ -197,7 +197,7 @@ func (r *KeysetMongoDBRepository) GetByVersion(ctx context.Context, organization
 
 // GetActive returns the highest-version keyset document for an organization.
 func (r *KeysetMongoDBRepository) GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.get_active")
 	defer span.End()
@@ -236,7 +236,7 @@ func (r *KeysetMongoDBRepository) GetActive(ctx context.Context, organizationID 
 }
 
 func (r *KeysetMongoDBRepository) Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.keyset.update")
 	defer span.End()
