@@ -42,6 +42,13 @@ type Service struct {
 	// StreamingEnabled mirrors the config flag so Run() can decide whether
 	// to register the producer-shutdown Launcher app.
 	StreamingEnabled bool
+
+	// TracerClose is the close hook for the tracer reservation client's
+	// persistent connection (the gRPC client holds a grpc.ClientConn).
+	// It is nil when the active transport needs no teardown (the REST
+	// client) so Run() can skip registering a no-op Launcher app. Non-nil
+	// only for transports that expose Close() error.
+	TracerClose func() error
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -99,7 +106,46 @@ func (s *Service) Run() {
 			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger}))
 	}
 
+	// Tracer reservation client: register only when the active transport
+	// exposes a close hook. The REST client needs no teardown and leaves
+	// TracerClose nil, so the Launcher app list stays lean.
+	if s.TracerClose != nil {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Tracer Reservation Client",
+			&tracerCloseRunnable{close: s.TracerClose, logger: s.Logger}))
+	}
+
 	libCommons.NewLauncher(launcherOpts...).Run()
+}
+
+// tracerCloseRunnable adapts the tracer reservation client's Close hook to the
+// libCommons.App interface. It blocks until SIGINT/SIGTERM and then drains the
+// persistent gRPC connection so it is released before the process exits.
+type tracerCloseRunnable struct {
+	close  func() error
+	logger libLog.Logger
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the tracer client close hook.
+// A non-nil return is logged but not propagated because at shutdown the Launcher
+// cannot meaningfully react.
+func (r *tracerCloseRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.close == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	if err := r.close(); err != nil && r.logger != nil {
+		r.logger.Log(context.Background(), libLog.LevelWarn,
+			"tracer reservation client Close returned error",
+			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
 }
 
 // streamingProducerRunnable adapts the lib-streaming Producer's Close hook

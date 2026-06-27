@@ -1,0 +1,113 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package lerian.midaz.reservation.v1;
+
+option go_package = "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1;reservationv1";
+
+// ReservationService is the gRPC transport for the tracer's two-phase
+// reservation seam. It mirrors the REST contract (POST /v1/reservations plus
+// the per-id and by-transaction confirm/release transitions) field-for-field so
+// the ledger can select gRPC or REST behind the TracerReserver interface without
+// any behavioral difference. Identity on this seam is mutual TLS; the tenant is
+// propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
+// message field).
+service ReservationService {
+  // Reserve holds limit capacity for a transaction (phase one). A denied
+  // decision is a successful response with denied=true and empty
+  // reservation_ids, not a transport error.
+  rpc Reserve(ReserveRequest) returns (ReserveResult);
+
+  // ConfirmByTransaction commits EVERY reservation a transaction holds.
+  rpc ConfirmByTransaction(ConfirmByTransactionRequest) returns (ConfirmByTransactionResponse);
+
+  // ReleaseByTransaction returns EVERY reservation a transaction holds.
+  rpc ReleaseByTransaction(ReleaseByTransactionRequest) returns (ReleaseByTransactionResponse);
+
+  // ConfirmById commits a single held reservation.
+  rpc ConfirmById(ConfirmByIdRequest) returns (ConfirmByIdResponse);
+
+  // ReleaseById returns a single held reservation's capacity.
+  rpc ReleaseById(ReleaseByIdRequest) returns (ReleaseByIdResponse);
+}
+
+// ReserveAccount is the account scope the tracer matches limits against. It
+// mirrors the ledger-side ReserveAccount: only the account id is carried; an
+// empty value parses to the nil UUID, which the relaxed reserve validation
+// accepts (external-only source).
+message ReserveAccount {
+  string account_id = 1;
+}
+
+// ReserveRequest is the gRPC form of the reserve body. It mirrors the ledger's
+// ReserveRequest field-for-field. amount is a decimal-as-string (NEVER a
+// double); transaction_timestamp is an RFC3339 string.
+message ReserveRequest {
+  string transaction_id = 1;
+  string request_id = 2;
+  // amount is a decimal serialized as a string to avoid float rounding.
+  string amount = 3;
+  string currency = 4;
+  ReserveAccount account = 5;
+  string segment_id = 6;
+  string portfolio_id = 7;
+  string merchant_id = 8;
+  // transaction_type is optional on reserve; the ledger leaves it empty.
+  string transaction_type = 9;
+  // transaction_timestamp is RFC3339; the tracer enforces a not-future /
+  // not-too-far-past window against its injected clock.
+  string transaction_timestamp = 10;
+  // long_lived hints the tracer to assign a long-lived reservation lifetime to
+  // a PENDING-transaction reservation.
+  bool long_lived = 11;
+}
+
+// ReserveResult is the handle returned by a successful reserve. denied is the
+// limit-exceeded decision (no capacity held, reservation_ids empty). Otherwise
+// reservation_ids holds one id per counter-backed limit the ledger must later
+// confirm or release.
+message ReserveResult {
+  string transaction_id = 1;
+  bool denied = 2;
+  repeated string reservation_ids = 3;
+}
+
+// ConfirmByTransactionRequest commits every reservation held by a transaction.
+message ConfirmByTransactionRequest {
+  string transaction_id = 1;
+}
+
+// ReleaseByTransactionRequest releases every reservation held by a transaction.
+message ReleaseByTransactionRequest {
+  string transaction_id = 1;
+}
+
+// ConfirmByIdRequest commits a single reservation by its id.
+message ConfirmByIdRequest {
+  string reservation_id = 1;
+}
+
+// ReleaseByIdRequest releases a single reservation by its id.
+message ReleaseByIdRequest {
+  string reservation_id = 1;
+}
+
+// The confirm/release transitions are idempotent and the REST seam returns a
+// 200 with no meaningful body. Each transition gets its own empty-but-extensible
+// response message (buf forbids sharing a response type across RPCs) so a future
+// flip count can be added per transition without a contract break.
+
+// ConfirmByTransactionResponse is the response to ConfirmByTransaction.
+message ConfirmByTransactionResponse {}
+
+// ReleaseByTransactionResponse is the response to ReleaseByTransaction.
+message ReleaseByTransactionResponse {}
+
+// ConfirmByIdResponse is the response to ConfirmById.
+message ConfirmByIdResponse {}
+
+// ReleaseByIdResponse is the response to ReleaseById.
+message ReleaseByIdResponse {}

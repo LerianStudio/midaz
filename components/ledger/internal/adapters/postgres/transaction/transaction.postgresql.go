@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,11 +23,11 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
@@ -54,6 +53,8 @@ var transactionColumnList = []string{
 	"deleted_at",
 	"route",
 	"route_id",
+	"fees_skipped",
+	"tracer_skipped",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -73,6 +74,8 @@ var transactionColumnListPrefixed = []string{
 	"t.deleted_at",
 	"t.route",
 	"t.route_id",
+	"t.fees_skipped",
+	"t.tracer_skipped",
 }
 
 // operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
@@ -180,7 +183,7 @@ func (r *TransactionPostgreSQLRepository) BeginTx(ctx context.Context) (reposito
 
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
 	defer span.End()
@@ -189,21 +192,19 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, err
 	}
 
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -224,6 +225,8 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.DeletedAt,
 		record.Route,
 		record.RouteID,
+		record.FeesSkipped,
+		record.TracerSkipped,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -232,14 +235,10 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		if errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode && pgErr.ConstraintName == "transaction_pkey" {
 			libOpentelemetry.HandleSpanEvent(spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
-			logger.Log(ctx, libLog.LevelInfo, "Transaction already exists, skipping duplicate insert (idempotent retry)")
-
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -248,17 +247,13 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create transaction. Rows affected is 0: %v", err))
 
 		return nil, err
 	}
@@ -277,7 +272,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_bulk_transactions")
 	defer span.End()
@@ -290,8 +285,6 @@ func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transa
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, err
 	}
 
@@ -357,7 +350,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Transaction has 15 columns, so 1000 rows = 15,000 parameters (under 65,535 limit)
+	// Transaction has 18 columns, so 1000 rows = 18,000 parameters (under 65,535 limit)
 	const chunkSize = 1000
 
 	for i := 0; i < len(transactions); i += chunkSize {
@@ -365,8 +358,6 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 		select {
 		case <-ctx.Done():
 			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk insert", ctx.Err())
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk insert: %v", ctx.Err()))
-
 			// Return partial result; Ignored stays 0 since remaining items were not processed
 			return result, ctx.Err()
 		default:
@@ -377,8 +368,6 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 		chunkResult, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert transaction chunk: %v", err))
-
 			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
 			return result, err
 		}
@@ -389,8 +378,11 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 
 	result.Ignored = result.Attempted - result.Inserted
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk insert transactions%s: attempted=%d, inserted=%d, ignored=%d",
-		logSuffix, result.Attempted, result.Inserted, result.Ignored))
+	logger.Log(ctx, libLog.LevelDebug, "Bulk insert transactions completed",
+		libLog.String("scope", logSuffix),
+		libLog.Int("attempted", int(result.Attempted)),
+		libLog.Int("inserted", int(result.Inserted)),
+		libLog.Int("ignored", int(result.Ignored)))
 
 	return result, nil
 }
@@ -410,7 +402,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 	ctx, span := tracer.Start(ctx, "postgres.insert_transaction_chunk")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Inserting chunk of %d transactions", len(transactions)))
+	logger.Log(ctx, libLog.LevelDebug, "Inserting chunk of transactions", libLog.Int("count", len(transactions)))
 
 	builder := squirrel.Insert(r.tableName).
 		Columns(transactionColumnList...).
@@ -437,6 +429,8 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.DeletedAt,
 			record.Route,
 			record.RouteID,
+			record.FeesSkipped,
+			record.TracerSkipped,
 		)
 	}
 
@@ -502,7 +496,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *TransactionPostgreSQLRepository) UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_bulk_transactions")
 	defer span.End()
@@ -515,8 +509,6 @@ func (r *TransactionPostgreSQLRepository) UpdateBulk(ctx context.Context, transa
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, err
 	}
 
@@ -587,8 +579,6 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 		select {
 		case <-ctx.Done():
 			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk update", ctx.Err())
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk update: %v", ctx.Err()))
-
 			// Return partial result with accurate Attempted count
 			return result, ctx.Err()
 		default:
@@ -603,8 +593,6 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 		chunkUpdated, err := r.updateTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to update transaction chunk", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction chunk: %v", err))
-
 			// Return partial result
 			return result, err
 		}
@@ -614,8 +602,11 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 
 	result.Unchanged = result.Attempted - result.Updated
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk update transactions%s: attempted=%d, updated=%d, unchanged=%d",
-		logSuffix, result.Attempted, result.Updated, result.Unchanged))
+	logger.Log(ctx, libLog.LevelDebug, "Bulk update transactions completed",
+		libLog.String("scope", logSuffix),
+		libLog.Int("attempted", int(result.Attempted)),
+		libLog.Int("updated", int(result.Updated)),
+		libLog.Int("unchanged", int(result.Unchanged)))
 
 	return result, nil
 }
@@ -630,7 +621,7 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_chunk")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Updating chunk of %d transactions", len(transactions)))
+	logger.Log(ctx, libLog.LevelDebug, "Updating chunk of transactions", libLog.Int("count", len(transactions)))
 
 	if len(transactions) == 0 {
 		return 0, nil
@@ -690,7 +681,7 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 
 // FindAll retrieves Transactions entities from the database.
 func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
 	defer span.End()
@@ -698,8 +689,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -713,8 +702,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to decode cursor", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to decode cursor: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -740,19 +727,15 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -780,10 +763,10 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.DeletedAt,
 			&transaction.Route,
 			&transaction.RouteID,
+			&transaction.FeesSkipped,
+			&transaction.TracerSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -792,8 +775,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			err = json.Unmarshal([]byte(*body), &transaction.Body)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
-
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
 				return nil, libHTTP.CursorPagination{}, err
 			}
@@ -804,8 +785,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -821,8 +800,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to calculate cursor", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to calculate cursor: %v", err))
-
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}
@@ -832,7 +809,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
 	defer span.End()
@@ -840,8 +817,6 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -861,19 +836,15 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 	defer spanQuery.End()
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -901,10 +872,10 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.DeletedAt,
 			&transaction.Route,
 			&transaction.RouteID,
+			&transaction.FeesSkipped,
+			&transaction.TracerSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -913,8 +884,6 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			err = json.Unmarshal([]byte(*body), &transaction.Body)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
-
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
 				return nil, err
 			}
@@ -926,8 +895,6 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows: %v", err))
-
 		return nil, err
 	}
 
@@ -936,7 +903,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
@@ -944,8 +911,6 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -962,8 +927,6 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, err
 	}
 
@@ -971,7 +934,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 	var body *string
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -993,20 +956,18 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.DeletedAt,
 		&transaction.Route,
 		&transaction.RouteID,
+		&transaction.FeesSkipped,
+		&transaction.TracerSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction not found", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Transaction not found: %v", err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -1015,8 +976,6 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		err = json.Unmarshal([]byte(*body), &transaction.Body)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
 			return nil, err
 		}
@@ -1027,7 +986,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 // FindByParentID retrieves a Transaction entity from the database using the provided parent ID.
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
@@ -1035,8 +994,6 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -1053,8 +1010,6 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, err
 	}
 
@@ -1062,7 +1017,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 
 	var body *string
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -1084,18 +1039,16 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.DeletedAt,
 		&transaction.Route,
 		&transaction.RouteID,
+		&transaction.FeesSkipped,
+		&transaction.TracerSkipped,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("No transaction found: %v", err))
 
 			return nil, nil
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -1104,8 +1057,6 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		err = json.Unmarshal([]byte(*body), &transaction.Body)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
 			return nil, err
 		}
@@ -1116,7 +1067,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
 	defer span.End()
@@ -1124,8 +1075,6 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -1167,14 +1116,12 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1183,17 +1130,13 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update transaction. Rows affected is 0: %v", err))
 
 		return nil, err
 	}
@@ -1203,7 +1146,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 // Delete removes a Transaction entity from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
 	defer span.End()
@@ -1212,20 +1155,16 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 	defer spanExec.End()
 
 	result, err := db.ExecContext(ctx, "UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return err
 	}
@@ -1234,17 +1173,13 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
 		return err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction. Rows affected is 0", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to delete transaction. Rows affected is 0: %v", err))
 
 		return err
 	}
@@ -1254,7 +1189,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 
 // FindWithOperations retrieves a Transaction and Operations entity from the database using the provided ID .
 func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
@@ -1263,12 +1198,10 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
@@ -1286,16 +1219,12 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1330,6 +1259,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.DeletedAt,
 			&tran.Route,
 			&tran.RouteID,
+			&tran.FeesSkipped,
+			&tran.TracerSkipped,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1364,8 +1295,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan rows: %v", err))
-
 			return nil, err
 		}
 
@@ -1375,8 +1304,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			err = json.Unmarshal([]byte(*body), &tran.Body)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
-
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
 
 				return nil, err
 			}
@@ -1389,8 +1316,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows: %v", err))
 
 		return nil, err
 	}
@@ -1413,8 +1338,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -1425,8 +1348,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to decode cursor", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to decode cursor: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -1465,21 +1386,17 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("FindOrListAllWithOperations query: %s with args: %v", query, args))
+	logger.Log(ctx, libLog.LevelDebug, "FindOrListAllWithOperations query assembled", libLog.String("query", query))
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -1507,7 +1424,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opBalanceAffected                                            *bool
 			opVersionBalance, opVersionBalanceAfter                      *int64
 			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
-			opSnapshot                                                   json.RawMessage
+			opSnapshot                                                   *json.RawMessage
 		)
 
 		if err := rows.Scan(
@@ -1527,6 +1444,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.DeletedAt,
 			&tran.Route,
 			&tran.RouteID,
+			&tran.FeesSkipped,
+			&tran.TracerSkipped,
 			&opID,
 			&opTransactionID,
 			&opDescription,
@@ -1561,20 +1480,13 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan rows: %v", err))
-
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		if !libCommons.IsNilOrEmpty(body) {
-			err = json.Unmarshal([]byte(*body), &tran.Body)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
+		if err = decodeTransactionBody(tran, body); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
 
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal body: %v", err))
-
-				return nil, libHTTP.CursorPagination{}, err
-			}
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		transactionUUID := uuid.MustParse(tran.ID)
@@ -1621,7 +1533,10 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
 				RouteDescription:      opRouteDescription,
-				Snapshot:              opSnapshot,
+			}
+
+			if opSnapshot != nil {
+				op.Snapshot = *opSnapshot
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())
@@ -1630,8 +1545,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	if err = rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -1651,8 +1564,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to calculate cursor", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to calculate cursor: %v", err))
-
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}
@@ -1662,7 +1573,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 // CountByFilters returns the number of transactions matching the given filters.
 func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_transactions_by_filters")
 	defer span.End()
@@ -1670,8 +1581,6 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return 0, err
 	}
@@ -1697,12 +1606,10 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
-
 		return 0, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.count_transactions_by_filters.query")
+	_, spanQuery := tracer.Start(ctx, "postgres.count_transactions_by_filters.query")
 	defer spanQuery.End()
 
 	var count int64
@@ -1711,12 +1618,20 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute count query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute count query: %v", err))
-
 		return 0, err
 	}
 
 	return count, nil
+}
+
+// decodeTransactionBody unmarshals the raw JSON body column into the model's
+// Body field. A nil or empty body is a no-op, leaving Body at its zero value.
+func decodeTransactionBody(tran *TransactionPostgreSQLModel, body *string) error {
+	if libCommons.IsNilOrEmpty(body) {
+		return nil
+	}
+
+	return json.Unmarshal([]byte(*body), &tran.Body)
 }
 
 // derefString safely dereferences a *string, returning "" if nil.

@@ -5,49 +5,71 @@
 package in
 
 import (
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	goldTransaction "github.com/LerianStudio/midaz/v4/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+	// FeeApplier drives the in-process fee engine inside the create seam. It is
+	// injected at bootstrap from the fee use case; a nil applier disables fee
+	// application (the create path stays unchanged).
+	FeeApplier FeeApplier
+	// TracerReserver drives the tracer two-phase reservation lifecycle from the
+	// create seam. It is injected at bootstrap from the tracer HTTP client; a
+	// nil reserver means the tracer integration is disabled (the create path
+	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
+	TracerReserver TracerReserver
+	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
+	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
+	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
+	// only sets on FEE routes — never on the transaction route — so the seam
+	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
+	// mode (and in tests that do not exercise the seam).
+	FeesMongoManager feesDBResolver
+	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
+	// static fee connection is correct and resolveFeesTenantContext is a no-op.
+	MultiTenantEnabled bool
 }
 
 // CreateTransactionJSON method that create transaction using JSON
 //
 //	@Summary		Create a Transaction using JSON
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay the first transaction's outcome is returned and a replayer's differing skip is ignored.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Full transaction input with explicit source and destination accounts"
+//	@Success		201				{object}	Transaction							"Successfully created transaction"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error						"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error						"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Failure		503				{object}	mmodel.Error						"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
@@ -66,26 +88,29 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 // CreateTransactionAnnotation method that create transaction using JSON
 //
 //	@Summary		Create a Transaction Annotation using JSON
-//	@Description	Create a Transaction Annotation with the input payload
+//	@Description	Creates an annotation-only transaction that records a memo/audit entry. The transaction is persisted with status NOTED and applies no balance changes; source and destination accounts are recorded for reference only.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction input; source and destination accounts are recorded but no balance changes are applied"
+//	@Success		201				{object}	Transaction							"Successfully created annotation transaction"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error						"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error						"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Failure		503				{object}	mmodel.Error						"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation [post]
 func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_annotation")
 	defer span.End()
@@ -104,26 +129,29 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 // CreateTransactionInflow method that creates a transaction without specifying a source
 //
 //	@Summary		Create a Transaction without passing from source
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string										false	"Request ID for tracing"
+//	@Param			organization_id	path		string										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string										true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Inflow transaction input specifying only destination accounts; source is resolved automatically"
+//	@Success		201				{object}	Transaction									"Successfully created inflow transaction"
+//	@Failure		400				{object}	mmodel.Error								"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error								"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error								"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error								"Organization, ledger, or destination account not found"
+//	@Failure		409				{object}	mmodel.Error								"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error								"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error								"Internal server error"
+//	@Failure		503				{object}	mmodel.Error								"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
 	defer span.End()
@@ -142,26 +170,29 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
 //
 //	@Summary		Create a Transaction without passing to distribution
-//	@Description	Create a Transaction with the input payload
+//	@Description	Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string										false	"Request ID for tracing"
+//	@Param			organization_id	path		string										true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string										true	"Ledger ID in UUID format"
+//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Outflow transaction input specifying only source accounts; destination is resolved automatically"
+//	@Success		201				{object}	Transaction									"Successfully created outflow transaction"
+//	@Failure		400				{object}	mmodel.Error								"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error								"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error								"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error								"Organization, ledger, or source account not found"
+//	@Failure		409				{object}	mmodel.Error								"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error								"Unprocessable entity: insufficient funds or account ineligible"
+//	@Failure		500				{object}	mmodel.Error								"Internal server error"
+//	@Failure		503				{object}	mmodel.Error								"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
 	defer span.End()
@@ -180,26 +211,30 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 // CreateTransactionDSL method that create transaction using DSL
 //
 //	@Summary		Create a Transaction using DSL
-//	@Description	Create a Transaction with the input DSL file
+//	@Description	Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. The DSL grammar carries no per-call skip, so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.
+//	@Deprecated		true
 //	@Tags			Transactions
 //	@Accept			mpfd
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction		formData	file	true	"Transaction DSL file"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction		formData	file						true	"Transaction DSL file (Gold .casl format)"
+//	@Success		201				{object}	Transaction					"Successfully created transaction from DSL"
+//	@Failure		400				{object}	mmodel.Error				"Invalid DSL file format or validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization, ledger, or account not found"
+//	@Failure		409				{object}	mmodel.Error				"Duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error				"Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
+//	@Failure		503				{object}	mmodel.Error				"Usage-limit service temporarily unavailable"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_dsl")
 	defer span.End()
@@ -263,25 +298,25 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 // GetTransaction method that get transaction created before
 //
 //	@Summary		Get a Transaction by ID
-//	@Description	Get a Transaction with the input ID
+//	@Description	Retrieves a transaction by UUID, including its operations. Reads cache-first and falls back to the database.
 //	@Tags			Transactions
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string						true	"Transaction ID in UUID format"
+//	@Success		200				{object}	Transaction					"Successfully retrieved transaction with operations"
+//	@Failure		400				{object}	mmodel.Error				"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
@@ -312,7 +347,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	tran, err := handler.Query.GetTransactionByID(ctx, params.OrganizationID, params.LedgerID, params.TransactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve transaction",
 			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
@@ -333,9 +368,6 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Transaction retrieved",
-		libLog.String("transaction_id", params.TransactionID.String()))
 
 	return http.OK(c, tran)
 }

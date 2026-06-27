@@ -5,20 +5,15 @@
 package in
 
 import (
-	"fmt"
-
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
-
 	// OperationHandler struct contains a cqrs use case for managing operations.
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 type OperationHandler struct {
@@ -29,24 +24,24 @@ type OperationHandler struct {
 // GetAllOperationsByAccount retrieves all operations by account.
 //
 //	@Summary		Get all Operations by account
-//	@Description	Get all Operations with the input ID
+//	@Description	Returns a cursor-paginated list of operations for an account. Operations are the individual debit/credit entries that make up transactions; filterable by date range, direction, and operation route.
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Param			type			query		string	false	"DEBIT, CREDIT"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string	false	"Filter operations created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter operations created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
+//	@Param			type			query		string	false	"Filter by operation type"	Enums(DEBIT,CREDIT)
 //	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
 //	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Param			route_code		query		string	false	"Filter by operation route code"
-//	@Success		200				{object}	http.Pagination{items=[]operation.Operation}
+//	@Success		200				{object}	http.Pagination{items=[]operation.Operation}	"Successfully retrieved operations list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -56,7 +51,7 @@ type OperationHandler struct {
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
@@ -80,8 +75,6 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -93,20 +86,14 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Operations by account and metadata")
-
 		recordSafeQueryAttributes(span, headerParams)
 
 		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account and metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Operations, Error: %s", err.Error()))
-
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Operations by account and metadata")
 
 		pagination.SetItems(trans)
 		pagination.SetCursor(cur.Next, cur.Prev)
@@ -114,20 +101,14 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Operations by account")
-
 	headerParams.Metadata = &bson.M{}
 
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Operations by account, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Operations by account")
 
 	pagination.SetItems(operations)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -141,13 +122,13 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Description	Get an Operation with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			operation_id	path		string	true	"Operation ID"
-//	@Success		200				{object}	operation.Operation
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			operation_id	path		string	true	"Operation ID in UUID format"
+//	@Success		200				{object}	operation.Operation	"Successfully retrieved operation"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Operation not found"
@@ -156,7 +137,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
@@ -181,18 +162,12 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of Operation by account")
-
 	op, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operation by account", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operation by account, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved Operation by account")
 
 	return http.OK(c, op)
 }
@@ -200,18 +175,18 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 // UpdateOperation method that patch operation created before
 //
 //	@Summary		Update an Operation
-//	@Description	Update an Operation with the input payload
+//	@Description	Updates the mutable metadata of an operation. Amounts, accounts, direction, and type are immutable.
 //	@Tags			Operations
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction_id	path		string							true	"Transaction ID"
-//	@Param			operation_id	path		string							true	"Operation ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			transaction_id	path		string							true	"Transaction ID in UUID format"
+//	@Param			operation_id	path		string							true	"Operation ID in UUID format"
 //	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
-//	@Success		200				{object}	operation.Operation
+//	@Success		200				{object}	operation.Operation	"Successfully updated operation"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -221,7 +196,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
@@ -246,8 +221,6 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String()))
-
 	payload := p.(*operation.UpdateOperationInput)
 
 	recordSafePayloadAttributes(span, payload)
@@ -256,23 +229,17 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Operation on command", err)
 
 		return http.WithError(c, err)
 	}
 
 	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operation on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Operation on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID))
 
 	return http.OK(c, op)
 }

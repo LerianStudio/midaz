@@ -5,13 +5,13 @@
 package in
 
 import (
-	libObs "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,10 +26,10 @@ type TransactionRouteHandler struct {
 //
 //	@Summary		Create Transaction Route
 //	@Description	Endpoint to create a new Transaction Route.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
 //	@Param			organization_id		path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
@@ -43,7 +43,7 @@ type TransactionRouteHandler struct {
 func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
@@ -90,10 +90,10 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 //
 //	@Summary		Get Transaction Route by ID
 //	@Description	Endpoint to get a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string					false	"Request ID for tracing"
 //	@Param			organization_id			path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string					true	"Ledger ID in UUID format"
@@ -108,7 +108,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
@@ -143,10 +143,10 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 //
 //	@Summary		Update Transaction Route
 //	@Description	Endpoint to update a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string								false	"Request ID for tracing"
 //	@Param			organization_id			path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string								true	"Ledger ID in UUID format"
@@ -161,7 +161,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
@@ -194,8 +194,6 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully updated transaction route", libLog.String("transaction_route_id", id.String()))
-
 	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
@@ -208,10 +206,10 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 //
 //	@Summary		Delete Transaction Route by ID
 //	@Description	Endpoint to delete a Transaction Route by its ID.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization			header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id			header		string			false	"Request ID for tracing"
 //	@Param			organization_id			path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id				path		string			true	"Ledger ID in UUID format"
@@ -226,7 +224,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
@@ -254,8 +252,6 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted transaction route", libLog.String("transaction_route_id", id.String()))
-
 	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to delete transaction route cache", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
@@ -268,16 +264,16 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //
 //	@Summary		Get all Transaction Routes
 //	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.
-//	@Tags			Transaction Route
+//	@Tags			Transaction Routes
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			start_date		query		string	false	"Start Date"
+//	@Param			end_date		query		string	false	"End Date"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.TransactionRoute}
@@ -289,7 +285,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()

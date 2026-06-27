@@ -9,10 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -64,9 +64,9 @@ func TestDeleteBalance(t *testing.T) {
 
 				err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-				var validationErr midazpkg.ValidationError
-				assert.True(t, errors.As(err, &validationErr))
-				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+				var conflictErr midazpkg.EntityConflictError
+				assert.True(t, errors.As(err, &conflictErr))
+				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
 			})
 		}
 	})

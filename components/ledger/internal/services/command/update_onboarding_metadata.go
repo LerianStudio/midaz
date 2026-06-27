@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -19,8 +18,6 @@ func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, ent
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update metadata for %s", entityName))
 
 	metadataToUpdate := metadata
 

@@ -5,20 +5,15 @@
 package in
 
 import (
-	"fmt"
-
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
-
 	// AssetRateHandler struct contains a cqrs use case for managing asset rate.
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 type AssetRateHandler struct {
@@ -29,26 +24,27 @@ type AssetRateHandler struct {
 // CreateOrUpdateAssetRate creates or updates an asset rate.
 //
 //	@Summary		Create or Update an AssetRate
-//	@Description	Create or Update an AssetRate with the input details
+//	@Description	Creates or updates the conversion factor (rate) between two asset codes for a ledger.
 //	@Tags			Asset Rates
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Success		201				{object}	assetrate.AssetRate	"Successfully created or updated asset rate"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Duplicate asset pair"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [Put]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [put]
 func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
@@ -63,9 +59,6 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with organization ID: %s", organizationID.String()))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with ledger ID: %s", ledgerID.String()))
-
 	payload := p.(*assetrate.CreateAssetRateInput)
 	logSafePayload(ctx, logger, "Request to create an AssetRate", payload)
 
@@ -73,14 +66,10 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create AssetRate on command", err)
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to created Asset: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to create AssetRate on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created AssetRate")
 
 	return http.Created(c, assetRate)
 }
@@ -91,12 +80,12 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Description	Get an AssetRate by External ID with the input details
 //	@Tags			Asset Rates
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			external_id		path		string	true	"External ID"
-//	@Success		200				{object}	assetrate.AssetRate
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			external_id		path		string	true	"External ID in UUID format"
+//	@Success		200				{object}	assetrate.AssetRate	"Successfully retrieved asset rate"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Asset rate not found"
@@ -105,7 +94,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
@@ -125,19 +114,12 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
-		organizationID.String(), ledgerID.String(), externalID.String()))
-
 	assetRate, err := handler.Query.GetAssetRateByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get AssetRate on query", err)
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to get AssetRate: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to get AssetRate on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully get AssetRate")
 
 	return http.OK(c, assetRate)
 }
@@ -148,19 +130,19 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Description	Get an AssetRate by the Asset Code with the input details
 //	@Tags			Asset Rates
 //	@Produce		json
-//	@Param			Authorization	header		string		false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string		false	"Request ID"
-//	@Param			organization_id	path		string		true	"Organization ID"
-//	@Param			ledger_id		path		string		true	"Ledger ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string		false	"Request ID for tracing"
+//	@Param			organization_id	path		string		true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string		true	"Ledger ID in UUID format"
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
-//	@Param			to				query		[]string	false	"To Asset Codes"	example	"BRL,USD,SGD"
-//	@Param			limit			query		int			false	"Limit"				default(10)
-//	@Param			start_date		query		string		false	"Start Date"		example	"2021-01-01"
-//	@Param			end_date		query		string		false	"End Date"			example	"2021-01-01"
-//	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
-//	@Param			cursor			query		string		false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate}
+//	@Param			to				query		[]string	false	"Filter by destination asset codes"
+//	@Param			limit			query		int			false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string		false	"Filter asset rates created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string		false	"Filter asset rates created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string		false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string		false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate}	"Successfully retrieved asset rates list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -170,7 +152,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
@@ -191,8 +173,6 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -205,21 +185,14 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and asset_code: '%s'",
-		organizationID.String(), ledgerID.String(), assetCode))
-
 	headerParams.Metadata = &bson.M{}
 
 	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get AssetRate on query", err)
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to get AssetRate: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to get AssetRate on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully get AssetRate")
 
 	pagination.SetItems(assetRates)
 	pagination.SetCursor(cur.Next, cur.Prev)

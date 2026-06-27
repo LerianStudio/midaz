@@ -1,66 +1,78 @@
 # Lerian Midaz
 
-> Enterprise-grade open-source double-entry ledger system. Go 1.25 monorepo (v3 module path) with a unified Ledger HTTP API (onboarding + transaction) and a CRM plugin. Uses PostgreSQL (primary/replica), MongoDB (metadata), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via lib-commons v4 tenant-manager. Elastic License 2.0.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. One repository, three deploy units: a unified Ledger HTTP API (double-entry onboarding + transaction + CRM holders/instruments + fees) on :3002; a Tracer real-time transaction-validation / fraud-prevention API on :4020; and an Infra docker-compose backing stack. Stores: PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), Valkey/Redis (caching). Multi-tenant isolation via the lib-commons v5 tenant-manager.
 
-Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances. The Ledger component exposes a single-port REST API (default :3002) covering both onboarding (org/ledger/asset/portfolio/segment/account management) and transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, and annotation creation modes). The CRM component (default :4003) manages holders and account aliases via MongoDB. Infrastructure is provisioned via Docker Compose with PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8, and Grafana/OTEL-LGTM.
+Midaz is no longer just a ledger: the monorepo now ships a complete, composable core banking platform — a double-entry ledger plus real-time transaction validation/fraud prevention, CRM, and a fee engine, all building from the single root `go.mod`. The Ledger deploy unit (`:3002`) is one binary that folds four domains: onboarding (org/ledger/asset/portfolio/segment/account management), transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, annotation modes), **CRM** (holders/instruments, served on the same port under the host ledger's `midaz` namespace, scoped by the `X-Organization-Id` header), and **fees** (fee engine + billing packages, applied during transaction create). CRM and fees are NOT separate services — CRM is a package tree (`components/ledger/internal/crm`) imported by the ledger binary, and fees are embedded in it. Tracer is a separate Go service deploy unit. Infrastructure is provisioned via a single Docker Compose (PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey, Grafana/OTEL-LGTM). Transactional messaging (PIX, cards, wires) and governance integrations remain external/marketplace.
+
+The financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances.
 
 ## Documentation
 
-- [README](README.md): Project overview, architecture, core banking vision
-- [License](LICENSE): Elastic License 2.0
-- [Changelog](CHANGELOG.md): Release history
+- [README](README.md): Project overview, architecture, core banking platform vision
+- [License](LICENSE): Elastic License 2.0 (source-available)
+- [Changelog](CHANGELOG.md): Release history (single unified monorepo version)
 - [Security](SECURITY.md): Vulnerability reporting policy
-- [Structure](STRUCTURE.md): Directory layout guide
+- [Structure](STRUCTURE.md): Directory layout guide (consolidated topology)
 
 ## AI Agent Guides
 
 - [AGENTS.md](AGENTS.md): Universal AI agent entry point — quick start, architecture, conventions, what not to do
 - [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
+- [llms-full.txt](llms-full.txt): Complete reference — env vars, API endpoints, error codes, models
+
+## Platform Overview
+
+The three deploy units form one core banking platform in one monorepo:
+
+- [Ledger](STRUCTURE.md): Double-entry ledger — the unified binary on :3002 (onboarding + transaction + CRM + fees)
+- [Tracer](components/tracer/): Real-time transaction validation / fraud prevention on :4020 — CEL rules, multi-scope spending limits, hash-chained audit. The ledger reaches it over an opt-in reservation seam (gRPC default / REST fallback, mutual TLS or service-mesh, trusted `x-tenant-id`): [topology](docs/architecture/ledger-tracer-topology.md)
+- [CRM](components/ledger/internal/crm/): Holders + instruments, folded into the ledger binary (not a deploy unit)
+- [Fees](components/ledger/pkg/fee): Fee engine + billing packages, embedded in the ledger binary
 
 ## API
 
-- [Ledger OpenAPI Spec](components/ledger/api/): Swagger documentation for all ledger endpoints
-- [CRM OpenAPI Spec](components/crm/api/): Swagger documentation for CRM endpoints
+- [Ledger OpenAPI Spec](components/ledger/api/): Swagger for ledger, transaction, CRM holder/instrument, and fee endpoints (single folded spec; swag-fold source)
+- [Per-Component OpenAPI Specs](postman/specs/): published `swagger.json`/`swagger.yaml`/`openapi.yaml` per REST deploy unit (ledger, tracer)
+- [RBAC Namespaces](docs/auth/RBAC-NAMESPACES.md): The three authz namespaces (`midaz`, `routing`, `plugin-fees`) in the unified binary (R9)
+- [API Scoping](docs/api/SCOPING.md): Path-based vs `X-Organization-Id` header scoping conventions (R22)
 
 ## Architecture
 
-- [Ledger Component](components/ledger/): Unified HTTP API — onboarding + transaction in single process
-  - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, multi-tenant middleware
-  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware
+- [Ledger Component](components/ledger/): Unified deploy unit — onboarding + transaction + CRM + fees in one process (:3002)
+  - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, `initCRM`, fee wiring, multi-tenant middleware
+  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go`, CRM handlers (`crm_routes.go`, `composition_routes.go`, `holder.go`, `holder_accounts.go`, `instrument.go`)
   - [PostgreSQL Repos](components/ledger/internal/adapters/postgres/): Onboarding + transaction repositories
-  - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata storage
-  - [Redis Adapters](components/ledger/internal/adapters/redis/): Caching, queue consumers
-  - [RabbitMQ Adapters](components/ledger/internal/adapters/rabbitmq/): Async transaction processing, bulk recorder
-  - [Services](components/ledger/internal/services/): Business logic — CQRS command/query use cases
+  - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata + fees storage
+  - [Services](components/ledger/internal/services/): CQRS command/query use cases + embedded `fees/`
+  - [Embedded Fees](components/ledger/pkg/fee): `fee/` engine + [`feeshared/`](components/ledger/pkg/feeshared) (`plugin-fees`)
   - [Migrations](components/ledger/migrations/): SQL migrations for onboarding and transaction databases
-- [CRM Component](components/crm/): Customer relationship management plugin
-  - [Bootstrap](components/crm/internal/bootstrap/): Config, DI, server lifecycle
-  - [HTTP Handlers](components/crm/internal/adapters/http/): Fiber handlers for holders and aliases
-  - [MongoDB Repos](components/crm/internal/adapters/mongodb/): CRM data persistence
-  - [Services](components/crm/internal/services/): CRM business logic
-- [Infrastructure](components/infra/): Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, Grafana/OTEL
+- [CRM Package Tree](components/ledger/internal/crm/): Holder/instrument domain imported by ledger — NOT a deploy unit
+  - [MongoDB Repos](components/ledger/internal/crm/adapters/mongodb/): CRM persistence (holder/ + instrument/)
+  - [Services](components/ledger/internal/crm/services/): CRM business logic
+  - The entire CRM HTTP surface (handlers + routes) lives in the ledger tree (`components/ledger/internal/adapters/http/in/`, `midaz` namespace) so the swagger fold discovers it
+- [Tracer Component](components/tracer/): Real-time validation / fraud-prevention API deploy unit (:4020) — CEL rules, spending limits, hash-chained audit
+- [Infrastructure](components/infra/): Single Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, OTEL
 - [Shared Packages](pkg/): Cross-component libraries
-  - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, etc.
-  - [Error Constants](pkg/constant/errors.go): Numeric error codes (0001–0175) and CRM error codes (includes overdraft codes 0167–0175)
+  - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.
+  - [Error Constants](pkg/constant/errors.go): Ledger numeric codes (0001–0178, gap at 0130, incl. overdraft 0167–0175) + 16 CRM-00xx domain codes
   - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
-  - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for transaction DSL
+  - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for the purpose-built (Gold) transaction DSL
+  - [Transaction Utilities](pkg/mtransaction/): Transaction validation and processing helpers
+  - [Streaming](pkg/streaming/): lib-streaming CloudEvents event modeling
   - [HTTP Utilities](pkg/net/http/): Middleware, pagination, protected routes, response helpers
-  - [Transaction Logic](pkg/transaction/): Transaction validation and processing utilities
 
 ## Configuration
 
-- [Ledger .env.example](components/ledger/.env.example): Ledger environment variables (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, multi-tenant)
-- [CRM .env.example](components/crm/.env.example): CRM environment variables (MongoDB, OTEL, crypto, auth)
+- [Ledger .env.example](components/ledger/.env.example): Ledger env (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, streaming, multi-tenant) + folded CRM (`MONGO_CRM_*`) and fees (`MONGO_FEES_*`)
+- [Tracer .env.example](components/tracer/.env.example): Tracer env (own PostgreSQL, API key, OTEL)
 - [Infra .env.example](components/infra/.env.example): Infrastructure environment variables
-- [Ledger Dockerfile](components/ledger/Dockerfile): Multi-stage build (golang:1.25-alpine → distroless)
-- [CRM Dockerfile](components/crm/Dockerfile): Multi-stage build (golang:1.25-alpine → distroless)
-- [Linter Config](.golangci.yml): golangci-lint v2 configuration
-- [Infra Docker Compose](components/infra/docker-compose.yml): Full infrastructure stack
+- [Linter Config](.golangci.yml): golangci-lint v2.4.0 configuration
+- [Infra Docker Compose](components/infra/docker-compose.yml): Full backing stack (single source)
 
 ## Development
 
 - [Makefile](Makefile): Build, test, lint, Docker, security, migration commands
-- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards (1130 lines)
+- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards
 - [Tests](tests/): Integration, chaos, and helper test suites
 - [Scripts](scripts/): Coverage, docs generation, environment checks
 

@@ -5,12 +5,17 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 ## Project
 
 - Midaz is an enterprise double-entry ledger system.
-- Module: `github.com/LerianStudio/midaz/v3`.
-- Go: 1.25+.
+- Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
+- Go: 1.26.4 (`go.mod` `go 1.26.4`).
+- lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.5.0; `lib-observability` v1.0.1.
 - License: Elastic License 2.0.
-- Main component: `components/ledger`.
-- CRM component: `components/crm`.
-- Shared code: `pkg`.
+- Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
+- Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
+- Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/instruments) + fees on :3002.
+- CRM is folded into ledger: `components/ledger/internal/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `midaz` authz namespace (flipped from `plugin-crm`; the tenant-manager policy migration is the X1 release gate — see `docs/auth/RBAC-NAMESPACES.md`). There is no standalone CRM service.
+- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go` (HTTP handler layer), after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation.
+- Tracer is a co-located but separate Go service deploy unit at `components/tracer` (:4020); it integrates with ledger over the reservation seam (gRPC/mTLS — see `docs/architecture/`).
+- Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`) and `tests` (root).
 
 ## Architecture
 
@@ -90,6 +95,8 @@ Documentation rules:
 
 ## Logging
 
+Binding standard: `docs/standards/telemetry.md` (T6 structured logging, T7 log levels, T8 single-point logging). The rules below are the quick reference; the standard governs on any conflict.
+
 Use structured logs:
 
 ```go
@@ -116,6 +123,8 @@ Avoid repeating broad scope IDs (`organization_id`, `ledger_id`, tenant IDs) on 
 
 ## Observability
 
+Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helper is chosen by error CLASS (T5): business/4xx errors use `HandleSpanBusinessErrorEvent` (span stays green), technical/5xx errors use `HandleSpanError` (span flips red). The rules below are the quick reference; the standard governs on any conflict.
+
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
@@ -140,6 +149,8 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 ```
 
 ## Errors
+
+Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platform in `pkg/errors.go` + `pkg/constant/errors.go`; the canonical sentinel registry is numeric only (the `FEE-`/`TRC-`/`TPL-`/`REP-` prefixed families are retired). The rules below are the quick reference; the standard governs on any conflict.
 
 - API errors use typed errors from `pkg/errors.go` and constants from `pkg/constant/errors.go`.
 - Use `pkg.ValidateBusinessError(constant.Err..., constant.Entity...)`.
@@ -170,7 +181,7 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 
 ### Producer conventions
 
-- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v3/pkg/streaming`. Keep both distinct.
+- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v4/pkg/streaming`. Keep both distinct.
 - Build config via `libStreaming.LoadConfig()` (reads `STREAMING_*` env with correct franz-go defaults). NEVER construct `libStreaming.Config{}` manually. Master flag stays in midaz `Config.StreamingEnabled`.
 - `CloudEventsSource` is validated but NOT auto-applied. Every `libStreaming.Event` must set `Source` explicitly. Hold the value on `UseCase.StreamingSource`, populate at bootstrap, read at each emit.
 - Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitImportant` resolves the tenant internally and passes it to the typed event builder closure.
@@ -178,7 +189,7 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 - IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.Event.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- v1.1.0 module-proxy distribution does NOT export Catalog/policy constants (GitHub HEAD differs). Use `libStreaming.Event` directly; pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
+- lib-streaming is pinned at v1.5.1, which exports Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`). Pass `WithOutboxRepository(repo)` to `libStreaming.New` when outbox lands.
 
 ### Event modeling (`pkg/streaming/events`)
 
@@ -208,7 +219,7 @@ func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span,
 }
 ```
 
-`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, source, subject, and timestamp.
+`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (build/emit failures are technical, so per T5 they flip the span red — not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, source, subject, and timestamp.
 
 Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so `EmitImportant` records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
 
@@ -260,5 +271,5 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEvent(...)`).
 - Do not embed `mmodel.*` types directly in event Payload structs; mirror the shape explicitly so domain evolution does not leak onto the wire.
-- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v3/pkg/streaming` without the `pkgStreaming` alias.
+- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v4/pkg/streaming` without the `pkgStreaming` alias.
 - Do not add comments that narrate refactor history or describe the behavior of code being called (e.g. "X now does Y", "the Z call short-circuits W"). They rot when the referenced code changes. Comment WHAT the code does and WHY it has to be that way — let the referenced code speak for itself.

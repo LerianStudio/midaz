@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 )
@@ -297,7 +297,22 @@ type Transaction struct {
 	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
+	// Skip carries the per-call control opt-outs. swaggerignore keeps it out of
+	// the GET-transaction READ schema (this struct doubles as the response model)
+	// while json persists it in the body JSONB so it survives commit/cancel
+	// re-resolution and propagates at runtime.
+	Skip *TransactionSkip `json:"skip,omitempty" swaggerignore:"true"`
 } // @name TransactionInput
+
+// TransactionSkip carries per-call control opt-outs requested on the transaction
+// body. A skip is honored only when the matching per-ledger override is enabled.
+//
+// swagger:model TransactionSkip
+// @Description TransactionSkip requests per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
+type TransactionSkip struct {
+	Fees   bool `json:"fees,omitempty" example:"false"`
+	Tracer bool `json:"tracer,omitempty" example:"false"`
+} // @name TransactionSkip
 
 // InitialStatus returns the transaction status derived from the Pending flag.
 // PENDING when the transaction is held for later commit/cancel, CREATED otherwise.

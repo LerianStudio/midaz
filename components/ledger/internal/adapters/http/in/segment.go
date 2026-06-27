@@ -7,15 +7,13 @@ package in
 import (
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -33,7 +31,7 @@ type SegmentHandler struct {
 //	@Tags			Segments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -49,7 +47,7 @@ type SegmentHandler struct {
 func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
@@ -64,8 +62,6 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Segment with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String()))
-
 	payload := i.(*mmodel.CreateSegmentInput)
 	logSafePayload(ctx, logger, "Request to create a segment", payload)
 
@@ -73,12 +69,10 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 
 	segment, err := handler.Command.CreateSegment(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Segment on command", err)
+		handleSpanByErrorClass(span, "Failed to create Segment on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created Segment")
 
 	return http.Created(c, segment)
 }
@@ -89,7 +83,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
@@ -109,7 +103,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_segments")
 	defer span.End()
@@ -124,13 +118,9 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Get Segments with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String()))
-
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -146,38 +136,26 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Segments by metadata")
-
 		segments, err := handler.Query.GetAllMetadataSegments(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Segments on query", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Segments, Error: %s", err.Error()))
+			handleSpanByErrorClass(span, "Failed to retrieve all Segments on query", err)
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Segments by metadata")
 
 		pagination.SetItems(segments)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Segments ")
-
 	headerParams.Metadata = &bson.M{}
 
 	segments, err := handler.Query.GetAllSegments(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Segments on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Segments, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve all Segments on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Segments")
 
 	pagination.SetItems(segments)
 
@@ -190,7 +168,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about a segment identified by its UUID within the specified ledger
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -204,7 +182,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_segment_by_id")
 	defer span.End()
@@ -224,18 +202,12 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
-
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Segment on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Segment on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	return http.OK(c, segment)
 }
@@ -247,7 +219,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 //	@Tags			Segments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -264,7 +236,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
@@ -284,23 +256,17 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
-
 	payload := i.(*mmodel.UpdateSegmentInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update segment with ID: %s", id.String()), payload)
+	logSafePayload(ctx, logger, "Request to update segment", payload)
 
 	recordSafePayloadAttributes(span, payload)
 
 	segment, err := handler.Command.UpdateSegmentByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Segment on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Segment on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	return http.OK(c, segment)
 }
@@ -310,7 +276,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 //	@Summary		Delete a segment
 //	@Description	Permanently removes a segment from the specified ledger. This operation cannot be undone.
 //	@Tags			Segments
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -325,7 +291,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_segment_by_id")
 	defer span.End()
@@ -345,17 +311,11 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
-
 	if err := handler.Command.DeleteSegmentByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Segment on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove Segment on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	return http.NoContent(c)
 }
@@ -365,7 +325,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 //	@Summary		Count segments
 //	@Description	Returns the total count of segments for the specified organization and ledger
 //	@Tags			Segments
-//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
@@ -378,7 +338,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_segments")
 	defer span.End()
@@ -393,18 +353,12 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting segments for organization %s and ledger %s", organizationID, ledgerID))
-
 	count, err := handler.Query.CountSegments(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count segments", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting segments: %v", err))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

@@ -11,12 +11,12 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -32,21 +32,22 @@ type AccountHandler struct {
 // CreateAccount is a method that creates account information.
 //
 //	@Summary		Create a new account
-//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.
+//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories. An optional 'skip' object (see AccountSkip) carries per-call control opt-outs; skip.holder requests bypassing the holder existence check. A skip is honored only when the request asks (skip.holder=true) AND the ledger opts into it via overrides.allowHolderSkip=true; a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of accounting.requireHolder (which only governs whether the holder existence check would otherwise run).
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata"
+//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, optional parent account, portfolio, segment, metadata, and an optional per-call skip object"
 //	@Success		201				{object}	mmodel.Account				"Successfully created account"
 //	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error				"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error				"Organization, ledger, parent account, portfolio, or segment not found"
 //	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same alias already exists"
+//	@Failure		422				{object}	mmodel.Error				"Unprocessable entity: a per-call skip was requested but the ledger override is not enabled (error 0490, ErrSkipNotPermitted)"
 //	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
@@ -65,12 +66,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	}
 
 	payload := i.(*mmodel.CreateAccountInput)
-	portfolioID := payload.PortfolioID
 	logSafePayload(ctx, logger, "Request to create an account", payload)
-
-	if !libCommons.IsNilOrEmpty(portfolioID) {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Account with Portfolio ID: %s", *portfolioID))
-	}
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
@@ -81,7 +77,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Account on command", err)
+		handleSpanByErrorClass(span, "Failed to create Account on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -94,8 +90,6 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Failed to record account created metric", err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created Account")
-
 	return http.Created(c, account)
 }
 
@@ -105,7 +99,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
@@ -158,7 +152,6 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -186,50 +179,34 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
 	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
 		parsedID := uuid.MustParse(headerParams.SegmentID)
 		segmentID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts by metadata")
-
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
+			handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts by metadata")
 
 		pagination.SetItems(accounts)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts ")
-
 	headerParams.Metadata = &bson.M{}
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts")
 
 	pagination.SetItems(accounts)
 
@@ -242,7 +219,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -256,7 +233,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -276,18 +253,12 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account ID: %s", id.String()))
-
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account ID: %s", id.String()))
 
 	return http.OK(c, account)
 }
@@ -298,7 +269,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its external code within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -312,7 +283,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
@@ -331,18 +302,12 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
-
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
 
 	return http.OK(c, account)
 }
@@ -353,7 +318,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -367,7 +332,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
@@ -384,18 +349,12 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	alias := c.Params("alias")
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
-
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
 
 	return http.OK(c, account)
 }
@@ -407,7 +366,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -444,31 +403,23 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Account with ID: %s", id.String()))
-
 	payload := i.(*mmodel.UpdateAccountInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account with ID: %s", id.String()), payload)
+	logSafePayload(ctx, logger, "Request to update account", payload)
 
 	recordSafePayloadAttributes(span, payload)
 
 	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Account on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Account on command", err)
 
 		return http.WithError(c, err)
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Account with ID: %s", id.String()))
 
 	return http.OK(c, account)
 }
@@ -478,7 +429,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Summary		Delete an account
 //	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
 //	@Tags			Accounts
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -493,7 +444,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -515,17 +466,11 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 	token := c.Get("Authorization")
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Account with ID: %s", id.String()))
-
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id, token); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Account on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove Account on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Account with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -535,7 +480,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Summary		Count accounts
 //	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio
 //	@Tags			Accounts
-//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
@@ -548,7 +493,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
@@ -563,18 +508,12 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting accounts for organization %s and ledger %s", organizationID, ledgerID))
-
 	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting accounts: %v", err))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

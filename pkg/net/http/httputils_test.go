@@ -16,7 +16,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -850,19 +850,19 @@ func TestGetUUIDFromLocals_WrongTypeInteger(t *testing.T) {
 func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 	app := fiber.New()
 	holderID := uuid.New()
-	aliasID := uuid.New()
+	instrumentID := uuid.New()
 
 	app.Get("/test", func(c *fiber.Ctx) error {
 		c.Locals("holder_id", holderID)
-		c.Locals("alias_id", aliasID)
+		c.Locals("instrument_id", instrumentID)
 
 		resultHolder, err := GetUUIDFromLocals(c, "holder_id")
 		assert.NoError(t, err)
 		assert.Equal(t, holderID, resultHolder)
 
-		resultAlias, err := GetUUIDFromLocals(c, "alias_id")
+		resultInstrument, err := GetUUIDFromLocals(c, "instrument_id")
 		assert.NoError(t, err)
-		assert.Equal(t, aliasID, resultAlias)
+		assert.Equal(t, instrumentID, resultInstrument)
 
 		return c.SendStatus(fiber.StatusOK)
 	})
@@ -872,6 +872,29 @@ func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+// TestGetUUIDFromLocals_RendersTyped400 asserts the error returned by
+// GetUUIDFromLocals, when passed to WithError, renders a 400 carrying code 0065,
+// not a generic 500/0046.
+func TestGetUUIDFromLocals_RendersTyped400(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		_, err := GetUUIDFromLocals(c, "organization_id")
+		return WithError(c, err)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), `"code":"0065"`)
 }
 
 func TestEscapeSearchMetacharacters_NoSpecialChars(t *testing.T) {

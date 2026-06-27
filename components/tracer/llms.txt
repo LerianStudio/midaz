@@ -1,0 +1,60 @@
+# Lerian Tracer
+
+> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`; Go 1.26.3, toolchain go1.26.4) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
+
+Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v2 (API Key + Access Manager plugin). Multi-tenant isolation is wired and gated by `MULTI_TENANT_ENABLED` (default false). Persistence is the shared infra PostgreSQL (postgres:17 from `components/infra/docker-compose.yml`); it also uses an in-memory rule cache with a background sync worker and circuit breaker resilience.
+
+## Documentation
+
+- [README](README.md): Project overview, getting started, API examples, architecture diagram
+- [License](LICENSE): Elastic License 2.0
+- [Project Rules](../../docs/PROJECT_RULES.md): Monorepo-wide architecture patterns, coding conventions, testing standards
+- [Tracer Invariants](../../docs/tracer/INVARIANTS.md): Tracer-specific invariants — CEL conventions, hash-chained audit, migration renumbering, latency budget
+
+## AI Agent Guides
+
+- [AGENTS.md](AGENTS.md): Universal AI agent entry point — quick start, architecture, conventions, what not to do
+- [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
+
+## API
+
+- [OpenAPI Spec (JSON)](api/swagger.json): Full API specification (Swagger 2.0)
+- [OpenAPI Spec (YAML)](api/openapi.yaml): OpenAPI 3.0 format
+- [Swagger Types](api/types.go): Custom type definitions for Swagger docs
+
+## Architecture
+
+- [Bootstrap](internal/bootstrap/): Composition root — config, DI, server lifecycle, workers
+- [Services](internal/services/): Business logic — validation orchestration, command/query, cache, workers
+- [Command Services](internal/services/command/): Write operations — create, update, activate, deactivate, draft, delete
+- [Query Services](internal/services/query/): Read operations — get, list, evaluate rules, check limits, verify audit
+- [Rule Cache](internal/services/cache/): In-memory rule cache with warmup and background sync
+- [Background Workers](internal/services/workers/): RuleSyncWorker, UsageCleanupWorker
+- [HTTP Adapters](internal/adapters/http/in/): Fiber handlers, routes, middleware, input validation
+- [PostgreSQL Adapters](internal/adapters/postgres/): Repository implementations with squirrel SQL builder
+- [CEL Adapter](internal/adapters/cel/): Expression engine — compile, evaluate, cost limiting
+- [Domain Models](pkg/model/): Rules, limits, validations, scopes, audit events (44 files)
+- [Error Constants](../../pkg/constant/errors.go): Canonical numeric error-code registry (repo-root shared platform; the tracer-local `TRC-` fork is retired)
+- [Clock](pkg/clock/): Clock interface — real + fixed for deterministic testing
+- [Resilience](pkg/resilience/): Circuit breaker wrapper (sony/gobreaker)
+
+## Configuration
+
+- [Environment Template](.env.example): All configuration variables with documentation (SERVER_PORT 4020)
+- [Docker Compose](docker-compose.yml): Tracer app service only; joins the shared external `infra-network` for PostgreSQL and other backing services
+- [Dockerfile](Dockerfile): Multi-stage build (golang:1.26.3-alpine → distroless nonroot)
+- [Linter Config](.golangci.yml): golangci-lint v2 with errorlint, depguard, revive, wsl_v5
+
+## Development
+
+- [Makefile](Makefile): Build, test, lint, Docker, migration, security commands
+- [Test Makefiles](mk/): Modular make targets (tests, docker, database, quality, security, docs)
+- [Migrations](migrations/): 17 migrations (000001-000017) + seed data
+- [E2E Tests](tests/end2end/): BDD tests with Godog/Gherkin feature files
+- [Integration Tests](tests/integration/): 45 testcontainers-based API tests
+- [Test Utilities](internal/testutil/): Deterministic UUIDs, fixed time, generic helpers
+- [Scripts](scripts/): Git hooks setup, env check, API docs verification
+
+## Optional
+
+- [Security Policy](SECURITY.md): Vulnerability reporting

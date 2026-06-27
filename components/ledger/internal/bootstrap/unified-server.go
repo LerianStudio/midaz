@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -15,7 +14,9 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
+	_ "github.com/LerianStudio/midaz/v4/components/ledger/api"
+	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
+	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -39,6 +40,7 @@ type UnifiedServer struct {
 // Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
 	serverAddress string,
+	version string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
 	readyzHandler *ReadyzHandler,
@@ -47,12 +49,17 @@ func NewUnifiedServer(
 	app := fiber.New(fiber.Config{
 		AppName:               "Midaz Ledger API",
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
+		ErrorHandler:          midazhttp.CanonicalFiberErrorHandler,
 	})
 
-	// Add common middleware (only once for all routes)
+	// Add common middleware (only once for all routes).
+	// WithRecover MUST be first so it wraps every handler and downstream middleware:
+	// a panic anywhere unwinds back through this defer and returns a 500 via the
+	// Fiber error handler instead of dropping the connection. Previously only CRM's
+	// standalone router applied panic recovery; hoisting it here gives onboarding +
+	// transaction + crm a single process-wide recovery boundary.
+	app.Use(midazhttp.WithRecover(midazhttp.WithRecoverLogger(logger)))
+
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
@@ -62,7 +69,7 @@ func NewUnifiedServer(
 	app.Get("/health", libHTTP.Ping)
 
 	// Version endpoint
-	app.Get("/version", libHTTP.Version)
+	app.Get("/version", buildinfo.VersionHandler(version))
 
 	// Readyz endpoint - mounted BEFORE auth middleware (before route registrars)
 	// This endpoint is public and does not require authentication.
@@ -130,11 +137,17 @@ func NewUnifiedServer(
 // Run implements mbootstrap.Runnable interface.
 // Starts the unified HTTP server with graceful shutdown support.
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
-	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
+	s.logger.Log(context.Background(), libLog.LevelInfo, "Starting Unified HTTP Server", libLog.String("server_address", s.serverAddress))
 
 	// Create server manager with graceful shutdown.
 	// The OnListen hook (registered in NewUnifiedServer) will call SetServerReady()
 	// after the socket is bound, ensuring readyz only returns 200 when truly ready.
+	//
+	// ServerManager is the single owner of telemetry teardown and logger sync:
+	// it shuts telemetry down only AFTER the HTTP drain completes, so spans from
+	// in-flight requests are exported. A signal-fired Launcher runnable cannot
+	// provide that ordering (runnables wake concurrently on SIGTERM) — do not
+	// move ShutdownTelemetry out of this call.
 	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).
 		StartWithGracefulShutdown()

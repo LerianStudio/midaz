@@ -15,15 +15,15 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -687,7 +687,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 		},
 		{
-			name: "balance with non-zero funds returns 400 bad request",
+			name: "balance with non-zero funds returns 409 conflict",
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID) {
 				// Test both Available and OnHold scenarios in subtests
 				// Balance found with non-zero amounts (cannot be deleted)
@@ -703,7 +703,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 					Times(1)
 				// Delete should NOT be called
 			},
-			expectedStatus: 400,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -1227,7 +1227,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 		},
 		{
-			name: "external account type returns 400 validation error",
+			name: "external account type returns 422 unprocessable error",
 			payload: &mmodel.CreateAdditionalBalance{
 				Key:            "new-key",
 				AllowSending:   testutils.Ptr(true),
@@ -1257,7 +1257,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 					}, nil).
 					Times(1)
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)

@@ -9,8 +9,8 @@ import (
 	"maps"
 	"sort"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // LedgerSettings represents the settings for a ledger.
@@ -21,13 +21,31 @@ import (
 //	{
 //	  "accounting": {
 //	    "validateAccountType": true,
-//	    "validateRoutes": true
+//	    "validateRoutes": true,
+//	    "requireHolder": true
+//	  },
+//	  "tracer": {
+//	    "mode": "off",
+//	    "failPosture": "open",
+//	    "timeoutMs": 250
+//	  },
+//	  "overrides": {
+//	    "allowFeeSkip": false,
+//	    "allowTracerSkip": false,
+//	    "allowHolderSkip": false
 //	  }
 //	}
 type LedgerSettings struct {
 	// Accounting contains validation settings for accounting operations.
 	Accounting AccountingValidation `json:"accounting"`
-}
+
+	// Tracer contains the per-ledger tracer-integration settings.
+	Tracer TracerSettings `json:"tracer"`
+
+	// Overrides contains the per-ledger opt-ins that permit callers to skip
+	// individual controls (fees, tracer, holder) on a per-request basis.
+	Overrides OverridePolicy `json:"overrides"`
+} //	@name LedgerSettings
 
 // AccountingValidation represents the accounting-related validation settings.
 // These settings control validation behavior during transaction processing.
@@ -35,19 +53,110 @@ type AccountingValidation struct {
 	// ValidateAccountType enables validation of account types during transaction processing.
 	// When true, accounts must have types that match the operation route rules.
 	// Default: false (permissive - no validation)
-	ValidateAccountType bool `json:"validateAccountType"`
+	ValidateAccountType bool `json:"validateAccountType" example:"false"`
 
 	// ValidateRoutes enables validation of transaction routes during processing.
 	// When true, transactions must specify valid route IDs that exist in the ledger.
 	// Default: false (permissive - no validation)
-	ValidateRoutes bool `json:"validateRoutes"`
-}
+	ValidateRoutes bool `json:"validateRoutes" example:"false"`
+
+	// RequireHolder enables enforcement that accounts must reference an existing holder.
+	// When true, account creation rejects accounts whose resolved holder does not exist.
+	// Default: false (permissive - no validation)
+	RequireHolder bool `json:"requireHolder" example:"false"`
+} //	@name AccountingValidation
 
 // defaultAccountingValidation is the canonical source of default validation settings.
 // All validation flags are false by default for backwards compatibility.
 var defaultAccountingValidation = AccountingValidation{
 	ValidateAccountType: false,
 	ValidateRoutes:      false,
+	RequireHolder:       false,
+}
+
+// OverridePolicy represents the per-ledger opt-ins that permit a caller to skip
+// individual controls on a per-request basis. A skip is honored only when both
+// this operator opt-in and the caller's request flag are set; absent an opt-in,
+// a requested skip is rejected. All opt-ins are false by default.
+type OverridePolicy struct {
+	// AllowFeeSkip permits callers to skip fee computation on a transaction.
+	// Default: false (callers cannot skip fees).
+	AllowFeeSkip bool `json:"allowFeeSkip" example:"false"`
+
+	// AllowTracerSkip permits callers to skip the tracer reserve on a transaction.
+	// Default: false (callers cannot skip the tracer).
+	AllowTracerSkip bool `json:"allowTracerSkip" example:"false"`
+
+	// AllowHolderSkip permits callers to skip the holder existence check on account creation.
+	// Default: false (callers cannot skip the holder check).
+	AllowHolderSkip bool `json:"allowHolderSkip" example:"false"`
+} //	@name OverridePolicy
+
+// defaultOverridePolicy is the canonical source of default override opt-ins.
+// All opt-ins are false by default so no control can be skipped without an explicit opt-in.
+var defaultOverridePolicy = OverridePolicy{
+	AllowFeeSkip:    false,
+	AllowTracerSkip: false,
+	AllowHolderSkip: false,
+}
+
+// TracerSettings represents the per-ledger tracer-integration settings.
+// These control whether and how transaction processing reserves against the
+// external tracer service before committing balances.
+//
+// The struct holds only comparable scalar fields so LedgerSettings stays
+// ==-comparable (relied on by LedgerSettingsIsDefault).
+type TracerSettings struct {
+	// Mode controls tracer participation in transaction processing.
+	// One of: "off" (skip), "advisory" (call but never block), "enforce" (call and gate).
+	// Default: "off".
+	Mode string `json:"mode" example:"off"`
+
+	// FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).
+	// One of: "open" (proceed, record SKIPPED audit), "closed" (reject the transaction).
+	// Default: "open".
+	FailPosture string `json:"failPosture" example:"open"`
+
+	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
+	// Default: 250.
+	TimeoutMs int `json:"timeoutMs" example:"250"`
+} //	@name TracerSettings
+
+// Allowed values for TracerSettings.Mode.
+const (
+	TracerModeOff      = "off"
+	TracerModeAdvisory = "advisory"
+	TracerModeEnforce  = "enforce"
+)
+
+// Allowed values for TracerSettings.FailPosture.
+const (
+	TracerFailPostureOpen   = "open"
+	TracerFailPostureClosed = "closed"
+)
+
+// defaultTracerTimeoutMs is the canonical default per-call tracer reserve timeout.
+const defaultTracerTimeoutMs = 250
+
+// defaultTracerSettings is the canonical source of default tracer settings.
+// Tracer integration is off by default for backwards compatibility.
+var defaultTracerSettings = TracerSettings{
+	Mode:        TracerModeOff,
+	FailPosture: TracerFailPostureOpen,
+	TimeoutMs:   defaultTracerTimeoutMs,
+}
+
+// allowedTracerModes is the membership set for TracerSettings.Mode, checked at write time.
+var allowedTracerModes = map[string]struct{}{
+	TracerModeOff:      {},
+	TracerModeAdvisory: {},
+	TracerModeEnforce:  {},
+}
+
+// allowedTracerFailPostures is the membership set for TracerSettings.FailPosture, checked at write time.
+var allowedTracerFailPostures = map[string]struct{}{
+	TracerFailPostureOpen:   {},
+	TracerFailPostureClosed: {},
 }
 
 // DefaultLedgerSettings returns the default ledger settings as a typed struct.
@@ -55,6 +164,8 @@ var defaultAccountingValidation = AccountingValidation{
 func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
 		Accounting: defaultAccountingValidation,
+		Tracer:     defaultTracerSettings,
+		Overrides:  defaultOverridePolicy,
 	}
 }
 
@@ -66,6 +177,17 @@ func DefaultLedgerSettingsMap() map[string]any {
 		"accounting": map[string]any{
 			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
 			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
+			"requireHolder":       defaultAccountingValidation.RequireHolder,
+		},
+		"tracer": map[string]any{
+			"mode":        defaultTracerSettings.Mode,
+			"failPosture": defaultTracerSettings.FailPosture,
+			"timeoutMs":   defaultTracerSettings.TimeoutMs,
+		},
+		"overrides": map[string]any{
+			"allowFeeSkip":    defaultOverridePolicy.AllowFeeSkip,
+			"allowTracerSkip": defaultOverridePolicy.AllowTracerSkip,
+			"allowHolderSkip": defaultOverridePolicy.AllowHolderSkip,
 		},
 	}
 }
@@ -77,6 +199,17 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 		"accounting": map[string]any{
 			"validateAccountType": s.Accounting.ValidateAccountType,
 			"validateRoutes":      s.Accounting.ValidateRoutes,
+			"requireHolder":       s.Accounting.RequireHolder,
+		},
+		"tracer": map[string]any{
+			"mode":        s.Tracer.Mode,
+			"failPosture": s.Tracer.FailPosture,
+			"timeoutMs":   s.Tracer.TimeoutMs,
+		},
+		"overrides": map[string]any{
+			"allowFeeSkip":    s.Overrides.AllowFeeSkip,
+			"allowTracerSkip": s.Overrides.AllowTracerSkip,
+			"allowHolderSkip": s.Overrides.AllowHolderSkip,
 		},
 	}
 }
@@ -92,34 +225,76 @@ func LedgerSettingsIsDefault(s *LedgerSettings) bool {
 }
 
 // ParseLedgerSettings extracts and parses ledger settings from a settings map.
-// Returns default settings if the map is nil, empty, or missing the "accounting" key.
+// Returns default settings if the map is nil or empty; per-group values fall back
+// to their defaults when a group key is missing, not a map, or a field is the wrong type.
 // This function never returns an error - it falls back to safe defaults on any parse issue.
 func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 	if settings == nil {
 		return DefaultLedgerSettings()
 	}
 
-	accounting, ok := settings["accounting"]
-	if !ok {
-		return DefaultLedgerSettings()
-	}
-
-	accountingMap, ok := accounting.(map[string]any)
-	if !ok {
-		return DefaultLedgerSettings()
-	}
-
 	result := DefaultLedgerSettings()
 
-	if validateAccountType, ok := accountingMap["validateAccountType"].(bool); ok {
-		result.Accounting.ValidateAccountType = validateAccountType
+	if accountingMap, ok := settings["accounting"].(map[string]any); ok {
+		if validateAccountType, ok := accountingMap["validateAccountType"].(bool); ok {
+			result.Accounting.ValidateAccountType = validateAccountType
+		}
+
+		if validateRoutes, ok := accountingMap["validateRoutes"].(bool); ok {
+			result.Accounting.ValidateRoutes = validateRoutes
+		}
+
+		if requireHolder, ok := accountingMap["requireHolder"].(bool); ok {
+			result.Accounting.RequireHolder = requireHolder
+		}
 	}
 
-	if validateRoutes, ok := accountingMap["validateRoutes"].(bool); ok {
-		result.Accounting.ValidateRoutes = validateRoutes
+	if tracerMap, ok := settings["tracer"].(map[string]any); ok {
+		if mode, ok := tracerMap["mode"].(string); ok {
+			result.Tracer.Mode = mode
+		}
+
+		if failPosture, ok := tracerMap["failPosture"].(string); ok {
+			result.Tracer.FailPosture = failPosture
+		}
+
+		if timeoutMs, ok := parseSettingsNumber(tracerMap["timeoutMs"]); ok {
+			result.Tracer.TimeoutMs = timeoutMs
+		}
+	}
+
+	if overridesMap, ok := settings["overrides"].(map[string]any); ok {
+		if allowFeeSkip, ok := overridesMap["allowFeeSkip"].(bool); ok {
+			result.Overrides.AllowFeeSkip = allowFeeSkip
+		}
+
+		if allowTracerSkip, ok := overridesMap["allowTracerSkip"].(bool); ok {
+			result.Overrides.AllowTracerSkip = allowTracerSkip
+		}
+
+		if allowHolderSkip, ok := overridesMap["allowHolderSkip"].(bool); ok {
+			result.Overrides.AllowHolderSkip = allowHolderSkip
+		}
 	}
 
 	return result
+}
+
+// parseSettingsNumber coerces a JSON-unmarshaled numeric value into an int.
+// JSON numbers unmarshal to float64; int/int64 are accepted for callers that
+// pass typed maps. Returns false for any non-numeric value so the caller keeps
+// the default.
+func parseSettingsNumber(value any) (int, bool) {
+	switch v := value.(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	default:
+		return 0, false
+	}
 }
 
 // settingsSchema defines the allowed structure for ledger settings.
@@ -134,6 +309,17 @@ var settingsSchema = map[string]map[string]string{
 	"accounting": {
 		"validateAccountType": "bool",
 		"validateRoutes":      "bool",
+		"requireHolder":       "bool",
+	},
+	"tracer": {
+		"mode":        "string",
+		"failPosture": "string",
+		"timeoutMs":   "number",
+	},
+	"overrides": {
+		"allowFeeSkip":    "bool",
+		"allowTracerSkip": "bool",
+		"allowHolderSkip": "bool",
 	},
 }
 
@@ -211,8 +397,16 @@ func ValidateSettings(settings map[string]any) error {
 				continue
 			}
 
+			fieldPath := fmt.Sprintf("%s.%s", key, nestedKey)
+
 			// Validate type
-			if err := validateSettingsFieldType(nestedValue, expectedType, fmt.Sprintf("%s.%s", key, nestedKey)); err != nil {
+			if err := validateSettingsFieldType(nestedValue, expectedType, fieldPath); err != nil {
+				return err
+			}
+
+			// Validate enum membership for fields whose type alone is insufficient
+			// (e.g. tracer.mode must be one of off|advisory|enforce).
+			if err := validateSettingsFieldValue(key, nestedKey, nestedValue, fieldPath); err != nil {
 				return err
 			}
 		}
@@ -240,6 +434,40 @@ func validateSettingsFieldType(value any, expectedType, fieldPath string) error 
 			// valid number types from JSON unmarshaling
 		default:
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldType, "LedgerSettings", fieldPath, "number")
+		}
+	}
+
+	return nil
+}
+
+// validateSettingsFieldValue enforces enum membership for fields whose value
+// space is narrower than their primitive type. The type-only check in
+// validateSettingsFieldType cannot reject a well-typed but out-of-set value
+// (e.g. tracer.mode = "enfroce"); this is where that is caught at write time.
+// Fields without an enum constraint pass through unchanged.
+func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPath string) error {
+	if parentKey != "tracer" {
+		return nil
+	}
+
+	switch nestedKey {
+	case "mode":
+		str, ok := value.(string)
+		if !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "off, advisory, enforce")
+		}
+
+		if _, ok := allowedTracerModes[str]; !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "off, advisory, enforce")
+		}
+	case "failPosture":
+		str, ok := value.(string)
+		if !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
+		}
+
+		if _, ok := allowedTracerFailPostures[str]; !ok {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
 		}
 	}
 

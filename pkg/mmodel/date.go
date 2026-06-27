@@ -20,7 +20,7 @@ import (
 // @example "2025-06-15"
 type Date struct {
 	time.Time
-}
+} //	@name	Date
 
 // dateFormats lists the formats we accept, in order of preference
 var dateFormats = []string{

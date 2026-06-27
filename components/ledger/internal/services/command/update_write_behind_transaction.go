@@ -6,14 +6,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -24,17 +22,15 @@ import (
 )
 
 func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_write_behind_transaction")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Updating transaction in write-behind cache")
-
 	data, err := msgpack.Marshal(tran)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to marshal transaction for write-behind cache update", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to marshal transaction for write-behind cache update: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to marshal transaction for write-behind cache update", libLog.Err(err))
 
 		return
 	}
@@ -44,10 +40,8 @@ func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizatio
 	// 86400 seconds = 24 hours (SetBytes multiplies by time.Second internally)
 	if err := uc.TransactionRedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update transaction in write-behind cache", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update transaction in write-behind cache: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction in write-behind cache", libLog.Err(err))
 
 		return
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction updated in write-behind cache: %s", key))
 }

@@ -8,16 +8,15 @@ import (
 	"fmt"
 	"os"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,7 +35,7 @@ type LedgerHandler struct {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger details including name, status, and optional metadata"
@@ -50,7 +49,7 @@ type LedgerHandler struct {
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
@@ -67,12 +66,10 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger on command", err)
+		handleSpanByErrorClass(span, "Failed to create ledger on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created ledger")
 
 	return http.Created(c, ledger)
 }
@@ -83,7 +80,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 //	@Description	Returns detailed information about a ledger identified by its UUID within the specified organization
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -96,7 +93,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
@@ -111,18 +108,12 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Ledger with ID: %s", id.String()))
-
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve ledger on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve ledger on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Ledger with ID: %s", id.String()))
 
 	return http.OK(c, ledger)
 }
@@ -133,7 +124,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			metadata		query		string																false	"JSON string to filter ledgers by metadata fields"
@@ -154,7 +145,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
@@ -167,8 +158,6 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -202,38 +191,26 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 			return http.WithError(c, err)
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers by metadata")
-
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all ledgers by metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Ledgers, Error: %s", err.Error()))
-
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Ledgers by metadata")
 
 		pagination.SetItems(ledgers)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers")
-
 	headerParams.Metadata = &bson.M{}
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all ledgers on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Ledgers, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to retrieve all ledgers on query", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Ledgers")
 
 	pagination.SetItems(ledgers)
 
@@ -247,7 +224,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -262,7 +239,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
@@ -272,28 +249,22 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Ledger with ID: %s", id.String()))
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
 	payload := p.(*mmodel.UpdateLedgerInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update ledger with ID: %s", id.String()), payload)
+	logSafePayload(ctx, logger, "Request to update ledger", payload)
 
 	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to update ledger on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Ledger with ID: %s", id.String()))
 
 	return http.OK(c, ledger)
 }
@@ -303,7 +274,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 //	@Summary		Delete a ledger
 //	@Description	Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Ledgers
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -317,7 +288,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
@@ -332,27 +303,19 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
-
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityLedger)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Ledger with ID: %s in production", id.String()))
+		handleSpanByErrorClass(span, "Failed to remove ledger on command", err)
 
 		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Ledger with ID: %s, Error: %s", id.String(), err.Error()))
+		handleSpanByErrorClass(span, "Failed to remove ledger on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Ledger with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -362,7 +325,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 //	@Summary		Count total ledgers
 //	@Description	Returns the total count of ledgers for a specific organization as a header without a response body
 //	@Tags			Ledgers
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Success		204				"No content with X-Total-Count header containing the count"
@@ -374,7 +337,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
@@ -384,18 +347,12 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating count of all ledgers for organization: %s", organizationID))
-
 	count, err := handler.Query.CountLedgers(ctx, organizationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count ledgers", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count ledgers, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted ledgers for organization %s: %d", organizationID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
@@ -409,7 +366,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 //	@Description	Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
@@ -422,7 +379,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
 	defer span.End()
@@ -442,18 +399,12 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 		attribute.String("ledger_id", id.String()),
 	)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving settings for Ledger with ID: %s", id.String()))
-
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get settings for Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved settings for Ledger with ID: %s", id.String()))
 
 	return http.OK(c, ledgerSettings)
 }
@@ -461,15 +412,15 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
+//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits callers to skip the matching per-call control (fee/tracer on transaction creation, holder on account creation); all default false so no control can be skipped without an explicit opt-in.
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Security		BearerAuth
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
+//	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool), overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)"
 //	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
 //	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -480,7 +431,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
 	defer span.End()
@@ -505,18 +456,12 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, "settings"))
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update settings for Ledger with ID: %s", id.String()))
-
 	updatedSettings, err := handler.Command.UpdateLedgerSettings(ctx, organizationID, id, *settings)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update settings for Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for Ledger with ID: %s", id.String()))
 
 	return http.OK(c, mmodel.ParseLedgerSettings(updatedSettings))
 }

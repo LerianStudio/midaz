@@ -1,219 +1,126 @@
-# Midaz API Postman Collection & Testing
+# Midaz API Postman Hub
 
-This directory contains the automated Postman collection generation and testing framework for the Midaz API. The system provides API documentation, automated testing, and workflow validation across all Midaz services.
+This directory is the self-contained API-documentation hub for Midaz. It holds the
+generation tooling, the published OpenAPI specs per service, and the single merged
+Postman collection plus environment used to exercise the APIs.
 
-## Quick Start
+A single command regenerates everything:
 
 ```bash
-# Generate Postman collection from OpenAPI specs
 make generate-docs
-
-# Run complete API workflow tests
-make newman
 ```
 
-## Overview
+## What gets generated
 
-The Midaz API testing system has two main processes:
+`make generate-docs` (root) runs `postman/generator/generate-docs.sh`, which:
 
-1. **Collection Generation** (`make generate-docs`): Converts OpenAPI specifications into Postman collections
-2. **Workflow Testing** (`make newman`): Executes end-to-end API tests
+1. Runs `swag init` for each service to refresh its `components/<service>/api/`
+   artifacts (`docs.go`, `swagger.json`, `swagger.yaml`). `docs.go` stays under
+   `api/` because Go imports it and the ledger contract test reads
+   `components/ledger/api/swagger.json`.
+2. Converts each `swagger.json` to `openapi.yaml` with
+   `openapitools/openapi-generator-cli:v7.10.0` (Docker required).
+3. Copies the `swagger.json` + `swagger.yaml` + `openapi.yaml` triple into
+   `postman/specs/<service>/` so the hub is self-describing.
+4. Converts each spec to a Postman collection and merges them into one
+   `MIDAZ.postman_collection.json`, with a single merged
+   `MIDAZ.postman_environment.json`.
 
-## Collection Generation Process (`make generate-docs`)
+### Covered services
 
-### Step 1: Environment Setup (`Makefile`)
-- **Trigger**: `make generate-docs` command
-- **Prerequisites**: Runs dependency checks (`make tidy`, `make check-envs`)
-- **Tool Verification**: Ensures `swag` CLI and `node` are installed via `setup-deps.sh`
-- **Purpose**: Prepares the build environment for documentation generation
+| Service | Port | Notes |
+|---------|------|-------|
+| `ledger` | `:3002` | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees, all on one base URL |
+| `tracer` | `:4020` | Real-time transaction validation / fraud prevention |
+| `reporter` | `:4005` | Async report management API |
 
-### Step 2: OpenAPI Specification Generation (`scripts/generate-docs.sh`)
-- **Orchestrator**: Clean, beautified wrapper around the generation process
-- **Components**: Processes `onboarding` and `transaction` services
-- **Command**: `swag init -g cmd/app/main.go -o api --parseDependency --parseInternal`
-- **Input**: Go source code with Swagger annotations
-- **Output**: `api/swagger.json` and `api/swagger.yaml` per component
-- **Features**: Progress tracking, error handling, timing metrics, log abstraction
+`reporter-worker` is health-only (no REST API) and `crm` is a package tree folded
+into the ledger binary (its endpoints are part of the ledger swagger), so neither
+is generated separately.
 
-**Swagger Annotations Parsed**:
-- `@Summary`, `@Description`: Endpoint documentation
-- `@Param`, `@Body`: Request parameters and payloads
-- `@Success`, `@Failure`: Response definitions
-- `@Router`: HTTP method and path mapping
+## General-info parity (enforced by `make check-docs`)
 
-### Step 3: OpenAPI to Postman Conversion (`scripts/postman-coll-generation/`)
+The three component specs MUST agree on these `info` fields — keep them in sync when editing any `components/<c>/cmd/app/main.go` header:
 
-#### File Chain & Purpose:
+- `info.contact` — Discord community / https://discord.gg/DnhqKwkGv3
+- `info.license` — Elastic License 2.0 / https://www.elastic.co/licensing/elastic-license
+- `info.termsOfService` — https://www.elastic.co/licensing/elastic-license
+- `schemes` — `http https`
+- `info.version` — `4.0.0` (no `v` prefix)
+- `info.title` — must start with `Midaz `
 
-**Main Orchestrator**: `sync-postman.sh`
-- **Input**: `swagger.json` files from both components
-- **Purpose**: Coordinates the entire conversion pipeline
-- **Key Functions**:
-  - Runs conversions in parallel for performance
-  - Merges collections from multiple services
-  - Creates timestamped backups before overwriting
-  - Handles error recovery and status tracking
-  - Calls other scripts in proper sequence
+Security schemes intentionally differ and are NOT part of parity: ledger/reporter use `BearerAuth` (Authorization header), tracer uses `ApiKeyAuth` (X-API-Key). Do not normalize them.
 
-**Core Conversion Script**: `convert-openapi.js`
-- **Input**: `components/{service}/api/swagger.json`
-- **Output**: Individual Postman collections per service
-- **Key Functions**:
-  - Converts OpenAPI paths to Postman requests
-  - Generates example payloads from schemas
-  - Maps authentication schemes
-  - Creates environment variables
-  - Routes endpoints to correct base URLs (`onboardingUrl` vs `transactionUrl`)
-
-**Test Enhancement Script**: `enhance-tests.js`
-- **Purpose**: Adds comprehensive test scripts to each request
-- **Features**:
-  - Response validation (status codes, JSON structure)
-  - Business logic validation (UUID format, timestamps)
-  - Variable extraction for workflow chaining
-  - Performance monitoring
-  - Unique idempotency key generation
-  - Error handling and logging
-
-**Workflow Generation Script**: `create-workflow.js`
-- **Input**: `postman/WORKFLOW.md` (57 step workflow definition)
-- **Output**: "Complete API Workflow" folder in collection
-- **Features**:
-  - Sequential API testing (Organization → Ledger → Account → Transaction)
-  - Dynamic variable chaining between steps
-  - Custom transaction payloads (Zero Out Balance with dynamic amounts)
-  - Balance validation and extraction
-  - Comprehensive cleanup sequence
-
-### Step 4: Collection Assembly & Optimization (Handled by `sync-postman.sh`)
-- **Parallel Processing**: Converts both services simultaneously
-- **Intelligent Merging**: Combines requests from multiple services
-- **Organization**: Groups requests by functional area
-- **Variable Management**: Creates unified environment variables
-- **URL Routing**: Ensures correct service endpoints
-- **Quality Assurance**: Validates collection structure and handles errors gracefully
-
-## Workflow Testing Process (`make newman`)
-
-### Step 1: Newman Setup
-- **Tool**: Newman CLI (Postman command-line runner)
-- **Version Check**: Ensures Newman 6.2.1+ is installed
-- **Environment**: Loads `MIDAZ.postman_environment.json`
-- **Reporting**: Configures HTML and detailed reports
-
-### Step 2: Workflow Execution
-- **Target**: "Complete API Workflow" folder (57 steps)
-- **Sequence**: End-to-end API testing across all services
-- **Validation**: 165+ assertions covering business logic
-- **Performance**: Response time monitoring and regression detection
-
-### Step 3: Test Categories
-
-**Core API Operations**:
-- CRUD operations for all entities (Organizations, Ledgers, Accounts, Assets, etc.)
-- Authentication and authorization
-- Data validation and error handling
-
-**Financial Transactions**:
-- Transaction creation (JSON, Inflow, Outflow)
-- Balance management and validation
-- Double-entry accounting verification
-- Dynamic balance zeroing
-
-**Workflow Dependencies**:
-- Variable extraction and chaining
-- Sequential step execution
-- Error recovery and cascading failure prevention
-
-### Step 4: Reporting & Analysis
-- **HTML Reports**: Generated in `reports/newman/`
-- **Test Results**: Pass/fail status for each endpoint
-- **Performance Metrics**: Response times and regression detection
-- **Error Details**: Comprehensive failure analysis with HTTP status codes
-
-## File Structure & Dependencies
+## Layout
 
 ```
 postman/
-├── README.md                           # This documentation
-├── WORKFLOW.md                         # 57-step workflow definition
-├── MIDAZ.postman_collection.json       # Generated collection (111+ requests)
-└── MIDAZ.postman_environment.json     # Environment variables
-
-scripts/
-├── generate-docs.sh                    # Clean generation orchestrator
-├── setup-deps.sh                       # Dependency setup and validation
-└── postman-coll-generation/
-    ├── sync-postman.sh                 # Collection merging and workflow creation
-    ├── convert-openapi.js              # OpenAPI → Postman conversion
-    ├── enhance-tests.js                # Test script generation
-    ├── create-workflow.js              # Workflow folder creation
-    └── package.json                    # Node.js dependencies
-
-reports/newman/
-├── workflow-report.html                # Basic test report
-└── workflow-detailed-report.html       # Comprehensive failure analysis
+├── README.md                          # This file
+├── WORKFLOW.md                        # Ledger end-to-end workflow definition (DO NOT MODIFY)
+├── MIDAZ.postman_collection.json      # Merged collection (ledger + tracer + reporter)
+├── MIDAZ.postman_environment.json     # Merged environment
+├── specs/                             # Published OpenAPI specs per service
+│   ├── ledger/{swagger.json,swagger.yaml,openapi.yaml}
+│   ├── tracer/{swagger.json,swagger.yaml,openapi.yaml}
+│   └── reporter/{swagger.json,swagger.yaml,openapi.yaml}
+├── backups/                           # Timestamped collection/environment backups (gitignored)
+├── temp/                              # Scratch space used during a run (gitignored)
+└── generator/                         # Generation tooling
+    ├── generate-docs.sh               # Top-level orchestrator (called by make generate-docs)
+    ├── sync-postman.sh                # OpenAPI -> Postman conversion + merge
+    ├── convert-openapi.js             # Per-spec OpenAPI -> Postman converter
+    ├── enhance-tests.js               # Adds test scripts to requests
+    ├── create-workflow.js             # Builds the ledger workflow folder from WORKFLOW.md
+    ├── config/, lib/                  # Workflow generator configuration and helpers
+    └── package.json                   # Node.js dependencies
 ```
 
-## Key Features
+## Collection structure
 
-### Advanced Test Generation
-- **Idempotency Management**: Unique keys for each transaction
-- **Dynamic Payloads**: Context-aware request bodies
-- **Variable Chaining**: Seamless data flow between test steps
-- **Error Recovery**: Robust handling of API failures
+The merged collection is one **MIDAZ** collection. The ledger spec is primary, and
+the tracer and reporter specs contribute their own folders (grouped by
+OpenAPI tag). Requests route to per-service base URLs:
 
-### Business Logic Validation
-- **UUID Format Checking**: Ensures proper ID generation
-- **Timestamp Validation**: Verifies ISO format compliance
-- **Balance Calculations**: Double-entry accounting verification
-- **Account State Management**: Proper lifecycle testing
+- Ledger uses `{{onboardingUrl}}` / `{{transactionUrl}}` (both resolve to `:3002`).
+- Tracer uses `{{tracerUrl}}` (`:4020`).
+- Reporter uses `{{reporterUrl}}` (`:4005`).
 
-### Performance Monitoring
-- **Response Time Tracking**: Per-endpoint performance metrics
-- **Regression Detection**: Alerts for performance degradation
-- **Load Testing**: Validates API under test conditions
-- **Resource Usage**: Monitors API efficiency
+Set `host` and `authToken` in the environment and the per-service URLs resolve
+automatically.
+
+## Workflow testing
+
+`WORKFLOW.md` defines an end-to-end ledger flow (Organization -> Ledger -> Account
+-> Transaction -> balance zero-out). `create-workflow.js` turns it into the
+"Complete API Workflow" folder during generation. This workflow chain covers the
+**ledger flow only** — tracer and reporter appear in the collection as
+plain endpoint folders without a scripted workflow. `WORKFLOW.md` is marked
+DO-NOT-MODIFY; treat it as the source of truth for the ledger workflow.
+
+Run the workflow with Newman:
+
+```bash
+newman run postman/MIDAZ.postman_collection.json \
+  -e postman/MIDAZ.postman_environment.json \
+  --folder "Complete API Workflow"
+```
+
+## Requirements
+
+- `swag` v1.16.6 (`go install github.com/swaggo/swag/cmd/swag@v1.16.6`)
+- Docker (for `openapi-generator-cli:v7.10.0`)
+- Node.js (>= 16) and `jq`
+
+`make set-env` / `scripts/setup-deps.sh` install the Go and Node toolchain pins.
 
 ## Troubleshooting
 
-### Common Issues
-
-**Collection Generation Failures**:
-- Verify `swag` is installed: `swag --version`
-- Check OpenAPI annotations in Go code
-- Ensure Node.js dependencies: `npm install` in `scripts/`
-
-**Newman Test Failures**:
-- Check service availability: Both onboarding (3000) and transaction (3001) ports
-- Verify environment variables are set correctly
-- Review detailed HTML reports for specific error details
-
-**Variable Chain Breaks**:
-- Ensure proper variable extraction in test scripts
-- Check for unique variable naming conflicts
-- Verify prerequisite steps completed successfully
-
-### Debug Commands
-
-```bash
-# Verify collection structure
-jq '.item[].name' postman/MIDAZ.postman_collection.json
-
-# Check environment variables
-jq '.values[].key' postman/MIDAZ.postman_environment.json
-
-# Run specific workflow step
-newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder "Complete API Workflow" --verbose
-```
-
-## Success Metrics
-
-A successful test run typically shows:
-- **100% Success Rate**: Example: 57/57 requests passing
-- **Full Assertion Coverage**: Example: 165+ assertions validating business logic
-- **End-to-End Coverage**: All API endpoints tested
-- **Fast Response Times**: Target: <5ms average response time
-- **Production Ready**: Comprehensive error handling verified
-
-This automated testing framework ensures the Midaz API maintains high quality, performance, and reliability across all services and endpoints.
+- **swag not found**: install the pinned version above, or run `scripts/setup-deps.sh`.
+- **Docker errors**: `openapi.yaml` generation needs Docker running.
+- **Inspect the collection**:
+  ```bash
+  jq '.item[].name' postman/MIDAZ.postman_collection.json
+  jq '.values[].key' postman/MIDAZ.postman_environment.json
+  ```
+- **Failed run leftovers**: `postman/temp/` is scratch space and is gitignored;
+  it is removed on a successful run.

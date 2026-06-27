@@ -47,41 +47,40 @@ func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M
 	return update
 }
 
-// flattenBSONM recursively flattens a nested BSON map.
-//
-// mongo-driver v2 decodes nested documents into bson.D (ordered), whereas v1
-// produced bson.M, so both shapes must be recursed into — otherwise a nested
-// document is kept whole and a dotted $unset on one of its fields collides with
-// the $set on the parent ("would create a conflict at <path>").
+// flattenBSONM recursively flattens a nested BSON document into dotted-path keys.
+// A nested sub-document may be represented as either bson.M (unordered map) or
+// bson.D (ordered slice) depending on how it was decoded; both are recursed so
+// flattening is independent of the decode representation.
 func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 	for k, v := range m {
-		var key string
-		if prefix == "" {
-			key = k
-		} else {
-			key = prefix + "." + k
-		}
-
-		switch sub := v.(type) {
-		case bson.M:
-			flattenBSONM(sub, key, flat)
-		case bson.D:
-			flattenBSONM(bsonDToM(sub), key, flat)
-		default:
-			flat[key] = v
-		}
+		flattenValue(joinKey(prefix, k), v, flat)
 	}
 }
 
-// bsonDToM converts an ordered bson.D into a bson.M. mongo-driver v2 dropped
-// bson.D.Map(), so the conversion is done explicitly.
-func bsonDToM(d bson.D) bson.M {
-	m := make(bson.M, len(d))
-	for _, e := range d {
-		m[e.Key] = e.Value
+// flattenValue routes a single value into the flattened document, recursing into
+// nested sub-documents (bson.M or bson.D) and writing leaf values as-is.
+func flattenValue(key string, v any, flat bson.M) {
+	switch sub := v.(type) {
+	case bson.M:
+		for k, val := range sub {
+			flattenValue(joinKey(key, k), val, flat)
+		}
+	case bson.D:
+		for _, e := range sub {
+			flattenValue(joinKey(key, e.Key), e.Value, flat)
+		}
+	default:
+		flat[key] = v
+	}
+}
+
+// joinKey builds a dotted path from a prefix and a key.
+func joinKey(prefix, key string) string {
+	if prefix == "" {
+		return key
 	}
 
-	return m
+	return prefix + "." + key
 }
 
 // shouldUnset Checks if the key should be "unset" (removed) based on the fieldsToRemove array.

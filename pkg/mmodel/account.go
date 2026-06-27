@@ -42,11 +42,17 @@ type CreateAccountInput struct {
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link: use holderId to formally tie the account to a holder.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" validate:"omitempty,max=256" example:"EXT-ACC-12345" maxLength:"256"`
+
+	// ID of the holder that formally owns this account (optional)
+	// required: false
+	// format: uuid
+	HolderID *string `json:"holderId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Asset code that this account will use for balances and transactions
 	// required: true
@@ -89,7 +95,27 @@ type CreateAccountInput struct {
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+
+	// Per-call control skips. A skip is honored only when the request sets it AND the
+	// ledger opts into it via its matching override (overrides.allow*Skip); a skip
+	// requested without the override is rejected with HTTP 422.
+	// required: false
+	Skip *AccountSkip `json:"skip,omitempty"`
 } //	@name	CreateAccountInput
+
+// AccountSkip carries the per-call control skips honored on the account create path.
+//
+// swagger:model AccountSkip
+//
+//	@Description	Per-call control skips for account creation. Each flag is honored only when the request sets it AND the ledger opts into it via its override policy (overrides.allow*Skip); a skip requested without the matching override is rejected with HTTP 422.
+type AccountSkip struct {
+	// Skip the holder existence check on account creation. Honored only when this
+	// flag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected
+	// with HTTP 422 otherwise. Independent of accounting.requireHolder.
+	// required: false
+	// default: false
+	Holder bool `json:"holder,omitempty" example:"false"`
+} //	@name	AccountSkip
 
 // UpdateAccountInput is a struct designed to encapsulate request update payload data.
 //
@@ -125,7 +151,8 @@ type UpdateAccountInput struct {
 	// format: uuid
 	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link, and holderId is immutable: ownership cannot be changed via update.
 	// required: false
 	// example: EXT-ACC-12345
 	// maxLength: 256
@@ -193,10 +220,16 @@ type Account struct {
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Optional external identifier for linking to external systems
+	// Free-form external reference for linking to external systems. This is NOT the
+	// ownership link: holderId is the formal owner of the account.
 	// example: EXT-ACC-12345
 	// maxLength: 256
 	EntityID *string `json:"entityId" example:"EXT-ACC-12345" maxLength:"256"`
+
+	// ID of the holder that formally owns this account (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	HolderID *string `json:"holderId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Asset code associated with this account (determines currency/asset type)
 	// example: USD
@@ -237,6 +270,11 @@ type Account struct {
 
 	// Indicates if the account is blocked
 	Blocked *bool `json:"blocked"`
+
+	// Whether an honored per-call holder skip bypassed the holder existence check
+	// when this account was created
+	// example: false
+	HolderCheckSkipped bool `json:"holderCheckSkipped" example:"false"`
 
 	// Timestamp when the account was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z

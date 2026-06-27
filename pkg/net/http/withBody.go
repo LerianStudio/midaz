@@ -16,9 +16,9 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -182,7 +182,10 @@ func ValidateStruct(s any) error {
 		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
-	v, trans := newValidator()
+	v, trans, err := newValidator()
+	if err != nil {
+		return err
+	}
 
 	k := reflect.ValueOf(s).Kind()
 	if k == reflect.Pointer {
@@ -194,7 +197,7 @@ func ValidateStruct(s any) error {
 		return nil
 	}
 
-	err := v.Struct(s)
+	err = v.Struct(s)
 	if err != nil {
 		for _, fieldError := range err.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
@@ -250,7 +253,7 @@ func ParseUUIDPathParameters(entityName string) fiber.Handler {
 }
 
 //nolint:ireturn
-func newValidator() (*validator.Validate, ut.Translator) {
+func newValidator() (*validator.Validate, ut.Translator, error) {
 	locale := en.New()
 	uni := ut.New(locale, locale)
 
@@ -259,7 +262,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	v := validator.New()
 
 	if err := en2.RegisterDefaultTranslations(v, trans); err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("register validator translations: %w", err)
 	}
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
@@ -386,7 +389,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return t
 	})
 
-	return v, trans
+	return v, trans, nil
 }
 
 // validateMetadataNestedValues checks if there are nested metadata structures
@@ -835,6 +838,15 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 
 	for key, value := range original {
 		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {
+			continue
+		}
+
+		// A boolean sent as the explicit `false` is dropped by json omitempty,
+		// so it vanishes from the marshaled map exactly like the numeric zero
+		// handled above. Treat it as present-and-zero, not as an unknown field —
+		// otherwise the per-call skip flags (skip.fees/tracer/holder) reject
+		// their own default value with a 400.
+		if b, ok := value.(bool); ok && !b {
 			continue
 		}
 

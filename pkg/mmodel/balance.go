@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -118,7 +118,7 @@ type Balance struct {
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-}
+} //	@name	Balance
 
 // BalanceHistory represents a historical balance snapshot without permission flags.
 // Permission flags (AllowSending/AllowReceiving) are not tracked historically.

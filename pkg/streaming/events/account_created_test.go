@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +71,7 @@ func TestNewAccountCreated_MapsMinimalAccount(t *testing.T) {
 	assert.Nil(t, payload.SegmentID)
 	assert.Nil(t, payload.ParentAccountID)
 	assert.Nil(t, payload.EntityID)
+	assert.Nil(t, payload.HolderID)
 	assert.Nil(t, payload.Alias)
 	assert.Nil(t, payload.Blocked)
 
@@ -93,6 +94,7 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 	segmentID := "01J7K8FN5W8R0R2S7Q1V4H6J02"
 	parentID := "01J7K8FN5W8R0R2S7Q1V4H6J03"
 	entityID := "EXT-ACC-12345"
+	holderID := "01J7K8FN5W8R0R2S7Q1V4H6J04"
 	statusDesc := "Active treasury account"
 	blocked := false
 
@@ -102,6 +104,7 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 	acc.SegmentID = &segmentID
 	acc.ParentAccountID = &parentID
 	acc.EntityID = &entityID
+	acc.HolderID = &holderID
 	acc.Status.Description = &statusDesc
 	acc.Blocked = &blocked
 
@@ -121,6 +124,9 @@ func TestNewAccountCreated_MapsAllOptionalFields(t *testing.T) {
 
 	require.NotNil(t, payload.EntityID)
 	assert.Equal(t, entityID, *payload.EntityID)
+
+	require.NotNil(t, payload.HolderID)
+	assert.Equal(t, holderID, *payload.HolderID)
 
 	require.NotNil(t, payload.Status.Description)
 	assert.Equal(t, statusDesc, *payload.Status.Description)
@@ -158,28 +164,50 @@ func TestAccountCreatedPayload_ToEmitRequest_AssemblesStreamingEvent(t *testing.
 
 // TestAccountCreatedPayload_JSONShape locks the wire JSON layout against
 // accidental field-name drift. Breaking this test is a wire-contract
-// change; downstream consumers and the e2e mirror struct must be
-// updated in the same PR.
+// change; downstream consumers must be updated in the same PR.
 func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 	payload := events.NewAccountCreated(minimalAccount())
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	// Re-unmarshal as a generic map so we can assert key presence
+	// Re-unmarshal as a generic map so we can assert the key set
 	// without coupling to struct tag ordering.
 	var generic map[string]any
 	require.NoError(t, json.Unmarshal(data, &generic))
 
-	// Required keys present.
-	for _, key := range []string{
-		"id", "organizationId", "ledgerId",
-		"name", "assetCode", "type",
-		"portfolioId", "segmentId", "parentAccountId",
-		"entityId", "alias",
-		"status", "blocked",
-		"createdAt", "updatedAt",
-	} {
+	// Fail-closed exact-set: the marshaled key set must EQUAL this
+	// expected set. An unexpected new top-level key fails here just as a
+	// missing one does, so additive drift cannot slip onto the wire
+	// unnoticed.
+	expectedKeys := map[string]struct{}{
+		"id":                 {},
+		"organizationId":     {},
+		"ledgerId":           {},
+		"name":               {},
+		"assetCode":          {},
+		"type":               {},
+		"portfolioId":        {},
+		"segmentId":          {},
+		"parentAccountId":    {},
+		"entityId":           {},
+		"holderId":           {},
+		"alias":              {},
+		"status":             {},
+		"blocked":            {},
+		"holderCheckSkipped": {},
+		"createdAt":          {},
+		"updatedAt":          {},
+	}
+
+	// No unexpected key (fail-closed): every actual key must be expected.
+	for key := range generic {
+		_, ok := expectedKeys[key]
+		assert.Truef(t, ok, "wire payload has unexpected top-level key %q (drift?)", key)
+	}
+
+	// No missing key: every expected key must be present.
+	for key := range expectedKeys {
 		_, ok := generic[key]
 		assert.Truef(t, ok, "wire payload must include %q", key)
 	}
@@ -194,6 +222,6 @@ func TestAccountCreatedPayload_JSONShape(t *testing.T) {
 	assert.False(t, hasDesc, "status.description must omitempty when nil")
 
 	// Sanity: no field count surprises. Pin the count so additive drift
-	// is caught here as well as in the strict e2e unmarshal.
-	assert.Lenf(t, generic, 15, "expected 15 top-level fields, got %d (drift?)", len(generic))
+	// is caught here.
+	assert.Lenf(t, generic, 17, "expected 17 top-level fields, got %d (drift?)", len(generic))
 }

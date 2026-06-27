@@ -18,94 +18,16 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // Note: skipIfNotChaos is defined in producer.rabbitmq_integration_test.go
-
-// Fixed ports for container restart chaos test (non-standard to avoid conflicts)
-const (
-	fixedAMQPPort = "35672"
-	fixedMgmtPort = "35673"
-)
-
-// =============================================================================
-// CONTAINER HELPERS
-// =============================================================================
-
-// setupContainerWithFixedPorts creates a RabbitMQ container with fixed port bindings.
-// This is necessary for chaos tests that restart containers, as testcontainers normally
-// assigns new random ports after restart. With fixed ports, the consumer can reconnect.
-func setupContainerWithFixedPorts(t *testing.T, amqpPort, mgmtPort string) *rmqtestutil.ContainerResult {
-	t.Helper()
-
-	ctx := context.Background()
-
-	// Use PortBindings to bind specific host ports
-	req := testcontainers.ContainerRequest{
-		Image:        "rabbitmq:4.1-management-alpine",
-		ExposedPorts: []string{amqpPort + ":5672/tcp", mgmtPort + ":15672/tcp"},
-		Env: map[string]string{
-			"RABBITMQ_DEFAULT_USER": rmqtestutil.DefaultUser,
-			"RABBITMQ_DEFAULT_PASS": rmqtestutil.DefaultPassword,
-		},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
-			wait.ForHTTP("/api/health/checks/alarms").
-				WithPort("15672/tcp").
-				WithBasicAuth(rmqtestutil.DefaultUser, rmqtestutil.DefaultPassword).
-				WithStartupTimeout(60*time.Second),
-		),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err, "failed to start RabbitMQ container with fixed ports")
-
-	host, err := container.Host(ctx)
-	require.NoError(t, err, "failed to get RabbitMQ container host")
-
-	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/",
-		rmqtestutil.DefaultUser, rmqtestutil.DefaultPassword, host, amqpPort)
-
-	conn, err := amqp.Dial(uri)
-	require.NoError(t, err, "failed to connect to RabbitMQ container")
-
-	ch, err := conn.Channel()
-	require.NoError(t, err, "failed to open RabbitMQ channel")
-
-	t.Cleanup(func() {
-		if ch != nil {
-			ch.Close()
-		}
-		if conn != nil {
-			conn.Close()
-		}
-		if err := container.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate RabbitMQ container: %v", err)
-		}
-	})
-
-	return &rmqtestutil.ContainerResult{
-		Container: container,
-		Conn:      conn,
-		Channel:   ch,
-		Host:      host,
-		AMQPPort:  amqpPort,
-		MgmtPort:  mgmtPort,
-		URI:       uri,
-	}
-}
 
 // =============================================================================
 // TEST INFRASTRUCTURE
@@ -181,7 +103,8 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer routes
-	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -204,7 +127,7 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	t.Helper()
 
 	// Setup RabbitMQ container with FIXED PORTS (critical for restart tests)
-	rmqContainer := setupContainerWithFixedPorts(t, fixedAMQPPort, fixedMgmtPort)
+	rmqContainer := rmqtestutil.SetupContainerWithFixedPorts(t)
 
 	// Setup exchange and queue
 	exchange := "test-consumer-exchange"
@@ -233,7 +156,8 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer routes
-	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -313,7 +237,8 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Create consumer through proxy
-	proxyConsumer := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
+	proxyConsumer, err := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
+	require.NoError(t, err, "failed to create proxy consumer routes")
 
 	// Create producer through proxy
 	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
@@ -426,10 +351,10 @@ func publishTestMessageDirect(t *testing.T, channel *amqp.Channel, exchange, rou
 // INTEGRATION TESTS - BASIC OPERATIONS
 // =============================================================================
 
-// TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure tests that the constructor
-// panics when RabbitMQ connection fails. This is an integration test because it makes
-// a real network dial attempt to an invalid address.
-func TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure(t *testing.T) {
+// TestIntegration_NewConsumerRoutes_ErrorOnConnectionFailure tests that the constructor
+// returns an error when RabbitMQ connection fails. This is an integration test because it
+// makes a real network dial attempt to an invalid address.
+func TestIntegration_NewConsumerRoutes_ErrorOnConnectionFailure(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -442,10 +367,12 @@ func TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure(t *testing.T) {
 		Logger:                 logger,
 	}
 
-	// The constructor should panic when connection fails
-	assert.Panics(t, func() {
-		NewConsumerRoutes(conn, 5, 10, logger, nil)
-	}, "NewConsumerRoutes should panic when RabbitMQ connection fails")
+	telemetry := &libOpentelemetry.Telemetry{}
+
+	// The constructor should return an error when connection fails
+	cr, err := NewConsumerRoutes(conn, 5, 10, logger, telemetry)
+	assert.Error(t, err, "NewConsumerRoutes should return an error when RabbitMQ connection fails")
+	assert.Nil(t, cr, "ConsumerRoutes should be nil on connection failure")
 }
 
 // TestIntegration_Consumer_BasicMessageConsumption tests that the consumer receives

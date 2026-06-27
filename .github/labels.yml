@@ -3,11 +3,15 @@
 
 - name: "area: crm"
   color: "fbca04"
-  description: CRM component
+  description: CRM feature surface (folded into the ledger binary)
 
 - name: "area: ledger"
   color: "0052cc"
   description: Ledger component
+
+- name: "area: tracer"
+  color: "5319e7"
+  description: Tracer component
 
 - name: "area: infra"
   color: "0db7ed"

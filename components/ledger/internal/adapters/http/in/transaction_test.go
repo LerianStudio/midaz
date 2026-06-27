@@ -19,18 +19,18 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	operationroute "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	operationroute "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -427,7 +427,7 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-PENDING status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-PENDING status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -529,7 +529,7 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-APPROVED status")
+			assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for non-APPROVED status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -604,7 +604,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for already reverted transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for already reverted transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -692,7 +692,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for transaction that is already a revert")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for transaction that is already a revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -844,7 +844,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 }
 
 // TestRevertTransaction_EmptyRevert_ReturnsError validates that when TransactionRevert
-// returns an empty result (transaction can't be reverted), HTTP 400 is returned.
+// returns an empty result (transaction can't be reverted), HTTP 422 is returned.
 // TransactionRevert.IsEmpty() returns true when AssetCode is empty and Amount is zero.
 func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	t.Parallel()
@@ -920,7 +920,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for empty revert")
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for empty revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -1573,7 +1573,8 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 }
 
 // TestCommitTransaction_LockNotAcquired_ReturnsError validates that when the transaction
-// lock cannot be acquired (already being processed), HTTP 422 is returned.
+// lock cannot be acquired (already being processed), HTTP 409 is returned with the
+// concurrency-specific error code (distinct from the status-conflict 0099).
 func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -1668,7 +1669,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for locked transaction")
+	assert.Equal(t, 409, resp.StatusCode, "expected HTTP 409 for locked transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -1677,8 +1678,8 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
-	assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-		"expected error code 0099 (ErrCommitTransactionNotPending)")
+	assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+		"expected error code 0486 (ErrPendingTransactionLocked) for lock contention")
 }
 
 // TestCreateTransactionJSON_NonPositiveValue_Returns422 validates that creating a transaction
@@ -2705,7 +2706,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "transaction not PENDING returns 422",
+			name: "transaction not PENDING returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2758,7 +2759,7 @@ func TestCancelTransaction(t *testing.T) {
 					Return(nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -2830,7 +2831,7 @@ func TestCancelTransaction(t *testing.T) {
 			},
 		},
 		{
-			name: "lock already acquired by another process returns 422",
+			name: "lock already acquired by another process returns 409",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				amount := decimal.NewFromInt(1000)
 				txBody := mtransaction.Transaction{
@@ -2877,14 +2878,14 @@ func TestCancelTransaction(t *testing.T) {
 					Return(false, nil).
 					Times(1)
 			},
-			expectedStatus: 422,
+			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
-				assert.Equal(t, cn.ErrCommitTransactionNotPending.Error(), errResp["code"],
-					"expected error code 0099 when transaction is locked")
+				assert.Equal(t, cn.ErrPendingTransactionLocked.Error(), errResp["code"],
+					"expected error code 0486 (lock contention) when transaction is locked")
 			},
 		},
 		{

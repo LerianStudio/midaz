@@ -10,30 +10,27 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled fuzzes the
-// multiTenantEnabled flag and serviceName of the NewRedisQueueConsumerMultiTenant constructor.
+// multiTenantEnabled flag of the NewRedisQueueConsumerMultiTenant constructor.
 //
 // Properties verified:
 //  1. Constructor never panics.
 //  2. Returned consumer is never nil.
 //  3. multiTenantEnabled matches input.
 //  4. isMultiTenantReady() is consistent with field state.
-//  5. serviceName is stored exactly as provided.
 func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 	// Seed 1: enabled with pgManager (typical multi-tenant)
-	f.Add(true, true, "transaction")
+	f.Add(true, true)
 	// Seed 2: disabled with no pgManager (typical single-tenant)
-	f.Add(false, false, "ledger")
+	f.Add(false, false)
 	// Seed 3: enabled without pgManager (fallback case)
-	f.Add(true, false, "")
+	f.Add(true, false)
 	// Seed 4: disabled with pgManager (misconfiguration edge case)
-	f.Add(false, true, " ")
-	// Seed 5: enabled with pgManager, different service name
-	f.Add(true, true, "  ledger  ")
+	f.Add(false, true)
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
@@ -45,14 +42,14 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 
 	consumerCache := tenantcache.NewTenantCache()
 
-	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool, serviceName string) {
+	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool) {
 		var mgr *tmpostgres.Manager
 		if hasPGManager {
 			mgr = pgMgr
 		}
 
 		// Property: constructor must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, consumerCache, mgr, serviceName)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, consumerCache, mgr)
 
 		// Property: returned consumer is never nil.
 		if consumer == nil {
@@ -62,11 +59,6 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 		// Property: multiTenantEnabled matches input.
 		if consumer.multiTenantEnabled != multiTenantEnabled {
 			t.Fatalf("multiTenantEnabled mismatch: got %v, want %v", consumer.multiTenantEnabled, multiTenantEnabled)
-		}
-
-		// Property: serviceName is stored exactly as provided.
-		if consumer.serviceName != serviceName {
-			t.Fatalf("serviceName mismatch: got %q, want %q", consumer.serviceName, serviceName)
 		}
 
 		// Property: isMultiTenantReady() follows the predicate logic.

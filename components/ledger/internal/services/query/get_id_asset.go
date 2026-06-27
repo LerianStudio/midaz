@@ -7,16 +7,13 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 
 	// GetAssetByID get an Asset from the repository by given id.
@@ -24,19 +21,17 @@ import (
 )
 
 func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_asset_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving asset for id: %s", id))
-
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting asset on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting asset on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
+			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset, id)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
 
@@ -51,9 +46,9 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 	}
 
 	if asset != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String())
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAsset, id.String())
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
+			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset, id)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb asset", err)
 

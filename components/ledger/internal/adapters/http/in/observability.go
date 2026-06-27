@@ -10,10 +10,27 @@ import (
 	"strings"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
-	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// handleSpanByErrorClass records err onto span using the helper appropriate to
+// the error's class: business/4xx errors keep the span status green via
+// HandleSpanBusinessErrorEvent; technical/5xx errors flip it red via
+// HandleSpanError. Use it at the handler boundary for errors returned from
+// use cases, where the class is not known statically.
+func handleSpanByErrorClass(span trace.Span, message string, err error) {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
+}
 
 // payloadField maps a struct field name to its observability label.
 type payloadField struct {
@@ -57,11 +74,11 @@ var payloadFields = []payloadField{
 }
 
 func logSafePayload(ctx context.Context, logger libLog.Logger, message string, payload any) {
-	if logger == nil || !logger.Enabled(libLog.LevelInfo) {
+	if logger == nil || !logger.Enabled(libLog.LevelDebug) {
 		return
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, message+" ("+safePayloadSummary(payload)+")")
+	logger.Log(ctx, libLog.LevelDebug, message+" ("+safePayloadSummary(payload)+")")
 }
 
 func recordSafePayloadAttributes(span trace.Span, payload any) {
@@ -204,8 +221,8 @@ func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
 		attribute.Bool("app.request.query.has_account_id", query.AccountID != nil),
 		attribute.Bool("app.request.query.has_ledger_id", query.LedgerID != nil),
-		attribute.Bool("app.request.query.has_related_party_filters", query.RelatedPartyDocument != nil || query.RelatedPartyRole != nil),
-		attribute.Bool("app.request.query.has_banking_details_filters", query.BankingDetailsBranch != nil || query.BankingDetailsAccount != nil || query.BankingDetailsIban != nil),
+		attribute.Bool("app.request.query.has_related_party_filters", query.InstrumentRelatedPartyDocument != nil || query.InstrumentRelatedPartyRole != nil),
+		attribute.Bool("app.request.query.has_banking_details_filters", query.InstrumentBankingDetailsBranch != nil || query.InstrumentBankingDetailsAccount != nil || query.InstrumentBankingDetailsIban != nil),
 		attribute.Int("app.request.query.to_asset_codes_count", len(query.ToAssetCodes)),
 	}
 }

@@ -9,7 +9,7 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
+        "termsOfService": "https://www.elastic.co/licensing/elastic-license",
         "contact": {
             "name": "Discord community",
             "url": "https://discord.gg/DnhqKwkGv3"
@@ -25,6 +25,11 @@ const docTemplate = `{
     "paths": {
         "/v1/organizations": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -34,12 +39,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all organizations",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -124,7 +123,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -167,6 +166,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
                 "consumes": [
                     "application/json"
@@ -179,12 +183,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -237,18 +235,17 @@ const docTemplate = `{
         },
         "/v1/organizations/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of organizations as a header without a response body",
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "Count total organizations",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -289,6 +286,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an organization identified by its UUID",
                 "produces": [
                     "application/json"
@@ -298,12 +300,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -352,18 +348,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "Delete an organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -415,6 +410,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
@@ -427,12 +427,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an existing organization",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -496,8 +490,2017 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/billing-packages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all billing packages",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Billing Packages"
+                ],
+                "summary": "Get all billing packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by ledger ID in UUID format (optional — omit to list all packages for the organization)",
+                        "name": "ledgerId",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "maintenance"
+                        ],
+                        "type": "string",
+                        "description": "Filter by billing package type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved billing packages list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/BillingPackage"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a BillingPackage with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Billing Packages"
+                ],
+                "summary": "Create a BillingPackage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "BillingPackage Input",
+                        "name": "billingPackage",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/BillingPackage"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created billing package",
+                        "schema": {
+                            "$ref": "#/definitions/BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: a billing package already exists for this organization, ledger, and transaction route",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/billing-packages/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a billing package by id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Billing Packages"
+                ],
+                "summary": "Get billing package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved billing package",
+                        "schema": {
+                            "$ref": "#/definitions/BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Billing package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "SoftDelete a BillingPackage with the input ID",
+                "tags": [
+                    "Billing Packages"
+                ],
+                "summary": "SoftDelete a BillingPackage by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Billing package successfully deleted"
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Billing package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update a billing package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Billing Packages"
+                ],
+                "summary": "Update a billing package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "BillingPackage ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update BillingPackage Input",
+                        "name": "billingPackage",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/BillingPackageUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated billing package",
+                        "schema": {
+                            "$ref": "#/definitions/BillingPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Billing package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/billing/calculate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Calculate billing for a given organization, ledger, and period",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Billing Calculate"
+                ],
+                "summary": "Calculate billing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Billing Calculation Input",
+                        "name": "billingCalculate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/BillingCalculateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Billing calculation completed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/BillingCalculateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. invalid billing period or package type)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/encryption/provision": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Provisions an organization for envelope encryption by generating keysets and registering the organization.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Encryption"
+                ],
+                "summary": "Provision an Organization for Envelope Encryption",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Provision Input",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProvisionEncryptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ProvisionEncryptionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/encryption/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the current provisioning status for an organization's envelope encryption.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Encryption"
+                ],
+                "summary": "Get Provisioning Status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ProvisioningStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - encryption provisioning is unavailable when the service runs in legacy mode",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/estimates": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Performs a dry-run fee estimate for the given payload and returns the fees that would be applied, without creating or persisting any resource.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Fees"
+                ],
+                "summary": "Create a fee estimate calculation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fee Input",
+                        "name": "fee",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/FeeEstimate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully estimated fee",
+                        "schema": {
+                            "$ref": "#/definitions/FeeEstimateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. invalid fee calculation configuration)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "List Holders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "JSON string to filter holders by metadata fields",
+                        "name": "metadata",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Maximum number of records to return per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number for pagination",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort direction for results based on creation date",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Return includes logically deleted holders",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter holders by externalID",
+                        "name": "external_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter holders by document",
+                        "name": "document",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved holders list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/CursorPagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/HolderResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new holder with the provided details.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Create a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key to safely retry the create; an identical retry returns the original holder",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Holder Input",
+                        "name": "holder",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateHolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created holder",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: the document is already associated with another holder in this organization",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders/{holder_id}/instruments": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enables a creation of an instrument account, which represents an account in the ledger. The instrument account is linked to specific business information, making it easier to manage and abstract account data within the system.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Create an Instrument Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key to safely retry the create; an identical retry returns the original instrument",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Instrument Input",
+                        "name": "instrument",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created instrument",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: the account ID is already associated with another instrument",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed information about a specific instrument using its unique identifier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Retrieve Instrument details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID in UUID format",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Returns the instrument even if it was logically deleted",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved instrument",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Instrument not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete an Instrument. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Delete an Instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID in UUID format",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
+                        "name": "hard_delete",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Instrument successfully deleted"
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Instrument not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update details of an instrument.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Update an Instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID in UUID format",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Instrument Input",
+                        "name": "instrument",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated instrument",
+                        "schema": {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Instrument not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a Related Party from an Instrument. This operation performs a physical deletion (hard delete) of the related party. Related parties are created inline via the instrument body (CreateInstrumentInput.RelatedParties) and retrieved via GetInstrumentByID; only deletion is exposed as a distinct sub-resource route.",
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "Delete a Related Party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID in UUID format",
+                        "name": "instrument_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Related Party ID in UUID format",
+                        "name": "related_party_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Related party successfully deleted"
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Related party not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves detailed information about a specific holder using its unique identifier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Retrieve Holder details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Returns the holder even if it was logically deleted",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved holder",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.",
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Delete a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Use only to perform a physical deletion of the data. This action is irreversible.",
+                        "name": "hard_delete",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Holder successfully deleted"
+                    },
+                    "400": {
+                        "description": "Invalid input or holder has associated instruments that must be removed first",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update details of a holder.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "Update a Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Holder Input",
+                        "name": "holder",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateHolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated holder",
+                        "schema": {
+                            "$ref": "#/definitions/HolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/holders/{id}/accounts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists the accounts owned by a holder, identified by the holder's ownership link.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Holders"
+                ],
+                "summary": "List Accounts by Holder",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Maximum number of records to return per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number for pagination",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort direction for results based on creation date",
+                        "name": "sort_order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved accounts list for the holder",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/CursorPagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Account"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/instruments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all Instruments with or without filters. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Instruments"
+                ],
+                "summary": "List Instruments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instruments by holder ID in UUID format",
+                        "name": "holder_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "JSON string to filter instruments by metadata fields",
+                        "name": "metadata",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Maximum number of records to return per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number for pagination",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort direction for results based on creation date",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Return includes logically deleted instruments",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by accountID",
+                        "name": "account_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by ledgerID",
+                        "name": "ledger_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by document",
+                        "name": "document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details branch",
+                        "name": "banking_details_branch",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details account",
+                        "name": "banking_details_account",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by banking details iban",
+                        "name": "banking_details_iban",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by regulatory fields participant document",
+                        "name": "regulatory_fields_participant_document",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter instrument by related party document",
+                        "name": "related_party_document",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "PRIMARY_HOLDER",
+                            "LEGAL_REPRESENTATIVE",
+                            "RESPONSIBLE_PARTY"
+                        ],
+                        "type": "string",
+                        "description": "Filter instrument by related party role",
+                        "name": "related_party_role",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved instruments list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/CursorPagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/InstrumentResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -507,12 +2510,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all ledgers",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -591,7 +2588,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -640,6 +2637,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
                 "consumes": [
                     "application/json"
@@ -652,12 +2654,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -723,18 +2719,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of ledgers for a specific organization as a header without a response body",
                 "tags": [
                     "Ledgers"
                 ],
                 "summary": "Count total ledgers",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -782,6 +2777,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a ledger identified by its UUID within the specified organization",
                 "produces": [
                     "application/json"
@@ -791,12 +2791,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -852,18 +2846,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Ledgers"
                 ],
                 "summary": "Delete a ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -922,6 +2915,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
@@ -934,12 +2932,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an existing ledger",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1012,6 +3004,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata",
                 "produces": [
                     "application/json"
@@ -1021,12 +3018,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all account types",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1102,7 +3093,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -1151,6 +3142,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Account Type.",
                 "consumes": [
                     "application/json"
@@ -1163,12 +3159,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Account Type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1241,6 +3231,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account type identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -1250,12 +3245,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific account type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1318,6 +3307,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes an existing account type identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -1327,12 +3321,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete an account type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1386,6 +3374,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to update an existing Account Type.",
                 "consumes": [
                     "application/json"
@@ -1398,12 +3391,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update Account Type",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1483,6 +3470,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -1492,12 +3484,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all accounts",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1639,7 +3625,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -1688,7 +3674,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories. An optional 'skip' object (see AccountSkip) carries per-call control opt-outs; skip.holder requests bypassing the holder existence check. A skip is honored only when the request asks (skip.holder=true) AND the ledger opts into it via overrides.allowHolderSkip=true; a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted) regardless of accounting.requireHolder (which only governs whether the holder existence check would otherwise run).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1700,12 +3691,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1727,7 +3712,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata",
+                        "description": "Account details including name, type, asset code, optional parent account, portfolio, segment, metadata, and an optional per-call skip object",
                         "name": "account",
                         "in": "body",
                         "required": true,
@@ -1773,6 +3758,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Unprocessable entity: a per-call skip was requested but the ledger override is not enabled (error 0490, ErrSkipNotPermitted)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1784,6 +3775,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its alias within the specified ledger",
                 "produces": [
                     "application/json"
@@ -1793,12 +3789,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve an account by alias",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -1863,6 +3853,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get Balances with alias",
                 "produces": [
                     "application/json"
@@ -1874,26 +3869,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -1908,11 +3897,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balances for alias",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -1920,7 +3909,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -1957,6 +3946,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its external code within the specified ledger",
                 "produces": [
                     "application/json"
@@ -1966,12 +3960,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve an account by external code",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2036,6 +4024,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get External balances with code",
                 "produces": [
                     "application/json"
@@ -2047,26 +4040,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -2081,11 +4068,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved external balances",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2093,7 +4080,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -2130,18 +4117,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of accounts for the specified organization, ledger, and optional portfolio",
                 "tags": [
                     "Accounts"
                 ],
                 "summary": "Count accounts",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2196,6 +4182,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an account identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -2205,12 +4196,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2273,18 +4258,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an account from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Accounts"
                 ],
                 "summary": "Delete an account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2350,6 +4334,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -2362,12 +4351,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an account",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -2453,7 +4436,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
             "get": {
-                "description": "Get all balances by account id",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a cursor-paginated list of all balances for a specific account, optionally filtered by date range and sort order.",
                 "produces": [
                     "application/json"
                 ],
@@ -2464,33 +4452,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -2498,19 +4480,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter balances created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter balances created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -2520,24 +4502,24 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account balances list",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2545,7 +4527,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -2586,6 +4568,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create an Additional Balance with the input payload",
                 "consumes": [
                     "application/json"
@@ -2600,33 +4587,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -2643,9 +4624,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created additional balance",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "400": {
@@ -2667,7 +4648,13 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Balance not found",
+                        "description": "Account, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Additional balances not permitted for external account type",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -2683,6 +4670,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
@@ -2694,33 +4686,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -2735,7 +4721,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account balances at specified date",
                         "schema": {
                             "type": "array",
                             "items": {
@@ -2778,7 +4764,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
             "get": {
-                "description": "Get all Operations with the input ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a cursor-paginated list of operations for an account. Operations are the individual debit/credit entries that make up transactions; filterable by date range, direction, and operation route.",
                 "produces": [
                     "application/json"
                 ],
@@ -2789,33 +4780,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
@@ -2823,19 +4808,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter operations created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter operations created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -2845,19 +4830,23 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "DEBIT",
+                            "CREDIT"
+                        ],
                         "type": "string",
-                        "description": "DEBIT, CREDIT",
+                        "description": "Filter by operation type",
                         "name": "type",
                         "in": "query"
                     },
@@ -2887,11 +4876,11 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved operations list",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -2942,6 +4931,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an Operation with the input ID",
                 "produces": [
                     "application/json"
@@ -2953,40 +4947,34 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "account_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Operation ID",
+                        "description": "Operation ID in UUID format",
                         "name": "operation_id",
                         "in": "path",
                         "required": true
@@ -2994,7 +4982,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved operation",
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
@@ -3028,7 +5016,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
             "put": {
-                "description": "Create or Update an AssetRate with the input details",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates or updates the conversion factor (rate) between two asset codes for a ledger.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3042,26 +5035,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -3077,8 +5064,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created or updated asset rate",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
                         }
@@ -3107,6 +5094,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "409": {
+                        "description": "Duplicate asset pair",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -3118,6 +5111,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an AssetRate by the Asset Code with the input details",
                 "produces": [
                     "application/json"
@@ -3129,26 +5127,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -3166,26 +5158,26 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "To Asset Codes",
+                        "description": "Filter by destination asset codes",
                         "name": "to",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter asset rates created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter asset rates created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -3195,24 +5187,24 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved asset rates list",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3263,6 +5255,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get an AssetRate by External ID with the input details",
                 "produces": [
                     "application/json"
@@ -3274,33 +5271,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "External ID",
+                        "description": "External ID in UUID format",
                         "name": "external_id",
                         "in": "path",
                         "required": true
@@ -3308,7 +5299,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved asset rate",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
                         }
@@ -3342,6 +5333,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -3351,12 +5347,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all assets",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3429,7 +5419,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3478,6 +5468,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
                 "consumes": [
                     "application/json"
@@ -3490,12 +5485,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3574,18 +5563,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of assets for a specific ledger in an organization as a header without a response body",
                 "tags": [
                     "Assets"
                 ],
                 "summary": "Count total assets",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3640,6 +5628,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an asset identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -3649,12 +5642,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3717,18 +5704,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Assets"
                 ],
                 "summary": "Delete an asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3780,7 +5766,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict: Asset cannot be deleted due to existing dependencies",
+                        "description": "Conflict: asset has balances that still hold funds",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3794,6 +5780,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -3806,12 +5797,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update an asset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -3897,7 +5882,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
             "get": {
-                "description": "Get all balances",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a cursor-paginated list of all balances within a ledger, optionally filtered by date range and sort order.",
                 "produces": [
                     "application/json"
                 ],
@@ -3908,26 +5898,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
@@ -3935,19 +5919,19 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of items to return (max 100)",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter balances created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter balances created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -3957,24 +5941,24 @@ const docTemplate = `{
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort order by creation date",
                         "name": "sort_order",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Cursor",
+                        "description": "Opaque cursor token for pagination",
                         "name": "cursor",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balances list",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -3982,7 +5966,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/mmodel.Balance"
+                                                "$ref": "#/definitions/Balance"
                                             }
                                         }
                                     }
@@ -4019,6 +6003,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a Balance with the input ID",
                 "produces": [
                     "application/json"
@@ -4030,33 +6019,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -4064,9 +6047,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balance",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "401": {
@@ -4096,6 +6079,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a Balance with the input ID",
                 "produces": [
                     "application/json"
@@ -4107,33 +6095,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -4162,7 +6144,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Conflict: Cannot delete balance with active operations",
+                        "description": "Conflict: balance still holds funds or has in-flight transactions",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -4176,6 +6158,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a Balance with the input payload",
                 "consumes": [
                     "application/json"
@@ -4190,33 +6177,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -4233,9 +6214,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated balance",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "$ref": "#/definitions/Balance"
                         }
                     },
                     "400": {
@@ -4262,6 +6243,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "422": {
+                        "description": "Cannot update internal balance or overdraft limit below current usage",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -4273,6 +6260,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
                 "produces": [
                     "application/json"
@@ -4284,33 +6276,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Balance ID",
+                        "description": "Balance ID in UUID format",
                         "name": "balance_id",
                         "in": "path",
                         "required": true
@@ -4325,7 +6311,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved balance at specified date",
                         "schema": {
                             "$ref": "#/definitions/BalanceHistory"
                         }
@@ -4363,23 +6349,130 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Opens an account owned by the holder identified in the path and, when banking/regulatory/related-party fields are present, an instrument linked to the new account. The account is created first; if it commits but the instrument write fails the account remains persisted and a typed instrumentError block is returned (no rollback). The holder is always taken from the path, never the body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Composition"
+                ],
+                "summary": "Open a holder-owned account (with optional instrument)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Holder ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Composite account (and optional instrument) details",
+                        "name": "composition",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateHolderAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully opened holder account",
+                        "schema": {
+                            "$ref": "#/definitions/HolderAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization, ledger, or holder not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: account alias already in use",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. invalid account configuration)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Retrieve all operation routes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4442,7 +6535,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -4491,6 +6584,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Operation Route.",
                 "consumes": [
                     "application/json"
@@ -4499,16 +6597,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Create Operation Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4575,21 +6667,20 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Retrieve a specific operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4634,21 +6725,20 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Delete an operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4702,6 +6792,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -4710,16 +6805,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Operation Route"
+                    "Operation Routes"
                 ],
                 "summary": "Update an operation route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4805,6 +6894,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -4814,12 +6908,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all portfolios",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -4904,7 +6992,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -4953,6 +7041,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
                 "consumes": [
                     "application/json"
@@ -4965,12 +7058,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5049,18 +7136,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of portfolios for a specific organization and ledger as a header without a response body",
                 "tags": [
                     "Portfolios"
                 ],
                 "summary": "Count total portfolios",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5121,6 +7207,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a portfolio identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -5130,12 +7221,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5198,18 +7283,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Portfolios"
                 ],
                 "summary": "Delete a portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5275,6 +7359,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -5287,12 +7376,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a portfolio",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5378,6 +7461,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
@@ -5387,12 +7475,6 @@ const docTemplate = `{
                 ],
                 "summary": "List all segments",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5465,7 +7547,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -5514,6 +7596,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
                 "consumes": [
                     "application/json"
@@ -5526,12 +7613,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5610,18 +7691,17 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the total count of segments for the specified organization and ledger",
                 "tags": [
                     "Segments"
                 ],
                 "summary": "Count segments",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5676,6 +7756,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns detailed information about a segment identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
@@ -5685,12 +7770,6 @@ const docTemplate = `{
                 ],
                 "summary": "Retrieve a specific segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5753,18 +7832,17 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Segments"
                 ],
                 "summary": "Delete a segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5830,6 +7908,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
@@ -5842,12 +7925,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update a segment",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5933,6 +8010,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
                 "produces": [
                     "application/json"
@@ -5942,12 +8024,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get ledger settings",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -5973,7 +8049,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully retrieved ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     },
                     "401": {
@@ -6003,7 +8079,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean), accounting.requireHolder (boolean), overrides.allowFeeSkip (boolean, default false), overrides.allowTracerSkip (boolean, default false), overrides.allowHolderSkip (boolean, default false). Each overrides.allow*Skip opt-in, when true, permits callers to skip the matching per-call control (fee/tracer on transaction creation, holder on account creation); all default false so no control can be skipped without an explicit opt-in.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6015,12 +8096,6 @@ const docTemplate = `{
                 ],
                 "summary": "Update ledger settings",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6042,7 +8117,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool), accounting.requireHolder (bool), overrides.allowFeeSkip (bool), overrides.allowTracerSkip (bool), overrides.allowHolderSkip (bool)",
                         "name": "settings",
                         "in": "body",
                         "required": true,
@@ -6055,7 +8130,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully updated ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     },
                     "400": {
@@ -6093,6 +8168,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to get all Transaction Routes with optional metadata filtering.",
                 "consumes": [
                     "application/json"
@@ -6101,16 +8181,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Get all Transaction Routes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6173,7 +8247,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -6216,6 +8290,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to create a new Transaction Route.",
                 "consumes": [
                     "application/json"
@@ -6224,16 +8303,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Create Transaction Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6300,6 +8373,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to get a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -6308,16 +8386,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Get Transaction Route by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6386,6 +8458,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to delete a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -6394,16 +8471,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Delete Transaction Route by ID",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6469,6 +8540,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Endpoint to update a Transaction Route by its ID.",
                 "consumes": [
                     "application/json"
@@ -6477,16 +8553,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Transaction Route"
+                    "Transaction Routes"
                 ],
                 "summary": "Update Transaction Route",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID for tracing",
@@ -6560,6 +8630,11 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all Transactions with the input metadata or without metadata",
                 "produces": [
                     "application/json"
@@ -6569,12 +8644,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Transactions",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -6637,7 +8706,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/http.Pagination"
+                                    "$ref": "#/definitions/CursorPagination"
                                 },
                                 {
                                     "type": "object",
@@ -6682,7 +8751,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
             "post": {
-                "description": "Create a Transaction Annotation with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an annotation-only transaction that records a memo/audit entry. The transaction is persisted with status NOTED and applies no balance changes; source and destination accounts are recorded for reference only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6696,32 +8770,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Transaction input; source and destination accounts are recorded but no balance changes are applied",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -6732,7 +8800,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created annotation transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -6755,8 +8823,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -6766,13 +8846,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
             "post": {
-                "description": "Create a Transaction with the input DSL file",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uploads a Gold DSL (.casl) multipart file that is parsed, validated, then executed as a transaction. The DSL grammar carries no per-call skip, so fee and tracer controls always run on this path. DEPRECATED: use POST /transactions/json instead. Sunset 2026-08-01.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -6783,44 +8874,39 @@ const docTemplate = `{
                     "Transactions"
                 ],
                 "summary": "Create a Transaction using DSL",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "file",
-                        "description": "Transaction DSL file",
+                        "description": "Transaction DSL file (Gold .casl format)",
                         "name": "transaction",
                         "in": "formData",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created transaction from DSL",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -6843,8 +8929,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -6854,13 +8952,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
             "post": {
-                "description": "Create a Transaction with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a transaction where funds flow INTO destination accounts without an explicit source; the source is auto-resolved to the external/system account. Use for external receipts, deposits, and credits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
                 "consumes": [
                     "application/json"
                 ],
@@ -6874,32 +8983,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Inflow transaction input specifying only destination accounts; source is resolved automatically",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -6910,7 +9013,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created inflow transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -6933,8 +9036,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or destination account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -6944,13 +9059,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
             "post": {
-                "description": "Create a Transaction with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a full double-entry transaction by specifying explicit source accounts (send.source.from) and destination accounts (send.distribute.to). Both sides of the ledger entry must be provided. Supports pending-hold semantics via the 'pending' flag, idempotency via the Idempotency-Key header, and optional fee application. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted). On an idempotency replay the first transaction's outcome is returned and a replayer's differing skip is ignored.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6964,32 +9090,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Full transaction input with explicit source and destination accounts",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -7000,7 +9120,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -7023,8 +9143,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds, account ineligible, or transaction value mismatch",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7034,24 +9166,29 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
             "head": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Count transactions matching optional filters (route, status, date range)",
                 "tags": [
                     "Transactions"
                 ],
                 "summary": "Count Transactions by Filters",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -7147,7 +9284,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
             "post": {
-                "description": "Create a Transaction with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a transaction where funds flow OUT of source accounts without an explicit destination; the destination is auto-resolved. Use for withdrawals, payments, and debits. An optional 'skip' object (see TransactionSkip) carries per-call control opt-outs: skip.fees bypasses fee computation and skip.tracer bypasses the tracer reserve. A skip is honored only when the ledger opts into it via the matching override (overrides.allowFeeSkip / overrides.allowTracerSkip); a skip requested without the override is rejected with HTTP 422 (error 0490, ErrSkipNotPermitted).",
                 "consumes": [
                     "application/json"
                 ],
@@ -7161,32 +9303,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Transaction Input",
+                        "description": "Outflow transaction input specifying only source accounts; destination is resolved automatically",
                         "name": "transaction",
                         "in": "body",
                         "required": true,
@@ -7197,7 +9333,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully created outflow transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -7220,8 +9356,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/Error"
                         }
                     },
+                    "404": {
+                        "description": "Organization, ledger, or source account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable entity: insufficient funds or account ineligible",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7231,13 +9379,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
+                    },
+                    "503": {
+                        "description": "Usage-limit service temporarily unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
             "get": {
-                "description": "Get a Transaction with the input ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves a transaction by UUID, including its operations. Reads cache-first and falls back to the database.",
                 "produces": [
                     "application/json"
                 ],
@@ -7248,33 +9407,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -7282,7 +9435,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved transaction with operations",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -7320,7 +9473,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update a Transaction with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates mutable transaction fields (description, metadata). Amounts, accounts, and status are immutable.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7334,33 +9492,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -7377,7 +9529,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -7417,7 +9569,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
             "post": {
-                "description": "Cancel a previously created pre transaction",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transitions a PENDING transaction to CANCELED, reversing held reservations. Only PENDING transactions can be cancelled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7431,33 +9588,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -7465,13 +9616,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully cancelled transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
                     },
                     "400": {
-                        "description": "Invalid request or transaction cannot be reverted",
+                        "description": "Invalid request or transaction cannot be cancelled",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7495,7 +9646,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction is not in a state that allows this action",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. same account in sources and destinations)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7511,7 +9668,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
-                "description": "Commit a previously created transaction",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transitions a PENDING transaction to APPROVED, releasing held balances. Only PENDING transactions can be committed.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7525,33 +9687,27 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
@@ -7559,13 +9715,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Successfully committed transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
                     },
                     "400": {
-                        "description": "Invalid request or transaction cannot be reverted",
+                        "description": "Invalid request or transaction cannot be committed",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7589,7 +9745,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction is not in a state that allows this action",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. same account in sources and destinations)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7605,7 +9767,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
             "patch": {
-                "description": "Update an Operation with the input payload",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the mutable metadata of an operation. Amounts, accounts, direction, and type are immutable.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7619,40 +9786,34 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Operation ID",
+                        "description": "Operation ID in UUID format",
                         "name": "operation_id",
                         "in": "path",
                         "required": true
@@ -7669,7 +9830,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated operation",
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
@@ -7709,7 +9870,12 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert": {
             "post": {
-                "description": "Revert a Transaction with Transaction ID only",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a mirror reversal transaction inverting all operations of the original. Only APPROVED, not-already-reverted transactions with all routes bidirectional can be reverted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7723,41 +9889,35 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Transaction ID",
+                        "description": "Transaction ID in UUID format",
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully reverted transaction",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -7787,13 +9947,13 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Transaction already has a parent transaction",
+                        "description": "Conflict: transaction already reverted, is itself a revert, or not in a revertable state",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Business validation failed (e.g. transaction cannot be reverted or route is not bidirectional)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7807,8 +9967,586 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/packages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all the packages",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Get all packages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by segment ID (UUID format)",
+                        "name": "segmentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by ledger ID (UUID format)",
+                        "name": "ledgerId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by transaction route",
+                        "name": "transactionRoute",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            true,
+                            false
+                        ],
+                        "type": "boolean",
+                        "description": "Filter by enabled flag",
+                        "name": "enable",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved packages list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Package"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a Package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Create a Package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Package Input",
+                        "name": "pack",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreatePackageInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created package",
+                        "schema": {
+                            "$ref": "#/definitions/Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: package amount range overlaps an existing package",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. minimumAmount greater than maximumAmount)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/packages/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a package by id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Get package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved package",
+                        "schema": {
+                            "$ref": "#/definitions/Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "SoftDelete a Package with the input ID",
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "SoftDelete a Package by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Package successfully deleted"
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update a package with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Packages"
+                ],
+                "summary": "Update a package",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Package ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Package Input",
+                        "name": "package",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdatePackageInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated package",
+                        "schema": {
+                            "$ref": "#/definitions/Package"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Package not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: package amount range overlaps an existing package",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Business validation failed (e.g. minimumAmount greater than maximumAmount)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/protection/audit": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the protection audit events for an organization, filtered by action, actor, outcome, and time range, with cursor pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Protection"
+                ],
+                "summary": "List Protection Audit Events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The unique identifier of the Organization.",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of events to return (default 20).",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor.",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: asc or desc (default desc).",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action.",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by actor.",
+                        "name": "actor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by outcome: success, failure, or already_exists.",
+                        "name": "outcome",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive lower time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Inclusive upper time bound (yyyy-mm-dd or RFC3339).",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapters_http_in.auditEventsEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.HTTPError"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/settings/metadata-indexes": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all metadata indexes, optionally filtered by entity name",
                 "produces": [
                     "application/json"
@@ -7818,12 +10556,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get all Metadata Indexes",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -7889,6 +10621,11 @@ const docTemplate = `{
         },
         "/v1/settings/metadata-indexes/entities/{entity_name}": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a metadata index for the specified entity",
                 "consumes": [
                     "application/json"
@@ -7901,12 +10638,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create Metadata Index",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -7985,6 +10716,11 @@ const docTemplate = `{
         },
         "/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete a metadata index by entity name and index key",
                 "produces": [
                     "application/json"
@@ -7994,12 +10730,6 @@ const docTemplate = `{
                 ],
                 "summary": "Delete Metadata Index",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled.",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "Request ID",
@@ -8106,10 +10836,21 @@ const docTemplate = `{
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link: holderId is the formal owner of the account.\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
+                },
+                "holderCheckSkipped": {
+                    "description": "Whether an honored per-call holder skip bypassed the holder existence check\nwhen this account was created\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
+                "holderId": {
+                    "description": "ID of the holder that formally owns this account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
                     "description": "Unique identifier for the account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -8190,6 +10931,41 @@ const docTemplate = `{
                 },
                 "validIf": {
                     "description": "The rule condition for account selection. String for alias type (e.g. \"@cash_account\"), array for account_type."
+                }
+            }
+        },
+        "AccountSkip": {
+            "description": "Per-call control skips for account creation. Each flag is honored only when the request sets it AND the ledger opts into it via its override policy (overrides.allow*Skip); a skip requested without the matching override is rejected with HTTP 422.",
+            "type": "object",
+            "properties": {
+                "holder": {
+                    "description": "Skip the holder existence check on account creation. Honored only when this\nflag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected\nwith HTTP 422 otherwise. Independent of accounting.requireHolder.\nrequired: false\ndefault: false",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "AccountTarget": {
+            "description": "AccountTarget identifies which accounts a maintenance billing package targets. Exactly one of segmentId, portfolioId, or aliases must be set.",
+            "type": "object",
+            "properties": {
+                "aliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "account_alpha",
+                        "account_beta"
+                    ]
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
         },
@@ -8350,6 +11126,26 @@ const docTemplate = `{
                 }
             }
         },
+        "AccountingValidation": {
+            "type": "object",
+            "properties": {
+                "requireHolder": {
+                    "description": "RequireHolder enables enforcement that accounts must reference an existing holder.\nWhen true, account creation rejects accounts whose resolved holder does not exist.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                },
+                "validateAccountType": {
+                    "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                },
+                "validateRoutes": {
+                    "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "Address": {
             "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",
@@ -8399,21 +11195,45 @@ const docTemplate = `{
                 }
             }
         },
-        "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation.",
+        "Addresses": {
+            "description": "Physical address collection for a holder, supporting one primary address and up to two additional addresses.",
             "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
             "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
+                "additional1": {
+                    "description": "First supplementary address (e.g. mailing address).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
+                "additional2": {
+                    "description": "Second supplementary address (e.g. branch or alternate location).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
+                },
+                "primary": {
+                    "description": "Primary registered address of the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
+                }
+            }
+        },
+        "Amount": {
+            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
+            "type": "object",
+            "properties": {
                 "value": {
+                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
-                    "example": 1000
+                    "minimum": 0,
+                    "example": 1500
                 }
             }
         },
@@ -8688,7 +11508,7 @@ const docTemplate = `{
                     "description": "Settings is the per-balance configuration snapshot at the time the\nhistory row was recorded. Nil for legacy balances.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
                 },
@@ -8703,6 +11523,347 @@ const docTemplate = `{
                     "type": "integer",
                     "minimum": 1,
                     "example": 1
+                }
+            }
+        },
+        "BalanceSettings": {
+            "description": "Optional per-balance configuration controlling overdraft behavior and balance scope.",
+            "type": "object",
+            "properties": {
+                "allowOverdraft": {
+                    "description": "AllowOverdraft enables overdraft behavior for the balance. When false,\ntransactions that would drive Available below zero are rejected.\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
+                "balanceScope": {
+                    "description": "BalanceScope identifies how the balance participates in transactions.\nAllowed values: \"transactional\" (default), \"internal\". Empty string is\ntreated as \"transactional\" for backwards compatibility.\nexample: transactional",
+                    "type": "string",
+                    "example": "transactional"
+                },
+                "overdraftLimit": {
+                    "description": "OverdraftLimit is the maximum overdraft amount the balance may carry,\nexpressed as a decimal string (to preserve precision). Ignored when\nOverdraftLimitEnabled is false.\nexample: 1000.00",
+                    "type": "string",
+                    "example": "1000.00"
+                },
+                "overdraftLimitEnabled": {
+                    "description": "OverdraftLimitEnabled gates the OverdraftLimit field. When true, a\nnon-empty, strictly positive OverdraftLimit MUST be supplied. When\nfalse, OverdraftLimit MUST be absent (overdraft is unlimited if\nAllowOverdraft is true).\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "BankingDetails": {
+            "type": "object"
+        },
+        "BillingCalculateRequest": {
+            "description": "BillingCalculateRequest carries the parameters required to trigger a billing calculation for a given ledger and period.",
+            "type": "object",
+            "required": [
+                "ledgerId",
+                "period"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "period": {
+                    "description": "YYYY-MM, YYYY-Www, or YYYY-MM-DD format",
+                    "type": "string",
+                    "example": "2026-01"
+                },
+                "type": {
+                    "description": "\"volume\", \"maintenance\", or empty for both",
+                    "type": "string",
+                    "example": "volume"
+                }
+            }
+        },
+        "BillingCalculateResponse": {
+            "description": "BillingCalculateResponse is the top-level response returned by the billing calculation endpoint.",
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/BillingCalculationResult"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/BillingCalculateSummary"
+                }
+            }
+        },
+        "BillingCalculateSummary": {
+            "description": "BillingCalculateSummary aggregates the totals across all billing calculation results for the requested period.",
+            "type": "object",
+            "properties": {
+                "totalMaintenance": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "456.78"
+                },
+                "totalResults": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "totalVolume": {
+                    "type": "integer",
+                    "example": 7
+                }
+            }
+        },
+        "BillingCalculationResult": {
+            "description": "BillingCalculationResult represents the billing outcome for a single billing package within the requested period.",
+            "type": "object",
+            "properties": {
+                "billingPackageId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "billingPackageLabel": {
+                    "type": "string",
+                    "example": "Monthly Volume Billing"
+                },
+                "billingType": {
+                    "description": "\"volume\" or \"maintenance\"",
+                    "type": "string",
+                    "enum": [
+                        "volume",
+                        "maintenance"
+                    ],
+                    "example": "volume"
+                },
+                "period": {
+                    "type": "string",
+                    "example": "2026-01"
+                },
+                "totalAccounts": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "totalCharged": {
+                    "type": "integer",
+                    "example": 480
+                },
+                "totalNetAmount": {
+                    "type": "string",
+                    "example": "123.45"
+                },
+                "totalSkipped": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "transactionPayload": {
+                    "type": "object"
+                }
+            }
+        },
+        "BillingPackage": {
+            "description": "BillingPackage is the full representation of a billing package, covering both volume and maintenance types.",
+            "type": "object",
+            "properties": {
+                "accountTarget": {
+                    "$ref": "#/definitions/AccountTarget"
+                },
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "countMode": {
+                    "type": "string",
+                    "enum": [
+                        "perRoute",
+                        "perAccount"
+                    ],
+                    "example": "perRoute"
+                },
+                "createdAt": {
+                    "description": "Timestamps.",
+                    "type": "string",
+                    "example": "2026-01-01T00:00:00Z"
+                },
+                "creditAccountAlias": {
+                    "type": "string",
+                    "example": "account_fees_credit"
+                },
+                "debitAccountAlias": {
+                    "type": "string",
+                    "example": "account_fees_debit"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2026-06-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Charges per completed transaction route"
+                },
+                "discountTiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/DiscountTier"
+                    }
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "eventFilter": {
+                    "description": "Volume-specific fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/EventFilter"
+                        }
+                    ]
+                },
+                "feeAmount": {
+                    "description": "Maintenance-specific fields.",
+                    "type": "string",
+                    "example": "50.00"
+                },
+                "freeQuota": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Monthly Volume Billing"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maintenanceCreditAccount": {
+                    "type": "string",
+                    "example": "account_maintenance_credit"
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "pricingModel": {
+                    "type": "string",
+                    "enum": [
+                        "tiered",
+                        "fixed"
+                    ],
+                    "example": "tiered"
+                },
+                "tiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PricingTier"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "volume",
+                        "maintenance"
+                    ],
+                    "example": "volume"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2026-01-01T00:00:00Z"
+                }
+            }
+        },
+        "BillingPackageUpdate": {
+            "description": "BillingPackageUpdate is the request payload for partial updates to a billing package. Only provided fields are applied.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Updated description for the billing package"
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Updated Billing Label"
+                }
+            }
+        },
+        "Calculation": {
+            "description": "Calculation is a struct designed to store the calculation details of a fee from a pack.",
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "percentage",
+                        "flat"
+                    ],
+                    "example": "percentage"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "100.00"
+                }
+            }
+        },
+        "CalculationModel": {
+            "description": "CalculationModel is a struct designed to store the calculation of a fee from a pack.",
+            "type": "object",
+            "properties": {
+                "applicationRule": {
+                    "type": "string",
+                    "enum": [
+                        "maxBetweenTypes",
+                        "flatFee",
+                        "percentual"
+                    ],
+                    "example": "maxBetweenTypes"
+                },
+                "calculations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Calculation"
+                    }
+                }
+            }
+        },
+        "Contact": {
+            "description": "Communication contact details for a holder, including email addresses and phone numbers.",
+            "type": "object",
+            "properties": {
+                "mobilePhone": {
+                    "description": "The mobile phone number of the holder, including country code.\nexample: +1555555555\nmaxLength: 32",
+                    "type": "string",
+                    "maxLength": 32,
+                    "example": "+1555555555"
+                },
+                "otherPhone": {
+                    "description": "Any additional phone number of the holder.\nexample: +1555555555\nmaxLength: 32",
+                    "type": "string",
+                    "maxLength": 32,
+                    "example": "+1555555555"
+                },
+                "primaryEmail": {
+                    "description": "The primary email address of the holder.\nexample: john.doe@example.com\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "john.doe@example.com"
+                },
+                "secondaryEmail": {
+                    "description": "The secondary email address of the holder.\nexample: john.doe@example.com\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "john.doe@example.com"
                 }
             }
         },
@@ -8731,10 +11892,15 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link: use holderId to formally tie the account to a holder.\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
+                },
+                "holderId": {
+                    "description": "ID of the holder that formally owns this account (optional)\nrequired: false\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "metadata": {
                     "description": "Custom key-value pairs for extending the account information\nrequired: false\nexample: {\"department\": \"Treasury\", \"purpose\": \"Operating Expenses\", \"region\": \"Global\"}",
@@ -8761,6 +11927,14 @@ const docTemplate = `{
                     "description": "ID of the segment this account belongs to (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
                     "format": "uuid"
+                },
+                "skip": {
+                    "description": "Per-call control skips. A skip is honored only when the request sets it AND the\nledger opts into it via its matching override (overrides.allow*Skip); a skip\nrequested without the override is rejected with HTTP 422.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountSkip"
+                        }
+                    ]
                 },
                 "status": {
                     "description": "Current operating status of the account\nrequired: false",
@@ -8843,7 +12017,7 @@ const docTemplate = `{
                     "description": "Settings is the optional per-balance configuration (overdraft,\nbalance scope). When omitted, platform defaults are applied.\nrequired: false",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
                 }
@@ -8949,6 +12123,135 @@ const docTemplate = `{
                 }
             }
         },
+        "CreateHolderAccountInput": {
+            "type": "object"
+        },
+        "CreateHolderRequest": {
+            "description": "Request payload for creating a new holder. A holder represents an identified party (individual or legal entity) that can own accounts within the ledger system. The type field controls which person-type sub-object is applicable.",
+            "type": "object",
+            "required": [
+                "document",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "addresses": {
+                    "description": "Physical addresses associated with the holder (primary + up to two additional).\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
+                },
+                "contact": {
+                    "description": "Contact details (email addresses and phone numbers) for the holder.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
+                },
+                "document": {
+                    "description": "National or tax identification document number of the holder.\nrequired: true\nexample: 91315026015\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "91315026015"
+                },
+                "externalId": {
+                    "description": "Optional client-supplied correlation key for idempotency and external system linking.\nrequired: false\nexample: G4K7N8M2\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "G4K7N8M2"
+                },
+                "legalPerson": {
+                    "description": "Company-specific registration fields; populate only when type is LEGAL_PERSON.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "Custom key-value pairs for extending the holder information (flat map, max 100-char keys, max 2000-char values).\nrequired: false\nexample: {\"source\": \"onboarding\", \"region\": \"us-east\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Full legal name of the holder. For LEGAL_PERSON this must be the registered company name.\nrequired: true\nexample: John Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Doe"
+                },
+                "naturalPerson": {
+                    "description": "Individual-specific biographical fields; populate only when type is NATURAL_PERSON.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "Classification of the holder: NATURAL_PERSON for individuals, LEGAL_PERSON for companies.\nrequired: true\nexample: NATURAL_PERSON\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "enum": [
+                        "NATURAL_PERSON",
+                        "LEGAL_PERSON"
+                    ],
+                    "example": "NATURAL_PERSON"
+                }
+            }
+        },
+        "CreateInstrumentRequest": {
+            "description": "Request payload for creating a new instrument that links a holder to a specific ledger account. An instrument captures banking details, regulatory fields, and the related parties authorized on the account.",
+            "type": "object",
+            "required": [
+                "accountId",
+                "ledgerId"
+            ],
+            "properties": {
+                "accountId": {
+                    "description": "Unique identifier of the ledger account this instrument is linked to (UUID format).\nrequired: true\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "bankingDetails": {
+                    "description": "Banking details for the account linked by this instrument.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
+                },
+                "ledgerId": {
+                    "description": "Unique identifier of the ledger that contains the related account (UUID format).\nrequired: true\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "description": "Custom key-value pairs for extending the instrument information (flat map, max 100-char keys, max 2000-char values).\nrequired: false\nexample: {\"product\": \"checking\", \"region\": \"us-east\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "description": "Regulatory metadata identifying the participant entity.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "List of related parties to associate at instrument creation.\nrequired: false",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
+                }
+            }
+        },
         "CreateLedgerInput": {
             "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
             "type": "object",
@@ -8970,7 +12273,7 @@ const docTemplate = `{
                     "description": "Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).\nexample: {\"accounting\": {\"validateAccountType\": true}}",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     ]
                 },
@@ -9117,6 +12420,67 @@ const docTemplate = `{
                 }
             }
         },
+        "CreatePackageInput": {
+            "description": "CreatePackageInput is the input payload to create a pack.",
+            "type": "object",
+            "required": [
+                "enable",
+                "feeGroupLabel",
+                "fees",
+                "ledgerId",
+                "maximumAmount",
+                "minimumAmount"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maximumAmount": {
+                    "type": "string",
+                    "example": "1000.20"
+                },
+                "minimumAmount": {
+                    "type": "string",
+                    "example": "100.00"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "debitoted"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"acc001\"",
+                        " \"acc002\"]"
+                    ]
+                }
+            }
+        },
         "CreatePortfolioInput": {
             "description": "CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.",
             "type": "object",
@@ -9229,6 +12593,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
+                        }
+                    ]
+                },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
                     "type": "string",
@@ -9290,6 +12662,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/Send"
+                        }
+                    ]
+                },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
                         }
                     ]
                 },
@@ -9357,6 +12737,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "skip": {
+                    "description": "Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionSkip"
+                        }
+                    ]
+                },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nformat: date-time",
                     "type": "string",
@@ -9397,6 +12785,51 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 255,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "CursorPagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTI..."
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "example": "eyJpZCI6IjAxOTE..."
+                }
+            }
+        },
+        "Date": {
+            "description": "Date in YYYY-MM-DD format (e.g., \"2025-06-15\") or null",
+            "type": "object",
+            "properties": {
+                "time.Time": {
+                    "type": "string"
+                }
+            }
+        },
+        "DiscountTier": {
+            "description": "DiscountTier defines a quantity threshold above which a discount percentage applies.",
+            "type": "object",
+            "properties": {
+                "discountPercentage": {
+                    "type": "string",
+                    "example": "10.00"
+                },
+                "minQuantity": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -9455,6 +12888,169 @@ const docTemplate = `{
                 }
             }
         },
+        "EventFilter": {
+            "description": "EventFilter identifies the transaction route and status used to match billing events.",
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "CREATED",
+                        "APPROVED",
+                        "PENDING",
+                        "CANCELED",
+                        "NOTED"
+                    ],
+                    "example": "APPROVED"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "payment_route"
+                }
+            }
+        },
+        "Fee": {
+            "description": "Fee is the input payload to create a fee of a pack.",
+            "type": "object",
+            "required": [
+                "calculationModel",
+                "creditAccount",
+                "feeLabel",
+                "isDeductibleFrom"
+            ],
+            "properties": {
+                "calculationModel": {
+                    "$ref": "#/definitions/CalculationModel"
+                },
+                "creditAccount": {
+                    "type": "string",
+                    "example": "conta_receita_taxas_adm"
+                },
+                "feeLabel": {
+                    "type": "string",
+                    "example": "Taxa Administrativa"
+                },
+                "isDeductibleFrom": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 1
+                },
+                "referenceAmount": {
+                    "type": "string",
+                    "enum": [
+                        "originalAmount",
+                        "afterFeesAmount"
+                    ],
+                    "example": "originalAmount"
+                },
+                "routeFrom": {
+                    "type": "string",
+                    "example": "taxa_débito"
+                },
+                "routeTo": {
+                    "type": "string",
+                    "example": "taxa_crédito"
+                }
+            }
+        },
+        "FeeAdjustedTransaction": {
+            "description": "FeeAdjustedTransaction is the fee-adjusted transaction returned by the fee-estimate endpoint.",
+            "type": "object",
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "example": "FUNDING"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Description"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "routeId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "send": {
+                    "$ref": "#/definitions/Send"
+                },
+                "transactionDate": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "FeeEstimate": {
+            "description": "FeeEstimate is the input payload to create a fee estimate.",
+            "type": "object",
+            "required": [
+                "ledgerId",
+                "packageId"
+            ],
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "packageId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transaction": {
+                    "description": "Full transaction projection; rendered as TransactionInput in the API schema.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TransactionInput"
+                        }
+                    ]
+                }
+            }
+        },
+        "FeeEstimateResponse": {
+            "description": "FeeEstimateResponse is the response payload for estimate fee",
+            "type": "object",
+            "properties": {
+                "feesApplied": {
+                    "$ref": "#/definitions/FeeEstimateResult"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Successfully estimated fee."
+                }
+            }
+        },
+        "FeeEstimateResult": {
+            "description": "FeeEstimateResult is the projected fee-estimate result returned by the estimate endpoint.",
+            "type": "object",
+            "properties": {
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transaction": {
+                    "$ref": "#/definitions/FeeAdjustedTransaction"
+                }
+            }
+        },
         "FromTo": {
             "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
             "type": "object",
@@ -9510,6 +13106,131 @@ const docTemplate = `{
                 }
             }
         },
+        "HolderAccountResponse": {
+            "description": "Composite response for opening a holder-owned account. Account is always present on success. Instrument is present when one was requested and created. When the account succeeded but the instrument write failed, instrumentError carries a typed, client-actionable failure block and the account remains persisted (no rollback).",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "description": "The account that was created (always present on success).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Account"
+                        }
+                    ]
+                },
+                "instrument": {
+                    "description": "The instrument that was created, or null when none was requested or the\ninstrument write failed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/InstrumentResponse"
+                        }
+                    ]
+                },
+                "instrumentError": {
+                    "description": "Typed failure block, set only when the account committed but the\ninstrument write failed. Omitted on full success and on the account-only\npath.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/InstrumentFailure"
+                        }
+                    ]
+                }
+            }
+        },
+        "HolderResponse": {
+            "description": "Complete holder entity returned by create, update, and get operations. Contains all holder fields including system-generated ID, person-type sub-objects, and audit timestamps.",
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "description": "Physical addresses associated with the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
+                },
+                "contact": {
+                    "description": "Contact details (email and phone) for the holder.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
+                },
+                "createdAt": {
+                    "description": "Timestamp when the holder was created (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "Timestamp when the holder was soft-deleted; null if the holder is active (RFC3339 format).\nexample: null\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "document": {
+                    "description": "National or tax identification document number of the holder.\nexample: 91315026015\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "91315026015"
+                },
+                "externalId": {
+                    "description": "Client-supplied external correlation key.\nexample: G4K7N8M2\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "G4K7N8M2"
+                },
+                "id": {
+                    "description": "Unique system-generated identifier for the holder (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "legalPerson": {
+                    "description": "Company-specific registration fields; present when type is LEGAL_PERSON.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "Custom key-value pairs for extending the holder information.\nexample: {\"source\": \"onboarding\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Full legal name of the holder.\nexample: John Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Doe"
+                },
+                "naturalPerson": {
+                    "description": "Individual-specific biographical fields; present when type is NATURAL_PERSON.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "Classification of the holder: NATURAL_PERSON or LEGAL_PERSON.\nexample: NATURAL_PERSON\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "enum": [
+                        "NATURAL_PERSON",
+                        "LEGAL_PERSON"
+                    ],
+                    "example": "NATURAL_PERSON"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the holder was last updated (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
+                }
+            }
+        },
         "IndexStats": {
             "description": "Usage statistics collected by MongoDB for an index",
             "type": "object",
@@ -9524,6 +13245,110 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2024-12-01T10:30:00Z"
+                }
+            }
+        },
+        "InstrumentFailure": {
+            "description": "Typed partial-failure block returned when an account was created but its instrument could not be written. Status reflects the instrument outcome; Reason is a stable, client-actionable code (not internal error text).",
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "Stable, client-actionable reason code for the instrument-write failure.\nexample: 0001",
+                    "type": "string",
+                    "example": "0001"
+                },
+                "status": {
+                    "description": "Outcome status of the instrument write (e.g. FAILED).\nexample: FAILED",
+                    "type": "string",
+                    "example": "FAILED"
+                }
+            }
+        },
+        "InstrumentResponse": {
+            "description": "Complete instrument entity returned by create, update, and get operations. Captures the link between a holder and a ledger account, together with banking details, regulatory fields, related parties, and audit timestamps.",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "description": "Unique identifier of the ledger account this instrument is linked to (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "bankingDetails": {
+                    "description": "Banking details for the account linked by this instrument.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
+                },
+                "createdAt": {
+                    "description": "Timestamp when the instrument was created (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "Timestamp when the instrument was soft-deleted; null if the instrument is active (RFC3339 format).\nexample: null\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "document": {
+                    "description": "National or tax identification document of the holder linked to this instrument.\nexample: 91315026015\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "91315026015"
+                },
+                "holderId": {
+                    "description": "Unique identifier of the holder that owns this instrument (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "id": {
+                    "description": "Unique system-generated identifier for the instrument (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "description": "Unique identifier of the ledger that contains the linked account (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "description": "Custom key-value pairs for extending the instrument information.\nexample: {\"product\": \"checking\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "description": "Regulatory metadata identifying the participant entity.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "List of parties associated with this instrument and their roles.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
+                },
+                "type": {
+                    "description": "Holder type (NATURAL_PERSON or LEGAL_PERSON), derived from the associated holder.\nexample: NATURAL_PERSON\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "NATURAL_PERSON"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the instrument was last updated (RFC3339 format).\nexample: 2025-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -9570,7 +13395,7 @@ const docTemplate = `{
                     "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "$ref": "#/definitions/LedgerSettings"
                         }
                     ]
                 },
@@ -9587,6 +13412,85 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "LedgerSettings": {
+            "type": "object",
+            "properties": {
+                "accounting": {
+                    "description": "Accounting contains validation settings for accounting operations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingValidation"
+                        }
+                    ]
+                },
+                "overrides": {
+                    "description": "Overrides contains the per-ledger opt-ins that permit callers to skip\nindividual controls (fees, tracer, holder) on a per-request basis.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/OverridePolicy"
+                        }
+                    ]
+                },
+                "tracer": {
+                    "description": "Tracer contains the per-ledger tracer-integration settings.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/TracerSettings"
+                        }
+                    ]
+                }
+            }
+        },
+        "LegalPerson": {
+            "description": "Legal entity (company) details for an organizational holder, used in both request and response payloads when the holder type is LEGAL_PERSON.",
+            "type": "object",
+            "properties": {
+                "activity": {
+                    "description": "The type of business or activity the company engages in.\nexample: Electronic devices development\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Electronic devices development"
+                },
+                "foundingDate": {
+                    "description": "The date when the company was established (YYYY-MM-DD format).\nexample: 2025-01-01\nformat: date",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-01"
+                },
+                "representative": {
+                    "description": "Details of the company's legal representative.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Representative"
+                        }
+                    ]
+                },
+                "size": {
+                    "description": "The size classification of the company (e.g. Small, Medium, Large).\nexample: Medium\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Medium"
+                },
+                "status": {
+                    "description": "The current status of the legal entity.\nexample: Active\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Active"
+                },
+                "tradeName": {
+                    "description": "The registered business name of the company, if applicable.\nexample: Lerian Studio\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Lerian Studio"
+                },
+                "type": {
+                    "description": "The legal structure of the company.\nexample: Limited Liability\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Limited Liability"
                 }
             }
         },
@@ -9626,6 +13530,66 @@ const docTemplate = `{
                     "description": "Whether the index enforces uniqueness",
                     "type": "boolean",
                     "example": false
+                }
+            }
+        },
+        "NaturalPerson": {
+            "description": "Individual (natural person) biographical and demographic details, used in both request and response payloads when the holder type is NATURAL_PERSON.",
+            "type": "object",
+            "properties": {
+                "birthDate": {
+                    "description": "Person's birth date, formatted as YYYY-MM-DD.\nexample: 1990-01-01\nformat: date",
+                    "type": "string",
+                    "format": "date",
+                    "example": "1990-01-01"
+                },
+                "civilStatus": {
+                    "description": "Person's civil status, for example: \"Single\", \"Married\", or \"Divorced\".\nexample: Single\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Single"
+                },
+                "fatherName": {
+                    "description": "The name of the person's father.\nexample: John Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Doe"
+                },
+                "favoriteName": {
+                    "description": "The person's nickname or preferred name.\nexample: John\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John"
+                },
+                "gender": {
+                    "description": "Person's gender.\nexample: Male\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Male"
+                },
+                "motherName": {
+                    "description": "The name of the person's mother.\nexample: Jane Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Jane Doe"
+                },
+                "nationality": {
+                    "description": "The nationality of the person, for example, \"Brazilian\".\nexample: Brazilian\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Brazilian"
+                },
+                "socialName": {
+                    "description": "The social name or alternate name used by the person, if applicable.\nexample: John Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Doe"
+                },
+                "status": {
+                    "description": "The current status of the individual.\nexample: Active\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Active"
                 }
             }
         },
@@ -9962,6 +13926,117 @@ const docTemplate = `{
                 }
             }
         },
+        "OverridePolicy": {
+            "type": "object",
+            "properties": {
+                "allowFeeSkip": {
+                    "description": "AllowFeeSkip permits callers to skip fee computation on a transaction.\nDefault: false (callers cannot skip fees).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "allowHolderSkip": {
+                    "description": "AllowHolderSkip permits callers to skip the holder existence check on account creation.\nDefault: false (callers cannot skip the holder check).",
+                    "type": "boolean",
+                    "example": false
+                },
+                "allowTracerSkip": {
+                    "description": "AllowTracerSkip permits callers to skip the tracer reserve on a transaction.\nDefault: false (callers cannot skip the tracer).",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
+        "Package": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "maximumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "minimumAmount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 100
+                },
+                "segmentId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "transactionRoute": {
+                    "type": "string",
+                    "example": "debitoted"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "acc001",
+                        "acc002"
+                    ]
+                }
+            }
+        },
+        "Pagination": {
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
+            "type": "object",
+            "properties": {
+                "items": {
+                    "description": "Items holds the page of results. The element type is overridden per-endpoint via the\nmodel.Pagination{items=[]X} generic annotation on each list endpoint."
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 10
+                }
+            }
+        },
         "Portfolio": {
             "description": "Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "type": "object",
@@ -10029,6 +14104,96 @@ const docTemplate = `{
                 }
             }
         },
+        "PricingTier": {
+            "description": "PricingTier defines a quantity range and the unit price that applies within it.",
+            "type": "object",
+            "properties": {
+                "maxQuantity": {
+                    "type": "integer",
+                    "example": 999
+                },
+                "minQuantity": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "unitPrice": {
+                    "type": "string",
+                    "example": "1.50"
+                }
+            }
+        },
+        "ProvisionEncryptionRequest": {
+            "description": "ProvisionEncryptionRequest payload",
+            "type": "object",
+            "required": [
+                "actor",
+                "reason"
+            ],
+            "properties": {
+                "actor": {
+                    "description": "The actor performing the provisioning operation.",
+                    "type": "string",
+                    "example": "admin@example.com"
+                },
+                "reason": {
+                    "description": "The reason for provisioning the organization.",
+                    "type": "string",
+                    "example": "Initial encryption setup"
+                }
+            }
+        },
+        "ProvisionEncryptionResponse": {
+            "description": "ProvisionEncryptionResponse payload",
+            "type": "object",
+            "properties": {
+                "aead_primary_key_id": {
+                    "description": "The primary key ID for AEAD encryption.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "kek_path": {
+                    "description": "The path to the Key Encryption Key in Vault.",
+                    "type": "string",
+                    "example": "org-00000000-0000-0000-0000-000000000000"
+                },
+                "organization_id": {
+                    "description": "The unique identifier of the organization.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "prf_primary_key_id": {
+                    "description": "The primary key ID of the PRF search-token keyset.",
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "description": "The current provisioning status.",
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
+        "ProvisioningStatusResponse": {
+            "description": "ProvisioningStatusResponse payload",
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "The unique identifier of the organization.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "provisioned": {
+                    "description": "Whether the organization has been provisioned for envelope encryption.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "status": {
+                    "description": "The current provisioning status.",
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
         "Rate": {
             "description": "Rate is the struct designed to represent the rate fields of an operation.",
             "type": "object",
@@ -10054,6 +14219,101 @@ const docTemplate = `{
                 "value": {
                     "type": "number",
                     "example": 1000
+                }
+            }
+        },
+        "RegulatoryFields": {
+            "description": "Regulatory metadata for an instrument, carrying the participant document that identifies which financial-group entity owns the regulatory relationship.",
+            "type": "object",
+            "properties": {
+                "participantDocument": {
+                    "description": "Document of the participant (identifies which financial-group entity owns the relationship).\nexample: 12345678912345\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "12345678912345"
+                }
+            }
+        },
+        "RelatedParty": {
+            "description": "A party associated with an instrument, defining the role (PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY) and the time range during which the relationship is active.",
+            "type": "object",
+            "required": [
+                "document",
+                "name",
+                "role",
+                "startDate"
+            ],
+            "properties": {
+                "document": {
+                    "description": "National or tax identification document of the related party.\nrequired: true\nexample: 12345678900\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "12345678900"
+                },
+                "endDate": {
+                    "description": "End date of the relationship (optional). Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.\nrequired: false\nformat: date",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2026-01-01"
+                },
+                "id": {
+                    "description": "Unique system-generated identifier of the related party (UUID format).\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "name": {
+                    "description": "Full legal name of the related party.\nrequired: true\nexample: John Smith\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Smith"
+                },
+                "role": {
+                    "description": "Role of the related party in the instrument relationship.\nrequired: true\nexample: PRIMARY_HOLDER\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "enum": [
+                        "PRIMARY_HOLDER",
+                        "LEGAL_REPRESENTATIVE",
+                        "RESPONSIBLE_PARTY"
+                    ],
+                    "example": "PRIMARY_HOLDER"
+                },
+                "startDate": {
+                    "description": "Start date of the relationship. Accepts both \"2025-01-01\" and \"2025-01-01T00:00:00Z\" formats.\nrequired: true\nformat: date",
+                    "type": "string",
+                    "format": "date",
+                    "example": "2025-01-01"
+                }
+            }
+        },
+        "Representative": {
+            "description": "Legal representative details for a company-type holder, identifying the individual authorized to act on behalf of the legal entity.",
+            "type": "object",
+            "properties": {
+                "document": {
+                    "description": "The identification document number of the legal representative.\nexample: 91315026015\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "91315026015"
+                },
+                "email": {
+                    "description": "The email address of the legal representative.\nexample: john.doe@example.com\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "john.doe@example.com"
+                },
+                "name": {
+                    "description": "The legal representative's full name.\nexample: John Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "John Doe"
+                },
+                "role": {
+                    "description": "The role of the legal representative within the company.\nexample: CFO\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "CFO"
                 }
             }
         },
@@ -10240,6 +14500,26 @@ const docTemplate = `{
                 }
             }
         },
+        "TracerSettings": {
+            "type": "object",
+            "properties": {
+                "failPosture": {
+                    "description": "FailPosture controls behavior when the tracer is unavailable (timeout/breaker-open).\nOne of: \"open\" (proceed, record SKIPPED audit), \"closed\" (reject the transaction).\nDefault: \"open\".",
+                    "type": "string",
+                    "example": "open"
+                },
+                "mode": {
+                    "description": "Mode controls tracer participation in transaction processing.\nOne of: \"off\" (skip), \"advisory\" (call but never block), \"enforce\" (call and gate).\nDefault: \"off\".",
+                    "type": "string",
+                    "example": "off"
+                },
+                "timeoutMs": {
+                    "description": "TimeoutMs is the per-call tracer reserve timeout, in milliseconds.\nDefault: 250.",
+                    "type": "integer",
+                    "example": 250
+                }
+            }
+        },
         "Transaction": {
             "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
             "type": "object",
@@ -10290,6 +14570,11 @@ const docTemplate = `{
                     "example": [
                         "@person2"
                     ]
+                },
+                "feesSkipped": {
+                    "description": "Whether an honored per-call fee skip bypassed the fee engine for this transaction\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "id": {
                     "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
@@ -10357,10 +14642,63 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "tracerSkipped": {
+                    "description": "Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction\nexample: false",
+                    "type": "boolean",
+                    "example": false
+                },
                 "updatedAt": {
                     "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "TransactionInput": {
+            "description": "TransactionInput is the request payload for creating a transaction.",
+            "type": "object",
+            "required": [
+                "send"
+            ],
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "example": "FUNDING"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Description"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "route": {
+                    "description": "Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "UUID of the transaction route. Primary field replacing the deprecated Route string.\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "send": {
+                    "$ref": "#/definitions/Send"
+                },
+                "transactionDate": {
+                    "type": "string",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
@@ -10423,6 +14761,20 @@ const docTemplate = `{
                 }
             }
         },
+        "TransactionSkip": {
+            "description": "TransactionSkip requests per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.",
+            "type": "object",
+            "properties": {
+                "fees": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "tracer": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "UpdateAccountInput": {
             "description": "Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.",
             "type": "object",
@@ -10432,7 +14784,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "entityId": {
-                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "description": "Free-form external reference for linking to external systems. This is NOT the\nownership link, and holderId is immutable: ownership cannot be changed via update.\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
                     "example": "EXT-ACC-12345"
@@ -10534,9 +14886,98 @@ const docTemplate = `{
                     "description": "Settings is the per-balance configuration (overdraft, balance\nscope). When provided, replaces the existing settings in full.\nDirection is intentionally absent: it is immutable after creation.\nrequired: false",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
+                            "$ref": "#/definitions/BalanceSettings"
                         }
                     ]
+                }
+            }
+        },
+        "UpdateHolderRequest": {
+            "description": "Request payload for updating an existing holder. All fields are optional — only provided fields are applied. Omitted fields remain unchanged, enabling partial updates to name, addresses, contact, person details, and metadata.",
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "description": "Updated physical addresses for the holder.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Addresses"
+                        }
+                    ]
+                },
+                "contact": {
+                    "description": "Updated contact details for the holder.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Contact"
+                        }
+                    ]
+                },
+                "externalId": {
+                    "description": "Updated client-supplied correlation key.\nrequired: false\nexample: G4K7N8M\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "G4K7N8M"
+                },
+                "legalPerson": {
+                    "description": "Updated company-specific registration fields.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/LegalPerson"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "Updated custom key-value pairs for extending the holder information.\nrequired: false\nexample: {\"source\": \"profile-update\", \"region\": \"us-west\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "description": "Updated full legal name of the holder.\nrequired: false\nexample: Jonathan Doe\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Jonathan Doe"
+                },
+                "naturalPerson": {
+                    "description": "Updated individual-specific biographical fields.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/NaturalPerson"
+                        }
+                    ]
+                }
+            }
+        },
+        "UpdateInstrumentRequest": {
+            "description": "Request payload for updating an existing instrument. All fields are optional — only provided fields are applied. RelatedParties are appended to the existing list; existing entries are not removed.",
+            "type": "object",
+            "properties": {
+                "bankingDetails": {
+                    "description": "Updated banking details for the linked account.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/BankingDetails"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "Updated custom key-value pairs for extending the instrument information.\nrequired: false\nexample: {\"product\": \"savings\", \"region\": \"us-west\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "regulatoryFields": {
+                    "description": "Updated regulatory metadata identifying the participant entity.\nrequired: false",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/RegulatoryFields"
+                        }
+                    ]
+                },
+                "relatedParties": {
+                    "description": "Additional related parties to append to the instrument (existing entries are not removed).\nrequired: false",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RelatedParty"
+                    }
                 }
             }
         },
@@ -10671,6 +15112,48 @@ const docTemplate = `{
                 }
             }
         },
+        "UpdatePackageInput": {
+            "description": "UpdatePackageInput is the input payload to update a pack.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Pacote de taxas administrativas padrão"
+                },
+                "enable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "feeGroupLabel": {
+                    "type": "string",
+                    "example": "Pacote Padrão"
+                },
+                "fees": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Fee"
+                    }
+                },
+                "maximumAmount": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "minimumAmount": {
+                    "type": "string",
+                    "example": "100"
+                },
+                "waivedAccounts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "acc001",
+                        "acc002"
+                    ]
+                }
+            }
+        },
         "UpdatePortfolioInput": {
             "description": "UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.",
             "type": "object",
@@ -10775,197 +15258,76 @@ const docTemplate = `{
                 }
             }
         },
-        "http.Pagination": {
+        "internal_adapters_http_in.auditEventResponse": {
             "type": "object",
             "properties": {
-                "items": {},
+                "action": {
+                    "type": "string"
+                },
+                "actor": {
+                    "type": "string"
+                },
+                "from_status": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "to_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapters_http_in.auditEventsEnvelope": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapters_http_in.auditEventResponse"
+                    }
+                },
                 "limit": {
                     "type": "integer"
                 },
                 "next_cursor": {
                     "type": "string"
                 },
-                "page": {
-                    "type": "integer"
+                "organization_id": {
+                    "type": "string"
                 },
                 "prev_cursor": {
                     "type": "string"
                 }
             }
         },
-        "mmodel.AccountingValidation": {
+        "pkg.HTTPError": {
             "type": "object",
             "properties": {
-                "validateAccountType": {
-                    "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
-                    "type": "boolean"
+                "code": {
+                    "type": "string"
                 },
-                "validateRoutes": {
-                    "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
-                    "type": "boolean"
-                }
-            }
-        },
-        "mmodel.Balance": {
-            "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
-            "type": "object",
-            "properties": {
-                "accountId": {
-                    "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                "entityType": {
+                    "type": "string"
                 },
-                "accountType": {
-                    "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
-                    "type": "string",
-                    "maxLength": 50,
-                    "example": "creditCard"
+                "err": {},
+                "message": {
+                    "type": "string"
                 },
-                "alias": {
-                    "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
-                    "type": "string",
-                    "maxLength": 256,
-                    "example": "@person1"
-                },
-                "allowReceiving": {
-                    "description": "Whether the account can receive funds to this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "description": "Whether the account can send funds from this balance\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "assetCode": {
-                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
-                    "type": "string",
-                    "maxLength": 10,
-                    "minLength": 2,
-                    "example": "USD"
-                },
-                "available": {
-                    "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 1500
-                },
-                "createdAt": {
-                    "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "direction": {
-                    "description": "Direction is the accounting direction of the balance. One of\n\"credit\" or \"debit\". Empty string denotes legacy rows predating the\noverdraft feature and is treated as \"credit\" by the engine.\nexample: credit",
-                    "type": "string",
-                    "example": "credit"
-                },
-                "id": {
-                    "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "key": {
-                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "asset-freeze"
-                },
-                "ledgerId": {
-                    "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "metadata": {
-                    "description": "Custom key-value pairs for extending the balance information\nexample: {\"purpose\": \"Main savings\", \"category\": \"Personal\"}",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "onHold": {
-                    "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "number",
-                    "minimum": 0,
-                    "example": 500
-                },
-                "organizationId": {
-                    "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "overdraftUsed": {
-                    "description": "OverdraftUsed is the amount of overdraft currently consumed by this\nbalance. Always non-negative; zero when the balance is in the black.\nexample: 0",
-                    "type": "number",
-                    "example": 0
-                },
-                "settings": {
-                    "description": "Settings carries optional per-balance configuration (overdraft,\nbalance scope). Nil for legacy balances without custom settings.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.BalanceSettings"
-                        }
-                    ]
-                },
-                "updatedAt": {
-                    "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time",
-                    "example": "2021-01-01T00:00:00Z"
-                },
-                "version": {
-                    "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
-                    "type": "integer",
-                    "minimum": 1,
-                    "example": 1
-                }
-            }
-        },
-        "mmodel.BalanceSettings": {
-            "description": "Optional per-balance configuration controlling overdraft behavior and balance scope.",
-            "type": "object",
-            "properties": {
-                "allowOverdraft": {
-                    "description": "AllowOverdraft enables overdraft behavior for the balance. When false,\ntransactions that would drive Available below zero are rejected.\nexample: false",
-                    "type": "boolean",
-                    "example": false
-                },
-                "balanceScope": {
-                    "description": "BalanceScope identifies how the balance participates in transactions.\nAllowed values: \"transactional\" (default), \"internal\". Empty string is\ntreated as \"transactional\" for backwards compatibility.\nexample: transactional",
-                    "type": "string",
-                    "example": "transactional"
-                },
-                "overdraftLimit": {
-                    "description": "OverdraftLimit is the maximum overdraft amount the balance may carry,\nexpressed as a decimal string (to preserve precision). Ignored when\nOverdraftLimitEnabled is false.\nexample: 1000.00",
-                    "type": "string",
-                    "example": "1000.00"
-                },
-                "overdraftLimitEnabled": {
-                    "description": "OverdraftLimitEnabled gates the OverdraftLimit field. When true, a\nnon-empty, strictly positive OverdraftLimit MUST be supplied. When\nfalse, OverdraftLimit MUST be absent (overdraft is unlimited if\nAllowOverdraft is true).\nexample: false",
-                    "type": "boolean",
-                    "example": false
-                }
-            }
-        },
-        "mmodel.LedgerSettings": {
-            "type": "object",
-            "properties": {
-                "accounting": {
-                    "description": "Accounting contains validation settings for accounting operations.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.AccountingValidation"
-                        }
-                    ]
+                "title": {
+                    "type": "string"
                 }
             }
         }
@@ -10977,17 +15339,103 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Top-level tenant entities that own ledgers and all nested resources.",
+            "name": "Organizations"
+        },
+        {
+            "description": "Bookkeeping containers scoping assets, accounts, and transactions.",
+            "name": "Ledgers"
+        },
+        {
+            "description": "Balance-holding entries that transactions debit and credit.",
+            "name": "Accounts"
+        },
+        {
+            "description": "Currencies and instruments tracked within a ledger.",
+            "name": "Assets"
+        },
+        {
+            "description": "Logical groupings of accounts under a holder.",
+            "name": "Portfolios"
+        },
+        {
+            "description": "Sub-classifications for organizing accounts.",
+            "name": "Segments"
+        },
+        {
+            "description": "Reusable account classification definitions.",
+            "name": "Account Types"
+        },
+        {
+            "description": "Double-entry postings that move value between accounts.",
+            "name": "Transactions"
+        },
+        {
+            "description": "Per-account available, on-hold, and scale state.",
+            "name": "Balances"
+        },
+        {
+            "description": "The individual debit and credit legs of a transaction.",
+            "name": "Operations"
+        },
+        {
+            "description": "Conversion rates between assets.",
+            "name": "Asset Rates"
+        },
+        {
+            "description": "Templates constraining which accounts an operation leg may touch.",
+            "name": "Operation Routes"
+        },
+        {
+            "description": "Ordered sets of operation routes describing a transaction shape.",
+            "name": "Transaction Routes"
+        },
+        {
+            "description": "Index definitions over entity metadata for queryable lookups.",
+            "name": "Metadata Indexes"
+        },
+        {
+            "description": "Holder identity records (the party behind accounts).",
+            "name": "Holders"
+        },
+        {
+            "description": "Financial instrument records bound to holders.",
+            "name": "Instruments"
+        },
+        {
+            "description": "Holder + account creation in a single call.",
+            "name": "Composition"
+        },
+        {
+            "description": "Fee package definitions applied during transaction processing.",
+            "name": "Packages"
+        },
+        {
+            "description": "Fee estimation and application for transactions.",
+            "name": "Fees"
+        },
+        {
+            "description": "Billing package definitions for charge aggregation.",
+            "name": "Billing Packages"
+        },
+        {
+            "description": "On-demand billing charge calculation.",
+            "name": "Billing Calculate"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.7.0",
+	Version:          "4.0.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
-	Schemes:          []string{"http"},
+	Schemes:          []string{"http", "https"},
 	Title:            "Midaz Ledger API",
-	Description:      "This is a swagger documentation for the Midaz Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Ledger API. This unified service combines Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), Holders and Instruments endpoints (holder and instrument account management), Fees endpoints (packages, estimates, billing), the Holder-Account composition endpoint, and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -7,15 +7,13 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// GetBalanceByID gets data in the repository.
@@ -23,7 +21,7 @@ import (
 )
 
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balance_by_id")
 	defer span.End()
@@ -32,7 +30,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balance on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -54,13 +52,13 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	if rerr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache value on redis: %v", rerr))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on redis", libLog.Err(rerr))
 	}
 
 	if value != "" {
 		cached := mmodel.BalanceRedis{}
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
+			logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value", libLog.Err(uerr))
 		} else {
 			applyBalanceCacheOverlay(balance, &cached)
 		}

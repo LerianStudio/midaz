@@ -6,16 +6,16 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -24,18 +24,26 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) (err error) {
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_transaction", start, err)
+	}()
+
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
-	} else {
-		return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
 	}
+
+	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
 }
 
 // WriteTransactionAsync publishes the transaction payload to RabbitMQ
 // for asynchronous processing. Falls back to direct DB write if queue fails.
 func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
 	defer span.End()
@@ -55,7 +63,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to marshal transaction to JSON string", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal validate to JSON string: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal validate to JSON string", libLog.Err(err))
 
 		return err
 	}
@@ -89,26 +97,20 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
 		message,
 	); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to send message to queue: %s", err.Error()))
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to send message directly to database: %s", tran.ID))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to send message to queue", libLog.Err(err))
 
 		// Use original context for fallback - it still has remaining HTTP timeout
 		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to send message directly to database", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send message directly to database: %s", err.Error()))
+			logger.Log(ctx, libLog.LevelError, "Failed to send message directly to database", libLog.Err(err))
 
 			return err
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("transaction updated successfully directly to database: %s", tran.ID))
-
 		return nil
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction send successfully to queue: %s", tran.ID))
 
 	return nil
 }
@@ -116,7 +118,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
 func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
 	defer span.End()
@@ -136,7 +138,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to marshal transaction to JSON string", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal validate to JSON string: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal validate to JSON string", libLog.Err(err))
 
 		return err
 	}
@@ -156,12 +158,10 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to send message directly to database", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send message directly to database: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to send message directly to database", libLog.Err(err))
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction updated successfully directly in database: %s", tran.ID))
 
 	return nil
 }

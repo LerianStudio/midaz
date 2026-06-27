@@ -1,27 +1,34 @@
 # Ledger Component Makefile (Unified Onboarding + Transaction)
+#
+# Thin component Makefile built from the shared monorepo template: it sets the
+# component identity (SERVICE_NAME, MIDAZ_ROOT, scoped coverage) and includes the
+# root mk/*.mk fragments rather than re-implementing docker/quality/security
+# logic. Component-specific targets (build flags, crypto-key injection, run,
+# dev-setup) live here.
 
-# Component-specific variables
+# Component identity
 SERVICE_NAME := ledger-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
+# Tool versions (GOLANGCI_LINT_VERSION, GOSEC_VERSION, ...) come from the shared
+# mk/quality.mk + mk/security.mk fragments included below — single source of truth.
+
 # Ensure build/output directories exist
 $(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
 
-# Define the root directory of the project
+# Root of the monorepo (for shared mk fragments and scoped coverage)
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
-
-# Unit test coverage (shared target from mk/coverage-unit.mk)
 COVERAGE_PACKAGES := ./components/ledger/...
-include $(MIDAZ_ROOT)/mk/coverage-unit.mk
 
-# Include shared color definitions and utility functions
-define title1
-	@echo ""
-	@echo "------------------------"
-	@echo "   📝 $(1)  "
-	@echo "------------------------"
-endef
+# Shared monorepo fragments — one template, included by every component.
+include $(MIDAZ_ROOT)/mk/colors.mk
+include $(MIDAZ_ROOT)/mk/utils.mk
+include $(MIDAZ_ROOT)/mk/docker.mk
+include $(MIDAZ_ROOT)/mk/quality.mk
+include $(MIDAZ_ROOT)/mk/security.mk
+# Unit test coverage (scoped to ledger via COVERAGE_PACKAGES above).
+include $(MIDAZ_ROOT)/mk/coverage-unit.mk
 
 #-------------------------------------------------------
 # Core Commands
@@ -34,32 +41,27 @@ help:
 	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make help                        - Display this help message"
-	@echo "  make build                       - Build the component"
+	@echo "  make build                       - Build the binary to .bin/ledger"
 	@echo "  make test                        - Run tests"
 	@echo "  make clean                       - Clean build artifacts"
 	@echo "  make run                         - Run the application with .env config"
 	@echo "  make coverage-unit               - Run unit tests with coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
-	@echo "  make lint                        - Run linting tools"
-	@echo "  make format                      - Format code"
-	@echo "  make tidy                        - Clean dependencies"
+	@echo "  make lint                        - Run golangci-lint (read-only gate)"
+	@echo "  make lint-fix                    - Apply lint autofixes (mutates source)"
+	@echo "  make format                      - Format code with go fmt"
+	@echo "  make generate                    - Generate code (mocks, etc.)"
+	@echo "  make tidy                        - Clean unused dependencies"
+	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
+	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                          - Start services with Docker Compose"
-	@echo "  make down                        - Stop services with Docker Compose"
-	@echo "  make start                       - Start existing containers"
-	@echo "  make stop                        - Stop running containers"
-	@echo "  make restart                     - Restart all containers"
-	@echo "  make logs                        - Show logs for all services"
-	@echo "  make logs-api                    - Show logs for ledger service"
-	@echo "  make ps                          - List container status"
-	@echo "  make rebuild-up                  - Rebuild and restart services during development"
-	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
-	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
+	@echo "  make up / down / start / stop / restart / rebuild-up / clean-docker / logs"
 	@echo ""
 	@echo "$(BOLD)Ledger-Specific Commands:$(NC)"
-	@echo "  make generate-docs               - Generate Swagger API documentation"
+	@echo "  make generate-keys               - Generate crypto keys for local testing"
+	@echo "  (API docs are generated from the repo root: make generate-docs)"
 	@echo ""
 	@echo "$(BOLD)Developer Helper Commands:$(NC)"
 	@echo "  make dev-setup                   - Set up development environment"
@@ -75,6 +77,12 @@ build:
 	@go build -o $(BIN_DIR)/ledger ./cmd/app/main.go
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Build completed successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: clean
+clean:
+	$(call title1,"Cleaning build artifacts")
+	@rm -rf $(BIN_DIR)/* $(ARTIFACTS_DIR)/*
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
+
 #-------------------------------------------------------
 # Test Commands
 #-------------------------------------------------------
@@ -85,175 +93,68 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-
-#-------------------------------------------------------
-# Code Quality Commands
-#-------------------------------------------------------
-
-.PHONY: lint
-lint:
-	$(call title1,"Running linters")
-	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if find . -name "*.go" -type f | grep -q .; then \
-		if ! command -v golangci-lint >/dev/null 2>&1; then \
-			echo "$(YELLOW)golangci-lint not found, installing...$(NC)"; \
-			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
-		else \
-			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
-		fi; \
-		golangci-lint run --fix ./... --verbose; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
-	else \
-		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
-	fi
-
-.PHONY: format
-format:
-	$(call title1,"Formatting code")
-	@go fmt ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Formatting completed successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: tidy
-tidy:
-	$(call title1,"Cleaning dependencies")
-	@go mod tidy
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
-
-#-------------------------------------------------------
-# Security Commands
-#-------------------------------------------------------
-
-.PHONY: sec
-sec:
-	$(call title1,"Running security checks using gosec")
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find . -name "*.go" -type f | grep -q .; then \
-		echo "$(CYAN)Running security checks...$(NC)"; \
-		gosec ./...; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
-	else \
-		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
-	fi
-
-#-------------------------------------------------------
-# Docker Commands
-#-------------------------------------------------------
-
-# Choose docker compose command depending on installed version
-DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
-
-.PHONY: build-docker
-build-docker:
-	$(call title1,"Building Docker images")
-	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker images built successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: up
-up:
-	$(call title1,"Starting all services in detached mode")
-	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: start
-start:
-	$(call title1,"Starting existing containers")
-	@$(DOCKER_CMD) -f docker-compose.yml start $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers started successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: down
-down:
-	$(call title1,"Stopping and removing containers|networks|volumes")
-	@if [ -f "docker-compose.yml" ]; then \
-		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
-	else \
-		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
-	fi
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: stop
-stop:
-	$(call title1,"Stopping running containers")
-	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers stopped successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: restart
-restart:
-	$(call title1,"Restarting all services")
-	@make stop && make up
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services restarted successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: rebuild-up
-rebuild-up:
-	$(call title1,"Rebuilding and restarting services")
-	@$(DOCKER_CMD) -f docker-compose.yml down
-	@$(DOCKER_CMD) -f docker-compose.yml build
-	@$(DOCKER_CMD) -f docker-compose.yml up -d
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services rebuilt and restarted successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: clean-docker
-clean-docker:
-	$(call title1,"Cleaning Docker resources")
-	@echo "$(YELLOW)Stopping and removing containers, networks, and volumes...$(NC)"
-	@$(DOCKER_CMD) -f docker-compose.yml down -v
-	@echo "$(YELLOW)Pruning unused Docker resources...$(NC)"
-	@docker system prune -f
-	@echo "$(YELLOW)Pruning unused volumes...$(NC)"
-	@docker volume prune -f
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker resources cleaned successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: logs
-logs:
-	$(call title1,"Showing logs for all services")
-	@if [ -f "docker-compose.yml" ]; then \
-		echo "$(CYAN)Logs for component: $(BOLD)ledger$(NC)"; \
-		docker compose -f docker-compose.yml logs --tail=100 -f $(c) 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=100 -f $(c); \
-	else \
-		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs command.$(NC)"; \
-	fi
-
-.PHONY: logs-api
-logs-api:
-	$(call title1,"Showing logs for ledger service")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f ledger
-
-.PHONY: ps
-ps:
-	$(call title1,"Listing container status")
-	@$(DOCKER_CMD) -f docker-compose.yml ps
-
-# Alias for backward compatibility
-.PHONY: destroy
-destroy: clean-docker
-	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
-
 #-------------------------------------------------------
 # Ledger-Specific Commands
 #-------------------------------------------------------
 
-.PHONY: run
-run:
-	$(call title1,"Running the application with .env config")
-	@go run cmd/app/main.go .env
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Application started successfully$(GREEN) ✔️$(NC)"
+# `run` comes from mk/docker.mk (go run cmd/app/main.go .env).
 
-.PHONY: generate-docs
-generate-docs:
-	$(call title1,"Generating Swagger API documentation - Ledger")
-	@SWAG_BIN=$$(command -v swag 2>/dev/null || true); \
-	if [ -z "$$SWAG_BIN" ]; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@v1.16.6; \
-		GO_BIN=$$(go env GOBIN); \
-		if [ -z "$$GO_BIN" ]; then \
-			GO_BIN="$$(go env GOPATH)/bin"; \
+# API documentation is generated from the repo root: `make generate-docs`
+# (postman/generator/generate-docs.sh covers ledger and tracer).
+
+#-------------------------------------------------------
+# Setup Commands
+#-------------------------------------------------------
+
+.PHONY: set-env
+set-env:
+	$(call title1,"Setting up environment file")
+	@if [ -f ".env.example" ] && [ ! -f ".env" ]; then \
+		echo "Creating .env from .env.example"; \
+		cp ".env.example" ".env"; \
+	elif [ ! -f ".env.example" ]; then \
+		echo "$(YELLOW)Warning: No .env.example found$(NC)"; \
+	else \
+		echo ".env already exists"; \
+	fi
+	@$(MAKE) generate-keys
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file set up successfully$(GREEN) ✔️$(NC)"
+
+# Generate and inject a crypto key into .env if it is unset or still the
+# placeholder. The collapsed CRM code reads the bare LCRYPTO_* env names.
+# Usage: $(call inject_crypto_key,KEY_NAME,PLACEHOLDER)
+define inject_crypto_key
+	@CURRENT_VAL=$$(grep "^$(1)=" .env 2>/dev/null | cut -d'=' -f2); \
+	if [ -z "$$CURRENT_VAL" ] || [ "$$CURRENT_VAL" = "$(2)" ]; then \
+		echo "  Generating $(1)..."; \
+		NEW_KEY=$$(docker run --rm alpine/openssl rand -hex 32 2>/dev/null); \
+		if [ -z "$$NEW_KEY" ] || [ $${#NEW_KEY} -ne 64 ]; then \
+			echo "$(RED)  ✗ Failed to generate key. Ensure Docker is running.$(NC)"; \
+			exit 1; \
 		fi; \
-		SWAG_BIN="$$GO_BIN/swag"; \
-	fi; \
-	cd $(MIDAZ_ROOT)/components/ledger && "$$SWAG_BIN" init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated$(GREEN) ✔️$(NC)"
+		if grep -q "^$(1)=" ".env"; then \
+			sed -i.bak "s|^$(1)=.*|$(1)=$$NEW_KEY|" ".env" && rm -f ".env.bak"; \
+		else \
+			echo "$(1)=$$NEW_KEY" >> ".env"; \
+		fi; \
+		echo "$(GREEN)  ✓ $(1) generated$(NC)"; \
+	else \
+		echo "$(GREEN)  ✓ $(1) already set$(NC)"; \
+	fi
+endef
+
+.PHONY: generate-keys
+generate-keys:
+	$(call title1,"Generating crypto keys for local testing")
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)  ! No .env file found. Run 'make set-env' first.$(NC)"; \
+		exit 0; \
+	fi
+	$(call inject_crypto_key,LCRYPTO_HASH_SECRET_KEY,my-hash-secret-key)
+	$(call inject_crypto_key,LCRYPTO_ENCRYPT_SECRET_KEY,my-encrypt-secret-key)
+	@echo ""
+	@echo "$(YELLOW)  ⚠️  WARNING: Generated keys are for LOCAL/TEST use only.$(NC)"
+	@echo "$(YELLOW)     For production, generate keys securely and store in a secrets manager.$(NC)"
 
 #-------------------------------------------------------
 # Developer Helper Commands
@@ -265,7 +166,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
@@ -273,18 +174,19 @@ dev-setup:
 	fi
 	@if ! command -v mockgen >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing mockgen...$(NC)"; \
-		go install github.com/golang/mock/mockgen@latest; \
+		go install go.uber.org/mock/mockgen@v0.6.0; \
 	fi
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
 	fi
 	@echo "$(CYAN)Setting up environment...$(NC)"
 	@if [ -f .env.example ] && [ ! -f .env ]; then \
 		cp .env.example .env; \
 		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
-	@make tidy
+	@$(MAKE) generate-keys
+	@$(MAKE) tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"
 	@echo "  make build         - Build the component"

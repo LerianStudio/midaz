@@ -5,17 +5,15 @@
 package in
 
 import (
-	"fmt"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -31,28 +29,28 @@ type BalanceHandler struct {
 // GetAllBalances retrieves all balances.
 //
 //	@Summary		Get all balances
-//	@Description	Get all balances
+//	@Description	Returns a cursor-paginated list of all balances within a ledger, optionally filtered by date range and sort order.
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string	false	"Filter balances created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter balances created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved balances list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [get]
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
 	defer span.End()
@@ -71,8 +69,6 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -85,20 +81,14 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Balances")
-
 	headerParams.Metadata = &bson.M{}
 
 	balances, cur, err := handler.Query.GetAllBalances(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Balances", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Balances, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Balances")
 
 	pagination.SetItems(balances)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -109,30 +99,30 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 // GetAllBalancesByAccountID retrieves all balances.
 //
 //	@Summary		Get all balances by account id
-//	@Description	Get all balances by account id
+//	@Description	Returns a cursor-paginated list of all balances for a specific account, optionally filtered by date range and sort order.
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
+//	@Param			start_date		query		string	false	"Filter balances created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter balances created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved account balances list"
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [get]
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
 	defer span.End()
@@ -156,8 +146,6 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
 
@@ -170,20 +158,14 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Balances by account id")
-
 	headerParams.Metadata = &bson.M{}
 
 	balances, cur, err := handler.Query.GetAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Balances by account id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Balances by account id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Balances by account id")
 
 	pagination.SetItems(balances)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -197,21 +179,21 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Description	Get a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			balance_id		path		string	true	"Balance ID"
-//	@Success		200				{object}	mmodel.Balance
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string	true	"Balance ID in UUID format"
+//	@Success		200				{object}	mmodel.Balance	"Successfully retrieved balance"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [get]
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
 	defer span.End()
@@ -231,18 +213,12 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balance by id")
-
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balance by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balance by id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balance by id")
 
 	return http.OK(c, op)
 }
@@ -253,22 +229,22 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Description	Delete a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID"
-//	@Param			organization_id	path		string			true	"Organization ID"
-//	@Param			ledger_id		path		string			true	"Ledger ID"
-//	@Param			balance_id		path		string			true	"Balance ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string			true	"Balance ID in UUID format"
 //	@Success		204				"Balance successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete balance with active operations"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: balance still holds funds or has in-flight transactions"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [delete]
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
 	defer span.End()
@@ -288,18 +264,12 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating delete balance by id")
-
 	err = handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete balance by id, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully delete balance by id")
 
 	return http.NoContent(c)
 }
@@ -311,19 +281,20 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			balance_id		path		string					true	"Balance ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
+//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string					true	"Balance ID in UUID format"
 //	@Param			balance			body		mmodel.UpdateBalance	true	"Balance Input"
-//	@Success		200				{object}	mmodel.Balance
+//	@Success		200				{object}	mmodel.Balance	"Successfully updated balance"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		422				{object}	mmodel.Error	"Cannot update internal balance or overdraft limit below current usage"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [patch]
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -347,8 +318,6 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String()))
-
 	payload := p.(*mmodel.UpdateBalance)
 	logSafePayload(ctx, logger, "Request to update a Balance", payload)
 
@@ -356,14 +325,10 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 
 	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Balance on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Balance with ID: %s, Error: %s", balanceID, err.Error()))
+		handleSpanByErrorClass(span, "Failed to update Balance on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID, ledgerID, balanceID))
 
 	return http.OK(c, balance)
 }
@@ -374,21 +339,21 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Description	Get Balances with alias
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved balances for alias"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances [get]
 func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_by_alias")
 	defer span.End()
@@ -405,18 +370,12 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 	alias := c.Params("alias")
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balances by alias")
-
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balances by alias", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balances by alias, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balances by alias")
 
 	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
@@ -434,21 +393,21 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Description	Get External balances with code
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}	"Successfully retrieved external balances"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances [get]
 func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_external_by_code")
 	defer span.End()
@@ -466,18 +425,12 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balances by code")
-
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve balances by code", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balances by code, Error: %s", err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved balances by code")
 
 	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
@@ -496,19 +449,20 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			account_id		path		string							true	"Account ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string							true	"Account ID in UUID format"
 //	@Param			balance			body		mmodel.CreateAdditionalBalance	true	"Balance Input"
-//	@Success		201				{object}	mmodel.Balance
+//	@Success		201				{object}	mmodel.Balance	"Successfully created additional balance"
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
+//	@Failure		422				{object}	mmodel.Error	"Additional balances not permitted for external account type"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Post]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [post]
 func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -539,14 +493,10 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 
 	balance, err := handler.Command.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create additional balance on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create additional balance, Error: %s", err.Error()))
+		handleSpanByErrorClass(span, "Failed to create additional balance on command", err)
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created additional balance")
 
 	return http.Created(c, balance)
 }
@@ -557,19 +507,19 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Description	Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			balance_id		path		string	true	"Balance ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			balance_id		path		string	true	"Balance ID in UUID format"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	mmodel.BalanceHistory
+//	@Success		200				{object}	mmodel.BalanceHistory	"Successfully retrieved balance at specified date"
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found or no data available at date"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history [get]
 func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -581,7 +531,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get organization_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get organization_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -589,7 +538,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get ledger_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -597,7 +545,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balance_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balance_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -616,7 +563,6 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid date format", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid date format: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
@@ -625,22 +571,16 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	if !hasTime {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Time component is required", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing time component in date: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05")))
-
 	balance, err := handler.Query.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve balance at date", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve balance at date, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05")))
 
 	// Convert to history response (without permission flags)
 	return http.OK(c, balance.ToHistoryResponse())
@@ -652,19 +592,19 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Description	Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			account_id		path		string	true	"Account ID"
+//	@Security		BearerAuth
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			account_id		path		string	true	"Account ID in UUID format"
 //	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
-//	@Success		200				{object}	[]mmodel.BalanceHistory
+//	@Success		200				{object}	[]mmodel.BalanceHistory	"Successfully retrieved account balances at specified date"
 //	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Account not found or no data available at date"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history [Get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history [get]
 func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -676,7 +616,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get organization_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get organization_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -684,7 +623,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get ledger_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -692,7 +630,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	accountID, err := http.GetUUIDFromLocals(c, "account_id")
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get account_id from path", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get account_id from path: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -711,7 +648,6 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid date format", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid date format: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
@@ -720,17 +656,13 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	if !hasTime {
 		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Time component is required", validationErr)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing time component in date: %s", dateStr))
 
 		return http.WithError(c, validationErr)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of balances for account %s at date %s", accountID, date.Format("2006-01-02 15:04:05")))
-
 	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to retrieve account balances at date", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve account balances at date, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -740,12 +672,9 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 		// No balances existed at that time
 		err := pkg.ValidateBusinessError(cn.ErrNoBalanceDataAtTimestamp, date.Format("2006-01-02 15:04:05"))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No balance data available for the specified timestamp", err)
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No balances found for account %s at timestamp %s", accountID, date.Format("2006-01-02 15:04:05")))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved %d balances for account %s at date %s", len(balances), accountID, date.Format("2006-01-02 15:04:05")))
 
 	// Convert to history responses (without permission flags)
 	historyBalances := make([]*mmodel.BalanceHistory, len(balances))
