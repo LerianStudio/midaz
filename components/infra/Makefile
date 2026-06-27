@@ -13,6 +13,8 @@ ARTIFACTS_DIR := ./artifacts
 
 # Tool versions (GOLANGCI_LINT_VERSION, GOSEC_VERSION, ...) come from the shared
 # mk/quality.mk + mk/security.mk fragments included below — single source of truth.
+# mockgen has no shared pin yet, so dev-setup pins it here.
+MOCKGEN_VERSION ?= v0.6.0
 
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
@@ -115,16 +117,24 @@ coverage-summary:
 dev-setup:
 	$(call title1,"Setting up development environment")
 	@echo "$(CYAN)Installing development tools...$(NC)"
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+	@# Reinstall only when missing OR the installed version does not match the
+	@# pin, so an older preinstalled binary is upgraded (existence alone is not
+	@# enough) without a slow blind reinstall on every dev-setup. Versions are
+	@# matched as substrings of each tool's --version output, with the leading
+	@# "v" stripped from the pin to match tools that report a bare semver.
+	@if ! command -v golangci-lint >/dev/null 2>&1 || \
+		! golangci-lint version 2>&1 | grep -q "$(GOLANGCI_LINT_VERSION:v%=%)"; then \
+		echo "$(YELLOW)Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(NC)"; \
 		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 	fi
-	@if ! command -v mockgen >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing mockgen...$(NC)"; \
-		go install go.uber.org/mock/mockgen@v0.6.0; \
+	@if ! command -v mockgen >/dev/null 2>&1 || \
+		! mockgen --version 2>&1 | grep -q "$(MOCKGEN_VERSION:v%=%)"; then \
+		echo "$(YELLOW)Installing mockgen $(MOCKGEN_VERSION)...$(NC)"; \
+		go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION); \
 	fi
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
+	@if ! command -v gosec >/dev/null 2>&1 || \
+		! gosec --version 2>&1 | grep -q "$(GOSEC_VERSION:v%=%)"; then \
+		echo "$(YELLOW)Installing gosec $(GOSEC_VERSION)...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
 	fi
 	@echo "$(CYAN)Setting up environment...$(NC)"
