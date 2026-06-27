@@ -43,7 +43,7 @@ func testEncryptionContext(holderID string) encryption.EncryptionContext {
 func TestMongoDBModel_FromEntity(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	holderID := uuid.New()
 
 	tests := []struct {
@@ -273,7 +273,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 func TestMongoDBModel_ToEntity(t *testing.T) {
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	holderID := uuid.New()
 
 	// First create a model from an entity, then convert back
@@ -358,7 +358,7 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	holderID := uuid.New()
 
 	originalHolder := &mmodel.Holder{
@@ -410,7 +410,7 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 
 	fe := setupTestFieldEncryptor(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Second)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	holderID := uuid.New()
 
 	originalHolder := &mmodel.Holder{
