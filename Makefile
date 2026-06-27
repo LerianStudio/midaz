@@ -352,14 +352,21 @@ check-telemetry:
 # + tests/ + pkg/), the telemetry/observability gates, then the race-enabled unit
 # suite (test-unit already exports ALLOW_INSECURE_TLS=true). Each leg is a separate
 # $(MAKE) under `set -e`, so the first failure aborts and `make ci` exits non-zero.
-# For the heavier integration/property/chaos matrix run `make ci-tests`.
+# Mirrors the required PR-validation gates so a green `make ci` predicts a green
+# PR: lint, telemetry, protobuf-stub drift, unit tests, and OpenAPI/Swagger doc
+# drift (CHECK_DOCS_REGEN). proto-check runs buf via `go run` (no global install);
+# check-docs regenerates the specs, so it needs swag + node + Docker (run
+# `make dev-setup` and have Docker up) and is ordered last so the pure-Go gates
+# report first. For the heavier integration/property/chaos matrix run `make ci-tests`.
 .PHONY: ci
 ci:
-	$(call print_title,Running CI gate (lint + telemetry + unit tests))
+	$(call print_title,Running CI gate (lint + telemetry + proto + unit tests + docs))
 	@set -e; \
 	$(MAKE) lint; \
 	$(MAKE) check-telemetry; \
-	$(MAKE) test-unit
+	$(MAKE) proto-check; \
+	$(MAKE) test-unit; \
+	CHECK_DOCS_REGEN=1 $(MAKE) check-docs
 	@echo "[ok] CI gate completed successfully"
 
 #-------------------------------------------------------
