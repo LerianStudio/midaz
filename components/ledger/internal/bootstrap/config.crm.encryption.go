@@ -22,6 +22,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/crypto/tink"
 )
 
+// Compile-time guarantee that the MongoDB keyset adapter satisfies the encryption
+// service's KeysetRepository contract. The interface lives in the consuming service
+// package (dependencies flow inward); this assertion sits at the wiring seam, the
+// one place that legitimately imports both packages.
+var _ encryption.KeysetRepository = (*mongoEncryption.KeysetMongoDBRepository)(nil)
+
 // defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
 const defaultKEKMountPath = "transit"
 
@@ -57,7 +63,11 @@ type crmEncryption struct {
 //
 // metricsFactory may be nil when telemetry is not yet wired at this stage of
 // bootstrap; the protection metrics seam is nil-safe and degrades to a no-op emitter.
-func initCRMEncryption(ctx context.Context, cfg *Config, mongoConnection *libMongo.Client, metricsFactory *metrics.MetricsFactory, logger libLog.Logger) (*crmEncryption, error) {
+//
+// multiTenant is the EFFECTIVE tenant mode resolved by initCRM from Options (not
+// cfg.MultiTenantEnabled), so the keyset-manager and envelope-provisioning
+// namespace mode always matches the CRM repo mode the dispatcher selected.
+func initCRMEncryption(ctx context.Context, cfg *Config, mongoConnection *libMongo.Client, multiTenant bool, metricsFactory *metrics.MetricsFactory, logger libLog.Logger) (*crmEncryption, error) {
 	kms, err := initKMS(ctx, cfg, logger)
 	if err != nil {
 		return nil, err
@@ -82,7 +92,7 @@ func initCRMEncryption(ctx context.Context, cfg *Config, mongoConnection *libMon
 		legacyCrypto:     legacyCrypto,
 		metricsFactory:   metricsFactory,
 		vaultMountPath:   cfg.VaultMountPath,
-		multiTenant:      cfg.MultiTenantEnabled,
+		multiTenant:      multiTenant,
 		legacyAESHexKey:  cfg.CrmEncryptSecretKey,
 		legacyHMACSecret: cfg.CrmHashSecretKey,
 	})
@@ -210,8 +220,10 @@ func buildVaultConfig(cfg *Config) (vault.Config, error) {
 }
 
 // resolveVaultAuth determines the Vault auth method and token from
-// KMS_VAULT_AUTH_METHOD, failing closed for unset/invalid methods and rejecting
-// token auth in production (saas/byoc) so the dev root token can never be used there.
+// KMS_VAULT_AUTH_METHOD, failing closed for unset/invalid methods. Token auth
+// returns the dev root token ONLY when DEPLOYMENT_MODE resolves to local; every
+// other deployment mode (saas, byoc, or any unrecognized value) is rejected so an
+// unset or typo'd DEPLOYMENT_MODE can never fall through to the dev root token.
 func resolveVaultAuth(cfg *Config) (vault.AuthMethod, string, error) {
 	method, err := vault.ParseAuthMethod(cfg.VaultAuthMethod)
 	if err != nil {
@@ -220,10 +232,10 @@ func resolveVaultAuth(cfg *Config) (vault.AuthMethod, string, error) {
 
 	switch method {
 	case vault.AuthMethodToken:
-		if isProductionDeployment(cfg.DeploymentMode) {
+		if !isLocalDeployment(cfg.DeploymentMode) {
 			return "", "", fmt.Errorf(
-				"KMS_VAULT_AUTH_METHOD=token is not allowed when DEPLOYMENT_MODE is %q: production requires approle",
-				strings.ToLower(strings.TrimSpace(cfg.DeploymentMode)))
+				"KMS_VAULT_AUTH_METHOD=token is only allowed when DEPLOYMENT_MODE=local (got %q): use approle",
+				ResolveDeploymentMode(cfg.DeploymentMode))
 		}
 
 		return vault.AuthMethodToken, DefaultVaultDevToken, nil
@@ -234,11 +246,12 @@ func resolveVaultAuth(cfg *Config) (vault.AuthMethod, string, error) {
 	}
 }
 
-// isProductionDeployment reports whether the deployment mode is saas or byoc,
-// where token auth with the dev root token is forbidden.
-func isProductionDeployment(deploymentMode string) bool {
-	mode := strings.ToLower(strings.TrimSpace(deploymentMode))
-	return mode == DeploymentModeSaaS || mode == DeploymentModeBYOC
+// isLocalDeployment reports whether the deployment mode resolves to local, the
+// only mode where token auth with the dev root token is permitted. Empty or
+// whitespace input resolves to the default (local) via ResolveDeploymentMode;
+// any unrecognized value resolves to its lowercased form and is rejected.
+func isLocalDeployment(deploymentMode string) bool {
+	return ResolveDeploymentMode(deploymentMode) == DeploymentModeLocal
 }
 
 // resolveBaseMountPath resolves the base Vault Transit mount, trimming surrounding
@@ -287,7 +300,7 @@ func initEncryptionRepos(
 	kms *kmsResult,
 	mongoConnection *libMongo.Client,
 	logger libLog.Logger,
-) (mongoEncryption.KeysetRepository, mongoEncryption.RegistryRepository, mongoAudit.Repository, encryption.AuditWriter, error) {
+) (encryption.KeysetRepository, mongoEncryption.RegistryRepository, mongoAudit.Repository, encryption.AuditWriter, error) {
 	if !kms.Mode.IsEnvelope() {
 		return nil, nil, nil, nil, nil
 	}
@@ -316,7 +329,7 @@ func initEncryptionRepos(
 type wireEncryptionServicesInput struct {
 	mode             string
 	vaultClient      *vault.Client
-	keysetRepo       mongoEncryption.KeysetRepository
+	keysetRepo       encryption.KeysetRepository
 	registryRepo     mongoEncryption.RegistryRepository
 	auditWriter      encryption.AuditWriter
 	legacyCrypto     encryption.LegacyCrypto

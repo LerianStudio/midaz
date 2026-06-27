@@ -12,7 +12,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	mongoEncryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto"
 	cryptoTink "github.com/LerianStudio/midaz/v4/pkg/crypto/tink"
@@ -180,6 +179,19 @@ type EncryptionService interface {
 	GetKeysetInfo(ctx context.Context, organizationID string) (*mmodel.KeysetInfo, error)
 }
 
+// KeysetRepository is the keyset persistence contract consumed by the encryption
+// services (encryptionService, KeysetManager, provisioningService). It is defined
+// here, in the consuming service package, so dependencies flow inward: the MongoDB
+// adapter satisfies it structurally without the service importing the adapter for
+// the type.
+type KeysetRepository interface {
+	Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error
+	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+	GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error)
+	GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+	Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error
+}
+
 // encryptionService provides field-level encryption for CRM sensitive data.
 // It routes between Tink-backed legacy key material and envelope (Tink/KMS) encryption
 // based on organization protection state or encryption mode.
@@ -191,7 +203,7 @@ type EncryptionService interface {
 type encryptionService struct {
 	stateResolver  *ProtectionStateResolver
 	keysetManager  *KeysetManager
-	keysetRepo     mongoEncryption.KeysetRepository
+	keysetRepo     KeysetRepository
 	legacyCrypto   LegacyCrypto
 	metrics        *protectionMetrics
 	encryptionMode crypto.EncryptionMode
@@ -218,7 +230,7 @@ type encryptionService struct {
 func NewEncryptionService(
 	stateResolver *ProtectionStateResolver,
 	keysetManager *KeysetManager,
-	keysetRepo mongoEncryption.KeysetRepository,
+	keysetRepo KeysetRepository,
 	legacyCrypto LegacyCrypto,
 	metrics *protectionMetrics,
 	encryptionMode ...crypto.EncryptionMode,
@@ -674,7 +686,12 @@ func (s *encryptionService) GenerateSearchToken(ctx context.Context, searchCtx S
 	}
 
 	// True legacy-hash branch: key version is 0.
-	return s.generateSearchTokenLegacy(normalizedValue), 0, nil
+	token, err := s.generateSearchTokenLegacy(normalizedValue)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return token, 0, nil
 }
 
 // generateSearchTokenEnvelope generates a PRF-based search token using Tink and
@@ -698,12 +715,14 @@ func (s *encryptionService) generateSearchTokenEnvelope(ctx context.Context, sea
 }
 
 // generateSearchTokenLegacy generates a hash-based search token using the LegacyCrypto interface.
-func (s *encryptionService) generateSearchTokenLegacy(normalizedValue string) string {
+// Fails closed when no legacy crypto is configured: a missing impl must never be
+// treated as a valid (empty) token, mirroring encryptLegacy/decryptLegacy.
+func (s *encryptionService) generateSearchTokenLegacy(normalizedValue string) (string, error) {
 	if s.legacyCrypto == nil {
-		return ""
+		return "", fmt.Errorf("legacy crypto is required")
 	}
 
-	return s.legacyCrypto.GenerateHash(&normalizedValue)
+	return s.legacyCrypto.GenerateHash(&normalizedValue), nil
 }
 
 // GenerateSearchTokenCandidates generates search tokens for all enabled keys, routing to
@@ -729,7 +748,7 @@ func (s *encryptionService) GenerateSearchTokenCandidates(ctx context.Context, s
 		return s.generateSearchTokenCandidatesEnvelope(ctx, searchCtx, normalizedValue, state.CanReadLegacy)
 	}
 
-	return s.generateSearchTokenCandidatesLegacy(normalizedValue), nil
+	return s.generateSearchTokenCandidatesLegacy(normalizedValue)
 }
 
 // generateSearchTokenCandidatesEnvelope generates PRF tokens for all enabled search-token keys.
@@ -776,10 +795,15 @@ func (s *encryptionService) generateSearchTokenCandidatesEnvelope(ctx context.Co
 }
 
 // generateSearchTokenCandidatesLegacy generates a single hash-based search token for legacy mode.
-// Returns a single-element slice containing the legacy hash token.
-func (s *encryptionService) generateSearchTokenCandidatesLegacy(normalizedValue string) []string {
-	token := s.generateSearchTokenLegacy(normalizedValue)
-	return []string{token}
+// Returns a single-element slice containing the legacy hash token, or an error when
+// no legacy crypto is configured (fail-closed: never returns an empty token).
+func (s *encryptionService) generateSearchTokenCandidatesLegacy(normalizedValue string) ([]string, error) {
+	token, err := s.generateSearchTokenLegacy(normalizedValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{token}, nil
 }
 
 // MustUseEnvelope returns true if the organization must use envelope encryption.
@@ -815,6 +839,12 @@ func (s *encryptionService) GetKeysetInfo(ctx context.Context, organizationID st
 	// Check context before any work
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+
+	// Legacy/no-keyset setups leave keysetRepo nil. Fail closed with the not-found
+	// sentinel rather than dereferencing nil.
+	if s.keysetRepo == nil {
+		return nil, constant.ErrKeysetNotFound
 	}
 
 	keyset, err := s.keysetRepo.Get(ctx, organizationID)

@@ -6,6 +6,7 @@ package encryption
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -154,11 +155,20 @@ func (s *auditQueryService) GetAuditEvents(ctx context.Context, organizationID s
 
 	events, pagination, err := s.repo.FindByOrganization(ctx, organizationID, query)
 	if err != nil {
-		// Return the error unchanged: the handler maps repository errors
-		// (including libHTTP.ErrInvalidCursor) to the correct HTTP status.
-		libOpenTelemetry.HandleSpanError(span, "Failed to query audit events", err)
+		// Classify before logging so infra outages are not hidden at Warn. A bad
+		// cursor is a caller/business fault (4xx): log Warn and keep the span green.
+		// Anything else is a system failure (Mongo/transport): log Error and flip
+		// the span red. The error is returned unchanged either way so the handler
+		// maps it (including libHTTP.ErrInvalidCursor) to the correct HTTP status.
+		if errors.Is(err, libHTTP.ErrInvalidCursor) {
+			libOpenTelemetry.HandleSpanBusinessErrorEvent(span, "Invalid audit events cursor", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Failed to query audit events", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to query audit events", libLog.Err(err))
+		} else {
+			libOpenTelemetry.HandleSpanError(span, "Failed to query audit events", err)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to query audit events", libLog.Err(err))
+		}
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

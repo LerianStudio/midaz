@@ -1203,8 +1203,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrInstrumentNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrInstrumentNotFound.Error(),
-			Title:      "Alias ID Not Found",
-			Message:    "The provided alias ID does not exist in our records. Please verify the alias ID and try again.",
+			Title:      "Instrument ID Not Found",
+			Message:    "The provided instrument ID does not exist in our records. Please verify the instrument ID and try again.",
 		},
 		constant.ErrDocumentAssociationError: EntityConflictError{
 			EntityType: entityType,

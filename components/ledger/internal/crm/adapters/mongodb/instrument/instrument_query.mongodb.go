@@ -6,12 +6,15 @@ package instrument
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -19,6 +22,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+// metadataKeyFormat matches the flat-metadata key rules enforced at request
+// binding: starts with a letter, then alphanumeric or underscore only. This
+// rejects dots and nesting that would otherwise widen the metadata.* field path.
+var metadataKeyFormat = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 
 // FindAll instruments by holder id and filter
 func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string, holderID uuid.UUID, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {
@@ -245,12 +253,17 @@ func (am *MongoDBRepository) appendMetadataFilters(filter bson.D, query http.Que
 			return nil, err
 		}
 
-		key := k
-		if !strings.HasPrefix(key, "metadata.") {
-			key = "metadata." + key
+		bareKey := strings.TrimPrefix(k, "metadata.")
+
+		if len(bareKey) > 100 {
+			return nil, pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", bareKey, "100")
 		}
 
-		filter = append(filter, bson.E{Key: key, Value: safeValue})
+		if !metadataKeyFormat.MatchString(bareKey) {
+			return nil, pkg.ValidateBusinessError(cn.ErrMetadataKeyInvalidChars, "", bareKey)
+		}
+
+		filter = append(filter, bson.E{Key: "metadata." + bareKey, Value: safeValue})
 	}
 
 	return filter, nil

@@ -45,10 +45,12 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
+	// Match on instrument identity only (not related_parties._id) so a missing
+	// related party reaches the ModifiedCount==0 branch instead of being
+	// misreported as a missing instrument. The $pull below selects the element.
 	filter := bson.D{
 		{Key: "_id", Value: instrumentID},
 		{Key: "holder_id", Value: holderID},
-		{Key: "related_parties._id", Value: relatedPartyID},
 		{Key: "deleted_at", Value: nil},
 	}
 

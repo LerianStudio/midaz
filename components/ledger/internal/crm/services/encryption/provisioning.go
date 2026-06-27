@@ -102,7 +102,7 @@ type ProvisioningService interface {
 // provisioningService handles organization encryption provisioning and activation.
 // It coordinates keyset generation, KMS wrapping, and registry state management.
 type provisioningService struct {
-	keysetRepo      mongoEncryption.KeysetRepository
+	keysetRepo      KeysetRepository
 	registryRepo    mongoEncryption.RegistryRepository
 	keysetGenerator KeysetGenerator
 	kekMountPath    string
@@ -123,7 +123,7 @@ type provisioningService struct {
 // metrics is the nil-safe protection metrics seam; a nil value defaults to
 // NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
 func NewProvisioningService(
-	keysetRepo mongoEncryption.KeysetRepository,
+	keysetRepo KeysetRepository,
 	registryRepo mongoEncryption.RegistryRepository,
 	keysetGenerator KeysetGenerator,
 	config ProvisioningConfig,

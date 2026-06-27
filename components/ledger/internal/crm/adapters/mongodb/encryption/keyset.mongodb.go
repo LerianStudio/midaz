@@ -22,18 +22,11 @@ import (
 
 const keysetCollection = "organization_keyset"
 
-// KeysetRepository provides an interface for operations related to keyset entities.
-//
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=keyset.mongodb_mock.go --package=encryption . KeysetRepository
-type KeysetRepository interface {
-	Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error
-	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
-	GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error)
-	GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
-	Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error
-}
-
-// KeysetMongoDBRepository is a MongoDB-specific implementation of KeysetRepository.
+// KeysetMongoDBRepository is a MongoDB-specific implementation of the keyset
+// persistence contract consumed by the encryption service package
+// (encryption.KeysetRepository). It satisfies that contract structurally; the
+// interface lives in the consuming service package to keep dependencies flowing
+// inward.
 type KeysetMongoDBRepository struct {
 	connection *libMongo.Client
 }
@@ -360,5 +353,3 @@ func extractTenantID(ctx context.Context) string {
 
 	return "default"
 }
-
-var _ KeysetRepository = (*KeysetMongoDBRepository)(nil)

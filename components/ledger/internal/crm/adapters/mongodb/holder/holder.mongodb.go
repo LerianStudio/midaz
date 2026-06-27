@@ -135,6 +135,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	}
 
 	_, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")
+	defer spanInsert.End()
 
 	spanInsert.SetAttributes(attributes...)
 
@@ -162,8 +163,6 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 		return nil, err
 	}
-
-	spanInsert.End()
 
 	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {
@@ -211,6 +210,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 	}
 
 	_, spanFind := tracer.Start(ctx, "mongodb.find_holder.find")
+	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
 
@@ -227,8 +227,6 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 		return nil, err
 	}
-
-	spanFind.End()
 
 	// Build encryption context for this holder
 	encryptionCtx := encryption.EncryptionContext{
@@ -273,6 +271,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	coll := db.Collection(strings.ToLower("holders_" + organizationID))
 
 	_, spanUpdate := tracer.Start(ctx, "mongodb.update_holder.update_by_id")
+	defer spanUpdate.End()
 
 	spanUpdate.SetAttributes(attributes...)
 
@@ -330,11 +329,10 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, businessErr
 	}
 
-	spanUpdate.End()
-
 	var record MongoDBModel
 
 	_, spanFind := tracer.Start(ctx, "mongodb.update_holder.find_by_id")
+	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
 
@@ -344,8 +342,6 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 		return nil, err
 	}
-
-	spanFind.End()
 
 	result, err := record.ToEntity(ctx, hm.FieldEncryptor, encryptionCtx)
 	if err != nil {

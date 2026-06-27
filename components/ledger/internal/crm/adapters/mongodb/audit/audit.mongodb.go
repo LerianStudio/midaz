@@ -118,6 +118,10 @@ func NewMongoDBRepository(connection *libMongo.Client) (*MongoDBRepository, erro
 // forbidden-content guard drops (without inserting) any event whose free-text
 // fields match a secret/keyset pattern.
 func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.ProtectionAuditEvent) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.audit.create")
@@ -233,6 +237,10 @@ func safeLogFields(event *mmodel.ProtectionAuditEvent) []libLog.Field {
 // unparseable cursor is rejected with libHTTP.ErrInvalidCursor rather than
 // silently ignored.
 func (r *MongoDBRepository) FindByOrganization(ctx context.Context, organizationID string, query AuditQuery) ([]*mmodel.ProtectionAuditEvent, libHTTP.CursorPagination, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.audit.find")

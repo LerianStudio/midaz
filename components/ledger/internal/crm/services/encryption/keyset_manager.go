@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +17,6 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 
-	mongoEncryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -96,7 +96,7 @@ func DefaultKeysetManagerConfig() KeysetManagerConfig {
 // Cache keys are scoped by tenant to prevent cross-tenant cache collisions.
 // Format: "tenantID:organizationID"
 type KeysetManager struct {
-	keysetRepo    mongoEncryption.KeysetRepository
+	keysetRepo    KeysetRepository
 	unwrapper     KeysetUnwrapper
 	provisioner   ProvisioningService // Required: enables lazy provisioning on first access
 	metrics       *protectionMetrics
@@ -118,7 +118,7 @@ type KeysetManager struct {
 // metrics is the nil-safe protection metrics seam; a nil value defaults to
 // NewProtectionMetrics(nil) so emission is a no-op when telemetry is disabled.
 func NewKeysetManager(
-	keysetRepo mongoEncryption.KeysetRepository,
+	keysetRepo KeysetRepository,
 	unwrapper KeysetUnwrapper,
 	provisioner ProvisioningService,
 	config KeysetManagerConfig,
@@ -390,6 +390,13 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 		return nil, err
 	}
 
+	// Guard the version conversion so a stored value outside uint32 range never
+	// wraps onto the envelope marker (a wrapped version would route decrypt to the
+	// wrong keyset). Fail closed instead.
+	if keyset.Version < 0 || keyset.Version > math.MaxUint32 {
+		return nil, fmt.Errorf("keyset version %d is outside uint32 range", keyset.Version)
+	}
+
 	// Build cached primitives. PRFPrimaryKeyID is sourced from the stored
 	// HMACKeysetInfo primary key ID (the search-token keyset metadata).
 	cached := &CachedPrimitives{
@@ -399,7 +406,7 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 		LegacyHexTokenPRF: prfSet.legacyHexToken,
 		PrimaryKeyID:      keyset.KeysetInfo.PrimaryKeyID,
 		PRFPrimaryKeyID:   keyset.HMACKeysetInfo.PrimaryKeyID,
-		Version:           uint32(keyset.Version), // #nosec G115 -- keyset version is a small positive monotonic counter
+		Version:           uint32(keyset.Version),
 		ExpiresAt:         time.Now().Add(km.cacheTTL),
 	}
 
@@ -498,8 +505,14 @@ func (km *KeysetManager) autoProvision(ctx context.Context, organizationID strin
 // ALL keyset versions of a specific tenant-organization. The active entry is cached
 // under the exact key "tenantID:organizationID" (no version), while version entries
 // are cached under the "tenantID:organizationID:version" prefix; both are removed.
-// Call this after key rotation or when a keyset is updated. Also removes the matching
-// per-key mutexes to prevent unbounded map growth.
+// Call this after key rotation or when a keyset is updated.
+//
+// Only cache state is cleared: the per-key mutexes in km.fetching are deliberately
+// left in place. getOrUnwrap hands out a *sync.Mutex from km.fetching and locks it
+// OUTSIDE the fetchMu critical section, so deleting an entry while a load is in
+// flight would let a concurrent request allocate a SECOND mutex for the same key —
+// breaking mutual exclusion and allowing a cache stampede. Reusing the existing lock
+// objects across rotations/clears trades bounded extra memory for correctness.
 func (km *KeysetManager) InvalidateCacheForTenant(tenantID, organizationID string) {
 	activeKey := buildCacheKey(tenantID, organizationID)
 	prefix := activeKey + ":"
@@ -513,23 +526,11 @@ func (km *KeysetManager) InvalidateCacheForTenant(tenantID, organizationID strin
 		}
 	}
 	km.mu.Unlock()
-
-	// Clean up per-key mutexes (active + all versions) to prevent unbounded growth.
-	km.fetchMu.Lock()
-	delete(km.fetching, activeKey)
-
-	for key := range km.fetching {
-		if strings.HasPrefix(key, prefix) {
-			delete(km.fetching, key)
-		}
-	}
-	km.fetchMu.Unlock()
 }
 
 // InvalidateCache removes the cached primitives for an organization in the default tenant.
 // For multi-tenant environments, use InvalidateCacheForTenant instead.
 // Call this after key rotation or when keyset is updated.
-// Also removes the per-organization mutex to prevent unbounded map growth.
 func (km *KeysetManager) InvalidateCache(organizationID string) {
 	km.InvalidateCacheForTenant("default", organizationID)
 }

@@ -965,6 +965,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	var tracerClose func() error
 	if closer, ok := tracerReserver.(interface{ Close() error }); ok {
 		tracerClose = closer.Close
+
+		// Register the transport teardown in the startup cleanup stack so the
+		// gRPC ClientConn is closed if a later startup step (route setup, readyz
+		// handler) fails — not only on the happy SIGTERM path via Run().
+		addCleanup(func() { _ = tracerClose() })
 	}
 
 	// Transaction handlers
@@ -1054,7 +1059,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// === Readyz handler ===
 
 	// metricsFactory derived once with the use cases (nil-safe: checked inside handler).
-	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, rmq, metricsFactory)
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, feeMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()
 

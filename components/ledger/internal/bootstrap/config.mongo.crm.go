@@ -48,11 +48,16 @@ type crmComponents struct {
 // the protection-metrics seam threaded into the encryption services is nil-safe and
 // degrades to a no-op emitter.
 func initCRM(opts *Options, cfg *Config, metricsFactory *metrics.MetricsFactory, logger libLog.Logger) (*crmComponents, error) {
-	if opts != nil && opts.MultiTenantEnabled {
+	// The effective tenant mode is decided HERE from opts, then threaded into
+	// encryption wiring so the keyset/envelope namespace mode always matches the
+	// CRM repo mode (opts and cfg.MultiTenantEnabled can diverge for callers that
+	// build them separately, e.g. the holder backfill path).
+	mtEnabled := opts != nil && opts.MultiTenantEnabled
+	if mtEnabled {
 		return initCRMMultiTenant(opts, cfg, metricsFactory, logger)
 	}
 
-	return initCRMSingleTenant(cfg, metricsFactory, logger)
+	return initCRMSingleTenant(mtEnabled, cfg, metricsFactory, logger)
 }
 
 // initCRMMultiTenant builds a 3rd tenant-manager Mongo manager (module crm-api)
@@ -78,7 +83,9 @@ func initCRMMultiTenant(opts *Options, cfg *Config, metricsFactory *metrics.Metr
 
 	mongoMgr := tmmongo.NewManager(opts.TenantClient, opts.TenantServiceName, mongoOpts...)
 
-	crmEnc, err := initCRMEncryption(context.Background(), cfg, nil, metricsFactory, logger)
+	// Multi-tenant CRM repos resolve the per-request tenant DB from context, so
+	// encryption is wired in multi-tenant mode (true) to match.
+	crmEnc, err := initCRMEncryption(context.Background(), cfg, nil, true, metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +109,9 @@ func initCRMMultiTenant(opts *Options, cfg *Config, metricsFactory *metrics.Metr
 
 // initCRMSingleTenant builds a static Mongo client from the CrmPrefixed* config
 // and wires the holder/instrument repos, use cases and handlers against it.
-func initCRMSingleTenant(cfg *Config, metricsFactory *metrics.MetricsFactory, logger libLog.Logger) (*crmComponents, error) {
+// multiTenantEnabled is the effective mode from initCRM (false here) threaded into
+// encryption wiring so the keyset/envelope namespace mode matches the repo mode.
+func initCRMSingleTenant(multiTenantEnabled bool, cfg *Config, metricsFactory *metrics.MetricsFactory, logger libLog.Logger) (*crmComponents, error) {
 	mongoSource, err := resolveCRMMongoURI(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -129,7 +138,7 @@ func initCRMSingleTenant(cfg *Config, metricsFactory *metrics.MetricsFactory, lo
 		return nil, fmt.Errorf("failed to create CRM MongoDB client: %w", err)
 	}
 
-	crmEnc, err := initCRMEncryption(context.Background(), cfg, mongoConnection, metricsFactory, logger)
+	crmEnc, err := initCRMEncryption(context.Background(), cfg, mongoConnection, multiTenantEnabled, metricsFactory, logger)
 	if err != nil {
 		return nil, err
 	}
