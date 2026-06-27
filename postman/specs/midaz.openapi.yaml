@@ -81,6 +81,10 @@ tags:
   - description: On-demand billing charge calculation.
     name: Midaz_Ledger_API_Billing Calculate
     x-displayName: Billing Calculate
+  - name: Midaz_Ledger_API_Encryption
+    x-displayName: Encryption
+  - name: Midaz_Ledger_API_Protection
+    x-displayName: Protection
   - description: CEL-based validation rules.
     name: Midaz_Tracer_API_Rules
     x-displayName: Rules
@@ -918,6 +922,126 @@ paths:
       tags:
         - Midaz_Ledger_API_Billing Calculate
       x-codegen-request-body-name: billingCalculate
+  /v1/organizations/{organization_id}/encryption/provision:
+    servers:
+      - url: http://localhost:3002/
+      - url: https://localhost:3002/
+    post:
+      description: >-
+        Provisions an organization for envelope encryption by generating keysets
+        and registering the organization.
+      parameters:
+        - description: "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled."
+          in: header
+          name: Authorization
+          schema:
+            type: string
+        - description: The unique identifier of the Organization.
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionEncryptionRequest'
+        description: Provision Input
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisionEncryptionResponse'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: >-
+            Not Found - encryption provisioning is unavailable when the service
+            runs in legacy mode
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Provision an Organization for Envelope Encryption
+      tags:
+        - Midaz_Ledger_API_Encryption
+      x-codegen-request-body-name: input
+  /v1/organizations/{organization_id}/encryption/status:
+    servers:
+      - url: http://localhost:3002/
+      - url: https://localhost:3002/
+    get:
+      description: >-
+        Retrieves the current provisioning status for an organization's envelope
+        encryption.
+      parameters:
+        - description: "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled."
+          in: header
+          name: Authorization
+          schema:
+            type: string
+        - description: The unique identifier of the Organization.
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatusResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: >-
+            Not Found - encryption provisioning is unavailable when the service
+            runs in legacy mode
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: Get Provisioning Status
+      tags:
+        - Midaz_Ledger_API_Encryption
   /v1/organizations/{organization_id}/estimates:
     servers:
       - url: http://localhost:3002/
@@ -8786,6 +8910,89 @@ paths:
       tags:
         - Midaz_Ledger_API_Packages
       x-codegen-request-body-name: package
+  /v1/organizations/{organization_id}/protection/audit:
+    servers:
+      - url: http://localhost:3002/
+      - url: https://localhost:3002/
+    get:
+      description: >-
+        Returns the protection audit events for an organization, filtered by
+        action, actor, outcome, and time range, with cursor pagination.
+      parameters:
+        - description: "The authorization token in the 'Bearer\taccess_token' format. Only required when auth plugin is enabled."
+          in: header
+          name: Authorization
+          schema:
+            type: string
+        - description: The unique identifier of the Organization.
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            type: string
+        - description: Maximum number of events to return (default 20).
+          in: query
+          name: limit
+          schema:
+            type: integer
+        - description: Opaque pagination cursor.
+          in: query
+          name: cursor
+          schema:
+            type: string
+        - description: 'Sort order: asc or desc (default desc).'
+          in: query
+          name: sort_order
+          schema:
+            type: string
+        - description: Filter by action.
+          in: query
+          name: action
+          schema:
+            type: string
+        - description: Filter by actor.
+          in: query
+          name: actor
+          schema:
+            type: string
+        - description: 'Filter by outcome: success, failure, or already_exists.'
+          in: query
+          name: outcome
+          schema:
+            type: string
+        - description: Inclusive lower time bound (yyyy-mm-dd or RFC3339).
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - description: Inclusive upper time bound (yyyy-mm-dd or RFC3339).
+          in: query
+          name: end_date
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: >-
+                  #/components/schemas/internal_adapters_http_in.auditEventsEnvelope
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Bad Request
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/pkg.HTTPError'
+          description: Internal Server Error
+      summary: List Protection Audit Events
+      tags:
+        - Midaz_Ledger_API_Protection
   /v1/settings/metadata-indexes:
     servers:
       - url: http://localhost:3002/
@@ -15705,6 +15912,76 @@ components:
           example: '1.50'
           type: string
       type: object
+    ProvisionEncryptionRequest:
+      description: ProvisionEncryptionRequest payload
+      example:
+        actor: admin@example.com
+        reason: Initial encryption setup
+      properties:
+        actor:
+          description: The actor performing the provisioning operation.
+          example: admin@example.com
+          type: string
+        reason:
+          description: The reason for provisioning the organization.
+          example: Initial encryption setup
+          type: string
+      required:
+        - actor
+        - reason
+      type: object
+    ProvisionEncryptionResponse:
+      description: ProvisionEncryptionResponse payload
+      example:
+        organization_id: 00000000-0000-0000-0000-000000000000
+        aead_primary_key_id: 1
+        prf_primary_key_id: 1
+        kek_path: org-00000000-0000-0000-0000-000000000000
+        status: active
+      properties:
+        aead_primary_key_id:
+          description: The primary key ID for AEAD encryption.
+          example: 1
+          type: integer
+        kek_path:
+          description: The path to the Key Encryption Key in Vault.
+          example: org-00000000-0000-0000-0000-000000000000
+          type: string
+        organization_id:
+          description: The unique identifier of the organization.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        prf_primary_key_id:
+          description: The primary key ID of the PRF search-token keyset.
+          example: 1
+          type: integer
+        status:
+          description: The current provisioning status.
+          example: active
+          type: string
+      type: object
+    ProvisioningStatusResponse:
+      description: ProvisioningStatusResponse payload
+      example:
+        provisioned: true
+        organization_id: 00000000-0000-0000-0000-000000000000
+        status: active
+      properties:
+        organization_id:
+          description: The unique identifier of the organization.
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        provisioned:
+          description: >-
+            Whether the organization has been provisioned for envelope
+            encryption.
+          example: true
+          type: boolean
+        status:
+          description: The current provisioning status.
+          example: active
+          type: string
+      type: object
     Rate:
       description: >-
         Rate is the struct designed to represent the rate fields of an
@@ -17285,6 +17562,95 @@ components:
             entry note for identification.
           example: Charge Settlement
           maxLength: 255
+          type: string
+      type: object
+    internal_adapters_http_in.auditEventResponse:
+      example:
+        actor: actor
+        reason: reason
+        to_status: to_status
+        action: action
+        from_status: from_status
+        id: id
+        request_id: request_id
+        outcome: outcome
+        timestamp: timestamp
+      properties:
+        action:
+          type: string
+        actor:
+          type: string
+        from_status:
+          type: string
+        id:
+          type: string
+        outcome:
+          type: string
+        reason:
+          type: string
+        request_id:
+          type: string
+        timestamp:
+          type: string
+        to_status:
+          type: string
+      type: object
+    internal_adapters_http_in.auditEventsEnvelope:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        organization_id: organization_id
+        limit: 0
+        items:
+          - actor: actor
+            reason: reason
+            to_status: to_status
+            action: action
+            from_status: from_status
+            id: id
+            request_id: request_id
+            outcome: outcome
+            timestamp: timestamp
+          - actor: actor
+            reason: reason
+            to_status: to_status
+            action: action
+            from_status: from_status
+            id: id
+            request_id: request_id
+            outcome: outcome
+            timestamp: timestamp
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/internal_adapters_http_in.auditEventResponse'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        organization_id:
+          type: string
+        prev_cursor:
+          type: string
+      type: object
+    pkg.HTTPError:
+      example:
+        code: code
+        err: '{}'
+        entityType: entityType
+        message: message
+        title: title
+      properties:
+        code:
+          type: string
+        entityType:
+          type: string
+        err:
+          type: object
+        message:
+          type: string
+        title:
           type: string
       type: object
     _v1_organizations_get_200_response:
@@ -20339,6 +20705,8 @@ x-tagGroups:
       - Midaz_Ledger_API_Fees
       - Midaz_Ledger_API_Billing Packages
       - Midaz_Ledger_API_Billing Calculate
+      - Midaz_Ledger_API_Encryption
+      - Midaz_Ledger_API_Protection
   - name: Midaz Tracer API
     tags:
       - Midaz_Tracer_API_Rules
