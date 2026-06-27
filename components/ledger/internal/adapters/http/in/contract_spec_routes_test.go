@@ -69,9 +69,10 @@ func canonicalizePath(p string) string {
 // over a single Fiber app with zero-value handlers and a disabled auth client.
 // Registration never invokes the handlers, so nil-backed handler structs are
 // safe; this mirrors the registrar-composition pattern in fees_routes_test.go /
-// routes_test.go. The composition GET holder-accounts route mounts only when the
-// HolderAccountsHandler is non-nil, so we pass a non-nil one to match the served
-// contract.
+// routes_test.go. Routes that mount only when their handler is non-nil — the
+// composition GET holder-accounts route, and the encryption/audit routes (envelope
+// mode only) — get non-nil zero-value handlers so the full surface matches the
+// served contract.
 func buildUnifiedRouteSurface() *fiber.App {
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
@@ -92,7 +93,8 @@ func buildUnifiedRouteSurface() *fiber.App {
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)
 	RegisterCRMRoutesToApp(app, auth,
-		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{}, nil, nil, nil)
+		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
+		&EncryptionHandler{}, &AuditHandler{}, nil)
 	RegisterFeesRoutesToApp(app, auth,
 		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
 	RegisterCompositionRoutesToApp(app, auth, &CompositionHandler{}, nil)
