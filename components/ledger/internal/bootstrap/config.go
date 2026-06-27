@@ -437,6 +437,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
+	// Domain-metrics factory (D6): derived once from telemetry (nil when
+	// telemetry is disabled) and shared across every use case so
+	// utils.RecordDomainOperation emits the bounded domain_operations_total /
+	// domain_operation_duration_ms series. Also threaded into CRM field-encryption
+	// wiring below (protection metrics) and reused for the readyz handler.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	// Register telemetry providers as process-global so that the otelzap bridge
 	// (installed in the logger core) can forward log records to the OTLP exporter.
 	if err := telemetry.ApplyGlobals(); err != nil {
@@ -566,11 +576,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// standalone CRM service in P3). Single-tenant builds a static client;
 	// multi-tenant builds a 3rd crm-api tenant Mongo manager. Field encryption
 	// (legacy or KMS envelope) is wired here and injected into the repos.
-	// metricsFactory is nil at this point (telemetry is wired below); the
-	// protection-metrics seam is nil-safe and degrades to a no-op emitter.
+	// metricsFactory (derived from telemetry above) feeds the encryption
+	// protection-metrics seam; the seam is nil-safe if telemetry is disabled.
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing CRM MongoDB...")
 
-	crmMgo, err := initCRM(internalOpts, cfg, nil, logger)
+	crmMgo, err := initCRM(internalOpts, cfg, metricsFactory, logger)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize CRM MongoDB: %w", err)
@@ -808,15 +818,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// === Use cases ===
-
-	// Domain-metrics factory (D6): derived once from telemetry (nil when
-	// telemetry is disabled) and shared across every use case so
-	// utils.RecordDomainOperation emits the bounded domain_operations_total /
-	// domain_operation_duration_ms series. Reused below for the readyz handler.
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
 
 	// Arm lib-observability's panic-observability trident so every
 	// libRuntime.SafeGo* call site (e.g. the Redis backup-consumer replay
