@@ -338,6 +338,13 @@ func (s *provisioningService) buildKeysetsWithMountRecovery(ctx context.Context,
 		return keyset, verbatim, err
 	}
 
+	// Fast-fail on a cancelled context before issuing the mount-create call. The
+	// bare context error is returned verbatim (Is-comparable) so the caller does
+	// not mask it as a business error.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, true, ctxErr
+	}
+
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	if createErr := s.mountProvisioner.EnsureTransitMount(ctx, mount); createErr != nil {
@@ -356,6 +363,12 @@ func (s *provisioningService) buildKeysetsWithMountRecovery(ctx context.Context,
 	if logger != nil {
 		logger.Log(ctx, libLog.LevelInfo, "transit mount auto-created",
 			libLog.String("mount_path", mount))
+	}
+
+	// Fast-fail on a cancelled context before the single retry build. The bare
+	// context error is returned verbatim so the caller does not mask it.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, true, ctxErr
 	}
 
 	return s.buildProvisioningKeysets(ctx, req, mount, kekPath)

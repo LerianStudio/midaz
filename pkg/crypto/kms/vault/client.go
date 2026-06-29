@@ -217,8 +217,16 @@ func (c *Client) EnsureTransitMount(ctx context.Context, mountPath string) error
 		return fmt.Errorf("vault: empty mount path")
 	}
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("vault: context error before transit mount: %w", err)
+	}
+
 	if err := c.ensureAuthenticated(ctx); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("vault: context error before transit mount: %w", err)
 	}
 
 	err := c.vaultAPI.Sys().MountWithContext(ctx, mountPath, &api.MountInput{Type: "transit"})

@@ -535,6 +535,56 @@ func TestProvisioningService_Provision_MountNotFoundOnRetry_NoSecondCreate(t *te
 	assert.Equal(t, 2, keysetGenerator.aeadCalled, "the build runs once before and once after the single mount create")
 }
 
+// cancelOnMountMissingGenerator returns ErrMountNotFound on the first AEAD
+// generation and cancels the context at the same point, modelling a missing
+// mount observed just as the request is cancelled.
+type cancelOnMountMissingGenerator struct {
+	*fakeKeysetGenerator
+	cancel context.CancelFunc
+}
+
+func (g *cancelOnMountMissingGenerator) GenerateAEADKeyset(_ context.Context, mountPath, _ string) (tink.KeysetBundle, error) {
+	g.fakeKeysetGenerator.aeadCalled++
+	g.fakeKeysetGenerator.aeadMountPath = mountPath
+	g.cancel()
+
+	return tink.KeysetBundle{}, fmt.Errorf("wrap aead: %w", vault.ErrMountNotFound)
+}
+
+func TestProvisioningService_Provision_ContextCanceledBeforeMountCreate(t *testing.T) {
+	t.Parallel()
+
+	const tenantID = "11111111-2222-3333-4444-555555555555"
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	keysetRepo := newFakeKeysetRepoForProv()
+	registryRepo := newFakeRegistryRepoForProv()
+	keysetGenerator := &cancelOnMountMissingGenerator{fakeKeysetGenerator: newFakeKeysetGenerator(), cancel: cancel}
+	mountProvisioner := &fakeMountProvisioner{}
+
+	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
+		ProvisioningConfig{KEKMountPath: "transit", MultiTenant: true},
+		newSpyAuditWriter(), NewProtectionMetrics(nil), nil, mountProvisioner)
+
+	req := ProvisionInput{
+		TenantID:       tenantID,
+		OrganizationID: "org-456",
+		Actor:          "admin@example.com",
+		Reason:         "Initial provisioning",
+	}
+
+	_, err := svc.Provision(ctx, req)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled, "a cancelled context before mount-create must be returned verbatim")
+	assert.Equal(t, 0, mountProvisioner.calls, "a cancelled context must skip the mount create entirely")
+
+	var internalErr pkg.InternalServerError
+	assert.NotErrorAs(t, err, &internalErr, "verbatim context error must not be masked as a business error")
+
+	assert.Empty(t, keysetRepo.keysets, "no keyset should be saved when the context is cancelled")
+}
+
 // TestKeysetGenerator_SeamExposesMixedGeneration is the T-1.2.1 seam gate: the
 // KeysetGenerator seam MUST expose mixed (legacy + fresh) generation methods so
 // the migration path (T-1.2.2) can route to them. This test only exercises the

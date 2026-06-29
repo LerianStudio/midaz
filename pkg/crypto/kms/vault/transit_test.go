@@ -720,17 +720,17 @@ func TestEnsureTransitMount(t *testing.T) {
 		assert.Contains(t, err.Error(), "transit/tenant-x", "mount path should be included in error")
 	})
 
-	t.Run("empty mount path returns guard error without HTTP call", func(t *testing.T) {
+	t.Run("empty mount path returns guard error without any HTTP call", func(t *testing.T) {
 		t.Parallel()
 
-		var called atomic.Bool
+		var requests atomic.Int32
 
-		server := newTestServer(t, map[string]http.HandlerFunc{
-			"/v1/sys/mounts/": func(w http.ResponseWriter, r *http.Request) {
-				called.Store(true)
-				w.WriteHeader(http.StatusNoContent)
-			},
-		})
+		// Count EVERY inbound request, including the AppRole login, so a regression
+		// that authenticated before the empty-path guard would be caught here.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			requests.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		}))
 		defer server.Close()
 
 		client, err := NewClient(Config{
@@ -745,7 +745,38 @@ func TestEnsureTransitMount(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty mount path")
-		assert.False(t, called.Load(), "no HTTP call must be made for an empty mount path")
+		assert.Equal(t, int32(0), requests.Load(), "no HTTP call (login or mount) must be made for an empty mount path")
+	})
+
+	t.Run("cancelled context fast-fails without any HTTP call", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+
+		// Count EVERY inbound request, including the AppRole login, so a regression
+		// that authenticated before the context guard would be caught here.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			requests.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer server.Close()
+
+		client, err := NewClient(Config{
+			Addr:       server.URL,
+			AuthMethod: AuthMethodAppRole,
+			RoleID:     "role-123",
+			SecretID:   "secret-456",
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err = client.EnsureTransitMount(ctx, "transit/tenant-x")
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Equal(t, int32(0), requests.Load(), "no auth or mount HTTP call must be made on a cancelled context")
 	})
 }
 
