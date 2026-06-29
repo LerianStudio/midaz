@@ -83,7 +83,7 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 // CreateTransactionBlock method that creates a block transaction
 //
 //	@Summary		Create a Block Transaction
-//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. Block transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.
+//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the `pending` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
@@ -124,7 +124,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 // CreateTransactionUnblock method that creates an unblock transaction
 //
 //	@Summary		Create an Unblock Transaction
-//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. Unblock transactions are direct ACTIVE transfers (they post immediately and are NOT pending), accepting the same body as the JSON create endpoint.
+//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the `pending` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json

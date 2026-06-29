@@ -297,17 +297,9 @@ type Transaction struct {
 	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
-	// OperationTypeOverride is a semantic Operation.Type marker (e.g. BLOCK/UNBLOCK)
-	// that overrides the default DEBIT/CREDIT type label on constructed operations
-	// without changing accounting direction or amount. Empty by default. Internal
-	// field — populated during processing, not part of the API contract.
-	//
-	// Invariant: this marker is honored ONLY on the standard single-entry path
-	// (buildStandardOp). The double-entry PENDING/CANCELED builders do NOT apply
-	// it. Block/unblock are direct ACTIVE transfers and must never be expressed
-	// as PENDING/CANCELED double-entry flows; the IsDoubleEntrySource gate
-	// (validations.go) keeps them on the standard path by design. The producer
-	// that sets this field is the block/unblock handlers, wired in a later task.
+	// OperationTypeOverride overrides the persisted Operation.Type label
+	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
+	// Internal field; populated during processing and excluded from the API contract.
 	OperationTypeOverride string `json:"-" swaggerignore:"true"`
 } // @name TransactionInput
 
