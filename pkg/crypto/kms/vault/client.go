@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/vault/api"
@@ -206,6 +207,55 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// EnsureTransitMount creates a Transit secrets-engine mount at mountPath.
+// It is idempotent: a mount already present at mountPath is treated as success.
+// mountPath must be non-empty.
+func (c *Client) EnsureTransitMount(ctx context.Context, mountPath string) error {
+	if mountPath == "" {
+		return fmt.Errorf("vault: empty mount path")
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("vault: context error before transit mount: %w", err)
+	}
+
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("vault: context error before transit mount: %w", err)
+	}
+
+	err := c.vaultAPI.Sys().MountWithContext(ctx, mountPath, &api.MountInput{Type: "transit"})
+	if err != nil {
+		if isMountAlreadyExists(err) {
+			return nil
+		}
+
+		return fmt.Errorf("vault: enable transit mount %q: %w", mountPath, err)
+	}
+
+	return nil
+}
+
+// isMountAlreadyExists reports whether err indicates that the targeted mount
+// path is already in use. Vault surfaces this as an HTTP 400 *api.ResponseError
+// with a body containing "path is already in use". Matching the conflict closes
+// the TOCTOU window between two concurrent mount attempts.
+func isMountAlreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var respErr *api.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusBadRequest {
+		return strings.Contains(strings.ToLower(err.Error()), "already in use")
+	}
+
+	return false
 }
 
 // logical returns the Vault logical client for Transit operations.
