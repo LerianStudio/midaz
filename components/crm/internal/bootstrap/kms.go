@@ -74,7 +74,7 @@ func initVaultClient(ctx context.Context, cfg *Config, logger libLog.Logger) (*v
 	// the safe default so the logged base always matches what is actually wired
 	// downstream and is never blank.
 	logger.Log(ctx, libLog.LevelInfo, "Vault client initialized",
-		libLog.String("base_mount_path", resolveBaseMountPath(cfg.VaultMountPath)))
+		libLog.String("base_mount_path", resolveBaseMountPath(cfg.VaultMountPath, cfg.MultiTenantEnabled)))
 
 	return client, nil
 }

@@ -60,7 +60,7 @@ func TestConfig_VaultMountPathDefault(t *testing.T) {
 
 	require.True(t, vaultMountPath.IsValid(), "VaultMountPath field must be accessible via reflection")
 	assert.Empty(t, vaultMountPath.String(),
-		"VaultMountPath must default to empty string (zero value); bootstrap layer applies 'transit' default")
+		"VaultMountPath must default to empty string (zero value); bootstrap layer applies the mode-derived default")
 
 	// Verify field type
 	assert.Equal(t, "string", field.Type.String(),
@@ -314,81 +314,119 @@ func TestWireEncryptionServices_UsesVaultMountPathFromConfig(t *testing.T) {
 		"ProvisioningService must be wired with custom vault mount path")
 }
 
-func TestWireEncryptionServices_DefaultsVaultMountPathToTransit(t *testing.T) {
+func TestWireEncryptionServices_DefaultsVaultMountPathToModeDefault(t *testing.T) {
 	t.Parallel()
 
-	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "", // Empty should default to "transit"
-	})
+	tests := []struct {
+		name        string
+		multiTenant bool
+	}{
+		{name: "multi-tenant defaults to transit-mt", multiTenant: true},
+		{name: "single-tenant defaults to transit-st", multiTenant: false},
+	}
 
-	require.NoError(t, result.err,
-		"testWireEncryptionServicesWithMocks must not return error with empty vault mount path (defaults to transit)")
-	require.NotNil(t, result.provisioningService,
-		"ProvisioningService must be wired with default vault mount path")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
+				mode:           encryptionModeEnvelope,
+				vaultClient:    &mockEncryptionVaultClient{},
+				keysetRepo:     &mockKeysetRepo{},
+				registryRepo:   &mockRegistryRepo{},
+				legacyCrypto:   nil,
+				vaultMountPath: "", // Empty should default to the mode-derived mount.
+				multiTenant:    tt.multiTenant,
+			})
+
+			require.NoError(t, result.err,
+				"testWireEncryptionServicesWithMocks must not return error with empty vault mount path (defaults to mode-derived mount)")
+			require.NotNil(t, result.provisioningService,
+				"ProvisioningService must be wired with the mode-derived default vault mount path")
+		})
+	}
 }
 
 func TestResolveBaseMountPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		configured string
-		want       string
+		name        string
+		configured  string
+		multiTenant bool
+		want        string
 	}{
 		{
-			name:       "empty falls back to default",
-			configured: "",
-			want:       defaultKEKMountPath,
+			name:        "unset falls back to multi-tenant default",
+			configured:  "",
+			multiTenant: true,
+			want:        defaultMountPathMultiTenant,
 		},
 		{
-			name:       "whitespace-only falls back to default",
-			configured: "  ",
-			want:       defaultKEKMountPath,
+			name:        "unset falls back to single-tenant default",
+			configured:  "",
+			multiTenant: false,
+			want:        defaultMountPathSingleTenant,
 		},
 		{
-			name:       "slash-only falls back to default",
-			configured: "/",
-			want:       defaultKEKMountPath,
+			name:        "whitespace-only falls back to multi-tenant default",
+			configured:  "  ",
+			multiTenant: true,
+			want:        defaultMountPathMultiTenant,
 		},
 		{
-			name:       "slashes and whitespace fall back to default",
-			configured: " // ",
-			want:       defaultKEKMountPath,
+			name:        "whitespace-only falls back to single-tenant default",
+			configured:  "  ",
+			multiTenant: false,
+			want:        defaultMountPathSingleTenant,
 		},
 		{
-			name:       "surrounding slashes are trimmed to the effective mount",
-			configured: "/transit/",
-			want:       "transit",
+			name:        "slash-only falls back to multi-tenant default",
+			configured:  "/",
+			multiTenant: true,
+			want:        defaultMountPathMultiTenant,
 		},
 		{
-			name:       "surrounding slashes and whitespace are trimmed to the effective mount",
-			configured: " /transit/ ",
-			want:       "transit",
+			name:        "slash-only falls back to single-tenant default",
+			configured:  "/",
+			multiTenant: false,
+			want:        defaultMountPathSingleTenant,
 		},
 		{
-			name:       "real value is preserved",
-			configured: "transit",
-			want:       "transit",
+			name:        "slash-wrapped explicit wins in multi-tenant (normalized)",
+			configured:  "/transit/",
+			multiTenant: true,
+			want:        "transit",
 		},
 		{
-			name:       "custom value is preserved",
-			configured: "crm-transit",
-			want:       "crm-transit",
+			name:        "slash-wrapped explicit wins in single-tenant (normalized)",
+			configured:  "/transit/",
+			multiTenant: false,
+			want:        "transit",
 		},
 		{
-			name:       "surrounding whitespace is trimmed but value kept",
-			configured: "  transit  ",
-			want:       "transit",
+			name:        "explicit custom wins in multi-tenant",
+			configured:  "crm-transit",
+			multiTenant: true,
+			want:        "crm-transit",
 		},
 		{
-			name:       "surrounding newlines and slashes are trimmed to the effective mount",
-			configured: "\n/transit/\n",
-			want:       "transit",
+			name:        "explicit custom wins in single-tenant",
+			configured:  "crm-transit",
+			multiTenant: false,
+			want:        "crm-transit",
+		},
+		{
+			name:        "surrounding whitespace is trimmed but explicit value kept",
+			configured:  "  transit  ",
+			multiTenant: true,
+			want:        "transit",
+		},
+		{
+			name:        "surrounding newlines and slashes are trimmed to the effective mount",
+			configured:  "\n/transit/\n",
+			multiTenant: false,
+			want:        "transit",
 		},
 	}
 
@@ -396,11 +434,26 @@ func TestResolveBaseMountPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := resolveBaseMountPath(tt.configured)
+			got := resolveBaseMountPath(tt.configured, tt.multiTenant)
 			assert.Equal(t, tt.want, got,
-				"resolveBaseMountPath(%q) must resolve to %q (never blank or a leading-slash mount)",
-				tt.configured, tt.want)
+				"resolveBaseMountPath(%q, multiTenant=%v) must resolve to %q (never blank or a leading-slash mount)",
+				tt.configured, tt.multiTenant, tt.want)
 		})
+	}
+}
+
+// TestResolveBaseMountPath_ExplicitOverrideIdenticalAcrossModes asserts that an
+// explicitly configured mount resolves identically regardless of the multi-tenant
+// flag: explicit values always win and the mode only selects the unset default.
+func TestResolveBaseMountPath_ExplicitOverrideIdenticalAcrossModes(t *testing.T) {
+	t.Parallel()
+
+	for _, configured := range []string{"crm-transit", "/transit/", "  transit  "} {
+		mt := resolveBaseMountPath(configured, true)
+		st := resolveBaseMountPath(configured, false)
+		assert.Equal(t, mt, st,
+			"explicit mount %q must resolve identically in both modes (got mt=%q st=%q)",
+			configured, mt, st)
 	}
 }
 
@@ -837,6 +890,7 @@ type testWireEncryptionServicesInput struct {
 	registryRepo         any // Mock implementing RegistryReader and RegistryWriter
 	legacyCrypto         encryption.LegacyCrypto
 	vaultMountPath       string
+	multiTenant          bool
 	allowGracefulDegrade bool
 }
 
@@ -910,10 +964,10 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Resolve Vault mount path with default
+	// Resolve Vault mount path with the mode-derived default, mirroring production.
 	vaultMountPath := input.vaultMountPath
 	if vaultMountPath == "" {
-		vaultMountPath = defaultKEKMountPath
+		vaultMountPath = defaultMountPath(input.multiTenant)
 	}
 
 	// Wire ProtectionStateResolver with RegistryRepository

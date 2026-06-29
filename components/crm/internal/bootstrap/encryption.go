@@ -17,22 +17,38 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 )
 
-// defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
-const defaultKEKMountPath = "transit"
+// Default Vault Transit base mounts for KEK operations. The default is derived
+// from the deployment mode so multi-tenant and single-tenant instances do not
+// collide on the same mount when KMS_VAULT_MOUNT_PATH is unset.
+const (
+	defaultMountPathMultiTenant  = "transit-mt"
+	defaultMountPathSingleTenant = "transit-st"
+)
+
+// defaultMountPath returns the mode-derived default base mount: "transit-mt" for
+// multi-tenant, "transit-st" for single-tenant.
+func defaultMountPath(multiTenant bool) string {
+	if multiTenant {
+		return defaultMountPathMultiTenant
+	}
+
+	return defaultMountPathSingleTenant
+}
 
 // resolveBaseMountPath is the SINGLE base-mount normalizer: base normalization
 // lives here, not in resolveMount. It resolves the base Vault Transit mount,
 // trimming surrounding slashes/whitespace so the returned base equals the effective
-// mount used downstream. Empty/whitespace/slash-only input falls back to the default
-// "transit"; never blank. Callers inject the result as the pre-normalized base that
-// resolveMount consumes verbatim.
-func resolveBaseMountPath(configured string) string {
+// mount used downstream. Empty/whitespace/slash-only input falls back to the
+// mode-derived default (see defaultMountPath); never blank. An explicitly configured
+// value always wins and is returned normalized. Callers inject the result as the
+// pre-normalized base that resolveMount consumes verbatim.
+func resolveBaseMountPath(configured string, multiTenant bool) string {
 	// One cutset for guard and returned value so they cannot drift.
 	const cut = "/ \t\n"
 
 	trimmed := strings.Trim(configured, cut)
 	if trimmed == "" {
-		return defaultKEKMountPath
+		return defaultMountPath(multiTenant)
 	}
 
 	return trimmed
@@ -150,7 +166,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 	}
 
 	// Resolve the base Vault Transit mount once (see resolveBaseMountPath).
-	baseMountPath := resolveBaseMountPath(input.vaultMountPath)
+	baseMountPath := resolveBaseMountPath(input.vaultMountPath, input.multiTenant)
 
 	// Wire ProtectionStateResolver with RegistryRepository
 	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo, pm)
