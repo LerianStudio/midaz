@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -84,10 +85,14 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	txID1, _ := uuid.Parse(txID1Str)
 	txID2, _ := uuid.Parse(txID2Str)
 
+	// Explicit non-zero dates so ApplyDefaultDateRange is a no-op and the
+	// strict filter expectations below match unchanged.
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	metadataList := []*mongodb.Metadata{
@@ -201,9 +206,11 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 
 	collection := constant.EntityTransaction
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"k": "v"},
-		Limit:    10,
-		Page:     1,
+		Metadata:  &bson.M{"k": "v"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 	}
 
 	// Return an empty, non-nil slice to hit the early-return branch.
@@ -221,4 +228,70 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+}
+
+// TestGetAllMetadataTransactions_AppliesDefaultDateRange ensures that when the
+// caller passes no date window, GetAllMetadataTransactions applies the default
+// window before reaching the protected transaction repository, so the repo never
+// receives a zero-date (unbounded) filter.
+func TestGetAllMetadataTransactions_AppliesDefaultDateRange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	// No StartDate/EndDate: the use case must inject the default window.
+	filter := http.QueryHeader{
+		Metadata: &bson.M{"key": "value"},
+		Limit:    10,
+		Page:     1,
+	}
+
+	metadataList := []*mongodb.Metadata{
+		{
+			ID:       bson.NewObjectID(),
+			EntityID: txID.String(),
+			Data:     map[string]any{"key": "value"},
+		},
+	}
+
+	// FindList must receive a windowed QueryHeader (non-zero, ordered dates).
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
+		Return(metadataList, nil)
+
+	// FindOrListAllWithOperations must receive the same windowed pagination.
+	mockTransactionRepo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
+		Return([]*transaction.Transaction{{ID: txID.String()}}, libHTTP.CursorPagination{}, nil)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+// isWindowed reports whether a date window is non-zero and correctly ordered.
+// It avoids asserting against time.Now() directly.
+func isWindowed(start, end time.Time) bool {
+	return !start.IsZero() && !end.IsZero() && !start.After(end)
 }

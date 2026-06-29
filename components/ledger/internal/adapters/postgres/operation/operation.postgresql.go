@@ -553,9 +553,13 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("transaction_id = ?", transactionID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -1177,9 +1181,13 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("account_id = ?", accountID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
 
 	if !libCommons.IsNilOrEmpty(opFilter.OperationType) {
 		findAll = findAll.Where(squirrel.Expr("type = ?", *opFilter.OperationType))

@@ -267,10 +267,15 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Where(squirrel.Eq{"deleted_at": nil})
+
+	if !pagination.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
+	}
+
+	findAll = findAll.OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
 		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
 		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
