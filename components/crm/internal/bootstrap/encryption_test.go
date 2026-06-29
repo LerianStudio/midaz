@@ -1020,7 +1020,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		keysetRepo,
 		registryRepo,
 		mockGenerator,
-		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath},
+		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath, MultiTenant: input.multiTenant},
 		stubAuditWriter{},
 		encryption.NewProtectionMetrics(nil),
 		nil,
