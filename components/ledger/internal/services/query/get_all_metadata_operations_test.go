@@ -314,7 +314,7 @@ func TestGetAllMetadataOperations_AppliesDefaultDateRange(t *testing.T) {
 
 	metadataList := []*mongodb.Metadata{
 		{
-			ID:       primitive.NewObjectID(),
+			ID:       bson.NewObjectID(),
 			EntityID: opID.String(),
 			Data:     map[string]any{"key": "value"},
 		},
