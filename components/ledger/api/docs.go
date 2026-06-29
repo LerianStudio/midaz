@@ -6781,7 +6781,7 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
             "post": {
-                "description": "Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the ` + "`" + `pending` + "`" + ` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.",
+                "description": "Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the ` + "`" + `pending` + "`" + ` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7354,7 +7354,7 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
             "post": {
-                "description": "Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the ` + "`" + `pending` + "`" + ` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.",
+                "description": "Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the ` + "`" + `pending` + "`" + ` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.",
                 "consumes": [
                     "application/json"
                 ],

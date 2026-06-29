@@ -209,6 +209,7 @@ func (infra *blockUnblockInfra) createTransfer(t *testing.T, endpoint, sourceAli
 
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "create request should not fail")
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err, "should read create response body")
@@ -237,6 +238,7 @@ func (infra *blockUnblockInfra) getJSON(t *testing.T, path string) map[string]an
 
 	resp, err := infra.app.Test(req, -1)
 	require.NoError(t, err, "GET %s should not fail", path)
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err, "should read GET %s response body", path)
