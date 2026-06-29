@@ -63,15 +63,9 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
 
-// buildOverriddenTransaction builds the Transaction exactly as the JSON path
-// does, then stamps the semantic operation-type marker (BLOCK/UNBLOCK) and
-// forces the transaction off the pending flow.
-//
-// Invariant (Epic 1.1): OperationTypeOverride is honored ONLY on the standard
-// single-entry path (buildStandardOp). The PENDING/CANCELED double-entry
-// builders silently drop it. Forcing Pending=false here guarantees
-// InitialStatus() resolves to CREATED, keeping block/unblock as direct ACTIVE
-// transfers on the path that honors the marker.
+// buildOverriddenTransaction builds the transaction from the input, forces
+// Pending=false (so InitialStatus resolves to non-pending), and stamps the
+// given OperationTypeOverride.
 func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransaction.CreateTransactionInput, operationType string) mtransaction.Transaction {
 	transactionInput := input.BuildTransaction()
 	transactionInput.Pending = false
@@ -83,7 +77,7 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 // CreateTransactionBlock method that creates a block transaction
 //
 //	@Summary		Create a Block Transaction
-//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the `pending` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
+//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
@@ -124,7 +118,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 // CreateTransactionUnblock method that creates an unblock transaction
 //
 //	@Summary		Create an Unblock Transaction
-//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates a direct ACTIVE transfer that posts immediately; the `pending` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
+//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json

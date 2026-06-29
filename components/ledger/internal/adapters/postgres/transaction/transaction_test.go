@@ -818,12 +818,8 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 		{
 			name: "revert drops directionless block and unblock legs",
 			transaction: Transaction{
-				// Defensive pin: reversalLegSide has no domain-reachable path for a
-				// directionless BLOCK/UNBLOCK op — op.Direction matches neither
-				// DirectionCredit nor DirectionDebit, so both isFrom and isTo are
-				// false and buildReversalLegs skips the op entirely (no From, no To).
-				// Pinned so a future change to reversalLegSide cannot start routing a
-				// directionless op without failing here.
+				// Defensive pin: a directionless BLOCK/UNBLOCK operation must not be
+				// routed into either reversal side (no From, no To).
 				Description: "Directionless block/unblock transaction",
 				AssetCode:   "USD",
 				Amount:      &totalAmount,
@@ -845,8 +841,7 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result mtransaction.Transaction) {
-				// reversalLegSide returns (false, false) for both ops, so neither
-				// leg is reconstructed on either side.
+				// Neither directionless leg is reconstructed on either side.
 				assert.Empty(t, result.Send.Source.From,
 					"directionless BLOCK/UNBLOCK legs must not reconstruct as From")
 				assert.Empty(t, result.Send.Distribute.To,
