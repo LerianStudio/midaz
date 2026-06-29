@@ -176,6 +176,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		input.auditWriter,
 		pm,
 		protectionStateResolver,
+		input.vaultClient,
 	)
 
 	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService.

@@ -970,6 +970,7 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		stubAuditWriter{},
 		encryption.NewProtectionMetrics(nil),
 		nil,
+		nil,
 	)
 
 	return wireEncryptionServicesOutput{

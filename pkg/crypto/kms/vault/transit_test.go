@@ -628,6 +628,127 @@ func TestClient_Decrypt_MissingMount(t *testing.T) {
 	})
 }
 
+func TestEnsureTransitMount(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success issues mount request with transit type", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			capturedMethod atomic.Value
+			capturedType   atomic.Value
+		)
+
+		server := newTestServer(t, map[string]http.HandlerFunc{
+			"/v1/sys/mounts/transit/tenant-x": func(w http.ResponseWriter, r *http.Request) {
+				capturedMethod.Store(r.Method)
+
+				var req map[string]any
+				json.NewDecoder(r.Body).Decode(&req)
+				capturedType.Store(req["type"])
+
+				w.WriteHeader(http.StatusNoContent)
+			},
+		})
+		defer server.Close()
+
+		client, err := NewClient(Config{
+			Addr:       server.URL,
+			AuthMethod: AuthMethodAppRole,
+			RoleID:     "role-123",
+			SecretID:   "secret-456",
+		})
+		require.NoError(t, err)
+
+		err = client.EnsureTransitMount(context.Background(), "transit/tenant-x")
+
+		require.NoError(t, err)
+		assert.Equal(t, http.MethodPost, capturedMethod.Load())
+		assert.Equal(t, "transit", capturedType.Load())
+	})
+
+	t.Run("400 path already in use is treated as success", func(t *testing.T) {
+		t.Parallel()
+
+		server := newTestServer(t, map[string]http.HandlerFunc{
+			"/v1/sys/mounts/transit/tenant-x": func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]any{
+					"errors": []string{"path is already in use at transit/tenant-x/"},
+				})
+			},
+		})
+		defer server.Close()
+
+		client, err := NewClient(Config{
+			Addr:       server.URL,
+			AuthMethod: AuthMethodAppRole,
+			RoleID:     "role-123",
+			SecretID:   "secret-456",
+		})
+		require.NoError(t, err)
+
+		err = client.EnsureTransitMount(context.Background(), "transit/tenant-x")
+
+		require.NoError(t, err, "an already-in-use mount path must be idempotent success")
+	})
+
+	t.Run("non-conflict error is surfaced", func(t *testing.T) {
+		t.Parallel()
+
+		server := newTestServer(t, map[string]http.HandlerFunc{
+			"/v1/sys/mounts/transit/tenant-x": func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]any{
+					"errors": []string{"internal server error"},
+				})
+			},
+		})
+		defer server.Close()
+
+		client, err := NewClient(Config{
+			Addr:       server.URL,
+			AuthMethod: AuthMethodAppRole,
+			RoleID:     "role-123",
+			SecretID:   "secret-456",
+		})
+		require.NoError(t, err)
+
+		err = client.EnsureTransitMount(context.Background(), "transit/tenant-x")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transit/tenant-x", "mount path should be included in error")
+	})
+
+	t.Run("empty mount path returns guard error without HTTP call", func(t *testing.T) {
+		t.Parallel()
+
+		var called atomic.Bool
+
+		server := newTestServer(t, map[string]http.HandlerFunc{
+			"/v1/sys/mounts/": func(w http.ResponseWriter, r *http.Request) {
+				called.Store(true)
+				w.WriteHeader(http.StatusNoContent)
+			},
+		})
+		defer server.Close()
+
+		client, err := NewClient(Config{
+			Addr:       server.URL,
+			AuthMethod: AuthMethodAppRole,
+			RoleID:     "role-123",
+			SecretID:   "secret-456",
+		})
+		require.NoError(t, err)
+
+		err = client.EnsureTransitMount(context.Background(), "")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "empty mount path")
+		assert.False(t, called.Load(), "no HTTP call must be made for an empty mount path")
+	})
+}
+
 func TestClient_EncryptDecrypt_RoundTrip(t *testing.T) {
 	t.Parallel()
 
