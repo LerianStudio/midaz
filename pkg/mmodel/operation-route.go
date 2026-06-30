@@ -45,7 +45,7 @@ type AccountingEntry struct {
 
 // AccountingEntries groups accounting entries by transaction action type.
 //
-// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, refund).
+// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, block, unblock).
 type AccountingEntries struct {
 	// The accounting entry for the direct action.
 	Direct *AccountingEntry `json:"direct,omitempty" msgpack:"direct"`
@@ -62,6 +62,10 @@ type AccountingEntries struct {
 	// repayment (deficit shrinks). Both rubrics are REQUIRED when this entry
 	// is present.
 	Overdraft *AccountingEntry `json:"overdraft,omitempty" msgpack:"overdraft"`
+	// The accounting entry for the block action.
+	Block *AccountingEntry `json:"block,omitempty" msgpack:"block"`
+	// The accounting entry for the unblock action.
+	Unblock *AccountingEntry `json:"unblock,omitempty" msgpack:"unblock"`
 } // @name AccountingEntries
 
 // Actions returns the action names for which this AccountingEntries has non-nil entries.
@@ -94,6 +98,14 @@ func (ae *AccountingEntries) Actions() []string {
 
 	if ae.Overdraft != nil {
 		actions = append(actions, constant.ActionOverdraft)
+	}
+
+	if ae.Block != nil {
+		actions = append(actions, constant.ActionBlock)
+	}
+
+	if ae.Unblock != nil {
+		actions = append(actions, constant.ActionUnblock)
 	}
 
 	return actions
