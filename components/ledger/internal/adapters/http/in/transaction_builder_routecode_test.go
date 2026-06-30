@@ -357,7 +357,7 @@ func TestResolveRouteCodesFromCache_NilCache(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID},
 	}
 
-	resolveRouteCodesFromCache(ops, nil, "direct")
+	resolveRouteCodesFromCache(ops, nil, "direct", "")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when cache is nil")
 }
@@ -370,7 +370,7 @@ func TestResolveRouteCodesFromCache_NoRouteID(t *testing.T) {
 		{ID: "op-1", RouteID: nil},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when RouteID is nil")
 }
@@ -385,7 +385,7 @@ func TestResolveRouteCodesFromCache_SourceRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from accounting entry debit rubric code")
 	assert.Equal(t, "1001", *ops[0].RouteCode)
@@ -403,7 +403,7 @@ func TestResolveRouteCodesFromCache_DestinationRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from accounting entry credit rubric code")
 	assert.Equal(t, "2001", *ops[0].RouteCode)
@@ -418,7 +418,7 @@ func TestResolveRouteCodesFromCache_BidirectionalRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "hold")
+	resolveRouteCodesFromCache(ops, cache, "hold", "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from bidirectional route's accounting entry")
 	assert.Equal(t, "3001", *ops[0].RouteCode)
@@ -468,7 +468,7 @@ func TestResolveRouteCodesFromCache_MultipleOperations(t *testing.T) {
 		{ID: "op-4", RouteID: nil},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	require.NotNil(t, ops[0].RouteCode)
 	assert.Equal(t, "SRC-DEBIT", *ops[0].RouteCode)
@@ -489,7 +489,7 @@ func TestResolveRouteCodesFromCache_EmptyRouteID(t *testing.T) {
 		{ID: "op-1", RouteID: &emptyRouteID},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil for empty RouteID")
 }
@@ -518,7 +518,7 @@ func TestResolveRouteCodesFromCache_NoAccountingEntries(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when no AccountingEntries exist")
 	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no accounting rubric is resolved")
@@ -533,7 +533,7 @@ func TestResolveRouteCodesFromCache_HoldAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "hold")
+	resolveRouteCodesFromCache(ops, cache, "hold", "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for hold action")
 	assert.Equal(t, "HOLD-CREDIT", *ops[0].RouteCode)
@@ -548,7 +548,7 @@ func TestResolveRouteCodesFromCache_CommitAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "commit")
+	resolveRouteCodesFromCache(ops, cache, "commit", "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for commit action")
 	assert.Equal(t, "COMMIT-DEBIT", *ops[0].RouteCode)
@@ -566,7 +566,7 @@ func TestResolveRouteCodesFromCache_OverdraftAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, constant.ActionOverdraft)
+	resolveRouteCodesFromCache(ops, cache, constant.ActionOverdraft, "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for overdraft action")
 	assert.Equal(t, "OVERDRAFT-DEBIT", *ops[0].RouteCode)
@@ -587,7 +587,7 @@ func TestResolveRouteCodesFromCache_OverdraftCreditAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, constant.ActionOverdraft)
+	resolveRouteCodesFromCache(ops, cache, constant.ActionOverdraft, "")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for overdraft credit action")
 	assert.Equal(t, "OVERDRAFT-CREDIT", *ops[0].RouteCode)
@@ -663,7 +663,7 @@ func TestResolveRouteCodesFromCache_CompanionUsesOverdraftAction(t *testing.T) {
 
 	ops := []*operation.Operation{primary, companion}
 
-	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect)
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, "")
 
 	// Primary resolves to DIRECT rubric.
 	require.NotNil(t, primary.RouteCode, "primary op must resolve via direct action")
@@ -727,7 +727,7 @@ func TestResolveRouteCodesFromCache_CompanionCreditUsesOverdraftAction(t *testin
 	}
 	ops := []*operation.Operation{companion}
 
-	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect)
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, "")
 
 	require.NotNil(t, companion.RouteCode, "companion CREDIT must resolve via overdraft action")
 	assert.Equal(t, "OVERDRAFT-CREDIT", *companion.RouteCode,
@@ -816,6 +816,341 @@ func TestResolveAccountingRubric(t *testing.T) {
 	}
 }
 
+// TestResolveAccountingRubric_BlockUnblock verifies that the resolver returns the
+// Block/Unblock rubrics for ActionBlock/ActionUnblock, and falls back to nil when the
+// requested block/unblock entry is unconfigured (so the caller keeps the Direct rubric).
+func TestResolveAccountingRubric_BlockUnblock(t *testing.T) {
+	entries := &mmodel.AccountingEntries{
+		Direct: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-DIRECT", Description: "Direct debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-DIRECT", Description: "Direct credit"},
+		},
+		Block: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-BLOCK", Description: "Block debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-BLOCK", Description: "Block credit"},
+		},
+		Unblock: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-UNBLOCK", Description: "Unblock debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-UNBLOCK", Description: "Unblock credit"},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		action    string
+		direction string
+		wantCode  string
+		wantNil   bool
+	}{
+		{"block debit", constant.ActionBlock, constant.DirectionDebit, "D-BLOCK", false},
+		{"block credit", constant.ActionBlock, constant.DirectionCredit, "C-BLOCK", false},
+		{"unblock debit", constant.ActionUnblock, constant.DirectionDebit, "D-UNBLOCK", false},
+		{"unblock credit", constant.ActionUnblock, constant.DirectionCredit, "C-UNBLOCK", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rubric := resolveAccountingRubric(entries, tt.action, tt.direction)
+			if tt.wantNil {
+				assert.Nil(t, rubric)
+			} else {
+				require.NotNil(t, rubric)
+				assert.Equal(t, tt.wantCode, rubric.Code)
+			}
+		})
+	}
+}
+
+// TestResolveAccountingRubric_BlockUnblockUnconfigured verifies that when the
+// Block/Unblock entry is nil, the resolver returns nil for ActionBlock/ActionUnblock
+// (the caller then keeps resolving via the Direct rubric — Phase 1 parity).
+func TestResolveAccountingRubric_BlockUnblockUnconfigured(t *testing.T) {
+	entries := &mmodel.AccountingEntries{
+		Direct: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "D-DIRECT", Description: "Direct debit"},
+			Credit: &mmodel.AccountingRubric{Code: "C-DIRECT", Description: "Direct credit"},
+		},
+	}
+
+	assert.Nil(t, resolveAccountingRubric(entries, constant.ActionBlock, constant.DirectionDebit),
+		"ActionBlock with nil Block entry must resolve to nil")
+	assert.Nil(t, resolveAccountingRubric(entries, constant.ActionUnblock, constant.DirectionCredit),
+		"ActionUnblock with nil Unblock entry must resolve to nil")
+}
+
+// TestResolveRouteCodesFromCache_BlockOverride verifies that a block transaction
+// (OperationTypeOverride=BLOCK) against a route whose Block entry is configured
+// resolves the operation's RouteCode from the Block rubric.
+func TestResolveRouteCodesFromCache_BlockOverride(t *testing.T) {
+	routeID := "route-uuid-block"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Block-capable route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+			Block: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "BLOCK-DEBIT", Description: "Block debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "BLOCK-CREDIT", Description: "Block credit desc"},
+			},
+		},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+			constant.ActionBlock: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	op := &operation.Operation{
+		ID:         "op-block",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionDebit,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	ops := []*operation.Operation{op}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.BLOCK)
+
+	require.NotNil(t, op.RouteCode, "block op must resolve via the Block accounting entry")
+	assert.Equal(t, "BLOCK-DEBIT", *op.RouteCode,
+		"configured Block entry must override the Direct rubric for a BLOCK operation")
+}
+
+// TestResolveRouteCodesFromCache_UnblockOverride mirrors the block case for UNBLOCK.
+func TestResolveRouteCodesFromCache_UnblockOverride(t *testing.T) {
+	routeID := "route-uuid-unblock"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Unblock-capable route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+			Unblock: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "UNBLOCK-DEBIT", Description: "Unblock debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "UNBLOCK-CREDIT", Description: "Unblock credit desc"},
+			},
+		},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source:        map[string]mmodel.OperationRouteCache{},
+				Destination:   map[string]mmodel.OperationRouteCache{routeID: rc},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+			constant.ActionUnblock: {
+				Source:        map[string]mmodel.OperationRouteCache{},
+				Destination:   map[string]mmodel.OperationRouteCache{routeID: rc},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	op := &operation.Operation{
+		ID:         "op-unblock",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionCredit,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	ops := []*operation.Operation{op}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.UNBLOCK)
+
+	require.NotNil(t, op.RouteCode, "unblock op must resolve via the Unblock accounting entry")
+	assert.Equal(t, "UNBLOCK-CREDIT", *op.RouteCode,
+		"configured Unblock entry must override the Direct rubric for an UNBLOCK operation")
+}
+
+// TestResolveRouteCodesFromCache_BlockUnconfiguredFallsBackToDirect verifies that a
+// block transaction against a route WITHOUT a Block entry falls back to the Direct
+// rubric (Phase 1 behavior unchanged).
+func TestResolveRouteCodesFromCache_BlockUnconfiguredFallsBackToDirect(t *testing.T) {
+	routeID := "route-uuid-block-nofallback"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Direct-only route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+		},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	op := &operation.Operation{
+		ID:         "op-block-fallback",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionDebit,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	ops := []*operation.Operation{op}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.BLOCK)
+
+	require.NotNil(t, op.RouteCode, "unconfigured block op must still resolve via the Direct rubric")
+	assert.Equal(t, "DIRECT-DEBIT", *op.RouteCode,
+		"unconfigured Block must fall back to the Direct rubric (Phase 1 parity)")
+}
+
+// TestResolveRouteCodesFromCache_OverdraftPrecedesBlock verifies that the Overdraft
+// BalanceKey override still wins over the block/unblock override for companion
+// operations on the overdraft balance.
+func TestResolveRouteCodesFromCache_OverdraftPrecedesBlock(t *testing.T) {
+	routeID := "route-uuid-overdraft-block"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Overdraft + Block route",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Direct: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit desc"},
+			},
+			Overdraft: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "OVERDRAFT-DEBIT", Description: "Overdraft debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "OVERDRAFT-CREDIT", Description: "Overdraft credit desc"},
+			},
+			Block: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "BLOCK-DEBIT", Description: "Block debit desc"},
+				Credit: &mmodel.AccountingRubric{Code: "BLOCK-CREDIT", Description: "Block credit desc"},
+			},
+		},
+	}
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+			constant.ActionOverdraft: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+			constant.ActionBlock: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	companion := &operation.Operation{
+		ID:         "op-overdraft-companion",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionDebit,
+		BalanceKey: constant.OverdraftBalanceKey,
+	}
+	ops := []*operation.Operation{companion}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.BLOCK)
+
+	require.NotNil(t, companion.RouteCode, "overdraft companion must resolve a rubric")
+	assert.Equal(t, "OVERDRAFT-DEBIT", *companion.RouteCode,
+		"Overdraft BalanceKey override must precede the block/unblock override for companions")
+}
+
+// TestResolveRouteCodesFromCache_BlockOverrideBaseActionAbsent verifies that the
+// block override is skipped (no panic, no spurious override) when the base action
+// is not present in the cache for the route under override evaluation.
+func TestResolveRouteCodesFromCache_BlockOverrideBaseActionAbsent(t *testing.T) {
+	routeID := "route-uuid-no-base"
+
+	rc := mmodel.OperationRouteCache{
+		Description: "Block-only cache entry",
+		AccountingEntries: &mmodel.AccountingEntries{
+			Block: &mmodel.AccountingEntry{
+				Debit:  &mmodel.AccountingRubric{Code: "BLOCK-DEBIT", Description: "Block debit"},
+				Credit: &mmodel.AccountingRubric{Code: "BLOCK-CREDIT", Description: "Block credit"},
+			},
+		},
+	}
+
+	// Only the "block" action is present — the base "direct" action is absent,
+	// so blockEntryConfigured returns false and resolvedAction stays "direct".
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionBlock: {
+				Source:        map[string]mmodel.OperationRouteCache{routeID: rc},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	op := &operation.Operation{
+		ID:         "op-no-base",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionDebit,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	ops := []*operation.Operation{op}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.BLOCK)
+
+	// resolvedAction stayed "direct"; the cache has no "direct" action, so
+	// nothing resolves. The key assertion is that the override did NOT fire.
+	assert.Nil(t, op.RouteCode,
+		"block override must not fire when the base action is absent from the cache")
+}
+
+// TestResolveRouteCodesFromCache_BlockOverrideNilAccountingEntries verifies that a
+// route whose cached AccountingEntries is nil does not trigger the block override.
+func TestResolveRouteCodesFromCache_BlockOverrideNilAccountingEntries(t *testing.T) {
+	routeID := "route-uuid-nil-entries"
+
+	cache := &mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			constant.ActionDirect: {
+				Source: map[string]mmodel.OperationRouteCache{
+					routeID: {Description: "No entries", AccountingEntries: nil},
+				},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
+	}
+
+	op := &operation.Operation{
+		ID:         "op-nil-entries",
+		RouteID:    &routeID,
+		Direction:  constant.DirectionDebit,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+	ops := []*operation.Operation{op}
+
+	resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, constant.BLOCK)
+
+	assert.Nil(t, op.RouteCode,
+		"block override must not fire when the route's AccountingEntries is nil")
+}
+
 // TestResolveRouteCodesFromCache_ActionMissingEntry verifies that when the action exists
 // in the cache but the AccountingEntries don't have that action's entry, RouteCode stays nil.
 func TestResolveRouteCodesFromCache_ActionMissingEntry(t *testing.T) {
@@ -846,7 +1181,7 @@ func TestResolveRouteCodesFromCache_ActionMissingEntry(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "direct")
+	resolveRouteCodesFromCache(ops, cache, "direct", "")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when action entry is missing from AccountingEntries")
 	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no matching accounting rubric is resolved")
