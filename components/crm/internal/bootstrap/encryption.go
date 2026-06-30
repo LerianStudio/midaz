@@ -17,15 +17,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
 )
 
-// Default Vault Transit base mounts for KEK operations. The default is derived
-// from the deployment mode so multi-tenant and single-tenant instances do not
-// collide on the same mount when KMS_VAULT_MOUNT_PATH is unset.
+// Shared, pre-provisioned Vault Transit engines for KEK operations. The engine is
+// derived from the deployment mode: multi-tenant and single-tenant instances use
+// distinct engines so they never collide. Tenant scoping lives in the key name, not
+// the mount.
 const (
 	defaultMountPathMultiTenant  = "transit-mt"
 	defaultMountPathSingleTenant = "transit-st"
 )
 
-// defaultMountPath returns the mode-derived default base mount: "transit-mt" for
+// defaultMountPath returns the mode-derived shared engine: "transit-mt" for
 // multi-tenant, "transit-st" for single-tenant.
 func defaultMountPath(multiTenant bool) string {
 	if multiTenant {
@@ -33,25 +34,6 @@ func defaultMountPath(multiTenant bool) string {
 	}
 
 	return defaultMountPathSingleTenant
-}
-
-// resolveBaseMountPath is the SINGLE base-mount normalizer: base normalization
-// lives here, not in resolveMount. It resolves the base Vault Transit mount,
-// trimming surrounding slashes/whitespace so the returned base equals the effective
-// mount used downstream. Empty/whitespace/slash-only input falls back to the
-// mode-derived default (see defaultMountPath); never blank. An explicitly configured
-// value always wins and is returned normalized. Callers inject the result as the
-// pre-normalized base that resolveMount consumes verbatim.
-func resolveBaseMountPath(configured string, multiTenant bool) string {
-	// One cutset for guard and returned value so they cannot drift.
-	const cut = "/ \t\n"
-
-	trimmed := strings.Trim(configured, cut)
-	if trimmed == "" {
-		return defaultMountPath(multiTenant)
-	}
-
-	return trimmed
 }
 
 // wireEncryptionServicesInput contains all dependencies for wiring encryption services.
@@ -64,7 +46,6 @@ type wireEncryptionServicesInput struct {
 	auditWriter          encryption.AuditWriter
 	legacyCrypto         encryption.LegacyCrypto
 	metricsFactory       *metrics.MetricsFactory
-	vaultMountPath       string
 	multiTenant          bool
 	allowGracefulDegrade bool
 
@@ -165,8 +146,8 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		}
 	}
 
-	// Resolve the base Vault Transit mount once (see resolveBaseMountPath).
-	baseMountPath := resolveBaseMountPath(input.vaultMountPath, input.multiTenant)
+	// The base mount is the mode-derived shared engine (transit-mt/transit-st).
+	baseMountPath := defaultMountPath(input.multiTenant)
 
 	// Wire ProtectionStateResolver with RegistryRepository
 	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo, pm)
@@ -192,12 +173,11 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		input.auditWriter,
 		pm,
 		protectionStateResolver,
-		input.vaultClient,
 	)
 
 	// Wire KeysetManager with KeysetRepository, VaultKeysetUnwrapper, and ProvisioningService.
-	// Tenant ID for auto-provisioning is obtained from context. The base mount is
-	// injected so per-tenant sub-mounts resolve consistently with provisioning.
+	// Tenant ID for auto-provisioning is obtained from context. The shared engine is
+	// injected so the mount resolves consistently with provisioning.
 	keysetManagerConfig := encryption.DefaultKeysetManagerConfig()
 	keysetManagerConfig.BaseMountPath = baseMountPath
 	keysetManagerConfig.MultiTenant = input.multiTenant
@@ -246,13 +226,13 @@ type keysetGeneratorAdapter struct {
 }
 
 // GenerateAEADKeyset generates a new AEAD keyset and wraps it with the KMS.
-// The per-tenant mountPath is forwarded verbatim to the underlying factory.
+// The mountPath is forwarded verbatim to the underlying factory.
 func (a *keysetGeneratorAdapter) GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
 	return a.factory.GenerateAEADKeyset(ctx, mountPath, keyName)
 }
 
 // GeneratePRFKeyset generates a new PRF keyset (search tokens) and wraps it with the KMS.
-// The per-tenant mountPath is forwarded verbatim to the underlying factory.
+// The mountPath is forwarded verbatim to the underlying factory.
 func (a *keysetGeneratorAdapter) GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error) {
 	return a.factory.GeneratePRFKeyset(ctx, mountPath, keyName)
 }

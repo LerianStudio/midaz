@@ -107,8 +107,8 @@ func CreateClient(t *testing.T, container *ContainerResult) *vault.Client {
 }
 
 // EnableTransitMount enables a Transit secrets engine at mountPath in the test
-// container's Vault. Callers enable a single path per call (e.g. "transit" or
-// "transit/<tenantUUID>"); mounting the same path twice is an error in Vault.
+// container's Vault. Callers enable a single path per call (e.g. "transit-mt" or
+// "transit-st"); mounting the same path twice is an error in Vault.
 // It builds its own raw api.Client from the container address and root token so
 // it does not depend on the vault.Client unexported internals. No cleanup is
 // registered: the container teardown from SetupContainer disposes the Vault.
