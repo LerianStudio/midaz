@@ -242,13 +242,14 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 // Definitions registered into both the Catalog and the Routes. Kept as a single
 // source of truth so adding a new event is a one-place change.
 //
-// TODO(Epic 1.2/2.2): register holder + alias event Definitions here
-// (events.HolderCreatedDefinition, events.HolderUpdatedDefinition,
-// events.HolderDeletedDefinition, and the alias events). The slice is
-// intentionally empty for the bootstrap-plumbing epic so the disabled-by-
-// default NoopEmitter path ships without any event files.
+// TODO(Epic 2.2): register the alias event Definitions here alongside the
+// holder events.
 func crmEventDefinitions() []events.Definition {
-	return []events.Definition{}
+	return []events.Definition{
+		events.HolderCreatedDefinition,
+		events.HolderUpdatedDefinition,
+		events.HolderDeletedDefinition,
+	}
 }
 
 // buildCatalog constructs the immutable lib-streaming Catalog from CRM's event
