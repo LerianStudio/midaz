@@ -74,7 +74,6 @@ type Config struct {
 	VaultAddr                              string `env:"KMS_VAULT_ADDR"`
 	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
 	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
-	VaultMountPath                         string `env:"KMS_VAULT_MOUNT_PATH"`
 	VaultAuthMethod                        string `env:"KMS_VAULT_AUTH_METHOD"`
 }
 
@@ -303,7 +302,6 @@ func buildEncryptionServices(
 		auditWriter:          auditWriter,
 		legacyCrypto:         legacyCrypto,
 		metricsFactory:       metricsFactory,
-		vaultMountPath:       cfg.VaultMountPath,
 		multiTenant:          cfg.MultiTenantEnabled,
 		allowGracefulDegrade: false, // Fail hard if envelope mode requested but dependencies unavailable
 		legacyAESHexKey:      cfg.EncryptSecretKey,

@@ -49,12 +49,6 @@ func TestConfig_KMSFields(t *testing.T) {
 			envTag:    "KMS_VAULT_SECRET_ID",
 		},
 		{
-			name:      "has VaultMountPath string field",
-			fieldName: "VaultMountPath",
-			fieldType: "string",
-			envTag:    "KMS_VAULT_MOUNT_PATH",
-		},
-		{
 			name:      "has VaultAuthMethod string field",
 			fieldName: "VaultAuthMethod",
 			fieldType: "string",
@@ -94,8 +88,6 @@ func TestConfig_KMSDefaults(t *testing.T) {
 		"VaultRoleID must default to empty string (zero value)")
 	assert.Empty(t, cfg.VaultSecretID,
 		"VaultSecretID must default to empty string (zero value)")
-	assert.Empty(t, cfg.VaultMountPath,
-		"VaultMountPath must default to empty string (zero value)")
 	assert.Empty(t, cfg.VaultAuthMethod,
 		"VaultAuthMethod must default to empty string (zero value)")
 }
@@ -270,7 +262,6 @@ func TestValidateVaultConfig(t *testing.T) {
 				VaultAddr:       "https://vault.example.com:8200",
 				VaultRoleID:     "role-123",
 				VaultSecretID:   "secret-456",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 			expectError: false,
@@ -280,7 +271,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "token",
 				DeploymentMode:  "local",
 			},
@@ -293,7 +283,6 @@ func TestValidateVaultConfig(t *testing.T) {
 				VaultAddr:       "",
 				VaultRoleID:     "role-123",
 				VaultSecretID:   "secret-456",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 			expectError:   true,
@@ -303,8 +292,7 @@ func TestValidateVaultConfig(t *testing.T) {
 			name: "envelope mode with unset auth method fails closed",
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
-				VaultAddr:      "https://vault.example.com:8200",
-				VaultMountPath: "transit",
+				VaultAddr: "https://vault.example.com:8200",
 			},
 			expectError:   true,
 			errorContains: "KMS_VAULT_AUTH_METHOD",
@@ -314,7 +302,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 			expectError:   true,
@@ -325,7 +312,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "token",
 				DeploymentMode:  "saas",
 			},
@@ -357,7 +343,6 @@ func TestBuildVaultConfig(t *testing.T) {
 		VaultAddr:       "https://vault.example.com:8200",
 		VaultRoleID:     "role-123",
 		VaultSecretID:   "secret-456",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 	}
 
@@ -368,9 +353,8 @@ func TestBuildVaultConfig(t *testing.T) {
 	assert.Equal(t, cfg.VaultRoleID, vaultCfg.RoleID)
 	assert.Equal(t, cfg.VaultSecretID, vaultCfg.SecretID)
 	assert.Equal(t, vault.AuthMethodAppRole, vaultCfg.AuthMethod)
-	// vault.Config no longer carries a MountPath: the base mount lives on the
-	// bootstrap Config (VaultMountPath) and is resolved per-tenant downstream,
-	// not at vault client construction time.
+	// vault.Config no longer carries a MountPath: the base mount is the mode-derived
+	// shared engine resolved downstream, not at vault client construction time.
 }
 
 func TestResolveEncryptionMode_FromEnvironment(t *testing.T) {
@@ -435,7 +419,6 @@ func TestBuildVaultConfig_ReturnsVaultConfigType(t *testing.T) {
 		VaultAddr:       "https://vault.example.com:8200",
 		VaultRoleID:     "role-123",
 		VaultSecretID:   "secret-456",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 	}
 
@@ -465,7 +448,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "token",
 			DeploymentMode:  "local",
 		}
@@ -484,7 +466,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "token",
 			DeploymentMode:  "",
 		}
@@ -503,7 +484,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 			VaultAddr:       "https://vault.example.com:8200",
 			VaultRoleID:     "role-123",
 			VaultSecretID:   "secret-456",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "approle",
 			DeploymentMode:  "saas",
 		}
@@ -541,8 +521,7 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{
-			VaultAddr:      "https://vault.example.com:8200",
-			VaultMountPath: "transit",
+			VaultAddr: "https://vault.example.com:8200",
 			// VaultAuthMethod intentionally unset
 		}
 
@@ -557,7 +536,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "not-a-method",
 		}
 
@@ -572,7 +550,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "token",
 			DeploymentMode:  "saas",
 		}
@@ -589,7 +566,6 @@ func TestBuildVaultConfig_AuthMethod(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "token",
 			DeploymentMode:  "byoc",
 		}
@@ -713,7 +689,6 @@ func TestValidateVaultConfig_AuthMethods(t *testing.T) {
 			VaultAddr:       "https://vault.example.com:8200",
 			VaultRoleID:     "role-123",
 			VaultSecretID:   "secret-456",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "approle",
 		}
 
@@ -728,7 +703,6 @@ func TestValidateVaultConfig_AuthMethods(t *testing.T) {
 
 		cfg := &Config{
 			VaultAddr:       "https://vault.example.com:8200",
-			VaultMountPath:  "transit",
 			VaultAuthMethod: "token",
 			DeploymentMode:  "local",
 			// No AppRole credentials - token auth uses the hardcoded dev token

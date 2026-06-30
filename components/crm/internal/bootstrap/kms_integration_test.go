@@ -95,7 +95,6 @@ func TestIntegration_InitKMS_EnvelopeMode_LocalDeployment(t *testing.T) {
 	cfg := &Config{
 		KMSVendor:       "hashicorp-vault",
 		VaultAddr:       vaultContainer.Address,
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "token", // token auth uses the hardcoded root token
 		DeploymentMode:  "local",
 	}
@@ -120,7 +119,6 @@ func TestIntegration_InitKMS_EnvelopeMode_ProductionWithoutCredentials(t *testin
 	cfg := &Config{
 		KMSVendor:       "hashicorp-vault",
 		VaultAddr:       "https://vault.example.com:8200",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 		DeploymentMode:  "saas",
 		// No VaultRoleID or VaultSecretID
@@ -153,7 +151,6 @@ func TestIntegration_InitKMS_EnvelopeMode_VaultUnreachable_AppRoleAuth(t *testin
 		VaultAddr:       "http://unreachable-vault-host:8200",
 		VaultRoleID:     "fake-role-id",
 		VaultSecretID:   "fake-secret-id",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 		DeploymentMode:  "saas", // AppRole makes network calls during login
 	}
@@ -185,7 +182,6 @@ func TestIntegration_InitKMS_TokenAuth_DeferredValidation(t *testing.T) {
 	cfg := &Config{
 		KMSVendor:       "hashicorp-vault",
 		VaultAddr:       "http://unreachable-vault-host:8200",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "token", // token auth does NOT make network calls during Login()
 		DeploymentMode:  "local",
 	}
@@ -220,7 +216,6 @@ func TestIntegration_InitKMS_ContextCancellation_AppRoleAuth(t *testing.T) {
 		VaultAddr:       "http://10.255.255.1:8200", // Non-routable IP
 		VaultRoleID:     "fake-role-id",
 		VaultSecretID:   "fake-secret-id",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 		DeploymentMode:  "saas", // AppRole makes network calls
 	}
@@ -249,7 +244,6 @@ func TestIntegration_InitKMS_ContextTimeout_AppRoleAuth(t *testing.T) {
 		VaultAddr:       "http://10.255.255.1:8200", // Non-routable IP
 		VaultRoleID:     "fake-role-id",
 		VaultSecretID:   "fake-secret-id",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 		DeploymentMode:  "saas", // AppRole makes network calls
 	}
@@ -277,7 +271,6 @@ func TestIntegration_BuildVaultConfig_TokenAuth_UsesHardcodedToken(t *testing.T)
 	// Arrange
 	cfg := &Config{
 		VaultAddr:       "http://localhost:8200",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "token",
 		DeploymentMode:  "local",
 	}
@@ -299,7 +292,6 @@ func TestIntegration_BuildVaultConfig_AppRoleAuth_UsesAppRole(t *testing.T) {
 		VaultAddr:       "https://vault.example.com:8200",
 		VaultRoleID:     "role-123",
 		VaultSecretID:   "secret-456",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 		DeploymentMode:  "saas",
 	}
@@ -320,8 +312,7 @@ func TestIntegration_BuildVaultConfig_UnsetAuthMethod_FailsClosed(t *testing.T) 
 
 	// Arrange - no auth method set
 	cfg := &Config{
-		VaultAddr:      "https://vault.example.com:8200",
-		VaultMountPath: "transit",
+		VaultAddr: "https://vault.example.com:8200",
 	}
 
 	// Act
@@ -338,7 +329,6 @@ func TestIntegration_BuildVaultConfig_TokenInProduction_FailsClosed(t *testing.T
 	// Arrange - token auth must not be allowed in production
 	cfg := &Config{
 		VaultAddr:       "https://vault.customer.com:8200",
-		VaultMountPath:  "crm-transit",
 		VaultAuthMethod: "token",
 		DeploymentMode:  "byoc",
 	}
@@ -377,7 +367,6 @@ func TestIntegration_VaultClient_IsAuthenticated_AfterLogin(t *testing.T) {
 
 	cfg := &Config{
 		VaultAddr:       vaultContainer.Address,
-		VaultMountPath:  "transit", // Mount path is required but Transit engine isn't used for auth
 		VaultAuthMethod: "token",
 		DeploymentMode:  "local",
 	}

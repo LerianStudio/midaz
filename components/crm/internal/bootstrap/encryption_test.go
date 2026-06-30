@@ -21,53 +21,6 @@ import (
 )
 
 // =============================================================================
-// EncryptionConfig Tests
-// =============================================================================
-
-func TestConfig_VaultMountPathFieldExists(t *testing.T) {
-	t.Parallel()
-
-	t.Run("has VaultMountPath string field with env tag", func(t *testing.T) {
-		t.Parallel()
-
-		configType := reflect.TypeOf(Config{})
-		field, found := configType.FieldByName("VaultMountPath")
-
-		require.True(t, found, "Config struct must have VaultMountPath field for Vault Transit mount path")
-
-		assert.Equal(t, "string", field.Type.String(),
-			"VaultMountPath field must be of type string")
-
-		envValue := field.Tag.Get("env")
-		assert.Equal(t, "KMS_VAULT_MOUNT_PATH", envValue,
-			"VaultMountPath field must have env tag KMS_VAULT_MOUNT_PATH")
-	})
-}
-
-func TestConfig_VaultMountPathDefault(t *testing.T) {
-	t.Parallel()
-
-	// The default value should be applied by the bootstrap layer, not as a struct tag default.
-	// This test verifies the zero value is empty string (allowing explicit override).
-	configType := reflect.TypeOf(Config{})
-	field, found := configType.FieldByName("VaultMountPath")
-
-	require.True(t, found, "Config struct must have VaultMountPath field")
-
-	// Create a new Config and verify zero value
-	cfg := reflect.New(configType).Elem()
-	vaultMountPath := cfg.FieldByName("VaultMountPath")
-
-	require.True(t, vaultMountPath.IsValid(), "VaultMountPath field must be accessible via reflection")
-	assert.Empty(t, vaultMountPath.String(),
-		"VaultMountPath must default to empty string (zero value); bootstrap layer applies the mode-derived default")
-
-	// Verify field type
-	assert.Equal(t, "string", field.Type.String(),
-		"VaultMountPath field must be of type string")
-}
-
-// =============================================================================
 // Service Struct Tests
 // =============================================================================
 
@@ -125,12 +78,11 @@ func TestWireEncryptionServices_ReturnsEncryptionServiceForLegacyMode(t *testing
 	// In legacy mode, EncryptionService should be wired with legacyCrypto only.
 	// ProvisioningService and KeysetManager remain nil.
 	result := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           encryptionModeLegacy,
-		vaultClient:    nil,
-		keysetRepo:     nil,
-		registryRepo:   nil,
-		legacyCrypto:   nil, // nil is acceptable for wiring test
-		vaultMountPath: "transit",
+		mode:         encryptionModeLegacy,
+		vaultClient:  nil,
+		keysetRepo:   nil,
+		registryRepo: nil,
+		legacyCrypto: nil, // nil is acceptable for wiring test
 	})
 
 	assert.NotNil(t, result.encryptionService,
@@ -149,12 +101,11 @@ func TestWireEncryptionServices_RequiresRegistryRepoForEnvelopeMode(t *testing.T
 	// testWireEncryptionServicesWithMocks must return error when envelope mode is enabled
 	// but registry repository is not available
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   nil, // Missing required dependency
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: nil, // Missing required dependency
+		legacyCrypto: nil,
 	})
 
 	assert.NotNil(t, result.err,
@@ -169,12 +120,11 @@ func TestWireEncryptionServices_RequiresKeysetRepoForEnvelopeMode(t *testing.T) 
 	// testWireEncryptionServicesWithMocks must return error when envelope mode is enabled
 	// but keyset repository is not available
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     nil, // Missing required dependency
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   nil, // Missing required dependency
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	assert.NotNil(t, result.err,
@@ -189,12 +139,11 @@ func TestWireEncryptionServices_RequiresVaultClientForEnvelopeMode(t *testing.T)
 	// testWireEncryptionServicesWithMocks must return error when envelope mode is enabled
 	// but Vault client is not available
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    nil, // Missing required dependency
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  nil, // Missing required dependency
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	assert.NotNil(t, result.err,
@@ -209,12 +158,11 @@ func TestWireEncryptionServices_WiresProtectionStateResolverWithRegistryRepo(t *
 	mockRegistry := &mockRegistryRepo{}
 
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   mockRegistry,
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: mockRegistry,
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, result.err,
@@ -231,12 +179,11 @@ func TestWireEncryptionServices_WiresKeysetManagerWithDependencies(t *testing.T)
 	t.Parallel()
 
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, result.err,
@@ -253,12 +200,11 @@ func TestWireEncryptionServices_WiresEncryptionServiceWithDependencies(t *testin
 	t.Parallel()
 
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, result.err,
@@ -276,12 +222,11 @@ func TestWireEncryptionServices_WiresProvisioningServiceWithDependencies(t *test
 	t.Parallel()
 
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, result.err,
@@ -292,26 +237,6 @@ func TestWireEncryptionServices_WiresProvisioningServiceWithDependencies(t *test
 	// Verify the provisioning service implements the interface
 	assert.Implements(t, (*encryption.ProvisioningService)(nil), result.provisioningService,
 		"ProvisioningService must implement encryption.ProvisioningService interface")
-}
-
-func TestWireEncryptionServices_UsesVaultMountPathFromConfig(t *testing.T) {
-	t.Parallel()
-
-	customMountPath := "custom-transit"
-
-	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: customMountPath,
-	})
-
-	require.NoError(t, result.err,
-		"testWireEncryptionServicesWithMocks must not return error with custom vault mount path")
-	require.NotNil(t, result.provisioningService,
-		"ProvisioningService must be wired with custom vault mount path")
 }
 
 func TestWireEncryptionServices_DefaultsVaultMountPathToModeDefault(t *testing.T) {
@@ -330,103 +255,39 @@ func TestWireEncryptionServices_DefaultsVaultMountPathToModeDefault(t *testing.T
 			t.Parallel()
 
 			result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-				mode:           encryptionModeEnvelope,
-				vaultClient:    &mockEncryptionVaultClient{},
-				keysetRepo:     &mockKeysetRepo{},
-				registryRepo:   &mockRegistryRepo{},
-				legacyCrypto:   nil,
-				vaultMountPath: "", // Empty should default to the mode-derived mount.
-				multiTenant:    tt.multiTenant,
+				mode:         encryptionModeEnvelope,
+				vaultClient:  &mockEncryptionVaultClient{},
+				keysetRepo:   &mockKeysetRepo{},
+				registryRepo: &mockRegistryRepo{},
+				legacyCrypto: nil,
+				multiTenant:  tt.multiTenant,
 			})
 
 			require.NoError(t, result.err,
-				"testWireEncryptionServicesWithMocks must not return error with empty vault mount path (defaults to mode-derived mount)")
+				"testWireEncryptionServicesWithMocks must not return error (base mount is mode-derived)")
 			require.NotNil(t, result.provisioningService,
-				"ProvisioningService must be wired with the mode-derived default vault mount path")
+				"ProvisioningService must be wired with the mode-derived shared engine")
 		})
 	}
 }
 
-func TestResolveBaseMountPath(t *testing.T) {
+func TestDefaultMountPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
-		configured  string
 		multiTenant bool
 		want        string
 	}{
 		{
-			name:        "unset falls back to multi-tenant default",
-			configured:  "",
+			name:        "multi-tenant resolves to transit-mt",
 			multiTenant: true,
 			want:        defaultMountPathMultiTenant,
 		},
 		{
-			name:        "unset falls back to single-tenant default",
-			configured:  "",
+			name:        "single-tenant resolves to transit-st",
 			multiTenant: false,
 			want:        defaultMountPathSingleTenant,
-		},
-		{
-			name:        "whitespace-only falls back to multi-tenant default",
-			configured:  "  ",
-			multiTenant: true,
-			want:        defaultMountPathMultiTenant,
-		},
-		{
-			name:        "whitespace-only falls back to single-tenant default",
-			configured:  "  ",
-			multiTenant: false,
-			want:        defaultMountPathSingleTenant,
-		},
-		{
-			name:        "slash-only falls back to multi-tenant default",
-			configured:  "/",
-			multiTenant: true,
-			want:        defaultMountPathMultiTenant,
-		},
-		{
-			name:        "slash-only falls back to single-tenant default",
-			configured:  "/",
-			multiTenant: false,
-			want:        defaultMountPathSingleTenant,
-		},
-		{
-			name:        "slash-wrapped explicit wins in multi-tenant (normalized)",
-			configured:  "/transit/",
-			multiTenant: true,
-			want:        "transit",
-		},
-		{
-			name:        "slash-wrapped explicit wins in single-tenant (normalized)",
-			configured:  "/transit/",
-			multiTenant: false,
-			want:        "transit",
-		},
-		{
-			name:        "explicit custom wins in multi-tenant",
-			configured:  "crm-transit",
-			multiTenant: true,
-			want:        "crm-transit",
-		},
-		{
-			name:        "explicit custom wins in single-tenant",
-			configured:  "crm-transit",
-			multiTenant: false,
-			want:        "crm-transit",
-		},
-		{
-			name:        "surrounding whitespace is trimmed but explicit value kept",
-			configured:  "  transit  ",
-			multiTenant: true,
-			want:        "transit",
-		},
-		{
-			name:        "surrounding newlines and slashes are trimmed to the effective mount",
-			configured:  "\n/transit/\n",
-			multiTenant: false,
-			want:        "transit",
 		},
 	}
 
@@ -434,26 +295,10 @@ func TestResolveBaseMountPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := resolveBaseMountPath(tt.configured, tt.multiTenant)
+			got := defaultMountPath(tt.multiTenant)
 			assert.Equal(t, tt.want, got,
-				"resolveBaseMountPath(%q, multiTenant=%v) must resolve to %q (never blank or a leading-slash mount)",
-				tt.configured, tt.multiTenant, tt.want)
+				"defaultMountPath(multiTenant=%v) must resolve to %q", tt.multiTenant, tt.want)
 		})
-	}
-}
-
-// TestResolveBaseMountPath_ExplicitOverrideIdenticalAcrossModes asserts that an
-// explicitly configured mount resolves identically regardless of the multi-tenant
-// flag: explicit values always win and the mode only selects the unset default.
-func TestResolveBaseMountPath_ExplicitOverrideIdenticalAcrossModes(t *testing.T) {
-	t.Parallel()
-
-	for _, configured := range []string{"crm-transit", "/transit/", "  transit  "} {
-		mt := resolveBaseMountPath(configured, true)
-		st := resolveBaseMountPath(configured, false)
-		assert.Equal(t, mt, st,
-			"explicit mount %q must resolve identically in both modes (got mt=%q st=%q)",
-			configured, mt, st)
 	}
 }
 
@@ -477,7 +322,6 @@ func TestGracefulDegradation_CRMStartsWhenVaultUnavailable(t *testing.T) {
 		keysetRepo:           &mockKeysetRepo{},
 		registryRepo:         &mockRegistryRepo{},
 		legacyCrypto:         nil,
-		vaultMountPath:       "transit",
 		allowGracefulDegrade: true, // Explicitly allow degradation
 	})
 
@@ -510,7 +354,6 @@ func TestGracefulDegradation_LogsWarningWhenDegrading(t *testing.T) {
 		keysetRepo:           &mockKeysetRepo{},
 		registryRepo:         &mockRegistryRepo{},
 		legacyCrypto:         nil,
-		vaultMountPath:       "transit",
 		allowGracefulDegrade: true,
 	})
 
@@ -527,12 +370,11 @@ func TestWireEncryptionServices_EnvelopeMode_HasAllRequiredServices(t *testing.T
 
 	// Verify envelope mode wires all required services
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{},
-		legacyCrypto:   nil,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{},
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, result.err,
@@ -558,12 +400,11 @@ func TestWireEncryptionServices_EnvelopeMode_PreservesLegacyCryptoForUnmarkedDec
 	}
 
 	result := testWireEncryptionServicesWithMocks(testWireEncryptionServicesInput{
-		mode:           encryptionModeEnvelope,
-		vaultClient:    &mockEncryptionVaultClient{},
-		keysetRepo:     &mockKeysetRepo{},
-		registryRepo:   &mockRegistryRepo{}, // Returns LegacyReadable=true
-		legacyCrypto:   mockLegacy,
-		vaultMountPath: "transit",
+		mode:         encryptionModeEnvelope,
+		vaultClient:  &mockEncryptionVaultClient{},
+		keysetRepo:   &mockKeysetRepo{},
+		registryRepo: &mockRegistryRepo{}, // Returns LegacyReadable=true
+		legacyCrypto: mockLegacy,
 	})
 
 	require.NoError(t, result.err,
@@ -812,34 +653,25 @@ func newWiringVaultClient(t *testing.T) *vault.Client {
 }
 
 // TestWireEncryptionServices_BaseMountResolution asserts the production wiring
-// resolves the configured VaultMountPath into the base mount and injects it into
-// both the provisioning service (KEKMountPath) and the keyset manager
-// (BaseMountPath). Each row varies only the configured VaultMountPath; the
-// resolution itself (default/trim/normalize) is unit-tested in
-// TestResolveBaseMountPath, so here we assert the wiring succeeds end-to-end for
-// every input shape that reaches production.
+// derives the base mount from the deployment mode (transit-mt/transit-st) and
+// injects it into both the provisioning service (KEKMountPath) and the keyset
+// manager (BaseMountPath). The mode-to-mount mapping itself is unit-tested in
+// TestDefaultMountPath, so here we assert the wiring succeeds end-to-end for both
+// modes.
 func TestWireEncryptionServices_BaseMountResolution(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		vaultMountPath string
+		name        string
+		multiTenant bool
 	}{
 		{
-			name:           "unset defaults to transit",
-			vaultMountPath: "", // unset -> base "transit"
+			name:        "multi-tenant wires with transit-mt",
+			multiTenant: true,
 		},
 		{
-			name:           "custom base mount is injected",
-			vaultMountPath: "crm-transit",
-		},
-		{
-			name:           "whitespace-only defaults to transit",
-			vaultMountPath: "   ", // whitespace-only -> base "transit"
-		},
-		{
-			name:           "slash-wrapped normalizes to transit",
-			vaultMountPath: "/transit/", // slash-wrapped -> base "transit"
+			name:        "single-tenant wires with transit-st",
+			multiTenant: false,
 		},
 	}
 
@@ -848,17 +680,16 @@ func TestWireEncryptionServices_BaseMountResolution(t *testing.T) {
 			t.Parallel()
 
 			result := wireEncryptionServices(wireEncryptionServicesInput{
-				mode:           encryptionModeEnvelope,
-				vaultClient:    newWiringVaultClient(t),
-				keysetRepo:     &mockKeysetRepo{},
-				registryRepo:   &mockRegistryRepo{},
-				auditWriter:    stubAuditWriter{},
-				vaultMountPath: tt.vaultMountPath,
+				mode:         encryptionModeEnvelope,
+				vaultClient:  newWiringVaultClient(t),
+				keysetRepo:   &mockKeysetRepo{},
+				registryRepo: &mockRegistryRepo{},
+				auditWriter:  stubAuditWriter{},
+				multiTenant:  tt.multiTenant,
 			})
 
 			require.NoError(t, result.err,
-				"wireEncryptionServices must resolve VaultMountPath %q and wire without error",
-				tt.vaultMountPath)
+				"wireEncryptionServices must derive the base mount from the mode and wire without error")
 			require.NotNil(t, result.provisioningService,
 				"ProvisioningService must be wired (base mount reaches KEKMountPath)")
 			require.NotNil(t, result.keysetManager,
@@ -889,7 +720,6 @@ type testWireEncryptionServicesInput struct {
 	keysetRepo           any // Mock implementing KeysetReader and KeysetWriter
 	registryRepo         any // Mock implementing RegistryReader and RegistryWriter
 	legacyCrypto         encryption.LegacyCrypto
-	vaultMountPath       string
 	multiTenant          bool
 	allowGracefulDegrade bool
 }
@@ -964,11 +794,8 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		}
 	}
 
-	// Resolve Vault mount path with the mode-derived default, mirroring production.
-	vaultMountPath := input.vaultMountPath
-	if vaultMountPath == "" {
-		vaultMountPath = defaultMountPath(input.multiTenant)
-	}
+	// The base mount is the mode-derived shared engine, mirroring production.
+	baseMountPath := defaultMountPath(input.multiTenant)
 
 	// Wire ProtectionStateResolver with RegistryRepository
 	protectionStateResolver := encryption.NewProtectionStateResolver(registryRepo, encryption.NewProtectionMetrics(nil))
@@ -1020,10 +847,9 @@ func testWireEncryptionServicesWithMocks(input testWireEncryptionServicesInput) 
 		keysetRepo,
 		registryRepo,
 		mockGenerator,
-		encryption.ProvisioningConfig{KEKMountPath: vaultMountPath, MultiTenant: input.multiTenant},
+		encryption.ProvisioningConfig{KEKMountPath: baseMountPath, MultiTenant: input.multiTenant},
 		stubAuditWriter{},
 		encryption.NewProtectionMetrics(nil),
-		nil,
 		nil,
 	)
 

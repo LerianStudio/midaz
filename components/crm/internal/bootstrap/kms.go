@@ -68,13 +68,11 @@ func initVaultClient(ctx context.Context, cfg *Config, logger libLog.Logger) (*v
 		return nil, fmt.Errorf("failed to authenticate with vault: %w", err)
 	}
 
-	// Log the RESOLVED base mount (the same base bootstrap injects into
-	// provisioning/keyset_manager), not the raw config value. KMS_VAULT_MOUNT_PATH
-	// is optional, so the raw value is frequently empty/misleading; resolve it to
-	// the safe default so the logged base always matches what is actually wired
-	// downstream and is never blank.
+	// Log the mode-derived shared engine (the same base bootstrap injects into
+	// provisioning/keyset_manager) so the logged base always matches what is wired
+	// downstream.
 	logger.Log(ctx, libLog.LevelInfo, "Vault client initialized",
-		libLog.String("base_mount_path", resolveBaseMountPath(cfg.VaultMountPath, cfg.MultiTenantEnabled)))
+		libLog.String("base_mount_path", defaultMountPath(cfg.MultiTenantEnabled)))
 
 	return client, nil
 }

@@ -16,9 +16,10 @@ import (
 )
 
 // Encrypt encrypts plaintext using the Vault Transit secrets engine.
-// The mountPath selects the Transit mount for the request (e.g. "transit"
-// or "transit/tenant-x") and must be non-empty.
-// The keyName should follow the convention: org/{organization_id}
+// The mountPath selects the shared Transit engine for the request (e.g. "transit-mt"
+// or "transit-st") and must be non-empty.
+// The keyName carries the tenant scope (e.g. "tenant-x_org-123"); the resulting op
+// path is "transit-mt/encrypt/tenant-x_org-123".
 // Keys are auto-created on first use if the AppRole has create permissions.
 //
 // Returns the ciphertext in Vault's format: vault:v1:base64-encoded-ciphertext
@@ -81,8 +82,10 @@ func (c *Client) encryptInternal(ctx context.Context, mountPath, keyName string,
 }
 
 // Decrypt decrypts ciphertext using the Vault Transit secrets engine.
-// The mountPath selects the Transit mount for the request (e.g. "transit"
-// or "transit/tenant-x") and must be non-empty.
+// The mountPath selects the shared Transit engine for the request (e.g. "transit-mt"
+// or "transit-st") and must be non-empty.
+// The keyName carries the tenant scope (e.g. "tenant-x_org-123"); the resulting op
+// path is "transit-mt/decrypt/tenant-x_org-123".
 // The ciphertext must be in Vault's format: vault:v1:base64-encoded-ciphertext
 //
 // Returns the original plaintext bytes.
@@ -162,22 +165,28 @@ func (c *Client) mapMountErr(mountPath string, err error) error {
 }
 
 // isMountNotFound reports whether err indicates that the targeted Transit mount
-// does not exist. Vault surfaces a missing mount as an HTTP 404 *api.ResponseError,
-// with a body that varies across versions ("no handler for route ..." on newer
-// builds, "unsupported path" on older ones). The substring check is a
-// belt-and-suspenders fallback for clients that do not expose the typed error.
+// does not exist. A genuinely missing mount is an HTTP 404 *api.ResponseError
+// whose body carries the route-not-found signal: Vault 1.21 returns
+// "no handler for route ...\". route entry not found." for a missing mount.
+//
+// A 404 with body "unsupported path" is deliberately NOT classified here: on
+// modern Vault that means the mount EXISTS but the requested sub-path is invalid
+// (e.g. a Transit key name that violates Vault's naming rules), which must be
+// surfaced as a generic error rather than masked as a missing mount. The
+// trade-off is that pre-1.x builds, which returned "unsupported path" for a
+// missing mount, are no longer classified as mount-not-found.
 func isMountNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	var respErr *api.ResponseError
-	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-		return true
+	if !errors.As(err, &respErr) || respErr.StatusCode != http.StatusNotFound {
+		return false
 	}
 
 	msg := strings.ToLower(err.Error())
 
 	return strings.Contains(msg, "no handler for route") ||
-		strings.Contains(msg, "unsupported path")
+		strings.Contains(msg, "route entry not found")
 }
