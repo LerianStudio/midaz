@@ -194,8 +194,12 @@ definitions:
     type: object
   AccountingEntries:
     description: AccountingEntries object containing optional accounting entries for
-      each action type (direct, hold, commit, cancel, revert, overdraft, refund).
+      each action type (direct, hold, commit, cancel, revert, overdraft, block, unblock).
     properties:
+      block:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the block action.
       cancel:
         allOf:
         - $ref: '#/definitions/AccountingEntry'
@@ -224,6 +228,10 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountingEntry'
         description: The accounting entry for the revert action.
+      unblock:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the unblock action.
     type: object
   AccountingEntry:
     description: 'AccountingEntry object containing debit and credit rubrics for a

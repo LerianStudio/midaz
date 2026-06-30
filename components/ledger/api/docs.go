@@ -8478,9 +8478,17 @@ const docTemplate = `{
             }
         },
         "AccountingEntries": {
-            "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, refund).",
+            "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert, overdraft, block, unblock).",
             "type": "object",
             "properties": {
+                "block": {
+                    "description": "The accounting entry for the block action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
                 "cancel": {
                     "description": "The accounting entry for the cancel action.",
                     "allOf": [
@@ -8523,6 +8531,14 @@ const docTemplate = `{
                 },
                 "revert": {
                     "description": "The accounting entry for the revert action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "unblock": {
+                    "description": "The accounting entry for the unblock action.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/AccountingEntry"
