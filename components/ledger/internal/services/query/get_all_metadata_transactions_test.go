@@ -249,11 +249,15 @@ func TestGetAllMetadataTransactionsWithBlockUnblockOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), constant.EntityTransaction, filter).
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
-		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, filter.ToCursorPagination()).
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -344,11 +348,15 @@ func TestGetAllMetadataTransactionsWithDirectionlessBlockUnblock(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), constant.EntityTransaction, filter).
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
-		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, filter.ToCursorPagination()).
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
 
 	mockMetadataRepo.EXPECT().
@@ -434,11 +442,15 @@ func TestGetAllMetadataTransactionsWithMixedOperations(t *testing.T) {
 	}
 
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), constant.EntityTransaction, filter).
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
 		Return(metadataList, nil)
 
 	mockTransactionRepo.EXPECT().
-		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, filter.ToCursorPagination()).
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
 
 	mockMetadataRepo.EXPECT().
