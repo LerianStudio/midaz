@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1185,4 +1186,128 @@ func TestResolveRouteCodesFromCache_ActionMissingEntry(t *testing.T) {
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when action entry is missing from AccountingEntries")
 	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no matching accounting rubric is resolved")
+}
+
+// buildBlockUnblockRouteCache builds a TransactionRouteCache the way production
+// emits it (mmodel.TransactionRoute.ToCache()) from an operation route whose
+// AccountingEntries carry a Direct entry plus, when withBlock/withUnblock is set,
+// the dedicated Block/Unblock entry. The returned routeID is the operation route
+// ID the resolver looks up. Driving the cache through the real ToCache() shape
+// (rather than a hand-built TransactionRouteCache) is what distinguishes this
+// from the other resolveRouteCodesFromCache unit tests.
+func buildBlockUnblockRouteCache(opType string, withBlock, withUnblock bool) (*mmodel.TransactionRouteCache, string) {
+	entries := &mmodel.AccountingEntries{
+		Direct: &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "DIRECT-DEBIT", Description: "Direct debit"},
+			Credit: &mmodel.AccountingRubric{Code: "DIRECT-CREDIT", Description: "Direct credit"},
+		},
+	}
+	if withBlock {
+		entries.Block = &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "BLOCK-DEBIT", Description: "Block debit"},
+			Credit: &mmodel.AccountingRubric{Code: "BLOCK-CREDIT", Description: "Block credit"},
+		}
+	}
+	if withUnblock {
+		entries.Unblock = &mmodel.AccountingEntry{
+			Debit:  &mmodel.AccountingRubric{Code: "UNBLOCK-DEBIT", Description: "Unblock debit"},
+			Credit: &mmodel.AccountingRubric{Code: "UNBLOCK-CREDIT", Description: "Unblock credit"},
+		}
+	}
+
+	opRouteID := uuid.MustParse("00000000-0000-0000-0000-0000000000aa")
+	tr := &mmodel.TransactionRoute{
+		ID: uuid.MustParse("00000000-0000-0000-0000-0000000000bb"),
+		OperationRoutes: []mmodel.OperationRoute{
+			{
+				ID:                opRouteID,
+				OperationType:     opType,
+				AccountingEntries: entries,
+			},
+		},
+	}
+
+	cache := tr.ToCache()
+
+	return &cache, opRouteID.String()
+}
+
+// newBlockUnblockOp builds an operation that the resolver will key by routeID,
+// using fixed identifiers so the test stays deterministic.
+func newBlockUnblockOp(routeID, direction string) *operation.Operation {
+	id := routeID
+
+	return &operation.Operation{
+		ID:         "op-block-unblock",
+		RouteID:    &id,
+		Direction:  direction,
+		BalanceKey: constant.DefaultBalanceKey,
+	}
+}
+
+// TestResolveRouteCodesFromCache_BlockUnblockRubricResolution verifies that a
+// block/unblock operation routes to its dedicated accounting rubric when the
+// operation route configures one, and falls back to the Direct rubric when it
+// does not (Phase 1 parity). The cache is produced via the production
+// mmodel.TransactionRoute.ToCache() path, so this exercises the action override
+// + Block/Unblock resolution against the real cache shape — no infra required.
+func TestResolveRouteCodesFromCache_BlockUnblockRubricResolution(t *testing.T) {
+	tests := []struct {
+		name              string
+		opType            string
+		direction         string
+		override          string
+		withBlock         bool
+		withUnblock       bool
+		expectedRouteCode string
+	}{
+		{
+			name:              "BLOCK with configured Block entry resolves Block rubric",
+			opType:            "source",
+			direction:         constant.DirectionDebit,
+			override:          constant.BLOCK,
+			withBlock:         true,
+			expectedRouteCode: "BLOCK-DEBIT",
+		},
+		{
+			name:              "BLOCK without Block entry falls back to Direct rubric",
+			opType:            "source",
+			direction:         constant.DirectionDebit,
+			override:          constant.BLOCK,
+			withBlock:         false,
+			expectedRouteCode: "DIRECT-DEBIT",
+		},
+		{
+			name:              "UNBLOCK with configured Unblock entry resolves Unblock rubric",
+			opType:            "destination",
+			direction:         constant.DirectionCredit,
+			override:          constant.UNBLOCK,
+			withUnblock:       true,
+			expectedRouteCode: "UNBLOCK-CREDIT",
+		},
+		{
+			name:              "UNBLOCK without Unblock entry falls back to Direct rubric",
+			opType:            "destination",
+			direction:         constant.DirectionCredit,
+			override:          constant.UNBLOCK,
+			withUnblock:       false,
+			expectedRouteCode: "DIRECT-CREDIT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache, routeID := buildBlockUnblockRouteCache(tt.opType, tt.withBlock, tt.withUnblock)
+
+			op := newBlockUnblockOp(routeID, tt.direction)
+			ops := []*operation.Operation{op}
+
+			resolveRouteCodesFromCache(ops, cache, constant.ActionDirect, tt.override)
+
+			require.NotNil(t, op.RouteCode,
+				"%s/%s operation should resolve a RouteCode", tt.override, tt.direction)
+			assert.Equal(t, tt.expectedRouteCode, *op.RouteCode,
+				"resolved rubric code must match the expected entry")
+		})
+	}
 }
