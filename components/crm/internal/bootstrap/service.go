@@ -42,6 +42,12 @@ type Service struct {
 	ProtectionStateResolver *encryption.ProtectionStateResolver
 	KeysetManager           *encryption.KeysetManager
 
+	// StreamingEnabled mirrors Config.StreamingEnabled so Run() can decide
+	// whether to register the streaming drain runnable. StreamingClose is the
+	// emitter close hook (always non-nil; a no-op when streaming is disabled).
+	StreamingEnabled bool
+	StreamingClose   func() error
+
 	libLog.Logger
 }
 
@@ -58,7 +64,49 @@ func (app *Service) Run() {
 			&eventListenerRunnable{listener: app.EventListener}))
 	}
 
+	// Streaming producer: register only when streaming is actually enabled AND
+	// we have a non-nil close hook. The NoopEmitter path is skipped to keep the
+	// Launcher app list lean.
+	if app.StreamingEnabled && app.StreamingClose != nil {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Streaming Producer",
+			&streamingProducerRunnable{close: app.StreamingClose, logger: app.Logger}))
+	}
+
 	libCommons.NewLauncher(launcherOpts...).Run()
+}
+
+// streamingProducerRunnable adapts the lib-streaming Producer's Close hook to
+// the libCommons.App interface. It blocks until SIGINT/SIGTERM and then runs
+// the producer's drain/flush close path so buffered records reach the broker
+// before the process exits.
+type streamingProducerRunnable struct {
+	close  func() error
+	logger libLog.Logger
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the producer close hook. The
+// close hook is responsible for draining records under its configured close
+// timeout; a non-nil return is logged but not propagated because at shutdown
+// the Launcher cannot meaningfully react.
+func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.close == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	if err := r.close(); err != nil && r.logger != nil {
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
+			"streaming producer Close returned error",
+			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
 }
 
 // eventListenerRunnable adapts a TenantEventListener to the libCommons.App interface.
