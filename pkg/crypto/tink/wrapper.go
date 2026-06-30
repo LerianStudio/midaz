@@ -44,9 +44,10 @@ func NewKeysetWrapper(kms KMSClient) *KeysetWrapper {
 }
 
 // WrapKeyset encrypts a serialized keyset using the KMS.
-// The mountPath and keyName are determined by the caller (e.g., mount
-// "transit/tenant-x" with key "tenant/org-123"). They are forwarded verbatim
-// to the KMS; this wrapper performs no mount resolution.
+// The mountPath and keyName are determined by the caller (e.g., shared engine
+// "transit-mt" with key "tenant-x_org-123", op path
+// "transit-mt/encrypt/tenant-x_org-123"). They are forwarded verbatim to the KMS;
+// this wrapper performs no mount resolution.
 // Returns the wrapped keyset in provider-specific ciphertext format.
 func (w *KeysetWrapper) WrapKeyset(ctx context.Context, mountPath, keyName string, keyset []byte) (string, error) {
 	if len(keyset) == 0 {

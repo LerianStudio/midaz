@@ -43,10 +43,17 @@ const (
 // EntityOrganizationEncryption is the entity type for encryption-related errors.
 const EntityOrganizationEncryption = "OrganizationEncryption"
 
+// defaultTenantID is the single-tenant sentinel. It mirrors the literal "default"
+// used by ExtractTenantID/ResolveProvisionTenantID in field_encryptor.go: in
+// single-tenant deployments the tenant resolves to this value. In multi-tenant
+// mode it is a reserved, non-routable value that fails closed at provisioning.
+const defaultTenantID = "default"
+
 // KeysetGenerator defines the interface for generating and wrapping keysets.
-// Compatible with pkg/crypto/tink.KeysetFactory. mountPath is the resolved Vault
-// Transit mount (flat base for single-tenant, base/tenant for multi-tenant);
-// keyName is the per-organization KEK key name (org-{id}).
+// Compatible with pkg/crypto/tink.KeysetFactory. mountPath is the shared
+// mode-derived Transit engine (transit-st single-tenant, transit-mt multi-tenant),
+// used verbatim; keyName is the tenant-scoped KEK key name (org-{id} single-tenant,
+// {tenant}_org-{id} multi-tenant).
 type KeysetGenerator interface {
 	GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
 	GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
@@ -64,21 +71,15 @@ type KeysetGenerator interface {
 	GenerateMixedPRFKeyset(ctx context.Context, mountPath, keyName, legacySecret string) (tink.KeysetBundle, error)
 }
 
-// TransitMountProvisioner creates a Vault Transit mount at a given path,
-// idempotently. A nil provisioner disables reactive mount auto-creation.
-type TransitMountProvisioner interface {
-	EnsureTransitMount(ctx context.Context, mountPath string) error
-}
-
 // ProvisioningConfig holds configuration for the ProvisioningService.
 type ProvisioningConfig struct {
 	// KEKMountPath is the KMS mount path (e.g., "transit" for Vault Transit).
 	KEKMountPath string
 
-	// MultiTenant enables per-tenant mount resolution. When true, the tenant
-	// segment is appended to the base mount and empty/"default" tenants fail
-	// closed (the bare multi-tenant base has no Transit engine). When false
-	// (single-tenant), the flat base is used verbatim.
+	// MultiTenant selects multi-tenant key naming. When true, the tenant segment
+	// prefixes the KEK key name ({tenantID}_org-{id}) and empty/"default" tenants
+	// fail closed. When false (single-tenant), the key name is org-{id}. The mount
+	// is the shared engine in both modes.
 	MultiTenant bool
 }
 
@@ -108,15 +109,14 @@ type ProvisioningService interface {
 // provisioningService handles organization encryption provisioning and activation.
 // It coordinates keyset generation, KMS wrapping, and registry state management.
 type provisioningService struct {
-	keysetRepo       mongoEncryption.KeysetRepository
-	registryRepo     mongoEncryption.RegistryRepository
-	keysetGenerator  KeysetGenerator
-	kekMountPath     string
-	multiTenant      bool
-	auditWriter      AuditWriter
-	metrics          *protectionMetrics
-	stateResolver    *ProtectionStateResolver
-	mountProvisioner TransitMountProvisioner
+	keysetRepo      mongoEncryption.KeysetRepository
+	registryRepo    mongoEncryption.RegistryRepository
+	keysetGenerator KeysetGenerator
+	kekMountPath    string
+	multiTenant     bool
+	auditWriter     AuditWriter
+	metrics         *protectionMetrics
+	stateResolver   *ProtectionStateResolver
 }
 
 // NewProvisioningService creates a new provisioning service with the given dependencies.
@@ -137,7 +137,6 @@ func NewProvisioningService(
 	auditWriter AuditWriter,
 	metrics *protectionMetrics,
 	stateResolver *ProtectionStateResolver,
-	mountProvisioner TransitMountProvisioner,
 ) ProvisioningService {
 	mountPath := config.KEKMountPath
 	if mountPath == "" {
@@ -149,15 +148,14 @@ func NewProvisioningService(
 	}
 
 	return &provisioningService{
-		keysetRepo:       keysetRepo,
-		registryRepo:     registryRepo,
-		keysetGenerator:  keysetGenerator,
-		kekMountPath:     mountPath,
-		multiTenant:      config.MultiTenant,
-		auditWriter:      auditWriter,
-		metrics:          metrics,
-		stateResolver:    stateResolver,
-		mountProvisioner: mountProvisioner,
+		keysetRepo:      keysetRepo,
+		registryRepo:    registryRepo,
+		keysetGenerator: keysetGenerator,
+		kekMountPath:    mountPath,
+		multiTenant:     config.MultiTenant,
+		auditWriter:     auditWriter,
+		metrics:         metrics,
+		stateResolver:   stateResolver,
 	}
 }
 
@@ -281,22 +279,17 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
-	// KEK path is the key name; mount is resolved per-tenant (flat base for single-tenant).
-	kekPath := s.buildKEKPath(req.OrganizationID)
+	// KEK path is the tenant-scoped key name; the mount is the shared engine.
+	kekPath := s.buildKEKPath(req.TenantID, req.OrganizationID)
 
-	mount, err := resolveMount(s.kekMountPath, req.TenantID, s.multiTenant)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "failed to resolve tenant mount", err)
-
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
-	}
+	mount := s.kekMountPath
 
 	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
 	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
 
 	// Build the AEAD + PRF keysets (see buildProvisioningKeysets for the
 	// envelope-only-vs-migration branch and the verbatim error contract).
-	keyset, verbatim, err := s.buildKeysetsWithMountRecovery(ctx, span, req, mount, kekPath)
+	keyset, verbatim, err := s.buildProvisioningKeysets(ctx, req, mount, kekPath)
 	if err != nil {
 		if verbatim {
 			// Pre-refactor behavior: a bare context error observed between keyset
@@ -320,58 +313,6 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 
 	// Create and save registry record
 	return s.createAndSaveRegistry(ctx, req, kekPath, keyset.KeysetInfo.PrimaryKeyID, keyset.HMACKeysetInfo.PrimaryKeyID)
-}
-
-// buildKeysetsWithMountRecovery builds the provisioning keysets and, in
-// multi-tenant mode with a mount provisioner injected, recovers from a missing
-// per-tenant Transit mount: it creates the mount and retries the build exactly
-// once. With no provisioner, in single-tenant mode, or for any non-mount error,
-// it returns the build result unchanged. A mount-create failure is recorded and
-// the original mount-missing error is returned so the caller fails closed.
-func (s *provisioningService) buildKeysetsWithMountRecovery(ctx context.Context, span trace.Span, req ProvisionInput, mount, kekPath string) (*mmodel.OrganizationKeyset, bool, error) {
-	keyset, verbatim, err := s.buildProvisioningKeysets(ctx, req, mount, kekPath)
-	if err == nil || verbatim || !errors.Is(err, vault.ErrMountNotFound) {
-		return keyset, verbatim, err
-	}
-
-	if !s.multiTenant || s.mountProvisioner == nil {
-		return keyset, verbatim, err
-	}
-
-	// Fast-fail on a cancelled context before issuing the mount-create call. The
-	// bare context error is returned verbatim (Is-comparable) so the caller does
-	// not mask it as a business error.
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return nil, true, ctxErr
-	}
-
-	logger := libObservability.NewLoggerFromContext(ctx)
-
-	if createErr := s.mountProvisioner.EnsureTransitMount(ctx, mount); createErr != nil {
-		libOpenTelemetry.HandleSpanError(span, "failed to create transit mount", createErr)
-
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn, "transit mount auto-create failed",
-				libLog.String("mount_path", mount))
-		}
-
-		return keyset, verbatim, err
-	}
-
-	span.SetAttributes(attribute.Bool("app.protection.mount_auto_created", true))
-
-	if logger != nil {
-		logger.Log(ctx, libLog.LevelInfo, "transit mount auto-created",
-			libLog.String("mount_path", mount))
-	}
-
-	// Fast-fail on a cancelled context before the single retry build. The bare
-	// context error is returned verbatim so the caller does not mask it.
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return nil, true, ctxErr
-	}
-
-	return s.buildProvisioningKeysets(ctx, req, mount, kekPath)
 }
 
 // buildProvisioningKeysets constructs the AEAD and PRF keysets for an
@@ -778,11 +719,20 @@ func (s *provisioningService) wrapProvisionError(span trace.Span, err error) err
 	return pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 }
 
-// buildKEKPath constructs the KEK key name for an organization.
-// Format: org-{org-id}
-// This is the key name used by Vault Transit for encrypt/decrypt operations.
-// The mount path (e.g., "transit") is handled separately by the Vault client.
-func (s *provisioningService) buildKEKPath(organizationID string) string {
+// buildKEKPath constructs the KEK key name for an organization. The key name
+// carries the tenant scope (the mount is the shared engine):
+//
+//   - Multi-tenant: {tenantID}_org-{org-id}
+//   - Single-tenant: org-{org-id}
+//
+// This is the key name used by Vault Transit for encrypt/decrypt operations under
+// the shared mount. The tenant/org segments are joined with an underscore because
+// Vault Transit key names cannot contain a slash.
+func (s *provisioningService) buildKEKPath(tenantID, organizationID string) string {
+	if s.multiTenant {
+		return fmt.Sprintf("%s_org-%s", tenantID, organizationID)
+	}
+
 	return fmt.Sprintf("org-%s", organizationID)
 }
 

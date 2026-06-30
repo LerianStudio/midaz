@@ -323,15 +323,20 @@ func (km *KeysetManager) unwrapAndCache(ctx context.Context, cacheKey string, ke
 	}
 
 	// Prefer the stored KEKMountPath so reads are config-independent; fall back to
-	// deriving from the stored tenant for legacy records.
+	// the shared engine for legacy records that have no stored mount.
 	mount := keyset.KEKMountPath
 	if mount == "" {
-		resolved, err := resolveMount(km.baseMountPath, keyset.TenantID, km.multiTenant)
-		if err != nil {
-			return nil, err
+		// Fail closed in multi-tenant mode when the stored tenant is missing or the
+		// reserved sentinel: such a record has no tenant-scoped key and must not read
+		// against the shared engine.
+		if km.multiTenant {
+			tenantID := strings.Trim(keyset.TenantID, "/ \t")
+			if tenantID == "" || tenantID == defaultTenantID {
+				return nil, fmt.Errorf("multi-tenant keyset requires a real tenant id, got %q", keyset.TenantID)
+			}
 		}
 
-		mount = resolved
+		mount = km.baseMountPath
 	}
 
 	// app.protection.mount_path is the resolved mount, not a secret.
