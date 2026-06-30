@@ -28,6 +28,20 @@ const (
 	ActionOverdraft = "overdraft"
 )
 
+// Block/Unblock accounting-entry actions.
+//
+// Like ActionOverdraft, these are NOT valid transaction-route action values
+// and are therefore NOT included in ValidActions or the migration 000023
+// CHECK constraint. They are accounting-entry keys
+// (AccountingEntries.Block / AccountingEntries.Unblock) resolved at runtime
+// via the operation-type override, describing the accounting impact of
+// blocking and unblocking a balance. Keeping them separate from ValidActions
+// avoids loosening the DB-level whitelist for transaction-route associations.
+const (
+	ActionBlock   = "block"
+	ActionUnblock = "unblock"
+)
+
 // ValidActions contains all valid action values for programmatic validation.
 //
 // This slice mirrors the migration 000023 CHECK constraint on the

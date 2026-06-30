@@ -264,7 +264,7 @@ func (handler *TransactionHandler) BuildOperations(
 		operations[idx].BalanceAfter.OverdraftUsed = a.balanceAfterOverdraftUsed
 	}
 
-	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
+	resolveRouteCodesFromCache(operations, transactionRouteCache, action, transactionInput.OperationTypeOverride)
 
 	return operations, preBalances, nil
 }
@@ -278,7 +278,7 @@ func (handler *TransactionHandler) BuildOperations(
 // Both RouteCode and RouteDescription are resolved from the AccountingRubric
 // that matches the operation's action and direction (debit → Debit rubric,
 // credit → Credit rubric).
-func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action string) {
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action, operationTypeOverride string) {
 	if cache == nil {
 		return
 	}
@@ -305,6 +305,29 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// without special-casing here.
 		resolvedAction := action
 
+		// Block/unblock operations carry the base action (direct) but a
+		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
+		// configures a dedicated Block/Unblock AccountingEntry, route the
+		// rubric lookup to it; otherwise leave resolvedAction unchanged so
+		// block/unblock keep resolving via the Direct rubric (Phase 1 parity).
+		switch operationTypeOverride {
+		case constant.BLOCK:
+			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Block != nil
+			}) {
+				resolvedAction = constant.ActionBlock
+			}
+		case constant.UNBLOCK:
+			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Unblock != nil
+			}) {
+				resolvedAction = constant.ActionUnblock
+			}
+		}
+
+		// The Overdraft BalanceKey override takes precedence: companion
+		// operations on the overdraft balance always resolve their rubric
+		// through the Overdraft AccountingEntry, regardless of block/unblock.
 		if op.BalanceKey == constant.OverdraftBalanceKey {
 			resolvedAction = constant.ActionOverdraft
 		}
@@ -334,6 +357,24 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 	}
 }
 
+// blockEntryConfigured reports whether the route identified by routeID — looked up
+// under the given base action in the cache — has the block/unblock AccountingEntry
+// satisfied by the supplied predicate. Used to decide whether a BLOCK/UNBLOCK
+// operation should resolve via its dedicated rubric or fall back to Direct.
+func blockEntryConfigured(cache *mmodel.TransactionRouteCache, action, routeID string, has func(*mmodel.AccountingEntries) bool) bool {
+	actionCache, ok := cache.Actions[action]
+	if !ok {
+		return false
+	}
+
+	rc, ok := findRouteInActionCache(actionCache, routeID)
+	if !ok || rc.AccountingEntries == nil {
+		return false
+	}
+
+	return has(rc.AccountingEntries)
+}
+
 // resolveAccountingRubric selects the appropriate AccountingRubric from the given
 // AccountingEntries based on the action name and operation direction.
 // Returns nil when no matching entry or rubric exists.
@@ -357,6 +398,10 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Revert
 	case constant.ActionOverdraft:
 		entry = entries.Overdraft
+	case constant.ActionBlock:
+		entry = entries.Block
+	case constant.ActionUnblock:
+		entry = entries.Unblock
 	}
 
 	if entry == nil {
@@ -925,6 +970,11 @@ func (handler *TransactionHandler) buildStandardOp(
 	opType := amt.Operation
 	if blc.Key == constant.OverdraftBalanceKey {
 		opType = constant.OVERDRAFT
+	} else if transactionInput.OperationTypeOverride != "" {
+		// Block/unblock paths set a semantic Type label (BLOCK/UNBLOCK). It
+		// overrides only the Type, never Direction or amount. Overdraft
+		// companion rows keep their OVERDRAFT label and are excluded above.
+		opType = transactionInput.OperationTypeOverride
 	}
 
 	return &operation.Operation{
