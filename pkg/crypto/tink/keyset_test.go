@@ -329,7 +329,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
@@ -338,7 +338,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
 		assert.Equal(t, KeyTypeAES256GCM, bundle.Wrapped.Info.Keys[0].Type)
 		assert.False(t, bundle.Wrapped.LegacyKeyImported)
-		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+		assert.Equal(t, "transit-mt", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on KMS encryption error", func(t *testing.T) {
@@ -348,7 +348,7 @@ func TestKeysetFactory_GenerateAEADKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+		_, err := factory.GenerateAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 
 		require.Error(t, err)
 	})
@@ -363,7 +363,7 @@ func TestKeysetFactory_GeneratePRFKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
@@ -372,7 +372,7 @@ func TestKeysetFactory_GeneratePRFKeyset(t *testing.T) {
 		assert.Len(t, bundle.Wrapped.Info.Keys, 1)
 		assert.Equal(t, KeyTypeHMACPRF, bundle.Wrapped.Info.Keys[0].Type)
 		assert.False(t, bundle.Wrapped.LegacyKeyImported)
-		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+		assert.Equal(t, "transit-mt", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on KMS encryption error", func(t *testing.T) {
@@ -382,7 +382,7 @@ func TestKeysetFactory_GeneratePRFKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+		_, err := factory.GeneratePRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 
 		require.Error(t, err)
 	})
@@ -397,13 +397,13 @@ func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyEncryptHexKey)
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
 		assert.NotEmpty(t, bundle.RawKeyset)
 		assert.True(t, bundle.Wrapped.LegacyKeyImported, "mixed keyset must flag the imported legacy key")
-		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+		assert.Equal(t, "transit-mt", kms.gotEncryptMount)
 
 		// Exactly two enabled keys: fresh primary + legacy non-primary.
 		require.Len(t, bundle.Wrapped.Info.Keys, 2, "mixed AEAD keyset must hold two keys")
@@ -435,10 +435,10 @@ func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+		bundle, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyEncryptHexKey)
 		require.NoError(t, err)
 
-		primitive, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		primitive, err := factory.UnwrapAEAD(context.Background(), "transit-mt", "tenant-x_org-123", bundle.Wrapped)
 		require.NoError(t, err)
 
 		// (a) The composite keyset must decrypt ciphertext produced by lib-commons
@@ -473,7 +473,7 @@ func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", "")
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "")
 
 		require.Error(t, err)
 		assert.Empty(t, kms.gotEncryptMount, "must fail before reaching the KMS wrap step")
@@ -485,7 +485,7 @@ func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", "not-hex-zz")
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "not-hex-zz")
 
 		require.Error(t, err)
 	})
@@ -497,7 +497,7 @@ func TestKeysetFactory_GenerateMixedAEADKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyEncryptHexKey)
+		_, err := factory.GenerateMixedAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyEncryptHexKey)
 
 		require.Error(t, err)
 	})
@@ -512,13 +512,13 @@ func TestKeysetFactory_GenerateMixedPRFKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyHashKey)
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, bundle.Wrapped.WrappedData)
 		assert.NotEmpty(t, bundle.RawKeyset)
 		assert.True(t, bundle.Wrapped.LegacyKeyImported)
-		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+		assert.Equal(t, "transit-mt", kms.gotEncryptMount)
 
 		require.Len(t, bundle.Wrapped.Info.Keys, 2, "mixed PRF keyset must hold two keys")
 
@@ -547,10 +547,10 @@ func TestKeysetFactory_GenerateMixedPRFKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+		bundle, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyHashKey)
 		require.NoError(t, err)
 
-		keysetBytes, err := factory.Wrapper().UnwrapKeyset(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped.WrappedData)
+		keysetBytes, err := factory.Wrapper().UnwrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", bundle.Wrapped.WrappedData)
 		require.NoError(t, err)
 
 		handle, err := DeserializePRFKeyset(keysetBytes)
@@ -587,7 +587,7 @@ func TestKeysetFactory_GenerateMixedPRFKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", "")
+		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "")
 
 		require.Error(t, err)
 	})
@@ -599,7 +599,7 @@ func TestKeysetFactory_GenerateMixedPRFKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		factory := NewKeysetFactory(kms)
 
-		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit/tenant-x", "test-key", testLegacyHashKey)
+		_, err := factory.GenerateMixedPRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123", testLegacyHashKey)
 
 		require.Error(t, err)
 	})
@@ -615,13 +615,13 @@ func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate keyset first
-		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GenerateAEADKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 		require.NoError(t, err)
 
 		// Unwrap AEAD keyset
-		primitive, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		primitive, err := factory.UnwrapAEAD(context.Background(), "transit-mt", "tenant-x_org-123", bundle.Wrapped)
 		require.NoError(t, err)
-		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
+		assert.Equal(t, "transit-mt", kms.gotDecryptMount)
 
 		// Test that primitive works
 		plaintext := []byte("test encryption")
@@ -645,7 +645,7 @@ func TestKeysetFactory_UnwrapAEAD(t *testing.T) {
 
 		kms.decryptErr = fmt.Errorf("permission denied")
 
-		_, err := factory.UnwrapAEAD(context.Background(), "transit/tenant-x", "test-key", wrapped)
+		_, err := factory.UnwrapAEAD(context.Background(), "transit-mt", "tenant-x_org-123", wrapped)
 
 		require.Error(t, err)
 	})
@@ -661,13 +661,13 @@ func TestKeysetFactory_UnwrapPRF(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate keyset first
-		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit/tenant-x", "test-key")
+		bundle, err := factory.GeneratePRFKeyset(context.Background(), "transit-mt", "tenant-x_org-123")
 		require.NoError(t, err)
 
 		// Unwrap PRF keyset
-		primitive, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", bundle.Wrapped)
+		primitive, err := factory.UnwrapPRF(context.Background(), "transit-mt", "tenant-x_org-123", bundle.Wrapped)
 		require.NoError(t, err)
-		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
+		assert.Equal(t, "transit-mt", kms.gotDecryptMount)
 
 		// Test that primitive works: deterministic search token over RAW PRF output.
 		data := []byte("data to mac")
@@ -692,7 +692,7 @@ func TestKeysetFactory_UnwrapPRF(t *testing.T) {
 
 		kms.decryptErr = fmt.Errorf("permission denied")
 
-		_, err := factory.UnwrapPRF(context.Background(), "transit/tenant-x", "test-key", wrapped)
+		_, err := factory.UnwrapPRF(context.Background(), "transit-mt", "tenant-x_org-123", wrapped)
 
 		require.Error(t, err)
 	})
@@ -719,8 +719,8 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate AEAD keyset with caller-defined mount and key name
-		mountPath := "transit/tenant-abc"
-		keyName := "tenant/abc/entity/123"
+		mountPath := "transit-mt"
+		keyName := "tenantabc_org-123"
 		bundle, err := factory.GenerateAEADKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 
@@ -754,8 +754,8 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 		factory := NewKeysetFactory(kms)
 
 		// Generate PRF keyset
-		mountPath := "transit/tenant-abc"
-		keyName := "tenant/abc/entity/123"
+		mountPath := "transit-mt"
+		keyName := "tenant-abc/org-123"
 		bundle, err := factory.GeneratePRFKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 

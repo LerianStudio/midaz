@@ -29,6 +29,8 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
 	defer span.End()
 
+	filter.ApplyDefaultDateRange()
+
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransaction, filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)

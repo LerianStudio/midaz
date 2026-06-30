@@ -353,7 +353,7 @@ func TestClient_Encrypt_MountPathDrivesPath(t *testing.T) {
 		var capturedPath atomic.Value
 
 		server := newTestServer(t, map[string]http.HandlerFunc{
-			"/v1/transit/tenant-x/encrypt/org/test-org-id": func(w http.ResponseWriter, r *http.Request) {
+			"/v1/transit-mt/encrypt/tenant-x_org-123": func(w http.ResponseWriter, r *http.Request) {
 				capturedPath.Store(r.URL.Path)
 
 				resp := map[string]any{
@@ -375,11 +375,11 @@ func TestClient_Encrypt_MountPathDrivesPath(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ciphertext, err := client.Encrypt(context.Background(), "transit/tenant-x", "org/test-org-id", []byte("data"))
+		ciphertext, err := client.Encrypt(context.Background(), "transit-mt", "tenant-x_org-123", []byte("data"))
 
 		require.NoError(t, err)
 		assert.Equal(t, "vault:v1:tenant-x-ciphertext", ciphertext)
-		assert.Equal(t, "/v1/transit/tenant-x/encrypt/org/test-org-id", capturedPath.Load())
+		assert.Equal(t, "/v1/transit-mt/encrypt/tenant-x_org-123", capturedPath.Load())
 	})
 
 	t.Run("empty mount path returns guard error", func(t *testing.T) {
@@ -409,7 +409,7 @@ func TestClient_Decrypt_MountPathDrivesPath(t *testing.T) {
 		var capturedPath atomic.Value
 
 		server := newTestServer(t, map[string]http.HandlerFunc{
-			"/v1/transit/tenant-x/decrypt/org/test-org-id": func(w http.ResponseWriter, r *http.Request) {
+			"/v1/transit-mt/decrypt/tenant-x_org-123": func(w http.ResponseWriter, r *http.Request) {
 				capturedPath.Store(r.URL.Path)
 
 				resp := map[string]any{
@@ -431,11 +431,11 @@ func TestClient_Decrypt_MountPathDrivesPath(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		plaintext, err := client.Decrypt(context.Background(), "transit/tenant-x", "org/test-org-id", "vault:v1:data")
+		plaintext, err := client.Decrypt(context.Background(), "transit-mt", "tenant-x_org-123", "vault:v1:data")
 
 		require.NoError(t, err)
 		assert.Equal(t, expectedPlaintext, plaintext)
-		assert.Equal(t, "/v1/transit/tenant-x/decrypt/org/test-org-id", capturedPath.Load())
+		assert.Equal(t, "/v1/transit-mt/decrypt/tenant-x_org-123", capturedPath.Load())
 	})
 
 	t.Run("empty mount path returns guard error", func(t *testing.T) {
@@ -486,11 +486,13 @@ func TestClient_Encrypt_MissingMount(t *testing.T) {
 		assert.Contains(t, err.Error(), "transit/missing", "mount path should be included in error")
 	})
 
-	t.Run("404 unsupported path maps to ErrMountNotFound", func(t *testing.T) {
+	t.Run("404 unsupported path is not classified as ErrMountNotFound", func(t *testing.T) {
 		t.Parallel()
 
+		// On modern Vault, a 404 "unsupported path" means the mount EXISTS but the
+		// sub-path is invalid (e.g. an illegal transit key name), not a missing mount.
 		server := newTestServer(t, map[string]http.HandlerFunc{
-			"/v1/transit/missing/encrypt/org/x": func(w http.ResponseWriter, r *http.Request) {
+			"/v1/transit/encrypt/bad..key": func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 				json.NewEncoder(w).Encode(map[string]any{
 					"errors": []string{"unsupported path"},
@@ -507,10 +509,10 @@ func TestClient_Encrypt_MissingMount(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.Encrypt(context.Background(), "transit/missing", "org/x", []byte("data"))
+		_, err = client.Encrypt(context.Background(), "transit", "bad..key", []byte("data"))
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, ErrMountNotFound), "expected ErrMountNotFound, got %v", err)
+		assert.False(t, errors.Is(err, ErrMountNotFound), "unsupported path must not be ErrMountNotFound, got %v", err)
 	})
 
 	t.Run("500 server error is not misclassified as ErrMountNotFound", func(t *testing.T) {
@@ -572,11 +574,13 @@ func TestClient_Decrypt_MissingMount(t *testing.T) {
 		assert.Contains(t, err.Error(), "transit/missing", "mount path should be included in error")
 	})
 
-	t.Run("404 unsupported path maps to ErrMountNotFound", func(t *testing.T) {
+	t.Run("404 unsupported path is not classified as ErrMountNotFound", func(t *testing.T) {
 		t.Parallel()
 
+		// On modern Vault, a 404 "unsupported path" means the mount EXISTS but the
+		// sub-path is invalid (e.g. an illegal transit key name), not a missing mount.
 		server := newTestServer(t, map[string]http.HandlerFunc{
-			"/v1/transit/missing/decrypt/org/x": func(w http.ResponseWriter, r *http.Request) {
+			"/v1/transit/decrypt/bad..key": func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 				json.NewEncoder(w).Encode(map[string]any{
 					"errors": []string{"unsupported path"},
@@ -593,10 +597,10 @@ func TestClient_Decrypt_MissingMount(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.Decrypt(context.Background(), "transit/missing", "org/x", "vault:v1:data")
+		_, err = client.Decrypt(context.Background(), "transit", "bad..key", "vault:v1:data")
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, ErrMountNotFound), "expected ErrMountNotFound, got %v", err)
+		assert.False(t, errors.Is(err, ErrMountNotFound), "unsupported path must not be ErrMountNotFound, got %v", err)
 	})
 
 	t.Run("403 permission denied is not misclassified as ErrMountNotFound", func(t *testing.T) {

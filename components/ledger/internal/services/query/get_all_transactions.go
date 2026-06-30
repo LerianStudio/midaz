@@ -37,6 +37,8 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_transactions", start, err)
 	}()
 
+	filter.ApplyDefaultDateRange()
+
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))

@@ -310,9 +310,13 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		)
 	}
 
-	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder))
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
 
 	findAll = findAll.Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).

@@ -712,9 +712,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	findAll = applyCreatedAtRange(findAll, filter)
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -1358,9 +1358,9 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	subQuery = applyCreatedAtRange(subQuery, filter)
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1632,6 +1632,19 @@ func decodeTransactionBody(tran *TransactionPostgreSQLModel, body *string) error
 	}
 
 	return json.Unmarshal([]byte(*body), &tran.Body)
+}
+
+// applyCreatedAtRange appends the created_at range clauses only when the caller
+// provided a start date. A zero StartDate means no date filter was requested, so
+// the query must return the full set instead of an empty (zero-bounded) window.
+func applyCreatedAtRange(builder squirrel.SelectBuilder, pagination http.Pagination) squirrel.SelectBuilder {
+	if pagination.StartDate.IsZero() {
+		return builder
+	}
+
+	return builder.
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
 }
 
 // derefString safely dereferences a *string, returning "" if nil.

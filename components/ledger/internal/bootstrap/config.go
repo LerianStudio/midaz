@@ -199,7 +199,6 @@ type Config struct {
 	VaultAddr       string `env:"KMS_VAULT_ADDR"`
 	VaultRoleID     string `env:"KMS_VAULT_ROLE_ID"`
 	VaultSecretID   string `env:"KMS_VAULT_SECRET_ID"`
-	VaultMountPath  string `env:"KMS_VAULT_MOUNT_PATH"`
 	VaultAuthMethod string `env:"KMS_VAULT_AUTH_METHOD"`
 
 	// --- Fees MongoDB fields (MONGO_FEES_* env tags) ---

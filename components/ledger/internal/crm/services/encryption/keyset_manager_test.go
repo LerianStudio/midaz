@@ -1823,10 +1823,11 @@ func TestKeysetManager_GetPrimitives_UnwrapMount_DefaultTenant_Flat(t *testing.T
 	}
 }
 
-// TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount verifies that a
-// stored keyset with a non-default TenantID resolves to a per-tenant sub-mount
-// "transit/<tenant>" for both AEAD and PRF unwrap calls, derived from the STORED tenant.
-func TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount(t *testing.T) {
+// TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SharedEngine verifies
+// that a stored keyset with no KEKMountPath and a non-default TenantID resolves to the
+// shared engine "transit" verbatim for both AEAD and PRF unwrap calls (tenant scope is
+// in the key name, not the mount).
+func TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SharedEngine(t *testing.T) {
 	t.Parallel()
 
 	aeadBytes, prfBytes := generateTestKeysets(t)
@@ -1859,7 +1860,7 @@ func TestKeysetManager_GetPrimitives_UnwrapMount_NonDefaultTenant_SubMount(t *te
 		t.Fatalf("GetPrimitives() error = %v", err)
 	}
 
-	want := "transit/" + tenant
+	want := "transit"
 
 	mounts := unwrapper.getMountPaths()
 	if len(mounts) != 2 {
@@ -1955,9 +1956,9 @@ func TestKeysetManager_GetPrimitives_StoredMountWins(t *testing.T) {
 
 // TestKeysetManager_GetPrimitives_ConfigBaseChanged_UsesStoredMount is the #3
 // regression: a keyset provisioned under "transit" must still unwrap under
-// "transit" even after KMS_VAULT_MOUNT_PATH (BaseMountPath) is changed to a new
-// value. Before the read-side fix, unwrap derived the mount from the live config
-// and would have targeted the CHANGED base, stranding existing keysets.
+// "transit" even after the configured BaseMountPath is changed to a new value.
+// Before the read-side fix, unwrap derived the mount from the live config and
+// would have targeted the CHANGED base, stranding existing keysets.
 func TestKeysetManager_GetPrimitives_ConfigBaseChanged_UsesStoredMount(t *testing.T) {
 	t.Parallel()
 
@@ -2004,8 +2005,8 @@ func TestKeysetManager_GetPrimitives_ConfigBaseChanged_UsesStoredMount(t *testin
 
 // TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived verifies the
 // back-compat path: a keyset with no stored KEKMountPath derives the mount from the
-// manager BaseMountPath and the stored tenant. "default"/"" tenant -> flat base;
-// a real tenant -> per-tenant sub-mount.
+// manager BaseMountPath. The mount is the shared engine in both modes; "default"/""
+// tenant fails closed in multi-tenant mode (tenant scope is in the key name).
 func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *testing.T) {
 	t.Parallel()
 
@@ -2016,11 +2017,11 @@ func TestKeysetManager_GetPrimitives_LegacyEmptyMount_FallsBackToDerived(t *test
 		want        string
 		wantErr     bool
 	}{
-		// Single-tenant: the legacy fallback always derives the flat base.
-		{name: "single-tenant default tenant -> flat base", tenantID: "default", multiTenant: false, want: "transit"},
-		{name: "single-tenant real tenant -> flat base", tenantID: "t1", multiTenant: false, want: "transit"},
-		// Multi-tenant: a real tenant derives a sub-mount; "default" fails closed.
-		{name: "multi-tenant real tenant -> sub-mount", tenantID: "t1", multiTenant: true, want: "transit/t1"},
+		// Single-tenant: the legacy fallback derives the shared engine.
+		{name: "single-tenant default tenant -> shared engine", tenantID: "default", multiTenant: false, want: "transit"},
+		{name: "single-tenant real tenant -> shared engine", tenantID: "t1", multiTenant: false, want: "transit"},
+		// Multi-tenant: a real tenant derives the shared engine verbatim; "default" fails closed.
+		{name: "multi-tenant real tenant -> shared engine", tenantID: "t1", multiTenant: true, want: "transit"},
 		{name: "multi-tenant default tenant -> fail closed", tenantID: "default", multiTenant: true, wantErr: true},
 	}
 

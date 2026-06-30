@@ -506,10 +506,9 @@ func TestProvisioningService_buildProvisioningKeysets_EnvelopeOnly_SingleKeyShap
 		importLegacy:   false,
 	}
 
-	mount, err := resolveMount(concreteSvc.kekMountPath, req.TenantID, concreteSvc.multiTenant)
-	require.NoError(t, err)
+	mount := concreteSvc.kekMountPath
 
-	kekPath := concreteSvc.buildKEKPath(req.OrganizationID)
+	kekPath := concreteSvc.buildKEKPath(req.TenantID, req.OrganizationID)
 
 	keyset, verbatim, err := concreteSvc.buildProvisioningKeysets(ctx, req, mount, kekPath)
 	require.NoError(t, err)
@@ -630,7 +629,7 @@ func TestProvisioningService_Provision_SingleTenant_FlatMount(t *testing.T) {
 	assert.Equal(t, "transit", savedKeyset.KEKMountPath, "resolved flat-base mount must be persisted on the keyset")
 }
 
-func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
+func TestProvisioningService_Provision_MultiTenant_SharedEngineTenantKeyName(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -639,7 +638,7 @@ func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
 	keysetGenerator := newFakeKeysetGenerator()
 
 	svc := NewProvisioningService(keysetRepo, registryRepo, keysetGenerator,
-		ProvisioningConfig{KEKMountPath: "transit", MultiTenant: true}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
+		ProvisioningConfig{KEKMountPath: "transit-mt", MultiTenant: true}, newSpyAuditWriter(), NewProtectionMetrics(nil), nil)
 
 	const tenantID = "11111111-2222-3333-4444-555555555555"
 
@@ -653,17 +652,17 @@ func TestProvisioningService_Provision_MultiTenant_SubMount(t *testing.T) {
 	_, err := svc.Provision(ctx, req)
 	require.NoError(t, err)
 
-	// Multi-tenant resolves to a per-tenant sub-mount for both wrap calls.
-	want := "transit/" + tenantID
-	assert.Equal(t, want, keysetGenerator.aeadMountPath, "AEAD wrap must use per-tenant sub-mount")
-	assert.Equal(t, want, keysetGenerator.macMountPath, "PRF wrap must use per-tenant sub-mount")
+	// Multi-tenant uses the shared engine verbatim for both wrap calls; the tenant
+	// scope lives in the key name, not the mount.
+	assert.Equal(t, "transit-mt", keysetGenerator.aeadMountPath, "AEAD wrap must use the shared engine verbatim")
+	assert.Equal(t, "transit-mt", keysetGenerator.macMountPath, "PRF wrap must use the shared engine verbatim")
 
-	// Key name remains org-{id}; the resolved per-tenant sub-mount IS persisted on
-	// the record so unwrap does not depend on live KMS_VAULT_MOUNT_PATH config.
+	// Key name is tenant-scoped ({tenant}_org-{id}); the shared engine IS persisted on
+	// the record so unwrap does not depend on live config.
 	savedKeyset := keysetRepo.keysets["org-456"]
 	require.NotNil(t, savedKeyset)
-	assert.Equal(t, "org-org-456", savedKeyset.KEKPath)
-	assert.Equal(t, want, savedKeyset.KEKMountPath, "resolved per-tenant sub-mount must be persisted on the keyset")
+	assert.Equal(t, tenantID+"_org-org-456", savedKeyset.KEKPath, "multi-tenant key name must be tenant-scoped")
+	assert.Equal(t, "transit-mt", savedKeyset.KEKMountPath, "shared engine must be persisted verbatim on the keyset")
 }
 
 func TestProvisioningService_Provision_MountNotFound_FailsClosed(t *testing.T) {
@@ -1319,10 +1318,9 @@ func TestProvisioningService_buildProvisioningKeysets_Migration_MixedTwoKeyShape
 		importLegacy:   true,
 	}
 
-	mount, err := resolveMount(concreteSvc.kekMountPath, req.TenantID, concreteSvc.multiTenant)
-	require.NoError(t, err)
+	mount := concreteSvc.kekMountPath
 
-	kekPath := concreteSvc.buildKEKPath(req.OrganizationID)
+	kekPath := concreteSvc.buildKEKPath(req.TenantID, req.OrganizationID)
 
 	keyset, verbatim, err := concreteSvc.buildProvisioningKeysets(ctx, req, mount, kekPath)
 	require.NoError(t, err)
@@ -1607,7 +1605,7 @@ func TestNewProvisioningService_DefaultMountPath(t *testing.T) {
 	require.True(t, ok, "NewProvisioningService must return *provisioningService")
 
 	// Verify key name format
-	kekPath := concreteSvc.buildKEKPath("org-123")
+	kekPath := concreteSvc.buildKEKPath("", "org-123")
 	assert.Equal(t, "org-org-123", kekPath)
 }
 
@@ -1624,7 +1622,7 @@ func TestNewProvisioningService_CustomMountPath(t *testing.T) {
 	require.True(t, ok, "NewProvisioningService must return *provisioningService")
 
 	// Verify key name format (mount path is used internally by Vault client, not in key name)
-	kekPath := concreteSvc.buildKEKPath("org-123")
+	kekPath := concreteSvc.buildKEKPath("", "org-123")
 	assert.Equal(t, "org-org-123", kekPath)
 }
 

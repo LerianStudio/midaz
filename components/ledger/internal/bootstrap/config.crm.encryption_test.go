@@ -148,7 +148,6 @@ func TestValidateVaultConfig(t *testing.T) {
 				VaultAddr:       "https://vault.example.com:8200",
 				VaultRoleID:     "role-123",
 				VaultSecretID:   "secret-456",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 		},
@@ -157,7 +156,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "token",
 				DeploymentMode:  DeploymentModeLocal,
 			},
@@ -168,7 +166,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			cfg: &Config{
 				VaultRoleID:     "role-123",
 				VaultSecretID:   "secret-456",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 			expectError:   true,
@@ -179,7 +176,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:      "https://vault.example.com:8200",
-				VaultMountPath: "transit",
 			},
 			expectError:   true,
 			errorContains: "KMS_VAULT_AUTH_METHOD",
@@ -189,7 +185,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "approle",
 			},
 			expectError:   true,
@@ -200,7 +195,6 @@ func TestValidateVaultConfig(t *testing.T) {
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
 				VaultAddr:       "https://vault.example.com:8200",
-				VaultMountPath:  "transit",
 				VaultAuthMethod: "token",
 				DeploymentMode:  DeploymentModeSaaS,
 			},
@@ -234,7 +228,6 @@ func TestBuildVaultConfig(t *testing.T) {
 		VaultAddr:       "https://vault.example.com:8200",
 		VaultRoleID:     "role-123",
 		VaultSecretID:   "secret-456",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "approle",
 	}
 
@@ -255,7 +248,6 @@ func TestBuildVaultConfig_TokenAuth(t *testing.T) {
 
 	cfg := &Config{
 		VaultAddr:       "https://vault.example.com:8200",
-		VaultMountPath:  "transit",
 		VaultAuthMethod: "token",
 		DeploymentMode:  DeploymentModeLocal,
 	}
@@ -416,33 +408,24 @@ func TestIsLocalDeployment(t *testing.T) {
 	}
 }
 
-func TestResolveBaseMountPath(t *testing.T) {
+func TestDefaultMountPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		configured string
-		want       string
+		name        string
+		multiTenant bool
+		want        string
 	}{
-		{name: "empty falls back to default", configured: "", want: defaultKEKMountPath},
-		{name: "whitespace-only falls back to default", configured: "  ", want: defaultKEKMountPath},
-		{name: "slash-only falls back to default", configured: "/", want: defaultKEKMountPath},
-		{name: "slashes and whitespace fall back to default", configured: " // ", want: defaultKEKMountPath},
-		{name: "surrounding slashes are trimmed", configured: "/transit/", want: "transit"},
-		{name: "surrounding slashes and whitespace are trimmed", configured: " /transit/ ", want: "transit"},
-		{name: "real value is preserved", configured: "transit", want: "transit"},
-		{name: "custom value is preserved", configured: "crm-transit", want: "crm-transit"},
-		{name: "surrounding whitespace trimmed but value kept", configured: "  transit  ", want: "transit"},
-		{name: "newlines and slashes trimmed", configured: "\n/transit/\n", want: "transit"},
-		{name: "custom slash-wrapped value trimmed", configured: "  /custom/ ", want: "custom"},
+		{name: "multi-tenant resolves to the shared MT engine", multiTenant: true, want: "transit-mt"},
+		{name: "single-tenant resolves to the shared ST engine", multiTenant: false, want: "transit-st"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, resolveBaseMountPath(tt.configured),
-				"resolveBaseMountPath(%q) must resolve to %q", tt.configured, tt.want)
+			assert.Equal(t, tt.want, defaultMountPath(tt.multiTenant),
+				"defaultMountPath(%v) must resolve to %q", tt.multiTenant, tt.want)
 		})
 	}
 }
@@ -456,7 +439,6 @@ func TestWireEncryptionServices_LegacyMode(t *testing.T) {
 	out := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:           crypto.EncryptionModeLegacy.String(),
 		legacyCrypto:   nil,
-		vaultMountPath: "transit",
 	})
 
 	require.NoError(t, out.err)
@@ -475,7 +457,6 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 			vaultClient:    nil,
 			keysetRepo:     &mockKeysetRepo{},
 			registryRepo:   &mockRegistryRepo{},
-			vaultMountPath: "transit",
 		})
 
 		require.Error(t, out.err)
@@ -490,7 +471,6 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 			vaultClient:    newWiringVaultClient(t),
 			keysetRepo:     nil,
 			registryRepo:   &mockRegistryRepo{},
-			vaultMountPath: "transit",
 		})
 
 		require.Error(t, out.err)
@@ -505,7 +485,6 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 			vaultClient:    newWiringVaultClient(t),
 			keysetRepo:     &mockKeysetRepo{},
 			registryRepo:   nil,
-			vaultMountPath: "transit",
 		})
 
 		require.Error(t, out.err)

@@ -418,7 +418,6 @@ func cipherFieldEncryptor(t *testing.T, cipher encryption.LegacyCrypto) encrypti
 	wired := wireEncryptionServices(wireEncryptionServicesInput{
 		mode:           crypto.EncryptionModeLegacy.String(),
 		legacyCrypto:   cipher,
-		vaultMountPath: defaultKEKMountPath,
 	})
 	require.NoError(t, wired.err)
 

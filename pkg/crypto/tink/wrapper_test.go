@@ -75,7 +75,7 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 
 		keyset := []byte("serialized keyset data")
 
-		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", keyset)
+		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", keyset)
 
 		require.NoError(t, err)
 		assert.Contains(t, wrapped, "vault:v1:")
@@ -87,10 +87,10 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte("keyset"))
+		_, err := wrapper.WrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", []byte("keyset"))
 
 		require.NoError(t, err)
-		assert.Equal(t, "transit/tenant-x", kms.gotEncryptMount)
+		assert.Equal(t, "transit-mt", kms.gotEncryptMount)
 	})
 
 	t.Run("fails on empty keyset", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte{})
+		_, err := wrapper.WrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", []byte{})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty keyset")
@@ -112,7 +112,7 @@ func TestKeysetWrapper_WrapKeyset(t *testing.T) {
 		kms.encryptErr = fmt.Errorf("KMS unavailable")
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", []byte("keyset"))
+		_, err := wrapper.WrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", []byte("keyset"))
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "KMS")
@@ -131,11 +131,11 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		originalKeyset := []byte("original keyset data")
 
 		// Wrap first
-		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit/tenant-x", "my-key", originalKeyset)
+		wrapped, err := wrapper.WrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", originalKeyset)
 		require.NoError(t, err)
 
 		// Unwrap
-		unwrapped, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", wrapped)
+		unwrapped, err := wrapper.UnwrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", wrapped)
 
 		require.NoError(t, err)
 		assert.Equal(t, originalKeyset, unwrapped)
@@ -147,10 +147,10 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "vault:v1:c29tZWRhdGE=")
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "vault:v1:c29tZWRhdGE=")
 
 		require.NoError(t, err)
-		assert.Equal(t, "transit/tenant-x", kms.gotDecryptMount)
+		assert.Equal(t, "transit-mt", kms.gotDecryptMount)
 	})
 
 	t.Run("fails on empty ciphertext", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		kms := newMockKMSClient()
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "")
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty ciphertext")
@@ -172,7 +172,7 @@ func TestKeysetWrapper_UnwrapKeyset(t *testing.T) {
 		kms.decryptErr = fmt.Errorf("permission denied")
 		wrapper := NewKeysetWrapper(kms)
 
-		_, err := wrapper.UnwrapKeyset(context.Background(), "transit/tenant-x", "my-key", "vault:v1:somedata")
+		_, err := wrapper.UnwrapKeyset(context.Background(), "transit-mt", "tenant-x_org-123", "vault:v1:somedata")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "KMS")

@@ -43,10 +43,17 @@ const (
 // EntityOrganizationEncryption is the entity type for encryption-related errors.
 const EntityOrganizationEncryption = "OrganizationEncryption"
 
+// defaultTenantID is the single-tenant sentinel. It mirrors the literal "default"
+// used by ExtractTenantID/ResolveProvisionTenantID in field_encryptor.go: in
+// single-tenant deployments the tenant resolves to this value. In multi-tenant
+// mode it is a reserved, non-routable value that fails closed at provisioning.
+const defaultTenantID = "default"
+
 // KeysetGenerator defines the interface for generating and wrapping keysets.
-// Compatible with pkg/crypto/tink.KeysetFactory. mountPath is the resolved Vault
-// Transit mount (flat base for single-tenant, base/tenant for multi-tenant);
-// keyName is the per-organization KEK key name (org-{id}).
+// Compatible with pkg/crypto/tink.KeysetFactory. mountPath is the shared
+// mode-derived Transit engine (transit-st single-tenant, transit-mt multi-tenant),
+// used verbatim; keyName is the tenant-scoped KEK key name (org-{id} single-tenant,
+// {tenant}_org-{id} multi-tenant).
 type KeysetGenerator interface {
 	GenerateAEADKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
 	GeneratePRFKeyset(ctx context.Context, mountPath, keyName string) (tink.KeysetBundle, error)
@@ -69,10 +76,10 @@ type ProvisioningConfig struct {
 	// KEKMountPath is the KMS mount path (e.g., "transit" for Vault Transit).
 	KEKMountPath string
 
-	// MultiTenant enables per-tenant mount resolution. When true, the tenant
-	// segment is appended to the base mount and empty/"default" tenants fail
-	// closed (the bare multi-tenant base has no Transit engine). When false
-	// (single-tenant), the flat base is used verbatim.
+	// MultiTenant selects multi-tenant key naming. When true, the tenant segment
+	// prefixes the KEK key name ({tenantID}_org-{id}) and empty/"default" tenants
+	// fail closed. When false (single-tenant), the key name is org-{id}. The mount
+	// is the shared engine in both modes.
 	MultiTenant bool
 }
 
@@ -272,15 +279,10 @@ func (s *provisioningService) provision(ctx context.Context, req ProvisionInput)
 		return result, mmodel.AuditOutcomeAlreadyExists, nil
 	}
 
-	// KEK path is the key name; mount is resolved per-tenant (flat base for single-tenant).
-	kekPath := s.buildKEKPath(req.OrganizationID)
+	// KEK path is the tenant-scoped key name; the mount is the shared engine.
+	kekPath := s.buildKEKPath(req.TenantID, req.OrganizationID)
 
-	mount, err := resolveMount(s.kekMountPath, req.TenantID, s.multiTenant)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "failed to resolve tenant mount", err)
-
-		return ProvisionResult{}, mmodel.AuditOutcomeFailure, err
-	}
+	mount := s.kekMountPath
 
 	// app.protection.mount_path is the resolved mount (not a secret), persisted on the keyset.
 	span.SetAttributes(attribute.String("app.protection.mount_path", mount))
@@ -717,11 +719,20 @@ func (s *provisioningService) wrapProvisionError(span trace.Span, err error) err
 	return pkg.ValidateBusinessError(constant.ErrProvisioningFailed, EntityOrganizationEncryption)
 }
 
-// buildKEKPath constructs the KEK key name for an organization.
-// Format: org-{org-id}
-// This is the key name used by Vault Transit for encrypt/decrypt operations.
-// The mount path (e.g., "transit") is handled separately by the Vault client.
-func (s *provisioningService) buildKEKPath(organizationID string) string {
+// buildKEKPath constructs the KEK key name for an organization. The key name
+// carries the tenant scope (the mount is the shared engine):
+//
+//   - Multi-tenant: {tenantID}_org-{org-id}
+//   - Single-tenant: org-{org-id}
+//
+// This is the key name used by Vault Transit for encrypt/decrypt operations under
+// the shared mount. The tenant/org segments are joined with an underscore because
+// Vault Transit key names cannot contain a slash.
+func (s *provisioningService) buildKEKPath(tenantID, organizationID string) string {
+	if s.multiTenant {
+		return fmt.Sprintf("%s_org-%s", tenantID, organizationID)
+	}
+
 	return fmt.Sprintf("org-%s", organizationID)
 }
 

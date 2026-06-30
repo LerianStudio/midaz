@@ -26,6 +26,8 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "query.get_all_operations_by_account")
 	defer span.End()
 
+	filter.ApplyDefaultDateRange()
+
 	opFilter := operation.OperationFilter{
 		OperationType: &filter.OperationType,
 		Direction:     filter.Direction,

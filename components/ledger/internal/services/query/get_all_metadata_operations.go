@@ -28,6 +28,8 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_operations")
 	defer span.End()
 
+	filter.ApplyDefaultDateRange()
+
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperation, filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)

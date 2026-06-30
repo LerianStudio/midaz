@@ -28,8 +28,23 @@ import (
 // one place that legitimately imports both packages.
 var _ encryption.KeysetRepository = (*mongoEncryption.KeysetMongoDBRepository)(nil)
 
-// defaultKEKMountPath is the default Vault Transit mount path for KEK operations.
-const defaultKEKMountPath = "transit"
+// defaultMountPathMultiTenant and defaultMountPathSingleTenant are the mode-derived
+// shared Vault Transit engines. Tenant isolation lives in the KEK key name, not the
+// mount, so there is a single engine per mode (no per-tenant mounts).
+const (
+	defaultMountPathMultiTenant  = "transit-mt"
+	defaultMountPathSingleTenant = "transit-st"
+)
+
+// defaultMountPath returns the mode-derived shared engine: "transit-mt" for
+// multi-tenant, "transit-st" for single-tenant.
+func defaultMountPath(multiTenant bool) string {
+	if multiTenant {
+		return defaultMountPathMultiTenant
+	}
+
+	return defaultMountPathSingleTenant
+}
 
 // DefaultVaultDevToken is the hardcoded token used by token auth.
 // This matches the Vault dev container's default root token.
@@ -91,7 +106,6 @@ func initCRMEncryption(ctx context.Context, cfg *Config, mongoConnection *libMon
 		auditWriter:      auditWriter,
 		legacyCrypto:     legacyCrypto,
 		metricsFactory:   metricsFactory,
-		vaultMountPath:   cfg.VaultMountPath,
 		multiTenant:      multiTenant,
 		legacyAESHexKey:  cfg.CrmEncryptSecretKey,
 		legacyHMACSecret: cfg.CrmHashSecretKey,
@@ -155,7 +169,7 @@ func initVaultClient(ctx context.Context, cfg *Config, logger libLog.Logger) (*v
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Vault client initialized",
-		libLog.String("base_mount_path", resolveBaseMountPath(cfg.VaultMountPath)))
+		libLog.String("base_mount_path", defaultMountPath(cfg.MultiTenantEnabled)))
 
 	return client, nil
 }
@@ -254,19 +268,6 @@ func isLocalDeployment(deploymentMode string) bool {
 	return ResolveDeploymentMode(deploymentMode) == DeploymentModeLocal
 }
 
-// resolveBaseMountPath resolves the base Vault Transit mount, trimming surrounding
-// slashes/whitespace. Empty/whitespace/slash-only input falls back to "transit".
-func resolveBaseMountPath(configured string) string {
-	const cut = "/ \t\n"
-
-	trimmed := strings.Trim(configured, cut)
-	if trimmed == "" {
-		return defaultKEKMountPath
-	}
-
-	return trimmed
-}
-
 // initLegacyCrypto builds the LegacyCrypto for the active KMS mode: envelope mode
 // uses Tink-backed LegacyKeyMaterial (for reading legacy data during migration),
 // legacy mode uses lib-commons crypto directly.
@@ -334,7 +335,6 @@ type wireEncryptionServicesInput struct {
 	auditWriter      encryption.AuditWriter
 	legacyCrypto     encryption.LegacyCrypto
 	metricsFactory   *metrics.MetricsFactory
-	vaultMountPath   string
 	multiTenant      bool
 	legacyAESHexKey  string
 	legacyHMACSecret string
@@ -381,7 +381,7 @@ func wireEncryptionServices(input wireEncryptionServicesInput) wireEncryptionSer
 		return wireEncryptionServicesOutput{err: fmt.Errorf("envelope encryption requires registry repository")}
 	}
 
-	baseMountPath := resolveBaseMountPath(input.vaultMountPath)
+	baseMountPath := defaultMountPath(input.multiTenant)
 
 	protectionStateResolver := encryption.NewProtectionStateResolver(input.registryRepo, pm)
 	keysetWrapper := tink.NewKeysetWrapper(input.vaultClient)
