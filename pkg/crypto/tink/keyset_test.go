@@ -720,7 +720,7 @@ func TestKeysetFactory_EndToEnd(t *testing.T) {
 
 		// Generate AEAD keyset with caller-defined mount and key name
 		mountPath := "transit-mt"
-		keyName := "tenant-abc/org-123"
+		keyName := "tenantabc_org-123"
 		bundle, err := factory.GenerateAEADKeyset(context.Background(), mountPath, keyName)
 		require.NoError(t, err)
 

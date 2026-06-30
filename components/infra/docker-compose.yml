@@ -222,13 +222,19 @@ services:
     command:
       - -c
       - |
+        set -e
         if [ "$${MULTI_TENANT_ENABLED}" = "true" ]; then
           MOUNT="transit-mt"
         else
           MOUNT="transit-st"
         fi
         echo "Checking if Transit is already enabled at $${MOUNT}..."
-        if vault secrets list | grep -q "^$${MOUNT}/"; then
+        EXISTING_TYPE=$$(vault secrets list | awk -v m="$${MOUNT}/" '$$1 == m { print $$2 }')
+        if [ -n "$${EXISTING_TYPE}" ]; then
+          if [ "$${EXISTING_TYPE}" != "transit" ]; then
+            echo "ERROR: $${MOUNT}/ exists but is type '$${EXISTING_TYPE}', not 'transit'" >&2
+            exit 1
+          fi
           echo "Transit already enabled at $${MOUNT}"
         else
           echo "Enabling Transit secrets engine at $${MOUNT}..."
