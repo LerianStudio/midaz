@@ -12,8 +12,12 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	// CreateHolder inserts a holder data in the repository
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -62,5 +66,14 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 		return nil, err
 	}
 
+	uc.emitHolderCreatedEvent(ctx, span, logger, createdHolder, organizationID)
+
 	return createdHolder, nil
+}
+
+func (uc *UseCase) emitHolderCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, h *mmodel.Holder, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewHolderCreated(h, organizationID).ToEmitRequest(tenantID, h.CreatedAt)
+		})
 }

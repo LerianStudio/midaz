@@ -13,9 +13,13 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, id uuid.UUID, uhi *mmodel.UpdateHolderInput, fieldsToRemove []string) (*mmodel.Holder, error) {
@@ -52,5 +56,14 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	uc.emitHolderUpdatedEvent(ctx, span, logger, updatedHolder, organizationID)
+
 	return updatedHolder, nil
+}
+
+func (uc *UseCase) emitHolderUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, h *mmodel.Holder, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewHolderUpdated(h, organizationID).ToEmitRequest(tenantID, h.UpdatedAt)
+		})
 }
