@@ -304,7 +304,9 @@ down:
 .PHONY: streaming-up
 streaming-up:
 	$(call title1,"Starting local Redpanda broker + provisioning CRM topics")
-	@$(DOCKER_CMD) -f docker-compose.streaming.yml up -d midaz-redpanda midaz-redpanda-init
+	@$(DOCKER_CMD) -f docker-compose.streaming.yml up -d --wait midaz-redpanda
+	@$(DOCKER_CMD) -f docker-compose.streaming.yml up -d midaz-redpanda-init
+	@$(DOCKER_CMD) -f docker-compose.streaming.yml wait midaz-redpanda-init
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Redpanda up on localhost:19092; 7 topics provisioned$(GREEN) ✔️$(NC)"
 
 .PHONY: streaming-down
