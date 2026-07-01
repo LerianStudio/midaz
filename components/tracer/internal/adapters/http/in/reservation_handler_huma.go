@@ -153,6 +153,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations",
 		Summary:     "Reserve transaction capacity (phase one)",
 		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
 		// SkipValidateBody: the body is taken as RawBody and validated imperatively
 		// by NormalizeAndReserveValidate inside the core, which produces the
 		// canonical Midaz error codes. Without this, Huma validates the JSON body
@@ -167,6 +168,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/{id}/confirm",
 		Summary:     "Confirm a reservation (phase two — commit)",
 		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
 	}, h.ConfirmHuma)
 
 	huma.Register(api, huma.Operation{
@@ -175,6 +177,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/{id}/release",
 		Summary:     "Release a reservation (phase two — abort)",
 		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
 	}, h.ReleaseHuma)
 
 	huma.Register(api, huma.Operation{
@@ -183,6 +186,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/transaction/{transaction_id}/confirm",
 		Summary:     "Confirm a transaction's reservations (phase two — commit by transaction)",
 		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
 	}, h.ConfirmByTransactionHuma)
 
 	huma.Register(api, huma.Operation{
@@ -191,5 +195,6 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Path:        "/reservations/transaction/{transaction_id}/release",
 		Summary:     "Release a transaction's reservations (phase two — abort by transaction)",
 		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
 	}, h.ReleaseByTransactionHuma)
 }

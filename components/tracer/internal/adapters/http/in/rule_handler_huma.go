@@ -397,6 +397,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules",
 		Summary:     "Create a new fraud rule",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 		// SkipValidateBody: the body is taken as RawBody and validated
 		// imperatively by CreateRuleInput.Validate() inside the handler, which
 		// produces the canonical Midaz error codes. Without this, Huma validates
@@ -412,6 +413,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules/{id}",
 		Summary:     "Get a fraud rule by ID",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 	}, h.GetRuleHuma)
 
 	huma.Register(api, huma.Operation{
@@ -420,6 +422,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules",
 		Summary:     "List fraud rules",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 	}, h.ListRulesHuma)
 
 	huma.Register(api, huma.Operation{
@@ -428,6 +431,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:             "/rules/{id}",
 		Summary:          "Partially update an existing fraud rule",
 		Tags:             []string{"Rules"},
+		Security:         secBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see CreateRule.
 	}, h.UpdateRuleHuma)
 
@@ -437,6 +441,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules/{id}/activate",
 		Summary:     "Activate a fraud rule",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 	}, h.ActivateRuleHuma)
 
 	huma.Register(api, huma.Operation{
@@ -445,6 +450,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules/{id}/deactivate",
 		Summary:     "Deactivate a fraud rule",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 	}, h.DeactivateRuleHuma)
 
 	huma.Register(api, huma.Operation{
@@ -453,6 +459,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules/{id}/draft",
 		Summary:     "Transition a rule back to draft",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 	}, h.DraftRuleHuma)
 
 	huma.Register(api, huma.Operation{
@@ -461,6 +468,7 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Path:        "/rules/{id}",
 		Summary:     "Delete a fraud rule",
 		Tags:        []string{"Rules"},
+		Security:    secBearerOrAPIKey,
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204,
 		// matching the Fiber http.NoContent path.
 		DefaultStatus: http.StatusNoContent,

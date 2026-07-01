@@ -81,6 +81,10 @@ func RegisterValidationRoutes(api huma.API, h *ValidationHandler) {
 		Path:        "/validations",
 		Summary:     "Validate a transaction",
 		Tags:        []string{"Validations"},
+		// APIKeyOnly: this op reflects cfg.APIKeyOnlyValidation — the Fiber guard
+		// forces X-API-Key (no bearer) for the hot validation path. Spec metadata
+		// only; runtime auth stays the guard.With(..., forceAPIKey=true) middleware.
+		Security: secAPIKeyOnly,
 		// SkipValidateBody: the body is taken as RawBody and validated imperatively
 		// by NormalizeAndValidate inside the core, which produces the canonical
 		// Midaz error codes. Without this, Huma validates the JSON body against the

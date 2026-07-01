@@ -16,6 +16,7 @@ import (
 	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1055,5 +1056,60 @@ func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
 				assert.Equal(t, tc.wantStatus, *svc.listFilter.Status, "status must be the LAST value for %q", tc.query)
 			}
 		})
+	}
+}
+
+// TestHuma_RuleRoutes_SecurityMetadata asserts every rule op advertises the
+// bearer-OR-apikey security requirement in the generated OAS 3.1 spec. This is
+// SPEC metadata only — runtime auth is unchanged (Fiber guard.With). It guards
+// the reference handler's Security fields; the 2b fan-out reuses the identical
+// secBearerOrAPIKey helper, and the shared check-docs.sh security-coverage gate
+// asserts the per-op coverage across all 28 ops.
+func TestHuma_RuleRoutes_SecurityMetadata(t *testing.T) {
+	// NOT parallel: openapi.New over a shared Fiber app mutates process-global
+	// Huma state (libProblem is installed by sibling tests). See buildHumaRuleApp.
+	f := fiber.New(fiber.Config{DisableStartupMessage: true})
+	api := f.Group("/v1")
+	hAPI := openapi.New(f, api, openapi.Config{Title: "tracer-test", Version: "test", Servers: []string{"/v1"}})
+	RegisterRuleRoutes(hAPI, NewHandler(&tenantSpyService{}))
+
+	paths := hAPI.OpenAPI().Paths
+
+	op := func(path, verb string) *huma.Operation {
+		t.Helper()
+		item := paths[path]
+		require.NotNilf(t, item, "path %q missing from spec", path)
+		switch verb {
+		case http.MethodGet:
+			return item.Get
+		case http.MethodPost:
+			return item.Post
+		case http.MethodPatch:
+			return item.Patch
+		case http.MethodDelete:
+			return item.Delete
+		default:
+			t.Fatalf("unsupported verb %q", verb)
+			return nil
+		}
+	}
+
+	cases := []struct {
+		path, verb string
+	}{
+		{"/rules", http.MethodPost},
+		{"/rules/{id}", http.MethodGet},
+		{"/rules", http.MethodGet},
+		{"/rules/{id}", http.MethodPatch},
+		{"/rules/{id}", http.MethodDelete},
+		{"/rules/{id}/activate", http.MethodPost},
+		{"/rules/{id}/deactivate", http.MethodPost},
+		{"/rules/{id}/draft", http.MethodPost},
+	}
+	for _, tc := range cases {
+		o := op(tc.path, tc.verb)
+		require.NotNilf(t, o, "%s %s missing from spec", tc.verb, tc.path)
+		assert.Equalf(t, secBearerOrAPIKey, o.Security,
+			"%s %s must advertise bearer-OR-apikey security", tc.verb, tc.path)
 	}
 }

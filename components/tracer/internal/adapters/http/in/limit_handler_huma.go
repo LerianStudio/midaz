@@ -306,6 +306,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:             "/limits",
 		Summary:          "Create a new spending limit",
 		Tags:             []string{"Limits"},
+		Security:         secBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see rule_handler_huma.go.
 	}, h.CreateLimitHuma)
 
@@ -315,6 +316,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits/{id}",
 		Summary:     "Get a spending limit by ID",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.GetLimitHuma)
 
 	huma.Register(api, huma.Operation{
@@ -323,6 +325,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits",
 		Summary:     "List spending limits",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.ListLimitsHuma)
 
 	huma.Register(api, huma.Operation{
@@ -331,6 +334,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:             "/limits/{id}",
 		Summary:          "Partially update an existing spending limit",
 		Tags:             []string{"Limits"},
+		Security:         secBearerOrAPIKey,
 		SkipValidateBody: true,
 	}, h.UpdateLimitHuma)
 
@@ -340,6 +344,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits/{id}/activate",
 		Summary:     "Activate a spending limit",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.ActivateLimitHuma)
 
 	huma.Register(api, huma.Operation{
@@ -348,6 +353,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits/{id}/deactivate",
 		Summary:     "Deactivate a spending limit",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.DeactivateLimitHuma)
 
 	huma.Register(api, huma.Operation{
@@ -356,6 +362,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits/{id}/draft",
 		Summary:     "Transition a limit back to draft",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.DraftLimitHuma)
 
 	huma.Register(api, huma.Operation{
@@ -364,6 +371,7 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:          "/limits/{id}",
 		Summary:       "Delete a spending limit",
 		Tags:          []string{"Limits"},
+		Security:      secBearerOrAPIKey,
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteLimitHuma)
 
@@ -373,5 +381,6 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Path:        "/limits/{id}/usage",
 		Summary:     "Get usage snapshot for a limit",
 		Tags:        []string{"Limits"},
+		Security:    secBearerOrAPIKey,
 	}, h.GetLimitUsageHuma)
 }

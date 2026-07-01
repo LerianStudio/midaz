@@ -275,6 +275,7 @@ func RegisterAuditEventRoutes(api huma.API, h *AuditEventHandler) {
 		Path:        "/audit-events",
 		Summary:     "List audit events",
 		Tags:        []string{"Audit"},
+		Security:    secBearerOrAPIKey,
 	}, h.ListAuditEventsHuma)
 
 	huma.Register(api, huma.Operation{
@@ -283,6 +284,7 @@ func RegisterAuditEventRoutes(api huma.API, h *AuditEventHandler) {
 		Path:        "/audit-events/{id}",
 		Summary:     "Get an audit event by ID",
 		Tags:        []string{"Audit"},
+		Security:    secBearerOrAPIKey,
 	}, h.GetAuditEventHuma)
 
 	huma.Register(api, huma.Operation{
@@ -291,5 +293,6 @@ func RegisterAuditEventRoutes(api huma.API, h *AuditEventHandler) {
 		Path:        "/audit-events/{id}/verify",
 		Summary:     "Verify audit event hash chain integrity",
 		Tags:        []string{"Audit"},
+		Security:    secBearerOrAPIKey,
 	}, h.VerifyHashChainHuma)
 }

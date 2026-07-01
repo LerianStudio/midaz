@@ -203,6 +203,7 @@ func RegisterTransactionValidationRoutes(api huma.API, h *TransactionValidationH
 		Path:        "/validations/{id}",
 		Summary:     "Get a transaction validation record by ID",
 		Tags:        []string{"Validations"},
+		Security:    secBearerOrAPIKey,
 	}, h.GetTransactionValidationHuma)
 
 	huma.Register(api, huma.Operation{
@@ -211,5 +212,6 @@ func RegisterTransactionValidationRoutes(api huma.API, h *TransactionValidationH
 		Path:        "/validations",
 		Summary:     "List transaction validation records",
 		Tags:        []string{"Validations"},
+		Security:    secBearerOrAPIKey,
 	}, h.ListTransactionValidationsHuma)
 }
