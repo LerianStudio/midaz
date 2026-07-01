@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -285,6 +286,97 @@ func TestCRMCatalogRoutesAssembly(t *testing.T) {
 		assert.True(t, strings.HasPrefix(r.Destination.Name, streamingTopicPrefix),
 			"route destination %q must start with %q", r.Destination.Name, streamingTopicPrefix)
 	}
+}
+
+// TestCRMCatalog_CoversAllEmittedEvents locks the bijection between the event
+// keys the CRM use-case helpers actually emit and the Definitions registered in
+// both the Catalog and the route table. A Go test cannot introspect which keys
+// the emit<Event>Event helpers call at runtime, so the canonical set is pinned
+// here as an explicit literal — this list IS the human-maintained source of
+// truth the test guards the wiring against.
+//
+// TRIPWIRE — when a new CRM streaming event is added (a new emit<Event>Event
+// helper wired to a new events.*Definition), you MUST add its Key() to
+// expectedKeys below. Forgetting to register the Definition in
+// crmEventDefinitions() (emitted key with no route → silent ghost-topic drop) OR
+// registering a Definition no helper emits (dead route) BOTH fail this test.
+func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
+	t.Parallel()
+
+	// The 7 canonical keys emitted by the CRM use-case helpers. Pinned as
+	// literals (not derived from events.*Definition) so a mis-keyed Definition
+	// var is caught here rather than silently agreeing with itself.
+	expectedKeys := map[string]struct{}{
+		"holder.created":              {},
+		"holder.updated":              {},
+		"holder.deleted":              {},
+		"alias.created":               {},
+		"alias.updated":               {},
+		"alias.deleted":               {},
+		"alias.related-party-deleted": {},
+	}
+
+	require.Len(t, expectedKeys, 7, "CRM emits exactly 7 streaming events")
+
+	// (1) crmEventDefinitions() must contain EXACTLY the canonical key set — no
+	// missing registration (forgotten event) and no extra/ghost key.
+	catalogKeys := make(map[string]struct{}, len(crmEventDefinitions()))
+	for _, d := range crmEventDefinitions() {
+		key := d.Key()
+		_, ok := catalogKeys[key]
+		require.False(t, ok, "duplicate Definition key registered: %q", key)
+		catalogKeys[key] = struct{}{}
+	}
+
+	assert.Equal(t, expectedKeys, catalogKeys,
+		"crmEventDefinitions() must register exactly the canonical emitted keys (no missing, no ghost)")
+	assert.Len(t, catalogKeys, 7)
+
+	// (2) Every route produced by buildRoutes must correspond 1:1 to a Definition
+	// key: DefinitionKey in the canonical set, destination topic == the prefixed
+	// key, and no key routed twice / no key without a route.
+	routes := buildRoutes(streamingPrimaryTargetName)
+	assert.Len(t, routes, 7, "one route per emitted event")
+
+	routeKeys := make(map[string]struct{}, len(routes))
+	for _, r := range routes {
+		_, expected := expectedKeys[r.DefinitionKey]
+		assert.True(t, expected,
+			"route DefinitionKey %q is not an emitted event (dead/ghost route)", r.DefinitionKey)
+
+		_, dup := routeKeys[r.DefinitionKey]
+		assert.False(t, dup, "duplicate route for DefinitionKey %q", r.DefinitionKey)
+		routeKeys[r.DefinitionKey] = struct{}{}
+
+		assert.Equal(t, streamingTopicPrefix+r.DefinitionKey, r.Destination.Name,
+			"route for %q must target topic %q", r.DefinitionKey, streamingTopicPrefix+r.DefinitionKey)
+	}
+
+	// Bijection both directions: every emitted key has a route, every route has
+	// an emitted key.
+	assert.Equal(t, expectedKeys, routeKeys,
+		"routes must map 1:1 to emitted keys (no route without emitter, no emitter without route)")
+
+	// (3) The hyphenated key is the easiest to typo (related-party-deleted vs
+	// related_party_deleted); pin it and its topic explicitly.
+	const hyphenatedKey = "alias.related-party-deleted"
+	assert.Contains(t, catalogKeys, hyphenatedKey, "hyphenated alias key must be registered")
+
+	var hyphenatedRoute *libStreaming.RouteDefinition
+	for i := range routes {
+		if routes[i].DefinitionKey == hyphenatedKey {
+			hyphenatedRoute = &routes[i]
+
+			break
+		}
+	}
+
+	require.NotNil(t, hyphenatedRoute, "route for %q must exist", hyphenatedKey)
+	assert.Equal(t, "lerian.streaming.alias.related-party-deleted", hyphenatedRoute.Destination.Name)
+
+	// The canonical set must match the events.*Definition vars the helpers use,
+	// so a Definition var mis-keyed away from the literal above is also caught.
+	assert.Equal(t, "alias.related-party-deleted", events.AliasRelatedPartyDeletedDefinition.Key())
 }
 
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed is the integration guard:
