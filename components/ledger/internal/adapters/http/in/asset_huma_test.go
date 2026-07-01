@@ -440,6 +440,7 @@ func TestHuma_CountAssets_204WithHeader(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Equal(t, "42", resp.Header.Get(constant.XTotalCount), "X-Total-Count header must carry the count")
 	assert.Empty(t, respBody, "HEAD count must have an empty body")
+	assert.Equal(t, "0", resp.Header.Get("Content-Length"), "HEAD 204 must set Content-Length: 0 (parity with the Fiber NoContent path)")
 
 	_ = libProblem.BaseURI
 }
