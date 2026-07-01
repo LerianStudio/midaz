@@ -66,6 +66,8 @@ help:
 	@echo "  make rebuild-up                  - Rebuild and restart services during development"
 	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
+	@echo "  make streaming-up                - Start local Redpanda broker + pre-provision the 7 CRM topics"
+	@echo "  make streaming-down              - Stop the local Redpanda broker"
 	@echo ""
 	@echo "$(BOLD)CRM-Specific Commands:$(NC)"
 	@echo "  make generate-docs               - Generate Swagger API documentation"
@@ -294,6 +296,32 @@ down:
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
 	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
+
+# streaming-up starts a local Redpanda broker (localhost:19092, joined to the
+# external infra-network) and pre-provisions the 7 canonical CRM topics via the
+# midaz-redpanda-init one-shot service. infra-network must already exist — run
+# `cd ../infra && make up` first if it does not.
+.PHONY: streaming-up
+streaming-up:
+	$(call title1,"Starting local Redpanda broker + provisioning CRM topics")
+	@$(DOCKER_CMD) -f docker-compose.streaming.yml up -d midaz-redpanda midaz-redpanda-init
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Redpanda up on localhost:19092; 7 topics provisioned$(GREEN) ✔️$(NC)"
+
+.PHONY: streaming-down
+streaming-down:
+	$(call title1,"Stopping local Redpanda broker")
+	@$(DOCKER_CMD) -f docker-compose.streaming.yml down $(c)
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Redpanda stopped successfully$(GREEN) ✔️$(NC)"
+
+# test-streaming-integration runs the build-tagged streaming smoke test against
+# a LIVE broker. With no STREAMING_BROKERS it starts a Redpanda testcontainer
+# (needs Docker); set STREAMING_BROKERS=localhost:19092 to reuse `make
+# streaming-up`. Excluded from the default unit suite by the //go:build
+# integration tag.
+.PHONY: test-streaming-integration
+test-streaming-integration:
+	$(call title1,"Running streaming integration smoke test (requires a live broker)")
+	@go test -tags=integration -run Streaming ./internal/bootstrap/... -v
 
 .PHONY: stop
 stop:
