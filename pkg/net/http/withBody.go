@@ -70,7 +70,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	c.Locals("fields", map[string]any{})
-	c.Locals("patchRemove", findNilFields(originalMap, ""))
+	c.Locals("patchRemove", FindNilFields(originalMap, ""))
 
 	return d.handler(s, c)
 }
@@ -1055,10 +1055,15 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 	return true
 }
 
-// findNilFields recursively traverses the map and returns the paths
+// FindNilFields recursively traverses the map and returns the paths
 // of the fields whose value is nil.
 // The prefix parameter is used to build the complete path (e.g., "object.field").
-func findNilFields(data map[string]any, prefix string) []string {
+//
+// It is the single source of the RFC 7396 merge-patch null-field derivation: the
+// Fiber decoder (FiberHandlerFunc) stores its result in the patchRemove local, and
+// Huma handler cores call it directly on the map DecodeAndValidate returns, so both
+// transports produce byte-identical fieldsToRemove.
+func FindNilFields(data map[string]any, prefix string) []string {
 	nilFields := []string{}
 
 	for key, value := range data {
@@ -1073,7 +1078,7 @@ func findNilFields(data map[string]any, prefix string) []string {
 			nilFields = append(nilFields, fullPath)
 		} else {
 			if nestedMap, ok := value.(map[string]any); ok {
-				nilFields = append(nilFields, findNilFields(nestedMap, fullPath)...)
+				nilFields = append(nilFields, FindNilFields(nestedMap, fullPath)...)
 			}
 		}
 	}

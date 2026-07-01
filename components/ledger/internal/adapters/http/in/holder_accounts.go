@@ -35,6 +35,55 @@ type HolderAccountsHandler struct {
 	Reader HolderAccountsReader
 }
 
+// getAccountsByHolder is the transport-agnostic core for the holder-scoped account
+// listing. queries is the map[string]string the caller derived from its transport
+// (Fiber c.Queries() or the Huma raw-query rebuild); http.ValidateParameters stays
+// the sole query binder so the two transports validate identically.
+func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, organizationID, holderID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_accounts_by_holder")
+	defer span.End()
+
+	headerParams, err := http.ValidateParameters(queries)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
+
+		return http.Pagination{}, err
+	}
+
+	holderIDStr := holderID.String()
+	headerParams.HolderID = &holderIDStr
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.holder_id", holderIDStr),
+	)
+
+	recordSafeQueryAttributes(span, headerParams)
+
+	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to list accounts by holder", libLog.Err(err))
+
+		return http.Pagination{}, err
+	}
+
+	pagination := http.Pagination{
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+	}
+	pagination.SetItems(accounts)
+
+	return pagination, nil
+}
+
 // GetAccountsByHolder lists the accounts owned by a holder.
 //
 //	@Summary		List Accounts by Holder
@@ -58,22 +107,8 @@ type HolderAccountsHandler struct {
 func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_accounts_by_holder")
-	defer span.End()
-
 	holderID, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
-
 		return http.WithError(c, err)
 	}
 
@@ -82,32 +117,10 @@ func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	holderIDStr := holderID.String()
-	headerParams.HolderID = &holderIDStr
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.holder_id", holderIDStr),
-	)
-
-	recordSafeQueryAttributes(span, headerParams)
-
-	accounts, err := handler.Reader.ListAccountsByHolder(ctx, organizationID.String(), holderID, *headerParams)
+	pagination, err := handler.getAccountsByHolder(ctx, organizationID, holderID, c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to list accounts by holder", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to list accounts by holder", libLog.Err(err))
-
 		return http.WithError(c, err)
 	}
-
-	pagination := http.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-	}
-	pagination.SetItems(accounts)
 
 	return http.OK(c, pagination)
 }

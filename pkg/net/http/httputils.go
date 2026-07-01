@@ -498,17 +498,23 @@ func normalizeLegacyCursor(cursor string) (string, error) {
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := strings.Clone(c.Get(libConstants.IdempotencyKey))
-	iTTL := c.Get(libConstants.IdempotencyTTL)
 
-	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
-	t, err := strconv.Atoi(iTTL)
+	return ikey, ParseIdempotencyTTL(c.Get(libConstants.IdempotencyTTL))
+}
+
+// ParseIdempotencyTTL parses the X-Idempotency-TTL header value (a seconds count)
+// into the TTL the CRM idempotency helpers expect, defaulting to 300 on an absent,
+// non-numeric or non-positive value. It is the single source of that contract,
+// shared by the Fiber GetIdempotencyKeyAndTTL and the Huma handler shells so the
+// two transports resolve the TTL identically. Downstream Redis helpers multiply
+// the returned count by time.Second.
+func ParseIdempotencyTTL(headerValue string) time.Duration {
+	t, err := strconv.Atoi(headerValue)
 	if err != nil || t <= 0 {
 		t = 300
 	}
 
-	ttl := time.Duration(t)
-
-	return ikey, ttl
+	return time.Duration(t)
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
