@@ -4,23 +4,6 @@
 
 package api
 
-// ErrorResponse represents a standard error response.
-// Used in Swagger documentation for error responses.
-type ErrorResponse struct {
-	Code    string `json:"code" validate:"required" example:"0053"`
-	Title   string `json:"title" validate:"required" example:"Bad Request"`
-	Message string `json:"message" validate:"required" example:"Invalid input provided"`
-}
-
-// VersionResponse represents the response of the version endpoint.
-type VersionResponse struct {
-	Version     string `json:"version" example:"1.0.0"`
-	RequestDate string `json:"requestDate" example:"2025-01-01T00:00:00Z"`
-	Commit      string `json:"commit" example:"a1b2c3d"`
-	BuildTime   string `json:"buildTime" example:"2025-01-01T00:00:00Z"`
-	Dirty       bool   `json:"dirty" example:"false"`
-}
-
 // ReadyzResponse is the canonical readiness probe response per the Lerian
 // /readyz contract. Top-level Status is "healthy" iff every check is in
 // {up, skipped, n/a}; any "down" or "degraded" check forces "unhealthy" + 503.

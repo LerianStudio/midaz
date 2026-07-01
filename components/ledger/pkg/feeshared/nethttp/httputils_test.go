@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateParameters(t *testing.T) {
@@ -210,8 +212,15 @@ func TestValidateParameters_DateValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ValidateParameters(tt.params)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, result)
+
+			// ValidateParameters surfaces the failure via ValidateBusinessError,
+			// which yields a pkg.ValidationError carrying the constant's code. Assert
+			// the SPECIFIC code so each input's expected validation is distinguished.
+			var ve pkg.ValidationError
+			require.ErrorAs(t, err, &ve)
+			assert.Equal(t, tt.errCode, ve.Code)
 		})
 	}
 }
@@ -308,8 +317,12 @@ func TestValidateParameters_PaginationValidation(t *testing.T) {
 			result, err := ValidateParameters(tt.params)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
+
+				var ve pkg.ValidationError
+				require.ErrorAs(t, err, &ve)
+				assert.Equal(t, tt.errCode, ve.Code)
 				return
 			}
 
