@@ -75,6 +75,12 @@ jobs:
           go install github.com/swaggo/swag/cmd/swag@v1.16.6
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # check-docs.sh converts the Huma OAS dumps via node -e "require('js-yaml')"
+      # under NODE_PATH=postman/generator/node_modules. node_modules is gitignored,
+      # so the deps must be installed here or the require fails.
+      - name: Install doc generator deps
+        run: npm ci --prefix postman/generator
+
       - name: Verify docs are up to date
         run: CHECK_DOCS_REGEN=1 make check-docs
 
