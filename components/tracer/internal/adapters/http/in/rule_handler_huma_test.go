@@ -103,7 +103,7 @@ func (s *tenantSpyService) DeleteRule(ctx context.Context, _ uuid.UUID) error {
 // carries a tenant-injecting middleware, faithfully mirroring the production
 // wiring in routes.go: problem.Install() runs before any Register, the Huma API
 // is built with openapi.New over the SAME /v1 group that holds the tenant MW,
-// and RegisterRuleRoutes registers the two reference ops. The injected tenant
+// and RegisterRuleRoutes registers all eight rule ops. The injected tenant
 // stands in for tmmiddleware (which needs a live Tenant Manager); it uses the
 // identical c.SetUserContext(tmctx.ContextWithTenantID(...)) mechanism the real
 // middleware uses at tenant.go:184/225.
@@ -709,6 +709,94 @@ func TestHuma_ListRules_NonNumericLimit(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
 	assert.Equal(t, "0082", got["code"], "code must be ErrInvalidQueryParameter, identical to the Fiber QueryParser-failure path")
 	assert.Empty(t, svc.capturedTenant, "service must not be reached on an unparseable query param")
+}
+
+// TestHuma_ListRules_PresentButEmptyQueryParity is the money-path regression for
+// the Phase 2b-1 review finding. Fiber's c.QueryParser binds a present-but-empty
+// query key to a NON-nil pointer (`?status=` -> &"", `?limit=` -> &0), which
+// downstream Validate() rejects; an ABSENT key stays nil (defaults / no filter).
+// Huma's request layer drops value=="" before the handler, collapsing present-
+// but-empty and absent to the same empty string — so the Huma path MUST read the
+// raw query (via the Resolver) to reproduce Fiber's distinction. Each row below
+// is empirically anchored to fiber v2.52.13's real QueryParser output against the
+// real ListRulesInput; the expected code is what that value hits in the shared
+// imperative Validate(). Without the Resolver-backed binder these all silently
+// returned 200 — the exact format:"uuid"-class regression the third rail forbids.
+func TestHuma_ListRules_PresentButEmptyQueryParity(t *testing.T) {
+	// Validation-rejecting present-but-empty values: canonical 400, service NOT reached.
+	rejectCases := []struct {
+		name  string
+		query string
+		code  string // canonical Midaz code, identical to the Fiber path
+	}{
+		// ?status= -> Fiber Status=&"" -> RuleStatus("").IsValid()==false -> 0082.
+		{"empty status", "?status=", "0082"},
+		// ?action= -> Fiber Action=&"" -> Decision("").IsValid()==false -> 0082.
+		{"empty action", "?action=", "0082"},
+		// ?limit= -> Fiber Limit=&0 (gorilla decodes "" as 0) -> *limit<1 -> 0331.
+		{"empty limit", "?limit=", "0331"},
+	}
+	for _, tc := range rejectCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &tenantSpyService{}
+			app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"present-but-empty %q must be the canonical 400, matching Fiber — never a silent 200 or native 422", tc.query)
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+			assert.Equal(t, tc.code, got["code"], "code must be identical to the Fiber path for %q", tc.query)
+			assert.Empty(t, svc.capturedTenant, "service must not be reached on a rejected query param")
+		})
+	}
+
+	// Non-validating present-but-empty scope/name values: Fiber yields a non-nil
+	// pointer to "" but every filter arm guards `*v != ""`, so the result is 200
+	// with NO filter applied — identical to Fiber and to an absent key. The point
+	// is parity: these must NOT 400 (the empty string is not a bad UUID/enum).
+	passCases := []struct{ name, query string }{
+		{"empty name", "?name="},
+		{"empty account_id", "?account_id="},
+		{"empty sub_type", "?sub_type="},
+	}
+	for _, tc := range passCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &tenantSpyService{listResult: &model.ListRulesResult{Rules: nil}}
+			app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode,
+				"present-but-empty %q is a no-op filter (guarded by *v != \"\"), must stay 200 as in Fiber", tc.query)
+			require.NotNil(t, svc.listFilter, "service must be reached for %q", tc.query)
+			// No scope filter and no name filter must be built from an empty value.
+			assert.Nil(t, svc.listFilter.ScopeFilter, "empty scope value must build no scope filter for %q", tc.query)
+			if tc.query == "?name=" {
+				// Fiber binds Name=&""; the repo guards *Name != "" so no name filter
+				// is applied. The pointer round-trips as &"" (parity with Fiber),
+				// which the repo treats as no-filter.
+				require.NotNil(t, svc.listFilter.Name, "Fiber binds present-but-empty name to &\"\"")
+				assert.Equal(t, "", *svc.listFilter.Name)
+			}
+			_ = respBody
+		})
+	}
 }
 
 func TestHuma_ActivateRule_Success(t *testing.T) {

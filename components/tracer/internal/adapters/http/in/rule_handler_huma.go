@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -116,13 +117,27 @@ type UpdateRuleOutputHuma struct {
 }
 
 // ListRulesInputHuma is the Huma request envelope for GET /v1/rules. Every query
-// param is a STRING with NO validation struct tag (no min/max/enum/required):
-// the moment a param is typed (e.g. int) or tagged, Huma coerces/validates it
-// and rejects a bad value with a native 422 BEFORE the handler — the query-param
-// analogue of the Phase-2a format:"uuid" bug. Taking everything as a string means
+// param carries only `doc:` (no min/max/enum/required/format tag): the moment a
+// param is typed or validated, Huma rejects a bad value with a native 422 BEFORE
+// the handler — the query-param analogue of the Phase-2a format:"uuid" bug. So
 // Huma never rejects the value; listRules binds it into ListRulesInput and runs
-// the imperative Validate()/SetDefaults(), producing the canonical 400 (0080 /
-// 0082 / …) identical to the Fiber QueryParser+Validate path. `doc:` only.
+// the imperative Validate()/SetDefaults(), producing the canonical 400 identical
+// to the Fiber QueryParser+Validate path.
+//
+// The struct-tag fields exist ONLY to advertise the params in the generated spec.
+// They are NOT the binding source: Huma drops a present-but-empty query value
+// (`?status=`) before the handler — its request layer treats value=="" as unset
+// and never sets the field (huma.go: `if value == "" { return }`), collapsing
+// `?status=` and an absent `status` to the same empty string. Fiber's QueryParser
+// does the OPPOSITE — a present-but-empty key yields a NON-nil pointer
+// (`?status=` -> &"", `?limit=` -> &0), which downstream Validate() rejects
+// (`RuleStatus("").IsValid()` false -> 0082; `*limit<1` -> 0331). Preserving that
+// money-path distinction requires the raw query, which the resolver captures.
+//
+// rawQuery is populated by Resolve (huma.Resolver) from the request URL before
+// the handler runs; bindListRulesInput reads it with url.Values so present-vs-
+// absent matches Fiber byte-for-byte. Resolve NEVER returns an error (that would
+// trigger Huma's native 422 path) — all rejection stays imperative in Validate().
 type ListRulesInputHuma struct {
 	Name            string `query:"name" doc:"Filter by name (case-insensitive partial match)"`
 	Status          string `query:"status" doc:"Filter by status (DRAFT, ACTIVE, INACTIVE; DELETED not allowed)"`
@@ -137,14 +152,39 @@ type ListRulesInputHuma struct {
 	Cursor          string `query:"cursor" doc:"Pagination cursor (empty for first page)"`
 	SortBy          string `query:"sort_by" doc:"Sort field (created_at, updated_at, name, status)"`
 	SortOrder       string `query:"sort_order" doc:"Sort direction (ASC, DESC)"`
+
+	// rawQuery is the request's parsed query, captured by Resolve. It is the
+	// binding source (NOT the struct-tag fields above), so present-but-empty keys
+	// survive to bindListRulesInput. Unexported => absent from the generated spec.
+	rawQuery url.Values
 }
 
-// bindListRulesInput copies the string query params into a *ListRulesInput, in
-// the same field shape Fiber's c.QueryParser produces (pointers left nil when
-// the param is absent, so SetDefaults()/optional-filter semantics are identical).
-// The only value that can fail here is limit: a non-numeric limit returns an
-// error, which listRules canonicalizes to ErrInvalidQueryParameter (0082) —
-// the SAME code Fiber's QueryParser-failure arm produced for an unparseable int.
+// Resolve captures the raw query before the handler runs. It implements
+// huma.Resolver purely to reach the request URL (huma.Context) that the plain
+// context.Context reaching the handler no longer carries. It performs NO
+// validation and NEVER returns an error — an error here would route through
+// Huma's native WriteErr (a 422 the money-path forbids). All canonical rejection
+// stays imperative in ListRulesInput.Validate(), invoked by the shared core.
+func (in *ListRulesInputHuma) Resolve(ctx huma.Context) []error {
+	u := ctx.URL()
+	in.rawQuery = u.Query()
+
+	return nil
+}
+
+// bindListRulesInput copies the query params into a *ListRulesInput in the exact
+// field shape Fiber's c.QueryParser produces, reading in.rawQuery so present-vs-
+// absent matches Fiber:
+//   - key absent            -> pointer stays nil (SetDefaults()/no-filter applies)
+//   - key present-but-empty -> non-nil pointer to "" (or 0 for limit), exactly as
+//     Fiber's gorilla-schema decoder yields; downstream Validate() then rejects
+//     ?status= /?action= (0082) and ?limit= (limit 0 -> 0331), same as Fiber.
+//
+// The only value that can fail here is limit: a non-numeric limit (e.g. ?limit=abc)
+// returns an error, which listRules canonicalizes to ErrInvalidQueryParameter
+// (0082) — the SAME code Fiber's QueryParser-failure arm produced. An empty limit
+// (?limit=) is NOT an error: it binds to 0 (matching gorilla), and Validate()
+// rejects 0 with ErrPaginationLimitInvalid (0331), again as Fiber.
 func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
 	out, ok := target.(*ListRulesInput)
 	if !ok {
@@ -152,41 +192,55 @@ func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
 		return nil
 	}
 
-	optStr := func(v string) *string {
-		if v == "" {
+	q := in.rawQuery
+
+	// optStr mirrors Fiber's QueryParser for *string fields: a present key (even
+	// empty) yields a non-nil pointer; an absent key leaves it nil.
+	optStr := func(key string) *string {
+		if !q.Has(key) {
 			return nil
 		}
 
-		s := v
+		s := q.Get(key)
 
 		return &s
 	}
 
-	out.Name = optStr(in.Name)
-	out.AccountID = optStr(in.AccountID)
-	out.SegmentID = optStr(in.SegmentID)
-	out.PortfolioID = optStr(in.PortfolioID)
-	out.MerchantID = optStr(in.MerchantID)
-	out.TransactionType = optStr(in.TransactionType)
-	out.SubType = optStr(in.SubType)
-	out.Cursor = in.Cursor
-	out.SortBy = in.SortBy
-	out.SortOrder = in.SortOrder
+	out.Name = optStr("name")
+	out.AccountID = optStr("account_id")
+	out.SegmentID = optStr("segment_id")
+	out.PortfolioID = optStr("portfolio_id")
+	out.MerchantID = optStr("merchant_id")
+	out.TransactionType = optStr("transaction_type")
+	out.SubType = optStr("sub_type")
+	out.Cursor = q.Get("cursor")
+	out.SortBy = q.Get("sort_by")
+	out.SortOrder = q.Get("sort_order")
 
-	if in.Status != "" {
-		s := model.RuleStatus(in.Status)
+	if q.Has("status") {
+		s := model.RuleStatus(q.Get("status"))
 		out.Status = &s
 	}
 
-	if in.Action != "" {
-		a := model.Decision(in.Action)
+	if q.Has("action") {
+		a := model.Decision(q.Get("action"))
 		out.Action = &a
 	}
 
-	if in.Limit != "" {
-		n, err := strconv.Atoi(in.Limit)
-		if err != nil {
-			return err
+	if q.Has("limit") {
+		v := q.Get("limit")
+
+		// Empty limit binds to 0 (gorilla decodes "" as 0), NOT an error — Validate
+		// then rejects 0 (0331). Only a non-numeric limit is a bind error (0082).
+		n := 0
+
+		if v != "" {
+			parsed, err := strconv.Atoi(v)
+			if err != nil {
+				return err
+			}
+
+			n = parsed
 		}
 
 		out.Limit = &n
