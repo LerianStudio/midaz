@@ -69,7 +69,21 @@ func NewLimitHandler(service LimitService) *LimitHandler {
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/limits [post]
 func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.createLimit(c.UserContext(), c.Body())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, result)
+}
+
+// createLimit is the transport-agnostic core of the create-limit operation
+// shared by the Fiber method (CreateLimit) and the Huma func (CreateLimitHuma).
+// It owns the span, imperative parse + Validate(), the service call, and the
+// success log, and canonicalizes every error before returning so both
+// transports render field/status/code-identical envelopes. See rule_handler.go
+// createRule for the split rationale.
+func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.create")
@@ -78,16 +92,14 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 	logger = logging.WithTrace(ctx, logger)
 
 	var input CreateLimitInput
-	if err := c.BodyParser(&input); err != nil {
+	if err := json.Unmarshal(rawBody, &input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
-
-		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Convert HTTP input to service input
@@ -95,7 +107,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateLimit(ctx, serviceInput)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -103,7 +115,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", result.ID.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit created")
 
-	return http.Created(c, result)
+	return result, nil
 }
 
 // GetLimit godoc
@@ -123,7 +135,18 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/limits/{id} [get]
 func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.getLimit(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// getLimit is the transport-agnostic core of the get-limit operation shared by
+// the Fiber method (GetLimit) and the Huma func (GetLimitHuma). See createLimit
+// for the split rationale.
+func (h *LimitHandler) getLimit(ctx context.Context, idParam string) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.get")
@@ -131,19 +154,15 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse limit ID from path
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	result, err := h.service.GetLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -152,7 +171,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 		libLog.String("limit.name", result.Name),
 	).Log(ctx, libLog.LevelDebug, "Limit retrieved")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // ListLimits godoc
@@ -183,7 +202,25 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/limits [get]
 func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	// Fiber binds the query with QueryParser; the shared core owns the rest.
+	response, err := h.listLimits(c.UserContext(), c.QueryParser)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, response)
+}
+
+// listLimits is the transport-agnostic core of the list-limits operation shared
+// by the Fiber method (ListLimits) and the Huma func (ListLimitsHuma). Query
+// BINDING is the only transport-specific step and stays at the edge: the caller
+// passes a bind func that populates *ListLimitsInput from its own query source
+// (Fiber's c.QueryParser, or the Huma func's imperative string->typed copy). A
+// bind error is canonicalized to ErrInvalidQueryParameter (0082) — the SAME code
+// the Fiber QueryParser-failure path produced. Everything after binding
+// (Validate -> SetDefaults -> service -> response) is shared. See createLimit
+// for the split rationale.
+func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*ListLimitsResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.list")
@@ -191,20 +228,16 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse query parameters into input struct
 	var input ListLimitsInput
-
-	if err := c.QueryParser(&input); err != nil {
+	if err := bind(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityLimit, "filters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Apply defaults after validation
@@ -215,7 +248,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 
 	result, err := h.service.ListLimits(ctx, filter)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	// Convert to response
@@ -227,7 +260,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelDebug, "Limits listed")
 
-	return http.OK(c, response)
+	return response, nil
 }
 
 // UpdateLimit godoc
@@ -249,7 +282,21 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/limits/{id} [patch]
 func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.updateLimit(c.UserContext(), c.Params("id"), c.Body())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// updateLimit is the transport-agnostic core of the update-limit operation
+// shared by the Fiber method (UpdateLimit) and the Huma func (UpdateLimitHuma).
+// It owns the span + id parse + the immutable-field map-probe (preserved
+// VERBATIM from the pre-Huma handler) + imperative parse/Validate/IsEmpty +
+// service call + success log, canonicalizing every error before returning. See
+// createLimit for the split rationale.
+func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody []byte) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.update")
@@ -257,50 +304,41 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse limit ID from path
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	// Check for immutable fields BEFORE parsing into struct
 	// This ensures we detect if limitType or currency was sent in the request
-	var rawBody map[string]any
-	if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
-		if _, hasLimitType := rawBody["limitType"]; hasLimitType {
+	var rawMap map[string]any
+	if err := json.Unmarshal(rawBody, &rawMap); err == nil {
+		if _, hasLimitType := rawMap["limitType"]; hasLimitType {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field limitType in request", constant.ErrLimitImmutableField)
-
-			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit))
+			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 
-		if _, hasCurrency := rawBody["currency"]; hasCurrency {
+		if _, hasCurrency := rawMap["currency"]; hasCurrency {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field currency in request", constant.ErrLimitImmutableField)
-
-			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit))
+			return nil, pkg.ValidateBusinessError(constant.ErrLimitImmutableField, constant.EntityLimit)
 		}
 	}
 
 	var input UpdateLimitInput
-	if err := c.BodyParser(&input); err != nil {
+	if err := json.Unmarshal(rawBody, &input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
-
-		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if input.IsEmpty() {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No fields to update", nil)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityLimit))
+		return nil, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityLimit)
 	}
 
 	// Convert HTTP input to service input
@@ -308,7 +346,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 
 	result, err := h.service.UpdateLimit(ctx, id, serviceInput)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -316,7 +354,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", result.ID.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit updated")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // ActivateLimit godoc
@@ -336,7 +374,18 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/limits/{id}/activate [post]
 func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	limit, err := h.activateLimit(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, limit)
+}
+
+// activateLimit is the transport-agnostic core of the activate-limit operation
+// shared by the Fiber method (ActivateLimit) and the Huma func
+// (ActivateLimitHuma). See createLimit for the split rationale.
+func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.activate")
@@ -344,18 +393,15 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	limit, err := h.service.ActivateLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -363,7 +409,7 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit activated")
 
-	return http.OK(c, limit)
+	return limit, nil
 }
 
 // DeactivateLimit godoc
@@ -383,7 +429,18 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/limits/{id}/deactivate [post]
 func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	limit, err := h.deactivateLimit(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, limit)
+}
+
+// deactivateLimit is the transport-agnostic core of the deactivate-limit
+// operation shared by the Fiber method (DeactivateLimit) and the Huma func
+// (DeactivateLimitHuma). See createLimit for the split rationale.
+func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.deactivate")
@@ -391,18 +448,15 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	limit, err := h.service.DeactivateLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -410,7 +464,7 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit deactivated")
 
-	return http.OK(c, limit)
+	return limit, nil
 }
 
 // DraftLimit godoc
@@ -430,7 +484,18 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/limits/{id}/draft [post]
 func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	limit, err := h.draftLimit(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, limit)
+}
+
+// draftLimit is the transport-agnostic core of the draft-limit operation shared
+// by the Fiber method (DraftLimit) and the Huma func (DraftLimitHuma). See
+// createLimit for the split rationale.
+func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.Limit, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.draft")
@@ -438,18 +503,15 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	limit, err := h.service.DraftLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -457,7 +519,7 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit transitioned to draft")
 
-	return http.OK(c, limit)
+	return limit, nil
 }
 
 // DeleteLimit godoc
@@ -477,7 +539,17 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/limits/{id} [delete]
 func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	if err := h.deleteLimit(c.UserContext(), c.Params("id")); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
+}
+
+// deleteLimit is the transport-agnostic core of the delete-limit operation
+// shared by the Fiber method (DeleteLimit) and the Huma func (DeleteLimitHuma).
+// See createLimit for the split rationale.
+func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.delete")
@@ -485,17 +557,14 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	if err := h.service.DeleteLimit(ctx, id); err != nil {
-		return handleLimitServiceError(c, span, err)
+		return classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -503,7 +572,7 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Limit deleted")
 
-	return http.NoContent(c)
+	return nil
 }
 
 // GetLimitUsage godoc
@@ -523,7 +592,18 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/limits/{id}/usage [get]
 func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	snapshot, err := h.getLimitUsage(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, snapshot)
+}
+
+// getLimitUsage is the transport-agnostic core of the get-limit-usage operation
+// shared by the Fiber method (GetLimitUsage) and the Huma func
+// (GetLimitUsageHuma). See createLimit for the split rationale.
+func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*model.UsageSnapshot, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.limit.get_usage")
@@ -531,18 +611,15 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityLimit, "id")
 	}
 
 	snapshot, err := h.service.GetLimitUsage(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, span, err)
+		return nil, classifyLimitServiceError(span, err)
 	}
 
 	logger.With(
@@ -552,75 +629,64 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
 	).Log(ctx, libLog.LevelDebug, "Limit usage retrieved")
 
-	return http.OK(c, snapshot)
+	return snapshot, nil
 }
 
-// handleLimitServiceError converts service errors to appropriate HTTP responses.
-func handleLimitServiceError(c *fiber.Ctx, span trace.Span, err error) error {
+// classifyLimitServiceError maps a raw service error to its canonical Midaz
+// error, attributing the span, WITHOUT rendering. It is the single
+// classification the Fiber wrappers (render via http.WithError) and the Huma
+// path (humaProblem -> *http.Detail) both consume, so both transports emit
+// field/status/code/type-identical envelopes. The errors.Is cascade and the
+// canonical mapping are preserved verbatim from the pre-Huma handler.
+func classifyLimitServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameAlreadyExists, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitNameAlreadyExists, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNotFound, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitNotFound, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitAlreadyDeleted):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit already deleted", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitAlreadyDeleted, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitAlreadyDeleted, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidStatusChange):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid status transition", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, constant.EntityLimit)
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityLimit)
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityLimit)
 	case errors.Is(err, constant.ErrInvalidSortOrder):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort order", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitNameRequired):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name required", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameRequired, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitNameRequired, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitNameTooLong):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name too long", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameTooLong, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitNameTooLong, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitNameInvalidChars):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name invalid chars", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitNameInvalidChars, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitNameInvalidChars, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitDescriptionInvalidChars):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit description invalid chars", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitDescriptionInvalidChars, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitDescriptionInvalidChars, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidType):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit type", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidType, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidType, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidMaxAmount):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid max amount", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidMaxAmount, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidMaxAmount, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidCurrency):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid currency", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidCurrency, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidCurrency, constant.EntityLimit)
 	case errors.Is(err, constant.ErrLimitInvalidScope):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid scope", err)
-
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit))
+		return pkg.ValidateBusinessError(constant.ErrLimitInvalidScope, constant.EntityLimit)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-
-		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
+		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
 }

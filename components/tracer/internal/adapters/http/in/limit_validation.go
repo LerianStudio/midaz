@@ -166,10 +166,10 @@ type ListLimitsInput struct {
 	SubType         *string `query:"sub_type"`
 	Limit           *int    `query:"limit"`
 	Cursor          string  `query:"cursor"`
-	Status          string  `query:"status" enums:"DRAFT,ACTIVE,INACTIVE"`
-	LimitType       string  `query:"limit_type" enums:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION"`
-	SortBy          string  `query:"sort_by" enums:"created_at,updated_at,name,max_amount"`
-	SortOrder       string  `query:"sort_order" enums:"ASC,DESC"`
+	Status          string  `query:"status"`
+	LimitType       string  `query:"limit_type"`
+	SortBy          string  `query:"sort_by"`
+	SortOrder       string  `query:"sort_order"`
 }
 
 // SetDefaults applies default values.

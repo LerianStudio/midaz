@@ -126,3 +126,35 @@ func (t *TimeOfDay) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+// MarshalText implements encoding.TextMarshaler. It is not exercised by
+// encoding/json (which prefers MarshalJSON), but its presence makes schema
+// generators that key off encoding.TextMarshaler/TextUnmarshaler — such as the
+// Huma OpenAPI generator — treat TimeOfDay as a plain "HH:MM" string rather than
+// introspecting its unexported fields into a bogus object schema.
+func (t TimeOfDay) MarshalText() ([]byte, error) {
+	if !t.isValid {
+		return []byte{}, nil
+	}
+
+	return []byte(t.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. Like MarshalText it is not
+// used by encoding/json (UnmarshalJSON takes precedence); it exists so schema
+// generators treat TimeOfDay as a string. An empty text is the zero value.
+func (t *TimeOfDay) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		*t = TimeOfDay{}
+		return nil
+	}
+
+	parsed, err := NewTimeOfDay(string(text))
+	if err != nil {
+		return err
+	}
+
+	*t = parsed
+
+	return nil
+}
