@@ -16,8 +16,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -300,4 +303,94 @@ func TestUpdateAliasByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateAliasByID_EmitsAliasUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	updatedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		AliasRepo: mockAliasRepo,
+		Streaming: emitter,
+	}
+
+	mockAliasRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID, UpdatedAt: updatedAt}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateAliasByID(ctx, orgID, holderID, aliasID, &mmodel.UpdateAliasInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, events.AliasUpdatedDefinition.Key(), emitted[0].DefinitionKey)
+	assert.Equal(t, aliasID.String(), emitted[0].Subject)
+	assert.Equal(t, updatedAt, emitted[0].Timestamp)
+	pkgStreaming.AssertEventEmitted(t, emitter, "alias", "updated")
+}
+
+func TestUpdateAliasByID_NilEmitterSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	uc := &UseCase{
+		AliasRepo: mockAliasRepo,
+		Streaming: nil,
+	}
+
+	mockAliasRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateAliasByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, aliasID, &mmodel.UpdateAliasInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestUpdateAliasByID_EmitFailureDoesNotFailRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	emitter := pkgStreaming.NewMockEmitter()
+	emitter.SetError(errors.New("broker unavailable"))
+
+	uc := &UseCase{
+		AliasRepo: mockAliasRepo,
+		Streaming: emitter,
+	}
+
+	mockAliasRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateAliasByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, aliasID, &mmodel.UpdateAliasInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, emitter.Events())
 }

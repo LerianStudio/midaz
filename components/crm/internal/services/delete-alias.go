@@ -7,13 +7,18 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteAliasByID removes an alias by its ID and holder ID.
@@ -40,5 +45,16 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		return err
 	}
 
+	deletedAt := time.Now()
+
+	uc.emitAliasDeletedEvent(ctx, span, logger, id.String(), holderID.String(), organizationID, hardDelete, deletedAt)
+
 	return nil
+}
+
+func (uc *UseCase) emitAliasDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, holderID, organizationID string, hardDelete bool, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AliasDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAliasDeleted(id, holderID, organizationID, hardDelete, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

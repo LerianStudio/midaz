@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,8 +16,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -255,4 +259,119 @@ func TestCreateAlias(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAlias_EmitsAliasCreated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		HolderRepo: mockHolderRepo,
+		AliasRepo:  mockAliasRepo,
+		Streaming:  emitter,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockAliasRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateAlias(ctx, orgID, holderID, &mmodel.CreateAliasInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, events.AliasCreatedDefinition.Key(), emitted[0].DefinitionKey)
+	assert.Equal(t, aliasID.String(), emitted[0].Subject)
+	pkgStreaming.AssertEventEmitted(t, emitter, "alias", "created")
+}
+
+func TestCreateAlias_NilEmitterSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+
+	uc := &UseCase{
+		HolderRepo: mockHolderRepo,
+		AliasRepo:  mockAliasRepo,
+		Streaming:  nil,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockAliasRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateAlias(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, &mmodel.CreateAliasInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestCreateAlias_EmitFailureDoesNotFailRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockAliasRepo := alias.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+
+	emitter := pkgStreaming.NewMockEmitter()
+	emitter.SetError(errors.New("broker unavailable"))
+
+	uc := &UseCase{
+		HolderRepo: mockHolderRepo,
+		AliasRepo:  mockAliasRepo,
+		Streaming:  emitter,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockAliasRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Alias{ID: &aliasID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateAlias(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, &mmodel.CreateAliasInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, emitter.Events())
 }

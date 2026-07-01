@@ -241,14 +241,15 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 // crmEventDefinitions returns the canonical, ordered list of CRM event
 // Definitions registered into both the Catalog and the Routes. Kept as a single
 // source of truth so adding a new event is a one-place change.
-//
-// TODO(Epic 2.2): register the alias event Definitions here alongside the
-// holder events.
 func crmEventDefinitions() []events.Definition {
 	return []events.Definition{
 		events.HolderCreatedDefinition,
 		events.HolderUpdatedDefinition,
 		events.HolderDeletedDefinition,
+		events.AliasCreatedDefinition,
+		events.AliasUpdatedDefinition,
+		events.AliasDeletedDefinition,
+		events.AliasRelatedPartyDeletedDefinition,
 	}
 }
 
