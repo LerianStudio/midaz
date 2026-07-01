@@ -27,7 +27,7 @@
 | 1 | Envelope RFC 9457 no runtime dos 2 planos; golden code→status verde antes/depois do swap; zero código/status alterado | 1.1, 1.2, 1.3 | Complete |
 | 2 | Tracer 100% Huma: 28 ops re-tipadas, spec OAS 3.1 nativa ADITIVA (swaggo intacto), auth Bearer+ApiKey por-op | 2.1, 2.2, 2.3 | Complete |
 | 3 | Ledger 100% Huma: 113 ops re-tipadas, auth route-chain → Security por-op nos 3 namespaces (midaz/routing/plugin-fees) | 3.1, 3.2 | Complete |
-| 4 | Pipeline 2-planos migrado para Huma 3.1 nativo; swaggo aposentado; `pkg.HTTPError` morto deletado; identidade total de schema `Error`; paridade pristine travada; `make ci` verde | 4.1, 4.2 | Detailed (Epic 4.1 Done; Epic 4.2 corrente) |
+| 4 | Pipeline 2-planos migrado para Huma 3.1 nativo; swaggo aposentado; `pkg.HTTPError` morto deletado; identidade total de schema `Error`; paridade pristine travada; `make ci` verde | 4.1, 4.2 | Complete (Epics 4.1 + 4.2 Done; gate final PASS) |
 
 ---
 
@@ -214,10 +214,10 @@ Agora que o pipeline Huma está provado, remover swaggo por completo.
 **Scope:** `check-docs.sh` (parity_check do `Error` + reinstaurar o gate DC-3 rota-montada-vs-`openapi.huma.yaml`, aposentado na 4.1b), `redocly.yaml` (re-habilitar regras só-swaggo agora que os dumps são Huma nativos), specs consolidadas.
 **Dependencies:** Epic 4.1. ✅
 **Done when:** identidade do schema `Error` travada no CI (Go `tests/openapi/error_schema_parity_test.go` já trava o closure in-memory — decidir se check-docs adiciona trava spec-level); regras redocly só-swaggo re-habilitadas (as que sobram justificadas p/ Huma); gate rota-montada-vs-spec reinstaurado (protege o Plano B); golden money-path verde; `make ci` verde.
-**Status:** Detailed (onda corrente).
+**Status:** Done — `916762ad0`, `0503bcc05`, `b08d376bc`, `7b6753b25` (impl) + `84233f7ca`, `a9871237b`, `b6298c521`, `eb4687998` (fixes do gate). Gate PASS (juiz LLM: CONDITIONAL PASS → PASS, zero blockers).
 
 ##### Task 4.2.1: Re-habilitar as regras redocly só-swaggo (empírico)
-- [ ] Done
+- [x] Done — impl `916762ad0`. 5 regras re-habilitadas (0 findings nos dumps Huma nativos: `no-server-trailing-slash`, `no-server-example.com`, `security-defined`, `no-unused-components`, `no-invalid-schema-examples`); 3 mantidas off com justificativa Huma-era reescrita (`no-empty-servers` = join artifact; `operation-4xx-response` = 71 ops sem 4xx explícito; `no-ambiguous-paths` = 2 sub-paths ledger). redocly lint verde.
 **Context:** `redocly.yaml` relaxa 8 regras, TODAS justificadas como "inherited from swaggo/openapi-generator artifacts" ou "join artifact". Agora os dumps são Huma 3.1 nativos (servers=`/v1` relativo, sem host/trailing-slash; examples de struct tags; 28 tracer ops todas com Security). Muitas relaxações são obsoletas.
 **Implementation vision:** flipar cada regra de volta (exceto `no-empty-servers` = join artifact real, KEEP off) e rodar `cd <wt> && CHECK_DOCS_REGEN=1 make check-docs` (roda `redocly lint` do joined). Re-habilitar as que passam; manter off SÓ as que genuinamente ainda trippam, com comentário RE-ESCRITO pra era Huma (não mais "swag emits"). Hipótese (verificar): re-enable `no-server-trailing-slash`, `no-server-example.com`, `security-defined`, `no-unused-components`; testar `no-invalid-schema-examples`, `operation-4xx-response`, `no-ambiguous-paths`.
 **Files:** Modify `postman/generator/redocly.yaml`.
@@ -225,7 +225,7 @@ Agora que o pipeline Huma está provado, remover swaggo por completo.
 **Done when:** redocly.yaml só relaxa o que os dumps Huma genuinamente exigem, cada uma com justificativa atual; lint verde.
 
 ##### Task 4.2.2: Trava spec-level do `Error` no joined (complementa o Go test)
-- [ ] Done
+- [x] Done — impl `0503bcc05`. `error_schema_singleton_check` (jq sobre o joined json): exige UM `Error` canônico, sem irmãos sufixados pelo join (`^Error[-_]?[0-9]+$`, poupa `ErrorDetail`), + shape RFC 9457. Mutação provada pelo supervisor: injetar `Error2` → FALHA; remover campo `code` → FALHA; restore byte-clean.
 **Context:** `tests/openapi/error_schema_parity_test.go` já trava o closure `Error` byte-idêntico entre os 2 dumps POR-PLANO (roda em `make ci`). GAP: o spec JOINED (`postman/specs/midaz.openapi.json`, o que o SDK do Plano B consome) é saída do `redocly join` — nada garante que o join não duplica/sufixa o `Error` (ex. `Error`+`Error2`).
 **Implementation vision:** adicionar ao `check-docs.sh` uma asserção (jq sobre o joined json) de que existe EXATAMENTE UM schema `Error` canônico (RFC 9457 shape: `error`+`error_description`/`type`/etc. conforme o dump), sem duplicata induzida pelo join. NÃO reimplementar o closure em bash (o Go test cobre); só guardar o artefato publicado contra duplicação do join. Comentar apontando pro Go test como a trava primária.
 **Files:** Modify `postman/generator/check-docs.sh`.
@@ -233,7 +233,7 @@ Agora que o pipeline Huma está provado, remover swaggo por completo.
 **Done when:** o joined publicado é guardado contra duplicação do schema `Error` pelo join.
 
 ##### Task 4.2.3: Reinstaurar o gate DC-3 (rota-montada-vs-spec) contra o dump Huma
-- [ ] Done
+- [x] Done — impl `b08d376bc`. `TestContractSpecMatchesRoutes` lê `openapi.huma.yaml`, diff bidirecional montado-vs-spec, `canonicalizePath` colapsa `:param`↔`{param}`→`{}` (compara estrutura, não label), exempts=const (probes + DSL multipart). Mutação provada pelo supervisor: remover exempt `/health` → FALHA (mounted=114 vs spec=113). 113=113 no estado limpo.
 **Context:** `eca60ed12` (4.1.6) removeu TODO o DC-3 de `contract_spec_routes_test.go` (`specPath=api/swagger.json`, `collectMountedRoutes`, `collectSpecRoutes`, `TestContractSpecMatchesRoutes`, lista de exempts) pois comparava com o `swagger.json` deletado. Sem substituto, "rota montada no Fiber mas ausente do contrato publicado" fica invisível — risco pro SDK do Plano B. A versão base é `git show 767133e9:components/ledger/internal/adapters/http/in/contract_spec_routes_test.go`.
 **Implementation vision:** re-adicionar o gate usando a versão base como referência, com collectSpecRoutes lendo `../../../../api/openapi.huma.yaml` (YAML, não swagger.json). Normalizar: paths Huma usam `{param}` + prefixo `/v1`; Fiber usa `:param`. Montar via `buildUnifiedHumaAPI()` (retorna app+api; o app tem TODAS as rotas montadas). Exempts atualizados: `/health`,`/version`,`/readyz` (probes Fiber públicas, não no dump Huma) + a rota DSL `POST /v1/transactions/dsl` (Fiber intencional, sunset 2026-08-01, não migra) — **SEM** mais `/swagger*` (deletado). Lista de exempts = const (não pode crescer silenciosamente). O gate falha em qualquer divergência montado-vs-spec.
 **Files:** Modify `components/ledger/internal/adapters/http/in/contract_spec_routes_test.go`.
@@ -241,9 +241,17 @@ Agora que o pipeline Huma está provado, remover swaggo por completo.
 **Done when:** o gate montado-vs-`openapi.huma.yaml` roda verde e pega divergência real.
 
 ##### Task 4.2.4 (verify): `make ci` verde end-to-end
-- [ ] Done
+- [x] Done — `make ci` verde e TRUSTWORTHY (exit 0, self-sufficient sem GOFLAGS externo): lint (4 escopos) → telemetry → proto → test-unit `-race` (**13.918 testes, 0 fail/race/panic**) → check-docs (no drift) → cross-plane spec locks. Verificado 5× (incl. 2× pelo juiz LLM independente).
 **Verification:** `cd <wt> && make ci` — reportar cada etapa (lint → check-telemetry → proto-check → test-unit -race → check-docs). Falha só bloqueia se causada por esta onda; falha ambiental (protoc/lint infra) reportada e isolada, confirmando build+test+check-docs verdes.
 **Done when:** `make ci` verde (ou só falhas ambientais isoladas documentadas) — Epic 4.2 completa, Fase 4 pronta pro gate final.
+
+**Deviations / achados do gate 4.2.4 (o "verify make ci" fez o trabalho pra que existe):**
+- `make ci` estava VERMELHO na base do Epic 4.2 por 2 defeitos latentes das waves de migração, invisíveis aos gates targeted-test (4.1a/4.1b nunca rodaram `make ci` lint completo). Corrigidos: `84233f7ca` (money-path: `createTransactionFiber` param `isRevert` sempre-false removido — behavior-preserving, revert vai por `createRevertTransaction`), `a9871237b` (`problem.go` wsl_v5, 10 blank lines no dispatch de erro).
+- 3 false-greens de gate descobertos e neutralizados: (1) pipe `tee` mascarando exit do make; (2) cache de resultado do golangci-lint envenenado; (3) `test-unit` `go list ./...` fail-open em worktree (0 pacotes → exit 0, pulava 13.9k testes). Fix `b6298c521`: `test-unit` agora fail-CLOSED em descoberta vazia + self-sufficient (`GOFLAGS=-buildvcs=false`).
+- Parity lock do SDK não gateava: `tests/openapi/error_schema_parity_test.go` (closure `Error` cross-plane por-plano) estava escrito pra rodar no gate mas o filtro `/tests` do test-unit o excluía. Fix `7b6753b25`: target `test-openapi-locks` (offline) wired no `ci` após check-docs.
+- Hygiene: `eb4687998` removeu ~700 linhas de anotação swaggo/go-swagger morta em `pkg/mmodel`+`pkg/mtransaction` (comment-only, no-drift provado) — completa "swaggo fully retired".
+
+**Gate final (Plano A) — juiz LLM independente: CONDITIONAL PASS → PASS.** Reproduziu `make ci` verde 2×, provou cada gate MORDE (mutação → RED → revert), confirmou money-path intacto, contagens exatas (ledger 113 + tracer 28 + 3 probes = 141), swaggo 100% aposentado. Única condição (o 4º false-green do test-unit) corrigida + provada. Zero blockers. Residuais aceitos (documentados, não-corrigíveis sem trade-off): `operation-4xx-response: off` (71 ops sem 4xx explícito — completude, não correção; SDK herda `Error` schema definido); `check-docs` fail-open standalone sem artefato (não sob `make ci`); `problemDetailPkgPath` string-match frágil (parity test pega quebra).
 
 ---
 
