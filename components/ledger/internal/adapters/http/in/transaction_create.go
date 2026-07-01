@@ -969,7 +969,7 @@ func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, 
 // the replayed flag onto the X-Idempotency-Replayed response header, and writes the
 // created transaction (or the canonical error). It preserves the exact Fiber-path
 // behavior the four create wrappers relied on before the Huma migration.
-func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
+func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 
 	params, err := readPathParams(c)
@@ -981,7 +981,7 @@ func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transact
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	tran, replayed, err := handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, isRevert, idempotencyKey, idempotencyTTL)
+	tran, replayed, err := handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL)
 	if err != nil {
 		return http.WithError(c, err)
 	}

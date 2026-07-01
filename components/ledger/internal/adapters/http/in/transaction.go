@@ -65,7 +65,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
@@ -85,7 +85,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransactionFiber(c, *transactionInput, constant.NOTED, false)
+	return handler.createTransactionFiber(c, *transactionInput, constant.NOTED)
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
@@ -105,7 +105,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
@@ -125,7 +125,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -190,7 +190,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, transactionInput.Send)
 
-	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus(), false)
+	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
 }
 
 // GetTransaction method that get transaction created before
