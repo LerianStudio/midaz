@@ -10,6 +10,7 @@ import (
 
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feesmidaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -36,7 +37,7 @@ type feesComponents struct {
 //
 // The resolver is constructed ONCE here and shared by every fee service so all
 // fee reads route through the same in-process query.UseCase.
-func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config, logger libLog.Logger) (*feesComponents, error) {
+func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config, logger libLog.Logger, streamingEmitter libStreaming.Emitter) (*feesComponents, error) {
 	if feeMongo == nil {
 		return nil, fmt.Errorf("fee Mongo components are required for fee initialization")
 	}
@@ -59,6 +60,10 @@ func initFees(feeMongo *feesMongoComponents, queryUC *query.UseCase, cfg *Config
 	if err != nil {
 		return nil, fmt.Errorf("failed to build billing package service: %w", err)
 	}
+
+	// Share the ledger emitter so fee services emit past-tense events.
+	useCase.Streaming = streamingEmitter
+	billingPackageService.Streaming = streamingEmitter
 
 	// The billing-calculate path consumes the narrower midaz.AccountResolver /
 	// midaz.TransactionCounter ports; both adapt the same shared MidazResolver.

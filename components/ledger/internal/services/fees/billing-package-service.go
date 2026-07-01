@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -39,6 +40,9 @@ type BillingPackageService struct {
 	// package entrypoint via utils.RecordDomainOperation. Assigned at bootstrap;
 	// a nil value is a no-op so the binary runs with telemetry disabled.
 	MetricsFactory *metrics.MetricsFactory
+
+	// Streaming emits past-tense fee domain events; nil disables event emission.
+	Streaming libStreaming.Emitter
 }
 
 // ErrNilBillingPackageRepo is returned when a nil billing package repository is provided.

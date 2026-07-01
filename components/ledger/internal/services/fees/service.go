@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/google/uuid"
@@ -92,6 +93,9 @@ type UseCase struct {
 	// caching and every CalculateFee fetches from Mongo. Invalidated on
 	// create/update/delete of a package in the affected (org,ledger).
 	PackageCache PackageCache
+
+	// Streaming emits past-tense fee domain events; nil disables event emission.
+	Streaming libStreaming.Emitter
 }
 
 // ErrNilPackageRepo is returned when a nil PackageRepo is provided to NewUseCase.
