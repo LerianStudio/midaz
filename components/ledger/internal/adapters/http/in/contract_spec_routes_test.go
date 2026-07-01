@@ -125,12 +125,19 @@ func buildUnifiedRouteSurface() *fiber.App {
 	RegisterTransactionRoutesToApp(app, auth,
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)
-	RegisterCRMRoutesToApp(app, auth,
+
+	// Wave-3 (additive) Huma-migrated resources (CRM holders/instruments/holder-
+	// accounts/encryption/audit, fees/billing, composition) are mounted via the same
+	// /v1 group + shared Huma API the unified server's humaMount uses, so the mounted
+	// surface carries their routes to match the (unchanged, additive) swagger.json. The
+	// conditional CRM handlers (holder-accounts, encryption, audit) get non-nil
+	// zero-value handlers so the FULL surface matches the served contract.
+	RegisterCRMRoutesToApp(apiV1, humaAPI, auth,
 		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
 		&EncryptionHandler{}, &AuditHandler{}, nil)
-	RegisterFeesRoutesToApp(app, auth,
+	RegisterFeesRoutesToApp(apiV1, humaAPI, auth,
 		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
-	RegisterCompositionRoutesToApp(app, auth, &CompositionHandler{}, nil)
+	RegisterCompositionRoutesToApp(apiV1, humaAPI, auth, &CompositionHandler{}, nil)
 
 	return app
 }

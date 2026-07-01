@@ -18,6 +18,8 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
@@ -248,7 +250,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 				func(c *fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
-		httpin.RegisterCRMRoutesToApp(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
+		mountCRMHuma(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet,
 			"/v1/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
@@ -367,7 +369,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 			crmTenantMiddleware.WithTenantDB,
 		},
 	}
-	httpin.RegisterCRMRoutesToApp(app, auth, holderHandler, instrumentHandler, nil, nil, nil, crmRouteOptions)
+	mountCRMHuma(app, auth, holderHandler, instrumentHandler, nil, nil, nil, crmRouteOptions)
 
 	// Create one holder per tenant, addressing tenants ONLY via the JWT.
 	idA := createHolderHTTP(t, app, tenantA, orgID, "Tenant A Holder", "11111111111")
@@ -391,6 +393,25 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	assert.Contains(t, listA, "Tenant A Holder", "tenant A list must contain its own holder")
 }
 
+// mountCRMHuma wires the Huma-migrated CRM registrar on app, mirroring the
+// production humaMount seam: problem.Install() before any huma.Register, the shared
+// Huma API built with openapi.New over a /v1 group, and RegisterCRMRoutesToApp
+// attaching the Fiber auth+tenant middleware chain plus the Huma terminals on that
+// group. The middleware chain (auth + routeOptions PostAuthMiddlewares +
+// ParseUUIDPathParameters) runs BEFORE each Huma terminal, exactly as in the unified
+// server, so these integration tests exercise the real request path end-to-end.
+//
+// MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
+// hook and Huma validation uses process-global sync.Pools.
+func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.HolderHandler, ah *httpin.InstrumentHandler, hah *httpin.HolderAccountsHandler, eh *httpin.EncryptionHandler, auditHandler *httpin.AuditHandler, routeOptions *http.ProtectedRouteOptions) {
+	libProblem.Install()
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "crm-integration", Version: "test", Servers: []string{"/v1"}})
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	httpin.RegisterCRMRoutesToApp(apiV1, hAPI, auth, hh, ah, hah, eh, auditHandler, routeOptions)
+}
+
 // newCRMTestApp mounts the CRM registrar on a bare Fiber app with auth disabled
 // and the WithRecover hoist, mirroring how NewUnifiedServer hosts CRM routes.
 func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fiber.App {
@@ -404,7 +425,7 @@ func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fibe
 
 	// Auth disabled: Authorize becomes a pass-through, single-tenant routeOptions=nil.
 	auth := middleware.NewAuthClient("", false, nil)
-	httpin.RegisterCRMRoutesToApp(app, auth, hh, ah, nil, nil, nil, nil)
+	mountCRMHuma(app, auth, hh, ah, nil, nil, nil, nil)
 
 	return app
 }
@@ -416,8 +437,8 @@ func cipherFieldEncryptor(t *testing.T, cipher encryption.LegacyCrypto) encrypti
 	t.Helper()
 
 	wired := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           crypto.EncryptionModeLegacy.String(),
-		legacyCrypto:   cipher,
+		mode:         crypto.EncryptionModeLegacy.String(),
+		legacyCrypto: cipher,
 	})
 	require.NoError(t, wired.err)
 

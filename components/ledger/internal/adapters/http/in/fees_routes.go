@@ -5,11 +5,10 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -18,19 +17,22 @@ import (
 // RBAC policies key on this string, so it MUST NOT be renamed (R9).
 const feesApplicationName = "plugin-fees"
 
-// RegisterFeesRoutesToApp mounts the fee/billing CRUD surface on an existing
-// Fiber router. It is the fee analogue of RegisterCRMRoutesToApp: routes are
-// protected by the ledger ProtectedRouteChain (auth -> route-scoped post-auth
-// middleware via routeOptions -> handlers) and carry the plugin-fees auth
-// namespace verbatim. Organization is path-scoped: every route carries
-// :organization_id, validated as a UUID by ParseUUIDPathParameters together
-// with the resource :id where present.
+// RegisterFeesRoutesToApp wires the Huma-migrated fee/billing surface, mirroring
+// RegisterAssetRoutesToApp / RegisterCRMRoutesToApp. For each op it attaches the Fiber
+// auth chain — auth.Authorize("plugin-fees",resource,verb) + the fees-scoped tenant
+// PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no
+// terminal handler, and NO body binder: the Fiber WithBodyTracing decorator the inline
+// routes used is replaced by the Huma terminal's imperative DecodeAndValidate) on the
+// /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma terminals on the SAME
+// group's Huma API. The plugin-fees authz namespace and the (resource, verb) tuples are
+// preserved BYTE-FOR-BYTE.
 //
-// The fee calculate endpoint (POST /v1/fees) is intentionally NOT mounted: in
-// the unified binary fees run in-process via the transaction seam, so only the
-// dry-run estimate (POST /v1/estimates) is exposed over HTTP.
+// The fee calculate endpoint (POST /v1/fees) is intentionally NOT mounted: in the
+// unified binary fees run in-process via the transaction seam, so only the dry-run
+// estimate (POST /v1/.../estimates) is exposed over HTTP.
 func RegisterFeesRoutesToApp(
-	f fiber.Router,
+	group fiber.Router,
+	api huma.API,
 	auth *middleware.AuthClient,
 	ph *PackageHandler,
 	fh *FeeHandler,
@@ -38,40 +40,49 @@ func RegisterFeesRoutesToApp(
 	bch *BillingCalculateHandler,
 	routeOptions *http.ProtectedRouteOptions,
 ) {
+	const (
+		packagesPath   = "/organizations/:organization_id/packages"
+		packageIDPath  = packagesPath + "/:id"
+		estimatesPath  = "/organizations/:organization_id/estimates"
+		billingPkgPath = "/organizations/:organization_id/billing-packages"
+		billingPkgID   = billingPkgPath + "/:id"
+		billingCalc    = "/organizations/:organization_id/billing/calculate"
+	)
+
+	pkgParse := http.ParseUUIDPathParameters("packages")
+
 	// Packages
-	f.Post("/v1/organizations/:organization_id/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "post"), routeOptions, http.ParseUUIDPathParameters("packages"), feehttp.WithBodyTracing(new(model.CreatePackageInput), ph.CreatePackage))...)
-	f.Get("/v1/organizations/:organization_id/packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.GetAllPackages)...)
-	f.Get("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "get"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.GetPackageByID)...)
-	f.Patch("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "patch"), routeOptions, http.ParseUUIDPathParameters("packages"), feehttp.WithBodyTracing(new(model.UpdatePackageInput), ph.UpdatePackageByID))...)
-	f.Delete("/v1/organizations/:organization_id/packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "packages", "delete"), routeOptions, http.ParseUUIDPathParameters("packages"), ph.DeletePackageByID)...)
+	group.Post(packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse)...)
+	group.Get(packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse)...)
+	group.Get(packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse)...)
+	group.Patch(packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse)...)
+	group.Delete(packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse)...)
+
+	RegisterPackageRoutes(api, ph)
 
 	// Fee estimate (dry-run). POST /v1/fees is NOT mounted — fees run in-process via the seam.
-	f.Post("/v1/organizations/:organization_id/estimates", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "estimates", "post"), routeOptions, http.ParseUUIDPathParameters("estimates"), feehttp.WithBodyTracing(new(model.FeeEstimate), fh.EstimateFeeCalculation))...)
+	group.Post(estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, http.ParseUUIDPathParameters("estimates"))...)
+
+	RegisterFeeEstimateRoutes(api, fh)
 
 	// Billing packages
-	f.Post("/v1/organizations/:organization_id/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "post"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), feehttp.WithBodyTracing(new(model.BillingPackage), bph.CreateBillingPackage))...)
-	f.Get("/v1/organizations/:organization_id/billing-packages", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.GetAllBillingPackages)...)
-	f.Get("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "get"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.GetBillingPackageByID)...)
-	f.Patch("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "patch"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), feehttp.WithBodyTracing(new(model.BillingPackageUpdate), bph.UpdateBillingPackage))...)
-	f.Delete("/v1/organizations/:organization_id/billing-packages/:id", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-packages", "delete"), routeOptions, http.ParseUUIDPathParameters("billing-packages"), bph.DeleteBillingPackage)...)
+	billingParse := http.ParseUUIDPathParameters("billing-packages")
+	group.Post(billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse)...)
+	group.Get(billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse)...)
+	group.Get(billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse)...)
+	group.Patch(billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse)...)
+	group.Delete(billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse)...)
+
+	RegisterBillingPackageRoutes(api, bph)
 
 	// Billing calculate
-	f.Post("/v1/organizations/:organization_id/billing/calculate", http.ProtectedRouteChain(auth.Authorize(feesApplicationName, "billing-calculate", "post"), routeOptions, http.ParseUUIDPathParameters("billing-calculate"), feehttp.WithBodyTracing(new(model.BillingCalculateRequest), bch.CalculateBilling))...)
+	group.Post(billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, http.ParseUUIDPathParameters("billing-calculate"))...)
+
+	RegisterBillingCalculateRoutes(api, bch)
 }
 
-// CreateFeesRouteRegistrar returns a registrar that mounts the fee/billing routes
-// on the unified ledger server. The routeOptions carries the fees-scoped tenant
-// middleware (built in the ledger composition root) so it applies ONLY to fee
-// routes.
-func CreateFeesRouteRegistrar(
-	auth *middleware.AuthClient,
-	ph *PackageHandler,
-	fh *FeeHandler,
-	bph *BillingPackageHandler,
-	bch *BillingCalculateHandler,
-	routeOptions *http.ProtectedRouteOptions,
-) func(fiber.Router) {
-	return func(router fiber.Router) {
-		RegisterFeesRoutesToApp(router, auth, ph, fh, bph, bch, routeOptions)
-	}
+// protectedFees is the plugin-fees analogue of protectedMidaz/protectedRouting: it
+// builds the auth-attaching Fiber chain under the "plugin-fees" authz appName.
+func protectedFees(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
+	return http.ProtectedRouteChain(auth.Authorize(feesApplicationName, resource, action), routeOptions, handlers...)
 }

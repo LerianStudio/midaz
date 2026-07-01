@@ -59,19 +59,55 @@ func InstallLedgerSchemaNamer(api huma.API) {
 // layering / cycle through pkg).
 const operationPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 
+// feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
+// register on the shared ledger Huma registry: feeshared/model (Pagination,
+// BillingPackage, BillingCalculateResponse, and their nested tiers) and
+// adapters/mongodb/fees/pack (Package). feeshared/model.Pagination collides with
+// pkg/net/http.Pagination — the name the wave-1 ledger list ops already own on the
+// registry and in the committed swagger contract — so every fee-side type is
+// qualified with a "Fee" prefix (mirroring the operation-package precedent above).
+// Matched by prefix as a STRING so this shared pkg never imports the
+// component-internal fee adapters. This only renames the NATIVE Huma OAS 3.1
+// schemas (openapi.ServeSpec, docs-gated); the swaggo swagger.json contract is
+// generated independently and untouched.
+const feePkgPathPrefix = "github.com/LerianStudio/midaz/v4/components/ledger/"
+
+// feePkgPaths is the exact set of fee/billing packages to qualify. A prefix alone is
+// too broad (it would sweep every ledger-internal type through the "Fee" prefix); an
+// explicit set keeps the qualification scoped to the packages that actually register
+// fee schemas.
+var feePkgPaths = map[string]bool{
+	feePkgPathPrefix + "pkg/feeshared/model":                 true,
+	feePkgPathPrefix + "internal/adapters/mongodb/fees/pack": true,
+}
+
 func ledgerSchemaNamer(t reflect.Type, hint string) string {
 	dt := t
 	for dt.Kind() == reflect.Pointer {
 		dt = dt.Elem()
 	}
 
-	if name := dt.Name(); dt.PkgPath() == operationPkgPath && name != "" {
-		if strings.HasPrefix(name, "Operation") {
-			return name
-		}
+	name := dt.Name()
+	if name == "" {
+		return huma.DefaultSchemaNamer(t, hint)
+	}
 
-		return "Operation" + name
+	if dt.PkgPath() == operationPkgPath {
+		return qualify(name, "Operation")
+	}
+
+	if feePkgPaths[dt.PkgPath()] {
+		return qualify(name, "Fee")
 	}
 
 	return huma.DefaultSchemaNamer(t, hint)
+}
+
+// qualify prefixes name with the given package qualifier, idempotently.
+func qualify(name, prefix string) string {
+	if strings.HasPrefix(name, prefix) {
+		return name
+	}
+
+	return prefix + name
 }

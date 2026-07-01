@@ -16,6 +16,8 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
@@ -42,6 +44,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mountCompositionHuma wires the Huma-migrated composition registrar on app,
+// mirroring the production humaMount seam: problem.Install() before any
+// huma.Register, the shared Huma API built with openapi.New over a /v1 group, and
+// RegisterCompositionRoutesToApp attaching the Fiber auth+tenant middleware chain
+// plus the Huma terminal on that group. The middleware chain runs BEFORE the Huma
+// terminal, exactly as in the unified server, so these integration tests exercise
+// the real request path end-to-end.
+//
+// MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
+// hook and Huma validation uses process-global sync.Pools.
+func mountCompositionHuma(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
+	libProblem.Install()
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "composition-integration", Version: "test", Servers: []string{"/v1"}})
+	nethttp.InstallLedgerSchemaNamer(hAPI)
+
+	RegisterCompositionRoutesToApp(apiV1, hAPI, auth, ch, routeOptions)
+}
 
 // compositionTestInfra holds the real cross-store infrastructure the composition
 // route binds: an onboarding-PG account use case and a CRM-Mongo holder/instrument
@@ -149,7 +170,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	// cases on a side app (the onboarding routes are not part of the composition
 	// surface). The composition route itself is mounted on infra.app.
 	infra.app = fiber.New(fiber.Config{DisableStartupMessage: true})
-	RegisterCompositionRoutesToApp(infra.app, auth, compositionHandler, nil)
+	mountCompositionHuma(infra.app, auth, compositionHandler, nil)
 
 	t.Cleanup(func() {
 		if err := infra.app.Shutdown(); err != nil {

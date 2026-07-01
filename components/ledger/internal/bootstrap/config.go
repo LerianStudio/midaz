@@ -1012,6 +1012,39 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
 	}
 
+	// Wave-3 (additive) handlers are constructed here, BEFORE humaMount, because the
+	// mount closure wires their Huma terminals + Fiber auth chain on the shared /v1 API.
+	//
+	// CRM uses the SAME auth client as ledger; only the authz resource namespace differs
+	// (midaz:{holders,instruments}, encoded in the route definitions). The CRM-scoped
+	// tenant middleware travels via routeSetup.crmRouteOptions. The holder-accounts
+	// handler reads ledger accounts through a thin adapter over the query UseCase so the
+	// CRM HTTP layer never imports ledger internals.
+	holderAccountsHandler := &httpin.HolderAccountsHandler{
+		Reader: holderAccountsReaderAdapter{query: queryUseCase},
+	}
+
+	// Fee/billing handlers wire directly to the in-process fee use cases built by
+	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD and
+	// fee-estimate handler interfaces. Fees authorizes under the plugin-fees namespace
+	// (encoded in the route definitions); its tenant middleware travels via
+	// routeSetup.feesRouteOptions.
+	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
+	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
+	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
+	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
+
+	// Composition reuses the SAME account-create and instrument-create use-case instances
+	// the onboarding and CRM registrars already use — it composes them, it never
+	// reimplements them. The cross-store composition tenant middleware travels via
+	// routeSetup.compositionRouteOptions so it applies ONLY to the composition route.
+	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
+		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
+	)
+
 	// Wave-1 resources are migrated to Huma: their terminal handlers + Fiber auth
 	// chain are wired on the shared /v1 Huma API/group via this mount seam, run by
 	// NewUnifiedServer after it builds the humaAPI. Each RegisterXxxRoutesToApp
@@ -1049,6 +1082,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterCountTransactionRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, operationRouteHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, transactionRouteHandler, routeSetup.transactionRouteOptions)
+
+		// Wave-3 (additive) resources: CRM (holders/instruments/holder-accounts/
+		// encryption/audit) under "midaz", fees/billing under "plugin-fees", and
+		// composition under "midaz". Each carries its OWN route-scoped tenant options
+		// (crm/fees/composition) so the CRM/fee/composition tenant Mongo never
+		// overwrites the onboarding/transaction tenant DB. The nil-guards (holder-
+		// accounts, encryption, audit) are preserved inside RegisterCRMRoutesToApp:
+		// a nil handler mounts neither the Fiber auth chain nor the Huma terminal,
+		// matching the pre-Huma `if hah/eh/auditHandler != nil` posture.
+		httpin.RegisterCRMRoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
+		httpin.RegisterFeesRoutesToApp(group, api, auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
+		httpin.RegisterCompositionRoutesToApp(group, api, auth, compositionHandler, routeSetup.compositionRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {
@@ -1056,42 +1101,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
-
-	// CRM uses the SAME auth client as ledger; only the authz resource namespace
-	// differs (plugin-crm, encoded in the route definitions). The CRM-scoped
-	// tenant middleware travels via routeSetup.crmRouteOptions. The
-	// holder-accounts handler reads ledger accounts through a thin adapter over
-	// the query UseCase so the CRM HTTP layer never imports ledger internals.
-	holderAccountsHandler := &httpin.HolderAccountsHandler{
-		Reader: holderAccountsReaderAdapter{query: queryUseCase},
-	}
-	crmRouteRegistrar := httpin.CreateCRMRouteRegistrar(auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
-
-	// Fee/billing handlers wire directly to the in-process fee use cases built by
-	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD
-	// and fee-estimate handler interfaces.
-	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
-	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
-	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
-	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
-
-	// Fees uses the SAME auth client as ledger; only the authz resource namespace
-	// differs (plugin-fees, encoded in the route definitions). The fees-scoped
-	// tenant middleware travels via routeSetup.feesRouteOptions.
-	feesRouteRegistrar := httpin.CreateFeesRouteRegistrar(auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
-		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
-	)
-
-	// Composition reuses the SAME account-create and instrument-create use-case
-	// instances the onboarding and CRM registrars already use — it composes them,
-	// it never reimplements them. The cross-store composition tenant middleware
-	// travels via routeSetup.compositionRouteOptions so it applies ONLY to the
-	// composition route.
-	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
-	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
-	compositionRouteRegistrar := httpin.CreateCompositionRouteRegistrar(auth, compositionHandler, routeSetup.compositionRouteOptions)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
@@ -1117,9 +1126,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
-		crmRouteRegistrar,
-		feesRouteRegistrar,
-		compositionRouteRegistrar,
 	)
 
 	// === Workers ===
