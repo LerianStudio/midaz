@@ -21,16 +21,25 @@ import (
 //  1. In/Out structs: request path/query params + a RawBody []byte (NOT a typed
 //     Body). RawBody keeps Huma from parsing+validating the body, so malformed
 //     JSON and field validation still flow through the handler's imperative
-//     json.Unmarshal + Input.Validate() and produce the byte-identical canonical
-//     error — no new native Huma 400/422. The `contentType:"application/json"`
-//     tag keeps the generated spec advertising JSON rather than octet-stream.
+//     json.Unmarshal + Input.Validate() and produce the canonical Midaz error —
+//     same code/status/type as the Fiber path, no new native Huma 400/422. The
+//     `contentType:"application/json"` tag keeps the generated spec advertising
+//     JSON rather than octet-stream.
 //     Path/query params carry NO validation struct tag (no `format:"uuid"`,
 //     etc.): unlike the body they can't be SkipValidate'd, so a format tag would
 //     make Huma reject a bad value with a native 422 before the handler, bypassing
 //     the imperative uuid.Parse that yields the canonical 400 / code 0065. Only
-//     `doc:` for the spec. Out carries Body (the model type, serialized verbatim
-//     because openapi.New strips Huma's SchemaLinkTransformer) + Status (the
-//     success code). No `$schema` leaks into the body.
+//     `doc:` for the spec. Out carries Body (the model type, serialized from the
+//     SAME model.Rule the Fiber path serializes because openapi.New strips Huma's
+//     SchemaLinkTransformer, so no `$schema`/`$ref` leaks) + Status (the success
+//     code). NOTE: the success body is field-identical to Fiber, not byte-
+//     identical — Huma encodes via json.NewEncoder(w).Encode (trailing '\n') with
+//     SetEscapeHTML(false), while Fiber defaults to SetEscapeHTML(true) and no
+//     trailing newline. Both decode to the identical map, so any JSON-parsing
+//     consumer (including the generated SDK) sees identical data; only a raw-byte
+//     / hash / ETag consumer would observe a difference, and this API has none.
+//     Do NOT align the encoders — it fights the framework for zero functional
+//     gain.
 //
 //  2. Handler funcs: func(ctx, *In) (*Out, error). They delegate to the
 //     transport-agnostic core on *Handler (createRule/getRule), which owns the
@@ -41,12 +50,15 @@ import (
 //     is mounted on the SAME /v1 group that carries the tenant middleware.
 //
 //  3. Errors: the core returns the canonical Midaz error; the func converts it
-//     to *pkgHTTP.Detail via ruleHumaError and returns it as the error. *Detail
+//     to *pkgHTTP.Detail via humaProblem and returns it as the error. *Detail
 //     satisfies huma.StatusError (GetStatus/Error) and ContentTypeFilter
 //     (application/problem+json) via the embedded huma.ErrorModel, so Huma
-//     serializes the exact frozen RFC 9457 envelope built by the shared
-//     pkgHTTP.ProblemDetail — identical body to the Fiber http.WithError path,
-//     guarded by the money-path golden net.
+//     serializes the frozen RFC 9457 envelope built by the shared
+//     pkgHTTP.ProblemDetail — field/status/code/type/entityType-identical to the
+//     Fiber http.WithError path (the two transports share ProblemDetail, so the
+//     decoded envelopes match exactly, guarded by the money-path golden net; the
+//     raw bytes differ by the same encoder trailing-'\n' + HTML-escaping noted in
+//     point 1, invisible to any JSON parser).
 //
 //  4. Auth stays a Fiber middleware on the route (guard.With(...)), registered
 //     in routes.go alongside the Huma registration — NOT a Huma per-op Security
@@ -144,11 +156,12 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 
 // humaProblem converts a canonical Midaz error (already classified + span-
 // attributed by the handler core) into the frozen RFC 9457 *pkgHTTP.Detail,
-// returned as the huma.StatusError so Huma serializes the byte-identical
-// problem+json body. It shares pkgHTTP.ProblemDetail with the Fiber
-// http.WithError path, so the two transports emit the identical envelope
-// (guarded by the money-path golden net). This is the reference error seam the
-// 2b fan-out reuses verbatim.
+// returned as the huma.StatusError so Huma serializes the problem+json body. It
+// shares pkgHTTP.ProblemDetail with the Fiber http.WithError path, so the two
+// transports emit field/status/code/type-identical envelopes — the decoded
+// bodies match exactly (guarded by the money-path golden net); the raw bytes
+// differ only by Huma's encoder trailing-'\n' + HTML-escaping, invisible to any
+// JSON parser. This is the reference error seam the 2b fan-out reuses verbatim.
 //
 // *Detail satisfies huma.StatusError (GetStatus/Error) and ContentTypeFilter
 // (application/problem+json) via the embedded huma.ErrorModel, so returning it

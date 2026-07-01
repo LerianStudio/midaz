@@ -58,15 +58,19 @@ func (s *tenantSpyService) GetRule(ctx context.Context, _ uuid.UUID) (*model.Rul
 func (s *tenantSpyService) UpdateRule(context.Context, uuid.UUID, *command.UpdateRuleInput) (*model.Rule, error) {
 	return nil, nil
 }
+
 func (s *tenantSpyService) ListRules(context.Context, *model.ListRulesFilter) (*model.ListRulesResult, error) {
 	return nil, nil
 }
+
 func (s *tenantSpyService) ActivateRule(context.Context, uuid.UUID) (*model.Rule, error) {
 	return nil, nil
 }
+
 func (s *tenantSpyService) DeactivateRule(context.Context, uuid.UUID) (*model.Rule, error) {
 	return nil, nil
 }
+
 func (s *tenantSpyService) DraftRule(context.Context, uuid.UUID) (*model.Rule, error) {
 	return nil, nil
 }
@@ -80,6 +84,23 @@ func (s *tenantSpyService) DeleteRule(context.Context, uuid.UUID) error { return
 // stands in for tmmiddleware (which needs a live Tenant Manager); it uses the
 // identical c.SetUserContext(tmctx.ContextWithTenantID(...)) mechanism the real
 // middleware uses at tenant.go:184/225.
+//
+// MUST-NOT-PARALLELIZE (also applies to every 2b copy of this helper): tests
+// that build a huma.API through this function CANNOT call t.Parallel(). Two
+// process-global mutations make concurrent builds/requests cross-contaminate:
+//   - libProblem.Install() swaps the process-global huma.NewError (the hook
+//     Huma uses to render errors). While one API installs it, a concurrent
+//     request on another API can render through the wrong hook.
+//   - Huma validation uses process-global sync.Pools (huma/v2 huma.go
+//     validatePool/bufPool). Concurrent requests share the pooled
+//     *ValidateResult; a bad interleaving surfaces a phantom native 422 with a
+//     nil code instead of the canonical 400/0065 envelope.
+//
+// -race does NOT catch this (Get/Put are individually race-safe; the bug is
+// logical, not a data race). lib-commons marks its own Install-touching test
+// non-parallel for the same reason (commons/net/http/openapi/openapi_test.go).
+// Parallelizing buys nothing here — these tests are sub-second — and reopens the
+// contamination window across all 28 fan-out copies. Keep them sequential.
 func buildHumaRuleApp(t *testing.T, svc RuleService, tenantID string) *fiber.App {
 	t.Helper()
 
@@ -108,8 +129,8 @@ func buildHumaRuleApp(t *testing.T, svc RuleService, tenantID string) *fiber.App
 }
 
 func TestHuma_CreateRule_Success(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	rule := &model.Rule{
 		ID:         testutil.MustDeterministicUUID(1),
 		Name:       "Test Rule",
@@ -142,6 +163,15 @@ func TestHuma_CreateRule_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, "CreateRule must return 201 through Huma")
 
+	// No Huma JSON-Schema hyperlink fields leak into the success body: openapi.New
+	// zeroes the SchemaLinkTransformer, so the body is the model.Rule verbatim.
+	// Asserted on the raw bytes because a leaked "$schema" would decode into the
+	// map too — this is the executable form of the pattern's strongest claim,
+	// carried into all 28 fan-out copies.
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed — no $schema in body")
+	assert.NotContains(t, string(respBody), "$ref")
+	assert.NotContains(t, string(respBody), "$id")
+
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
 	assert.Equal(t, "Test Rule", got["name"])
@@ -157,8 +187,8 @@ func TestHuma_CreateRule_Success(t *testing.T) {
 }
 
 func TestHuma_GetRule_Success(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	id := testutil.MustDeterministicUUID(7)
 	rule := &model.Rule{
 		ID:         id,
@@ -184,6 +214,12 @@ func TestHuma_GetRule_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "GetRule must return 200 through Huma")
 
+	// No Huma JSON-Schema hyperlink fields leak into the success body: openapi.New
+	// zeroes the SchemaLinkTransformer, so the body is the model.Rule verbatim.
+	assert.NotContains(t, string(respBody), "$schema", "SchemaLinkTransformer must be zeroed — no $schema in body")
+	assert.NotContains(t, string(respBody), "$ref")
+	assert.NotContains(t, string(respBody), "$id")
+
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
 	assert.Equal(t, "Fetched Rule", got["name"])
@@ -194,12 +230,13 @@ func TestHuma_GetRule_Success(t *testing.T) {
 }
 
 // TestHuma_CreateRule_ValidationError asserts the RFC 9457 error contract is
-// preserved byte-for-byte when the imperative CreateRuleInput.Validate() fails:
-// same code, same 400 status, same problem+json shape (type/title/detail/code),
-// NOT a native Huma 422. The service must never be reached.
+// preserved field-for-field when the imperative CreateRuleInput.Validate()
+// fails: same code, same 400 status, same problem+json shape
+// (type/title/detail/code), NOT a native Huma 422. The service must never be
+// reached.
 func TestHuma_CreateRule_ValidationError(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	svc := &tenantSpyService{}
 	app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
@@ -229,7 +266,7 @@ func TestHuma_CreateRule_ValidationError(t *testing.T) {
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
-	assert.Equal(t, "0353", got["code"], "code must be the canonical registry code, byte-identical to the Fiber path")
+	assert.Equal(t, "0353", got["code"], "code must be the canonical registry code, identical to the Fiber path")
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"], "RFC 9457 status field")
 	assert.Equal(t, libProblem.BaseURI+"/0353", got["type"], "RFC 9457 type is BaseURI/code")
 	assert.NotEmpty(t, got["title"], "RFC 9457 title present")
@@ -245,8 +282,8 @@ func TestHuma_CreateRule_ValidationError(t *testing.T) {
 // the Fiber envelope. Reference pattern for all 28 by-id handlers in the 2b
 // fan-out: NO format/struct-tag validation on path params.
 func TestHuma_GetRule_BadUUID(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	svc := &tenantSpyService{}
 	app := buildHumaRuleApp(t, svc, "tenant-epsilon")
 
@@ -265,7 +302,7 @@ func TestHuma_GetRule_BadUUID(t *testing.T) {
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
-	assert.Equal(t, "0065", got["code"], "code must be ErrInvalidPathParameter, byte-identical to the Fiber path")
+	assert.Equal(t, "0065", got["code"], "code must be ErrInvalidPathParameter, identical to the Fiber path")
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"], "RFC 9457 status field")
 	assert.Equal(t, libProblem.BaseURI+"/0065", got["type"], "RFC 9457 type is BaseURI/code")
 	assert.Equal(t, "Rule", got["entityType"], "canonical entityType from ErrInvalidPathParameter")
@@ -280,8 +317,8 @@ func TestHuma_GetRule_BadUUID(t *testing.T) {
 // justification for SkipValidateBody:true + RawBody; without a test any tag/config
 // change re-enabling native body validation regresses silently across 28 handlers.
 func TestHuma_CreateRule_MalformedJSON(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	svc := &tenantSpyService{}
 	app := buildHumaRuleApp(t, svc, "tenant-zeta")
 
@@ -302,19 +339,22 @@ func TestHuma_CreateRule_MalformedJSON(t *testing.T) {
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
-	assert.Equal(t, "0094", got["code"], "code must be ErrInvalidRequestBody, byte-identical to the Fiber path")
+	assert.Equal(t, "0094", got["code"], "code must be ErrInvalidRequestBody, identical to the Fiber path")
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"], "RFC 9457 status field")
 	assert.Equal(t, libProblem.BaseURI+"/0094", got["type"], "RFC 9457 type is BaseURI/code")
 
 	assert.Empty(t, svc.capturedTenant, "service must not be reached on malformed JSON")
 }
 
-// TestHuma_ErrorBodyMatchesFiberEnvelope pins byte-identity of the error body:
+// TestHuma_ErrorBodyMatchesFiberEnvelope pins field-identity of the error body:
 // the same domain error rendered through the legacy Fiber http.WithError path
-// and through the migrated Huma handler must produce the identical JSON body.
+// and through the migrated Huma handler must DECODE to the identical JSON object.
+// It compares the decoded maps, not the raw bytes: both share pkgHTTP.ProblemDetail
+// so every field matches, but the raw bytes differ by Huma's encoder trailing-'\n'
+// + HTML-escaping (invisible to any JSON parser). Byte-alignment is a non-goal.
 func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
-	t.Parallel()
-
+	// NOT parallel: buildHumaRuleApp mutates process-global huma state
+	// (libProblem.Install + Huma validation pools). See buildHumaRuleApp.
 	// Drive the migrated Huma handler with a not-found from the service.
 	svc := &tenantSpyService{getErr: constant.ErrRuleNotFound}
 	app := buildHumaRuleApp(t, svc, "tenant-delta")
@@ -345,7 +385,7 @@ func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
 	var humaJSON, refJSON map[string]any
 	require.NoError(t, json.Unmarshal(humaBody, &humaJSON), "huma body JSON: %s", string(humaBody))
 	require.NoError(t, json.Unmarshal(refBody, &refJSON), "ref body JSON: %s", string(refBody))
-	assert.Equal(t, refJSON, humaJSON, "Huma error body must be byte-identical to the Fiber envelope")
+	assert.Equal(t, refJSON, humaJSON, "Huma error body must decode field-identical to the Fiber envelope")
 }
 
 // TestHuma_MigratedRoutes_AuthStillEnforced proves, through the REAL NewRoutes

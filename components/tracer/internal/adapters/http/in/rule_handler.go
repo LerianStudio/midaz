@@ -84,8 +84,10 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 // validation errors are already canonical; the service error is run through
 // classifyServiceError here). So both callers render the returned error the same
 // way — Fiber via http.WithError, Huma via ProblemDetail — and the two
-// transports emit the byte-identical RFC 9457 envelope. Error rendering is the
-// ONLY thing that differs between transports; it stays at the edge.
+// transports emit field/status/code/type-identical RFC 9457 envelopes (decoded
+// bodies match exactly; raw bytes differ only by Huma's encoder newline +
+// HTML-escaping, invisible to any JSON parser). Error rendering is the ONLY thing
+// that differs between transports; it stays at the edge.
 //
 // On error the returned *model.Rule is nil and err is the canonical Midaz error.
 func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, error) {
@@ -538,9 +540,11 @@ func handleServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 // classifyServiceError maps a raw service error to its canonical Midaz error,
 // attributing the span, WITHOUT rendering. It is the single classification the
 // Fiber writer (handleServiceError -> http.WithError) and the Huma path
-// (RuleHumaError -> *http.Detail) both consume, so both transports emit the
-// byte-identical envelope. The errors.Is cascade and the canonical mapping are
-// preserved verbatim from the pre-Huma handler.
+// (humaProblem -> *http.Detail) both consume, so both transports emit
+// field/status/code/type-identical envelopes (decoded bodies match exactly; raw
+// bytes differ only by Huma's encoder newline + HTML-escaping, invisible to any
+// JSON parser). The errors.Is cascade and the canonical mapping are preserved
+// verbatim from the pre-Huma handler.
 func classifyServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx):
