@@ -40,6 +40,21 @@ const streamingTopicPrefix = "lerian.streaming."
 // cleanup callback to their existing chain.
 func noopStreamingCloser() error { return nil }
 
+// closeStreamingOnBootFailure runs the streaming producer's close hook during a
+// partial-boot cleanup and logs a Warn if the drain fails, so a cleanup failure
+// on an aborted bootstrap is visible rather than silently dropped. It never
+// propagates. On a successful boot the caller disarms it by swapping the hook to
+// noopStreamingCloser, which returns nil and logs nothing.
+func closeStreamingOnBootFailure(logger libLog.Logger, cleanup func() error) {
+	if err := cleanup(); err != nil && logger != nil {
+		logger.Log(
+			context.Background(), libLog.LevelWarn,
+			"Failed to close streaming emitter during bootstrap cleanup",
+			libLog.Err(err),
+		)
+	}
+}
+
 // BuildStreamingEmitter returns the lib-streaming Emitter the CRM component
 // should inject into its UseCase, plus a close hook the caller must run on
 // shutdown (or on bootstrap failure).

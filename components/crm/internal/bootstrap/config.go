@@ -245,7 +245,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// including ones added later — without each return closing manually.
 	streamingCleanup := streamingClose
 
-	defer func() { _ = streamingCleanup() }()
+	defer func() { closeStreamingOnBootFailure(logger, streamingCleanup) }()
 
 	useCases := &services.UseCase{
 		HolderRepo: holderMongoDBRepository,
