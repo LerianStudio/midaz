@@ -354,6 +354,13 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// handler — byte-identical auth behavior, no Huma per-op Security yet. The
 	// (resource, verb, forceAPIKey) tuples are preserved verbatim from the
 	// pre-Huma inline routes.
+	//
+	// INTENTIONAL DIVERGENCE (auth 401): guard.With is a pre-Huma Fiber
+	// middleware, so a rejected request never reaches Huma. Its 401 is emitted by
+	// pkgHTTP.Unauthorized as the legacy FLAT envelope {code,title,message}, NOT
+	// the RFC 9457 problem+json that problem.Install() applies to Huma responses.
+	// This is preserved for byte-for-byte parity; migrating 401 → problem+json is
+	// a contract change out of scope for this migration wave.
 	ruleHandler := NewHandler(ruleService)
 
 	api.Post("/rules", guard.With("rules", "post", false))
@@ -366,33 +373,41 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	api.Post("/rules/:id/draft", guard.With("rules", "post", false))
 	RegisterRuleRoutes(humaAPI, ruleHandler)
 
-	// Limit endpoints
+	// Limit endpoints — migrated to Huma (Phase 2b). Same pattern as rules above:
+	// guard.With stays a Fiber middleware on the exact method+path (no terminal
+	// handler) so it runs first, then c.Next() advances into the Huma-registered
+	// handler. Fiber routes keep :id; Huma registers the same paths as {id}.
+	// (resource, verb, forceAPIKey) tuples preserved verbatim.
 	limitHandler := NewLimitHandler(limitService)
-	api.Post("/limits", guard.With("limits", "post", false), limitHandler.CreateLimit)
-	api.Get("/limits", guard.With("limits", "get", false), limitHandler.ListLimits)
-	api.Get("/limits/:id", guard.With("limits", "get", false), limitHandler.GetLimit)
-	api.Get("/limits/:id/usage", guard.With("limits", "get", false), limitHandler.GetLimitUsage)
-	api.Patch("/limits/:id", guard.With("limits", "patch", false), limitHandler.UpdateLimit)
-	api.Delete("/limits/:id", guard.With("limits", "delete", false), limitHandler.DeleteLimit)
-	api.Post("/limits/:id/activate", guard.With("limits", "post", false), limitHandler.ActivateLimit)
-	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false), limitHandler.DeactivateLimit)
-	api.Post("/limits/:id/draft", guard.With("limits", "post", false), limitHandler.DraftLimit)
+	api.Post("/limits", guard.With("limits", "post", false))
+	api.Get("/limits", guard.With("limits", "get", false))
+	api.Get("/limits/:id", guard.With("limits", "get", false))
+	api.Get("/limits/:id/usage", guard.With("limits", "get", false))
+	api.Patch("/limits/:id", guard.With("limits", "patch", false))
+	api.Delete("/limits/:id", guard.With("limits", "delete", false))
+	api.Post("/limits/:id/activate", guard.With("limits", "post", false))
+	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false))
+	api.Post("/limits/:id/draft", guard.With("limits", "post", false))
+	RegisterLimitRoutes(humaAPI, limitHandler)
 
-	// Transaction Validation endpoints (read-only per SOX/GLBA requirements)
+	// Transaction Validation endpoints (read-only per SOX/GLBA requirements) — Huma.
 	transactionValidationHandler := NewTransactionValidationHandler(transactionValidationService)
-	api.Get("/validations", guard.With("validations", "get", false), transactionValidationHandler.ListTransactionValidations)
-	api.Get("/validations/:id", guard.With("validations", "get", false), transactionValidationHandler.GetTransactionValidation)
+	api.Get("/validations", guard.With("validations", "get", false))
+	api.Get("/validations/:id", guard.With("validations", "get", false))
+	RegisterTransactionValidationRoutes(humaAPI, transactionValidationHandler)
 
-	// Validation endpoint POST
-	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth)
+	// Validation endpoint POST — Huma.
+	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth).
+	// The 3rd guard arg is cfg.APIKeyOnlyValidation (config-driven), NOT a literal.
 	validationHandler, err := NewValidationHandler(validationService, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create validation handler: %w", err)
 	}
 
-	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), validationHandler.Validate)
+	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation))
+	RegisterValidationRoutes(humaAPI, validationHandler)
 
-	// Reservation endpoints (two-phase capacity hold). Mounted only when the
+	// Reservation endpoints (two-phase capacity hold) — Huma. Mounted only when the
 	// reservation service is wired — the API is additive, so a build without it
 	// simply does not expose /v1/reservations. The "reservations" resource is the
 	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
@@ -409,26 +424,30 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		// shared JWT-claim tenant middleware on the other /v1 user routes is left
 		// intact, and no header-trust path is opened elsewhere. In single-tenant
 		// mode the resolver is a no-op.
+		//
+		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
+		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
+		// authenticates, then c.Next() advances into the Huma handler. The
+		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
+		// param routes so Fiber matches the static "transaction" segment first
+		// (otherwise it binds the literal "transaction" to :id). Ordering and both
+		// middlewares are preserved exactly from the pre-Huma inline routes.
 		resTenantMW := reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
 
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Reserve)
-		// By-transaction transitions FIRST: the static "transaction" segment must
-		// be matched before the "/reservations/:id/..." param routes, or Fiber binds
-		// the literal "transaction" to :id. The ledger /commit and /cancel address
-		// reservations by transaction id (the per-reservation handle does not survive
-		// the separate state-transition request), so these are the lifecycle drivers
-		// for PENDING transactions.
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false), reservationHandler.ConfirmByTransaction)
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false), reservationHandler.ReleaseByTransaction)
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Confirm)
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false), reservationHandler.Release)
+		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
+		RegisterReservationRoutes(humaAPI, reservationHandler)
 	}
 
-	// Audit Event endpoints (read-only per SOX/GLBA requirements)
+	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
 	auditEventHandler := NewAuditEventHandler(auditEventService)
-	api.Get("/audit-events", guard.With("audit-events", "get", false), auditEventHandler.ListAuditEvents)
-	api.Get("/audit-events/:id", guard.With("audit-events", "get", false), auditEventHandler.GetAuditEvent)
-	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false), auditEventHandler.VerifyHashChain)
+	api.Get("/audit-events", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
+	RegisterAuditEventRoutes(humaAPI, auditEventHandler)
 
 	// End tracing spans middleware - skipped when telemetry is disabled
 	if !skipTelemetry {
