@@ -182,19 +182,20 @@ dimension), not the tenant. It is never used as `ce-tenantid`.
 
 ## Local testing
 
-To exercise the real emit path against a broker:
+To exercise the real emit path against a broker, run the build-tagged
+(`//go:build integration`) smoke test:
 
-1. **Broker:** `make streaming-up` (in `components/crm`) starts a local Redpanda
-   on `localhost:19092`, joined to the external `infra-network`, and
-   pre-provisions the 7 canonical topics. Requires `infra-network` to already
-   exist (`cd ../infra && make up`). Tear down with `make streaming-down`.
-2. **Smoke test:** `make test-streaming-integration` runs the build-tagged
-   (`//go:build integration`) smoke test in
-   `components/crm/internal/bootstrap/streaming_integration_test.go`. With no
-   `STREAMING_BROKERS` it starts a Redpanda testcontainer; set
-   `STREAMING_BROKERS=localhost:19092` to reuse the `make streaming-up` broker.
-   The test emits all 7 events through `BuildStreamingEmitter` + `EmitImportant`
-   and asserts `ce-type`, `ce-subject`, `ce-tenantid`, and PII absence per event.
+- **Smoke test:** `make test-streaming-integration` (in `components/crm`) runs
+  `components/crm/internal/bootstrap/streaming_integration_test.go`. With no
+  `STREAMING_BROKERS` set it starts a self-contained Redpanda testcontainer
+  (needs Docker); set `STREAMING_BROKERS` to an already-running broker to reuse
+  it instead. The test emits all 7 events through `BuildStreamingEmitter` +
+  `EmitImportant` and asserts `ce-type`, `ce-subject`, `ce-tenantid`, and PII
+  absence per event.
+
+For a longer-lived local broker (e.g. to point a running CRM service at it),
+use the Redpanda compose in the `end-to-end` repo (`docker-compose.redpanda.yaml`)
+and set `STREAMING_ENABLED=true` + `STREAMING_BROKERS` on the CRM accordingly.
 
 The default unit suite (`go test ./...` with no tag) never touches a broker —
 the integration test is excluded by its build tag. See the `CLAUDE.md`

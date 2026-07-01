@@ -15,13 +15,11 @@
 //
 //   - Default (testcontainers): with no STREAMING_BROKERS set, the test starts
 //     a self-contained Redpanda container (redpandadata/redpanda) via the
-//     testcontainers redpanda module, so it needs Docker but not `make
-//     streaming-up`.
+//     testcontainers redpanda module, so it needs Docker only.
 //   - External broker (alternative): set STREAMING_BROKERS to an already-
-//     running broker (e.g. localhost:19092 from `make streaming-up`, Task
-//     3.1.1). The test then skips the container and dials that broker instead,
-//     so the same assertions run against the local compose stack without
-//     Docker-in-test.
+//     running broker (e.g. a local Redpanda on localhost:19092). The test then
+//     skips the container and dials that broker instead, so the same assertions
+//     run against an external broker without Docker-in-test.
 //
 // Build/run: this file is gated behind `//go:build integration`, so the default
 // unit suite (`go test ./...` with no tag) never compiles or runs it and stays
@@ -321,8 +319,8 @@ func brokersFromEnvOrRedpanda(t *testing.T, ctx context.Context) []string {
 }
 
 // createTopics pre-provisions the given topics via the franz-go admin client,
-// tolerating "already exists" so external-broker mode (topics pre-created by
-// make streaming-up) is a no-op.
+// tolerating "already exists" so external-broker mode (topics pre-created on the
+// broker) is a no-op.
 func createTopics(t *testing.T, ctx context.Context, brokers, topics []string) {
 	t.Helper()
 
