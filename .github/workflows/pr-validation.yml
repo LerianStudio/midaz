@@ -34,7 +34,7 @@ jobs:
         docs
         tests
       go_version: "1.26.4"
-      golangci_lint_version: "v2.4.0"
+      golangci_lint_version: "v2.12.2"
       app_name_prefix: "midaz"
       # Analysis-class filter: every component dir with in-tree Go code. CRM rolls
       # up under components/ledger (a ledger package tree, not a standalone
