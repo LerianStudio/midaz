@@ -424,19 +424,39 @@ de-risk(6) + wave1(45) + wave2(23) + wave3(28) + wave4(11) = **113 ops**. Epic 3
 
 **Milestone:** O pipeline de geração (`postman/generator/generate-docs.sh`) é migrado de swag→openapi-generator-Docker→3.0.1 para emissão Huma 3.1 nativa por plano; o `redocly join` + o guard de security-scheme sobrevivem; `check-docs.sh` é reformulado; as duas specs atingem **identidade total** de schema de erro (`@name Error` unificado, `required[]` idêntico). Entregável: OAS 3.1 pristine + paridade — o insumo do remodel do SDK.
 
-### Epic 4.1: Trocar o pipeline de geração para Huma 3.1 nativo
-**Goal:** Substituir os estágios `generate_openapi_spec`/`generate_openapi_yaml` por dump da spec Huma; preservar o `redocly join` (ledger-first) + o jq guard que assere `BearerAuth`+`ApiKeyAuth`; reformular `check-docs.sh` (lógica de drift).
-**Scope:** `postman/generator/generate-docs.sh`, `postman/generator/check-docs.sh`, `components/*/api/`.
-**Dependencies:** Fases 2 e 3.
-**Done when:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` a partir das specs Huma 3.1 dos dois planos; guard verde; sem estágio Docker de conversão.
-**Status:** Pending
+**REVISÃO do recon-f4 (`a059c23a70`, 2026-07-01) — 3 fatos que reformam a fase:**
+- **A spec Huma-nativa NUNCA foi dumpada em disco** (só servida em runtime via ServeSpec gated). Ninguém diffou as duas specs Huma. `openapi.New(...)` retorna `huma.API`; `api.OpenAPI()` → `*huma.OpenAPI` com `MarshalJSON()`/`YAML()`, snapshot completo após os `huma.Register`, ANTES do listen → **dump offline trivial, sem server/DB/Docker.**
+- **O schema de erro Huma-nativo chama-se `Detail`** (nome do tipo `problem.Detail`) nos DOIS planos — já é name-parity, mas NÃO o nome-alvo `Error`. Os nomes `Error`(ledger `mmodel.Error` `@name Error`)/`ErrorResponse`(tracer `api/types.go:13`) são SÓ do swaggo, de tipos separados que morrem com as annotations. **Impor `Error` = trabalho NOVO (schema-namer), não reconciliação de diff.** SHAPE = `problem.Detail` (RFC 9457), muda vs `mmodel.Error` → **contrato SDK-visível** (mas já travado na Fase 1 + remodel breaking /v4; consequência, não decisão nova).
+- **Version-lock do `redocly join`** (generate-docs.sh:183-203) recusa merge se os `openapi:` divergem → os 2 planos migram em LOCKSTEP 3.0.1→3.1 (ambos já Huma, limpo).
+
+**DECISÕES do supervisor (2026-07-01, recon-f4) — todas judgment, sem gate do Fred:**
+- **(a) Emit = test-golden com flag `-update`** (não `cmd/dump-spec`): reusa o wiring da Huma API que os contract-tests dos 2 planos já constroem, casa com o modelo regen+git-diff do drift. Custo: extrair seam de registro no tracer (inline hoje em routes.go; ledger já tem `humaMount` closure).
+- **(b) Nome `Error` via schema-namer COMPARTILHADO no repo** (`problem.Detail`→`Error`), estendendo `pkg/net/http/huma_schema_namer.go` (ledger já tem; aplicar ao tracer também) — NÃO empurrar opinião de nome pra lib-commons (outros consumidores podem não querer o erro chamado `Error`).
+- **(c) redocly.yaml:** re-habilitar as regras relaxadas SÓ por artefato swag/openapi-generator (`no-invalid-schema-examples`, `no-server-trailing-slash`, `no-server-example.com`, talvez `security-defined` com override per-path pros públicos do tracer) — o ponto da spec pristine.
+- **(d) Epic 3.3 escopo COMPLETO:** struct `pkg.HTTPError` (pkg/errors.go:139-150) + 10 annotations swaggo (audit.go:88-89, encryption.go:39-43,143-145) + **4 arquivos de teste com type-assertion que QUEBRAM compilação** (validate-package-range-amount_test.go:267, feeshared/nethttp/httputils_test.go:217,319, feeshared/model/package_test.go:2190) — correção do recon: NÃO é seguro deixar os testes.
+- **(e) De-risk primeiro** (espelha o de-risk da Fase 3 que valeu): dump das 2 specs + namer, olhar a realidade, provar determinismo + OAS 3.1 válida + paridade `Error`, ANTES de reformar o pipeline.
+
+#### Task 4.0 (DE-RISK): dump offline das 2 specs Huma + schema-namer `Detail`→`Error`
+- [ ] Done
+**Context:** `openapi.New` no ledger (`unified-server.go:126`, `humaMount` closure `:157`) e tracer (`routes.go:351`, registro INLINE — precisa seam). `api.OpenAPI().YAML()`/`MarshalJSON()` dumpam sem server. Ledger tem `InstallLedgerSchemaNamer` (`pkg/net/http/huma_schema_namer.go:42`) que NÃO toca o tipo de erro; tracer não tem namer.
+**Implementation vision:** (1) Extrair um seam de registro de rotas no tracer (análogo ao `humaMount` do ledger) chamável de teste sem bootstrap/DB. (2) Teste golden `-update` por plano que constrói a Huma API (reusa wiring dos contract-tests) e escreve `components/{plane}/api/openapi.yaml` (3.1). (3) Estender/criar schema-namer compartilhado que nomeia `problem.Detail`→`Error`, aplicado aos 2 planos. NÃO tocar swaggo ainda (aditivo até o rewire do pipeline).
+**Files:** Create `components/{ledger,tracer}/.../*_spec_dump_test.go` (ou análogo); Modify `pkg/net/http/huma_schema_namer.go`, tracer routes seam.
+**Verification:** dump determinístico (rodar 2×, diff vazio); as 2 `openapi.yaml` são OAS 3.1 válidas (redocly lint); ambas têm `components.schemas.Error` (não `Detail`); diff dos 2 schemas `Error` é vazio (nome+required+campos); build+http/in+golden+tracer verdes.
+**Done when:** 2 specs Huma 3.1 em disco com `Error` unificado, dump determinístico provado, realidade da paridade confirmada — insumo pro rewire do pipeline.
+
+### Epic 4.1: Trocar o pipeline de geração para Huma 3.1 nativo (+ deletar swaggo + Epic 3.3)
+**Goal:** Substituir os estágios `generate_openapi_spec`(swag init)/`generate_openapi_yaml`(openapi-generator Docker) pelo dump Huma (Task 4.0); preservar publish + `redocly join` (ledger-first) + o jq guard `BearerAuth`+`ApiKeyAuth` (ambos os planos declaram os 2 schemes → sobrevive) + orphan-ref guard; reformar `check-docs.sh` (retarget parity_check + security_coverage_check do swaggo `swagger.json` pra spec Huma 3.1, re-expressar pra estrutura 3.1 `components.*`); DELETAR swaggo (annotations dos 2 planos + general-info em `cmd/app/main.go` dos 2 + `tracer/scripts/verify-api-docs.sh` + swag dos Makefiles); Epic 3.3 (deletar pkg.HTTPError + 10 annotations + 4 testes).
+**Scope:** `postman/generator/{generate-docs,check-docs}.sh`, `redocly.yaml`, `components/*/api/`, handlers dos 2 planos (annotations), `cmd/app/main.go` (2), `pkg/errors.go`, 4 testes de fees.
+**Dependencies:** Task 4.0.
+**Done when:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` das specs Huma 3.1 sem estágio Docker; `CHECK_DOCS_REGEN=1 make check-docs` verde; zero resíduo swaggo (grep `@Router`/`@Security`=0); pkg.HTTPError não existe; build+testes verdes.
+**Status:** Epic-level (detalhar após Task 4.0)
 
 ### Epic 4.2: Trava de paridade + verificação pristine
-**Goal:** Unificar `@name` do schema de erro para `Error` nos dois planos; `required[]` idêntico; nenhum outro envelope divergente; verificação final de que ledger e tracer emitem schema de erro byte-idêntico.
-**Scope:** `components/tracer/api/types.go` (retirar `@name ErrorResponse`), refs `@Failure` do tracer, `components/tracer/internal/testutil/integration_helpers.go:770` (mirror duplicado).
+**Goal:** Travar no `check-docs.sh` a identidade total do schema de erro `Error` entre os 2 planos (nome+required+campos); re-habilitar as regras redocly (decisão c); verificação final de que as specs são OAS 3.1 pristine e o SDK (Plano B) tem UM shape de erro.
+**Scope:** `check-docs.sh` (parity_check do `Error`), `redocly.yaml`, specs consolidadas.
 **Dependencies:** Epic 4.1.
-**Done when:** diff dos dois schemas de erro é vazio (nome, campos, required, facets); golden test money-path ainda verde; specs OAS 3.1 válidas; consumidor (SDK) tem um único shape de erro para gerar.
-**Status:** Pending
+**Done when:** diff dos 2 schemas `Error` vazio (travado no CI); redocly lint verde com regras re-habilitadas; golden money-path verde; `make ci` verde end-to-end.
+**Status:** Epic-level (detalhar após Epic 4.1)
 
 ---
 
