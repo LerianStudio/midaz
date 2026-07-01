@@ -65,7 +65,22 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/validations/{id} [get]
 func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.getTransactionValidation(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// getTransactionValidation is the transport-agnostic core of the get operation
+// shared by the Fiber method (GetTransactionValidation) and the Huma func
+// (GetTransactionValidationHuma). It owns the span + id parse + service call +
+// success log, and CANONICALIZES every error before returning (via
+// classifyTransactionValidationError), so both transports render the identical
+// RFC 9457 envelope. Error rendering is the ONLY transport-specific step and
+// stays at the edge (Fiber via http.WithError, Huma via humaProblem).
+func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Context, idParam string) (*model.TransactionValidation, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.transaction-validation.get")
@@ -73,19 +88,16 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse transaction validation ID from path
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation ID", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransactionValidation, "id")
 	}
 
 	result, err := h.service.GetTransactionValidation(ctx, id)
 	if err != nil {
-		return handleTransactionValidationServiceError(c, span, err)
+		return nil, classifyTransactionValidationError(span, err)
 	}
 
 	logger.With(
@@ -94,7 +106,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 		libLog.String("transaction_validation.decision", string(result.Decision)),
 	).Log(ctx, libLog.LevelDebug, "Transaction validation record retrieved")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // ListTransactionValidations godoc
@@ -125,7 +137,26 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 //	@Failure		500				{object}	api.ErrorResponse				"Internal server error"
 //	@Router			/v1/validations [get]
 func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	// Fiber binds the query with QueryParser; the shared core owns the rest.
+	response, err := h.listTransactionValidations(c.UserContext(), c.QueryParser)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, response)
+}
+
+// listTransactionValidations is the transport-agnostic core of the list
+// operation shared by the Fiber method (ListTransactionValidations) and the Huma
+// func (ListTransactionValidationsHuma). Query BINDING is the only
+// transport-specific step and stays at the edge: the caller passes a bind func
+// that populates *ListTransactionValidationsInput from its own query source
+// (Fiber's c.QueryParser, or the Huma func's imperative string->typed copy). A
+// bind error is canonicalized to ErrInvalidQueryParameter (0082) — the SAME code
+// the Fiber QueryParser-failure path produced. Everything after binding
+// (Validate -> SetDefaults -> filters -> service -> response) is shared, so both
+// transports emit field/status/code-identical results.
+func (h *TransactionValidationHandler) listTransactionValidations(ctx context.Context, bind func(any) error) (*ListTransactionValidationsResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.transaction-validation.list")
@@ -133,20 +164,18 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse query parameters into input struct
 	var input ListTransactionValidationsInput
-
-	if err := c.QueryParser(&input); err != nil {
+	if err := bind(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityTransactionValidation, "filters"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityTransactionValidation, "filters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Apply defaults after validation
@@ -157,12 +186,12 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	}
 
 	result, err := h.service.ListTransactionValidations(ctx, filters)
 	if err != nil {
-		return handleTransactionValidationServiceError(c, span, err)
+		return nil, classifyTransactionValidationError(span, err)
 	}
 
 	// Convert to response
@@ -174,28 +203,33 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelDebug, "Transaction validation records listed")
 
-	return http.OK(c, response)
+	return response, nil
 }
 
-// handleTransactionValidationServiceError converts service errors to appropriate HTTP responses.
-func handleTransactionValidationServiceError(c *fiber.Ctx, span trace.Span, err error) error {
+// classifyTransactionValidationError maps a raw service error to its canonical
+// Midaz error, attributing the span, WITHOUT rendering. It is the single
+// classification the Fiber wrappers (render via http.WithError) and the Huma
+// path (humaProblem -> *http.Detail) both consume, so both transports emit
+// field/status/code/type-identical envelopes. The errors.Is cascade and the
+// canonical mapping are preserved verbatim from the pre-Huma handler.
+func classifyTransactionValidationError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrTransactionValidationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrTransactionValidationNotFound, constant.EntityTransactionValidation))
+		return pkg.ValidateBusinessError(constant.ErrTransactionValidationNotFound, constant.EntityTransactionValidation)
 	case errors.Is(err, constant.ErrInvalidTransactionValidationFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation))
+		return pkg.ValidateBusinessError(constant.ErrInvalidTransactionValidationFilters, constant.EntityTransactionValidation)
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityTransactionValidation))
+		return pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityTransactionValidation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 
-		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
+		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
 }
 
