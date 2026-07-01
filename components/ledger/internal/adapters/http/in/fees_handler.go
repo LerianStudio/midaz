@@ -33,24 +33,6 @@ type FeeHandler struct {
 }
 
 // EstimateFeeCalculation is a method that creates a Fee estimate calculation.
-//
-//	@Summary		Create a fee estimate calculation
-//	@Description	Performs a dry-run fee estimate for the given payload and returns the fees that would be applied, without creating or persisting any resource.
-//	@Tags			Fees
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string				false	"Request ID for tracing"
-//	@Param			organization_id		path		string				true	"Organization ID in UUID format"
-//	@Param			fee					body		model.FeeEstimate	true	"Fee Input"
-//	@Success		200					{object}	model.FeeEstimateResponse	"Successfully estimated fee"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Organization or package not found"
-//	@Failure		422					{object}	mmodel.Error				"Business validation failed (e.g. invalid fee calculation configuration)"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/estimates [post]
 func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

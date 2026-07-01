@@ -189,23 +189,6 @@ func isValidEntity(entityName string) bool {
 }
 
 // CreateMetadataIndex creates a new metadata index.
-//
-//	@Summary		Create Metadata Index
-//	@Description	Create a metadata index for the specified entity
-//	@Tags			Metadata Indexes
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			entity_name		path		string							true	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
-//	@Param			metadata-index	body		mmodel.CreateMetadataIndexInput	true	"Metadata Index Input"
-//	@Success		201				{object}	mmodel.MetadataIndex			"Successfully created metadata index"
-//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		409				{object}	mmodel.Error					"Conflict: Metadata index already exists"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/settings/metadata-indexes/entities/{entity_name} [post]
 func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
 	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
 	if !ok {
@@ -296,20 +279,6 @@ func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, en
 }
 
 // GetAllMetadataIndexes retrieves all metadata indexes.
-//
-//	@Summary		Get all Metadata Indexes
-//	@Description	Get all metadata indexes, optionally filtered by entity name
-//	@Tags			Metadata Indexes
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			entity_name		query		string	false	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
-//	@Success		200				{object}	[]mmodel.MetadataIndex			"Successfully retrieved metadata indexes"
-//	@Failure		400				{object}	mmodel.Error					"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/settings/metadata-indexes [get]
 func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	indexes, err := handler.getAllMetadataIndexes(c.UserContext(), c.Queries())
 	if err != nil {
@@ -445,22 +414,6 @@ func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, 
 }
 
 // DeleteMetadataIndex deletes a metadata index.
-//
-//	@Summary		Delete Metadata Index
-//	@Description	Delete a metadata index by entity name and index key
-//	@Tags			Metadata Indexes
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header	string	false	"Request ID"
-//	@Param			entity_name		path	string	true	"Entity Name"	Enums(organization, ledger, segment, account, portfolio, asset, account_type, transaction, operation, operation_route, transaction_route)
-//	@Param			index_key		path	string	true	"Index Key (metadata key, e.g., 'tier')"
-//	@Success		204				"Metadata index successfully deleted"
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Metadata index not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key} [delete]
 func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	if err := handler.deleteMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Params("index_key")); err != nil {
 		return http.WithError(c, err)

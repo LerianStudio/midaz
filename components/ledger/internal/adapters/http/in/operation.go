@@ -108,32 +108,6 @@ func (handler *OperationHandler) getOperationByAccount(ctx context.Context, orga
 }
 
 // GetAllOperationsByAccount retrieves all operations by account.
-//
-//	@Summary		Get all Operations by account
-//	@Description	Returns a cursor-paginated list of operations for an account. Operations are the individual debit/credit entries that make up transactions; filterable by date range, direction, and operation route.
-//	@Tags			Operations
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			account_id		path		string	true	"Account ID in UUID format"
-//	@Param			limit			query		int		false	"Maximum number of items to return (max 100)"	default(10)
-//	@Param			start_date		query		string	false	"Filter operations created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string	false	"Filter operations created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string	false	"Sort order by creation date"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Opaque cursor token for pagination"
-//	@Param			type			query		string	false	"Filter by operation type"	Enums(DEBIT,CREDIT)
-//	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
-//	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
-//	@Param			route_code		query		string	false	"Filter by operation route code"
-//	@Success		200				{object}	http.Pagination{items=[]operation.Operation}	"Successfully retrieved operations list"
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -161,23 +135,6 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 }
 
 // GetOperationByAccount retrieves an operation by account.
-//
-//	@Summary		Get Operation
-//	@Description	Get an Operation with the input ID
-//	@Tags			Operations
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			account_id		path		string	true	"Account ID in UUID format"
-//	@Param			operation_id	path		string	true	"Operation ID in UUID format"
-//	@Success		200				{object}	operation.Operation	"Successfully retrieved operation"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Operation not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id} [get]
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -210,26 +167,6 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 }
 
 // UpdateOperation method that patch operation created before
-//
-//	@Summary		Update an Operation
-//	@Description	Updates the mutable metadata of an operation. Amounts, accounts, direction, and type are immutable.
-//	@Tags			Operations
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
-//	@Param			transaction_id	path		string							true	"Transaction ID in UUID format"
-//	@Param			operation_id	path		string							true	"Operation ID in UUID format"
-//	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
-//	@Success		200				{object}	operation.Operation	"Successfully updated operation"
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Operation not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id} [patch]
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

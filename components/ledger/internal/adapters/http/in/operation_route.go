@@ -32,23 +32,6 @@ type OperationRouteHandler struct {
 }
 
 // Create an Operation Route.
-//
-//	@Summary		Create Operation Route
-//	@Description	Endpoint to create a new Operation Route.
-//	@Tags			Operation Routes
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			operation-route	body		mmodel.CreateOperationRouteInput	true	"Operation Route Input"
-//	@Success		201				{object}	mmodel.OperationRoute				"Successfully created operation route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [post]
 func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -134,19 +117,6 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 }
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
-//
-//	@Summary		Retrieve a specific operation route
-//	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
-//	@Tags			Operation Routes
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
-//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			operation_route_id				path		string					true	"Operation Route ID in UUID format"
-//	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
-//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -192,26 +162,6 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 }
 
 // UpdateOperationRoute is a method that updates Operation Route information.
-//
-//	@Summary		Update an operation route
-//	@Description	Updates an existing operation route's properties such as title, description, and type within the specified ledger
-//	@Tags			Operation Routes
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
-//	@Param			organization_id		path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
-//	@Param			operation_route_id	path		string								true	"Operation Route ID in UUID format"
-//	@Param			operation-route		body		mmodel.UpdateOperationRouteInput	true	"Operation Route Input"
-//	@Success		200					{object}	mmodel.OperationRoute				"Successfully updated operation route"
-//	@Failure		400					{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error						"Operation Route not found"
-//	@Failure		409					{object}	mmodel.Error						"Conflict: Operation Route with the same title already exists"
-//	@Failure		500					{object}	mmodel.Error						"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [patch]
 func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -332,21 +282,6 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
-//
-//	@Summary		Delete an operation route
-//	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
-//	@Tags			Operation Routes
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
-//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id			path	string	true	"Ledger ID in UUID format"
-//	@Param			operation_route_id	path	string	true	"Operation Route ID in UUID format"
-//	@Success		204					"Successfully deleted operation route"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		404					{object}	mmodel.Error	"Operation Route not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [delete]
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -390,27 +325,6 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 }
 
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
-//
-//	@Summary		Retrieve all operation routes
-//	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
-//	@Tags			Operation Routes
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"
-//	@Param			end_date		query		string	false	"End Date"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.OperationRoute}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [get]
 func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

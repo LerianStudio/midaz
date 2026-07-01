@@ -98,25 +98,6 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 }
 
 // CreateHolder is a method that creates Holder information.
-//
-//	@Summary		Create a Holder
-//	@Description	Creates a new holder with the provided details.
-//	@Tags			Holders
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
-//	@Param			X-Idempotency-Key	header		string						false	"Idempotency key to safely retry the create; an identical retry returns the original holder"
-//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
-//	@Param			holder				body		mmodel.CreateHolderInput	true	"Holder Input"
-//	@Success		201					{object}	mmodel.Holder				"Successfully created holder"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Organization not found"
-//	@Failure		409					{object}	mmodel.Error				"Conflict: the document is already associated with another holder in this organization"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/holders [post]
 func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -171,23 +152,6 @@ func (handler *HolderHandler) getHolderByID(ctx context.Context, organizationID,
 }
 
 // GetHolderByID retrieves Holder details by a given id
-//
-//	@Summary		Retrieve Holder details
-//	@Description	Retrieves detailed information about a specific holder using its unique identifier.
-//	@Tags			Holders
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			id					path		string	true	"Holder ID in UUID format"
-//	@Param			include_deleted		query		string	false	"Returns the holder even if it was logically deleted"	Enums(true,false)
-//	@Success		200					{object}	mmodel.Holder	"Successfully retrieved holder"
-//	@Failure		400					{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error	"Holder not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/holders/{id} [get]
 func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -239,24 +203,6 @@ func (handler *HolderHandler) updateHolder(ctx context.Context, organizationID, 
 }
 
 // UpdateHolder is a method that updates Holder information.
-//
-//	@Summary		Update a Holder
-//	@Description	Update details of a holder.
-//	@Tags			Holders
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
-//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
-//	@Param			id					path		string						true	"Holder ID in UUID format"
-//	@Param			holder				body		mmodel.UpdateHolderInput	true	"Holder Input"
-//	@Success		200					{object}	mmodel.Holder				"Successfully updated holder"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Holder not found"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/holders/{id} [patch]
 func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -321,22 +267,6 @@ func (handler *HolderHandler) deleteHolder(ctx context.Context, organizationID, 
 }
 
 // DeleteHolderByID is a method that removes Holder information by a given id.
-//
-//	@Summary		Delete a Holder
-//	@Description	Delete a Holder. **Note:** By default, the delete endpoint performs a logical deletion (soft delete) of the entity in the system. If a physical deletion (hard delete) is required, you can use the query parameter outlined in the documentation.
-//	@Tags			Holders
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
-//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
-//	@Param			id					path	string	true	"Holder ID in UUID format"
-//	@Param			hard_delete			query	string	false	"Use only to perform a physical deletion of the data. This action is irreversible."	Enums(true,false)
-//	@Success		204	"Holder successfully deleted"
-//	@Failure		400	{object}	mmodel.Error	"Invalid input or holder has associated instruments that must be removed first"
-//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404	{object}	mmodel.Error	"Holder not found"
-//	@Failure		500	{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/holders/{id} [delete]
 func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -403,28 +333,6 @@ func (handler *HolderHandler) getAllHolders(ctx context.Context, organizationID 
 }
 
 // GetAllHolders retrieves Holder details by a given id
-//
-//	@Summary		List Holders
-//	@Description	List all Holders. CRM listing endpoints support pagination using the page, limit, and sort parameters. The sort parameter orders results by the entity ID using the UUID v7 standard, which is time-sortable, ensuring chronological ordering of the results.
-//	@Tags			Holders
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			metadata			query		string	false	"JSON string to filter holders by metadata fields"
-//	@Param			limit				query		int		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page				query		int		false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			sort_order			query		string	false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Param			include_deleted		query		string	false	"Return includes logically deleted holders"	Enums(true,false)
-//	@Param			external_id			query		string	false	"Filter holders by externalID"
-//	@Param			document			query		string	false	"Filter holders by document"
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder}	"Successfully retrieved holders list"
-//	@Failure		400					{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error	"Organization not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/holders [get]
 func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

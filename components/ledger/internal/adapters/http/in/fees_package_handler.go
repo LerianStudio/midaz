@@ -42,25 +42,6 @@ type PackageHandler struct {
 }
 
 // CreatePackage is a method that creates Package information.
-//
-//	@Summary		Create a Package
-//	@Description	Create a Package with the input payload
-//	@Tags			Packages
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
-//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
-//	@Param			pack				body		model.CreatePackageInput	true	"Package Input"
-//	@Success		201					{object}	pack.Package				"Successfully created package"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Organization not found"
-//	@Failure		409					{object}	mmodel.Error				"Conflict: package amount range overlaps an existing package"
-//	@Failure		422					{object}	mmodel.Error				"Business validation failed (e.g. minimumAmount greater than maximumAmount)"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/packages [post]
 func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -146,27 +127,6 @@ func (handler *PackageHandler) createPackage(ctx context.Context, organizationID
 }
 
 // GetAllPackages is a method that retrieves all Package information.
-//
-//	@Summary		Get all packages
-//	@Description	List all the packages
-//	@Tags			Packages
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			segmentId			query		string	false	"Filter by segment ID (UUID format)"
-//	@Param			ledgerId			query		string	false	"Filter by ledger ID (UUID format)"
-//	@Param			transactionRoute	query		string	false	"Filter by transaction route"
-//	@Param			enable				query		bool	false	"Filter by enabled flag"	Enums(true, false)
-//	@Param			limit				query		int		false	"Number of items per page"	default(10)
-//	@Param			page				query		int		false	"Page number"	default(1)
-//	@Success		200					{object}	model.Pagination{items=[]pack.Package,page=int,limit=int,total=int}	"Successfully retrieved packages list"
-//	@Failure		400					{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error	"Organization not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/packages [get]
 func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -238,22 +198,6 @@ func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationI
 }
 
 // GetPackageByID is a method that retrieves a Package information by a given id.
-//
-//	@Summary		Get package
-//	@Description	Get a package by id
-//	@Tags			Packages
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			id					path		string	true	"Package ID in UUID format"
-//	@Success		200					{object}	pack.Package	"Successfully retrieved package"
-//	@Failure		400					{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error	"Package not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/packages/{id} [get]
 func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -303,26 +247,6 @@ func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationI
 }
 
 // UpdatePackageByID is a method that updates a Package information by a given id.
-//
-//	@Summary		Update a package
-//	@Description	Update a package with the input payload
-//	@Tags			Packages
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
-//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
-//	@Param			id					path		string						true	"Package ID in UUID format"
-//	@Param			package				body		model.UpdatePackageInput	true	"Update Package Input"
-//	@Success		200					{object}	pack.Package				"Successfully updated package"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Package not found"
-//	@Failure		409					{object}	mmodel.Error				"Conflict: package amount range overlaps an existing package"
-//	@Failure		422					{object}	mmodel.Error				"Business validation failed (e.g. minimumAmount greater than maximumAmount)"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/packages/{id} [patch]
 func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -407,21 +331,6 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 }
 
 // DeletePackageByID is a method that removes a package information by a given id.
-//
-//	@Summary		SoftDelete a Package by ID
-//	@Description	SoftDelete a Package with the input ID
-//	@Tags			Packages
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
-//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
-//	@Param			id					path	string	true	"Package ID in UUID format"
-//	@Success		204	"Package successfully deleted"
-//	@Failure		400	{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404	{object}	mmodel.Error	"Package not found"
-//	@Failure		500	{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/packages/{id} [delete]
 func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

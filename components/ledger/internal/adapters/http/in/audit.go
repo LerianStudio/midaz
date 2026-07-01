@@ -69,26 +69,6 @@ var allowedAuditOutcomes = map[string]struct{}{
 }
 
 // GetAuditEvents handles the retrieval of protection audit events for an organization.
-//
-//	@Summary		List Protection Audit Events
-//	@Description	Returns the protection audit events for an organization, filtered by action, actor, outcome, and time range, with cursor pagination.
-//	@Tags			Protection
-//	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Param			limit				query		int		false	"Maximum number of events to return (default 20)."
-//	@Param			cursor				query		string	false	"Opaque pagination cursor."
-//	@Param			sort_order			query		string	false	"Sort order: asc or desc (default desc)."
-//	@Param			action				query		string	false	"Filter by action."
-//	@Param			actor				query		string	false	"Filter by actor."
-//	@Param			outcome				query		string	false	"Filter by outcome: success, failure, or already_exists."
-//	@Param			start_date			query		string	false	"Inclusive lower time bound (yyyy-mm-dd or RFC3339)."
-//	@Param			end_date			query		string	false	"Inclusive upper time bound (yyyy-mm-dd or RFC3339)."
-//	@Success		200					{object}	in.auditEventsEnvelope
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
-//	@Router			/v1/organizations/{organization_id}/protection/audit [get]
 func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

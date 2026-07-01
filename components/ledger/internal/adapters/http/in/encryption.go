@@ -26,23 +26,6 @@ type EncryptionHandler struct {
 }
 
 // Provision handles the provisioning of an organization for envelope encryption.
-//
-//	@Summary		Provision an Organization for Envelope Encryption
-//	@Description	Provisions an organization for envelope encryption by generating keysets and registering the organization.
-//	@Tags			Encryption
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization		header		string							false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			organization_id		path		string							true	"The unique identifier of the Organization."
-//	@Param			input				body		mmodel.ProvisionEncryptionInput	true	"Provision Input"
-//	@Success		201					{object}	mmodel.ProvisionEncryptionResponse
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError					"Not Found - encryption provisioning is unavailable when the service runs in legacy mode"
-//	@Failure		409					{object}	pkg.HTTPError
-//	@Failure		422					{object}	pkg.HTTPError
-//	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
-//	@Router			/v1/organizations/{organization_id}/encryption/provision [post]
 func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
 	payload, ok := p.(*mmodel.ProvisionEncryptionInput)
 	if !ok || payload == nil {
@@ -132,19 +115,6 @@ func (handler *EncryptionHandler) provision(ctx context.Context, organizationID 
 }
 
 // GetProvisioningStatus handles the retrieval of an organization's provisioning status.
-//
-//	@Summary		Get Provisioning Status
-//	@Description	Retrieves the current provisioning status for an organization's envelope encryption.
-//	@Tags			Encryption
-//	@Produce		json
-//	@Param			Authorization		header		string	false	"The authorization token in the 'Bearer	access_token' format. Only required when auth plugin is enabled."
-//	@Param			organization_id		path		string	true	"The unique identifier of the Organization."
-//	@Success		200					{object}	mmodel.ProvisioningStatusResponse
-//	@Failure		400					{object}	pkg.HTTPError
-//	@Failure		404					{object}	pkg.HTTPError					"Not Found - encryption provisioning is unavailable when the service runs in legacy mode"
-//	@Failure		500					{object}	pkg.HTTPError
-//	@Security		BearerAuth
-//	@Router			/v1/organizations/{organization_id}/encryption/status [get]
 func (handler *EncryptionHandler) GetProvisioningStatus(c *fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

@@ -197,25 +197,6 @@ func (handler *AssetHandler) countAssets(ctx context.Context, organizationID, le
 // mounted by the unified server.
 
 // CreateAsset is a method that creates asset information.
-//
-//	@Summary		Create a new asset
-//	@Description	Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.
-//	@Tags			Assets
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
-//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset details including name, code, type, status, and optional metadata"
-//	@Success		201				{object}	mmodel.Asset			"Successfully created asset"
-//	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error			"Organization or ledger not found"
-//	@Failure		409				{object}	mmodel.Error			"Conflict: Asset with the same name or code already exists"
-//	@Failure		500				{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [post]
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -238,28 +219,6 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 }
 
 // GetAllAssets is a method that retrieves all Assets.
-//
-//	@Summary		List all assets
-//	@Description	Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria
-//	@Tags			Assets
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string															false	"Request ID for tracing"
-//	@Param			organization_id	path		string															true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string															true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string															false	"JSON string to filter assets by metadata fields"
-//	@Param			limit			query		int																false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int																false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			start_date		query		string															false	"Filter assets created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string															false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string															false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Asset}	"Successfully retrieved assets list"
-//	@Failure		400				{object}	mmodel.Error													"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error													"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error													"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error													"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error													"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -282,22 +241,6 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 }
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
-//
-//	@Summary		Retrieve a specific asset
-//	@Description	Returns detailed information about an asset identified by its UUID within the specified ledger
-//	@Tags			Assets
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			asset_id				path		string			true	"Asset ID in UUID format"
-//	@Success		200				{object}	mmodel.Asset	"Successfully retrieved asset"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [get]
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -325,26 +268,6 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 }
 
 // UpdateAsset is a method that updates Asset information.
-//
-//	@Summary		Update an asset
-//	@Description	Updates an existing asset's properties such as name, status, and metadata within the specified ledger
-//	@Tags			Assets
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
-//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			asset_id				path		string					true	"Asset ID in UUID format"
-//	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset properties to update including name, status, and optional metadata"
-//	@Success		200				{object}	mmodel.Asset			"Successfully updated asset"
-//	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error			"Asset, ledger, or organization not found"
-//	@Failure		409				{object}	mmodel.Error			"Conflict: Asset with the same name already exists"
-//	@Failure		500				{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [patch]
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -372,22 +295,6 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 }
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
-//
-//	@Summary		Delete an asset
-//	@Description	Permanently removes an asset from the specified ledger. This operation cannot be undone.
-//	@Tags			Assets
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			asset_id				path		string			true	"Asset ID in UUID format"
-//	@Success		204				"Asset successfully deleted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: asset has balances that still hold funds"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id} [delete]
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -414,20 +321,6 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 }
 
 // CountAssets is a method that returns the total count of assets for a specific ledger in an organization.
-//
-//	@Summary		Count total assets
-//	@Description	Returns the total count of assets for a specific ledger in an organization as a header without a response body
-//	@Tags			Assets
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Success		204				"No content with X-Total-Count header containing the count"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count [head]
 func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

@@ -73,27 +73,6 @@ func (handler *CompositionHandler) createHolderAccount(ctx context.Context, orga
 
 // CreateHolderAccount opens a holder-owned account and, when instrument fields
 // are present, an instrument linked to it, in a single call.
-//
-//	@Summary		Open a holder-owned account (with optional instrument)
-//	@Description	Opens an account owned by the holder identified in the path and, when banking/regulatory/related-party fields are present, an instrument linked to the new account. The account is created first; if it commits but the instrument write fails the account remains persisted and a typed instrumentError block is returned (no rollback). The holder is always taken from the path, never the body.
-//	@Tags			Composition
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string							false	"Request ID for tracing"
-//	@Param			organization_id		path		string							true	"Organization ID in UUID format"
-//	@Param			ledger_id			path		string							true	"Ledger ID in UUID format"
-//	@Param			id					path		string							true	"Holder ID in UUID format"
-//	@Param			composition			body		mmodel.CreateHolderAccountInput	true	"Composite account (and optional instrument) details"
-//	@Success		201					{object}	mmodel.HolderAccountResponse	"Successfully opened holder account"
-//	@Failure		400					{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error					"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error					"Organization, ledger, or holder not found"
-//	@Failure		409					{object}	mmodel.Error					"Conflict: account alias already in use"
-//	@Failure		422					{object}	mmodel.Error					"Business validation failed (e.g. invalid account configuration)"
-//	@Failure		500					{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts [post]
 func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

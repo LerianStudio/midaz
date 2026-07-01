@@ -16,26 +16,6 @@ import (
 )
 
 // GetAllTransactions method that get all transactions created before
-//
-//	@Summary		Get all Transactions
-//	@Description	Get all Transactions with the input metadata or without metadata
-//	@Tags			Transactions
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"
-//	@Param			end_date		query		string	false	"End Date"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]Transaction}
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

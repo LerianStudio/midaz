@@ -30,25 +30,6 @@ var validTransactionStatuses = map[string]bool{
 }
 
 // CountTransactionsByFilters counts transactions matching optional filters.
-//
-//	@Summary		Count Transactions by Filters
-//	@Description	Count transactions matching optional filters (route, status, date range)
-//	@Tags			Transactions
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"	format(uuid)
-//	@Param			ledger_id		path		string	true	"Ledger ID"			format(uuid)
-//	@Param			route			query		string	false	"Filter by transaction route"
-//	@Param			status			query		string	false	"Filter by transaction status"	Enums(CREATED, APPROVED, PENDING, CANCELED, NOTED)
-//	@Param			start_date		query		string	false	"Start of date range (RFC 3339, defaults to today 00:00:00 UTC)"	format(date-time)
-//	@Param			end_date		query		string	false	"End of date range (RFC 3339, defaults to today 23:59:59 UTC)"	format(date-time)
-//	@Success		204
-//	@Header			204	{integer}	X-Total-Count	"Total count of matching transactions"
-//	@Failure		400	{object}	mmodel.Error
-//	@Failure		401	{object}	mmodel.Error
-//	@Failure		403	{object}	mmodel.Error
-//	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count [head]
 func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

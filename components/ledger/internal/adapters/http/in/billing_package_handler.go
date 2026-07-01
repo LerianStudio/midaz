@@ -39,23 +39,6 @@ type BillingPackageHandler struct {
 }
 
 // CreateBillingPackage is a method that creates a BillingPackage.
-//
-//	@Summary		Create a BillingPackage
-//	@Description	Create a BillingPackage with the input payload
-//	@Tags			Billing Packages
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string					false	"Request ID for tracing"
-//	@Param			organization_id		path		string					true	"Organization ID in UUID format"
-//	@Param			billingPackage		body		model.BillingPackage	true	"BillingPackage Input"
-//	@Success		201					{object}	model.BillingPackage	"Successfully created billing package"
-//	@Failure		400					{object}	mmodel.Error			"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error			"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error			"Forbidden access"
-//	@Failure		409					{object}	mmodel.Error			"Conflict: a billing package already exists for this organization, ledger, and transaction route"
-//	@Failure		500					{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/billing-packages [post]
 func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -117,24 +100,6 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 }
 
 // GetAllBillingPackages is a method that retrieves all BillingPackages.
-//
-//	@Summary		Get all billing packages
-//	@Description	List all billing packages
-//	@Tags			Billing Packages
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			ledgerId			query		string	false	"Filter by ledger ID in UUID format (optional — omit to list all packages for the organization)"
-//	@Param			type				query		string	false	"Filter by billing package type"	Enums(volume, maintenance)
-//	@Param			limit				query		int		false	"Number of items per page"	default(10)
-//	@Param			page				query		int		false	"Page number"	default(1)
-//	@Success		200					{object}	model.Pagination{items=[]model.BillingPackage,page=int,limit=int,total=int}	"Successfully retrieved billing packages list"
-//	@Failure		400					{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/billing-packages [get]
 func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -239,22 +204,6 @@ func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context,
 }
 
 // GetBillingPackageByID is a method that retrieves a BillingPackage by ID.
-//
-//	@Summary		Get billing package
-//	@Description	Get a billing package by id
-//	@Tags			Billing Packages
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string	false	"Request ID for tracing"
-//	@Param			organization_id		path		string	true	"Organization ID in UUID format"
-//	@Param			id					path		string	true	"BillingPackage ID in UUID format"
-//	@Success		200					{object}	model.BillingPackage	"Successfully retrieved billing package"
-//	@Failure		400					{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error	"Billing package not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [get]
 func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -310,24 +259,6 @@ func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context,
 }
 
 // UpdateBillingPackage is a method that updates a BillingPackage by ID.
-//
-//	@Summary		Update a billing package
-//	@Description	Update a billing package with the input payload
-//	@Tags			Billing Packages
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header		string						false	"Request ID for tracing"
-//	@Param			organization_id		path		string						true	"Organization ID in UUID format"
-//	@Param			id					path		string						true	"BillingPackage ID in UUID format"
-//	@Param			billingPackage		body		model.BillingPackageUpdate	true	"Update BillingPackage Input"
-//	@Success		200					{object}	model.BillingPackage		"Successfully updated billing package"
-//	@Failure		400					{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error				"Billing package not found"
-//	@Failure		500					{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [patch]
 func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -399,21 +330,6 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 }
 
 // DeleteBillingPackage is a method that soft-deletes a BillingPackage by ID.
-//
-//	@Summary		SoftDelete a BillingPackage by ID
-//	@Description	SoftDelete a BillingPackage with the input ID
-//	@Tags			Billing Packages
-//	@Security		BearerAuth
-//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
-//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
-//	@Param			id					path	string	true	"BillingPackage ID in UUID format"
-//	@Success		204	"Billing package successfully deleted"
-//	@Failure		400	{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401	{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403	{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404	{object}	mmodel.Error	"Billing package not found"
-//	@Failure		500	{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/billing-packages/{id} [delete]
 func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

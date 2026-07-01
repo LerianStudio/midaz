@@ -232,21 +232,6 @@ func (handler *OrganizationHandler) countOrganizations(ctx context.Context) (int
 // wrappers are not mounted by the unified server.
 
 // CreateOrganization is a method that creates Organization information.
-//
-//	@Summary		Create a new organization
-//	@Description	Creates a new organization with the provided details including legal name, legal document, and optional address information
-//	@Tags			Organizations
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization details including legal name, legal document, and optional address information"
-//	@Success		201				{object}	mmodel.Organization				"Successfully created organization"
-//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations [post]
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	organization, err := handler.createOrganization(c.UserContext(), p.(*mmodel.CreateOrganizationInput))
 	if err != nil {
@@ -257,23 +242,6 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // UpdateOrganization is a method that updates Organization information.
-//
-//	@Summary		Update an existing organization
-//	@Description	Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.
-//	@Tags			Organizations
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
-//	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization fields to update. Only supplied fields will be modified."
-//	@Success		200				{object}	mmodel.Organization				"Successfully updated organization"
-//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error					"Organization not found"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [patch]
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
@@ -289,20 +257,6 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
-//
-//	@Summary		Retrieve a specific organization
-//	@Description	Returns detailed information about an organization identified by its UUID
-//	@Tags			Organizations
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
-//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
-//	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
-//	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error		"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error		"Organization not found"
-//	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
@@ -318,29 +272,6 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 }
 
 // GetAllOrganizations is a method that retrieves all Organizations.
-//
-//	@Summary		List all organizations
-//	@Description	Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria
-//	@Tags			Organizations
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string																	false	"Request ID for tracing"
-//	@Param			metadata		query		string																	false	"JSON string to filter organizations by metadata fields"
-//	@Param			limit			query		int																		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int																		false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			start_date		query		string																	false	"Filter organizations created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string																	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			status				query		string																	false	"Filter organizations by status"
-//	@Param			legal_document		query		string																	false	"Filter organizations by legal document (exact match)"
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
-//	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
-//	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error															"Forbidden access"
-//	@Failure		500					{object}	mmodel.Error															"Internal server error"
-//	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	pagination, err := handler.getAllOrganizations(c.UserContext(), c.Queries())
 	if err != nil {
@@ -351,20 +282,6 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
-//
-//	@Summary		Delete an organization
-//	@Description	Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.
-//	@Tags			Organizations
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Success		204				"Organization successfully deleted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
-//	@Failure		404				{object}	mmodel.Error	"Organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete organization with dependent resources"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
@@ -379,18 +296,6 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 }
 
 // CountOrganizations is a method that returns the total count of organizations.
-//
-//	@Summary		Count total organizations
-//	@Description	Returns the total count of organizations as a header without a response body
-//	@Tags			Organizations
-//	@Security		BearerAuth
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Success		204				"No content with X-Total-Count header containing the count"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/metrics/count [head]
 func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	count, err := handler.countOrganizations(c.UserContext())
 	if err != nil {
