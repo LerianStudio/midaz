@@ -5,9 +5,6 @@
 package mmodel
 
 // Error represents a standardized API error response format
-//
-// swagger:model Error
-// @Description RFC-9457-aligned error body: a stable machine-readable code, a title, a human message, and optional entityType/fields.
 type Error struct {
 	// Error code identifying the specific error condition
 	// example: 0147
@@ -32,13 +29,9 @@ type Error struct {
 	// Optional detailed field validations for client-side handling
 	// example: {"name": "Field 'name' is required"}
 	Fields map[string]string `json:"fields,omitempty"`
-} // @name Error
+}
 
 // ErrorResponse represents a standardized API error response
-//
-// swagger:response ErrorResponse
-// @Description Standard error response format returned by all API endpoints for error situations.
 type ErrorResponse struct {
-	// in: body
 	Body Error
 }

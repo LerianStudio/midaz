@@ -14,15 +14,16 @@ make generate-docs
 
 `make generate-docs` (root) runs `postman/generator/generate-docs.sh`, which:
 
-1. Runs `swag init` for each service to refresh its `components/<service>/api/`
-   artifacts (`docs.go`, `swagger.json`, `swagger.yaml`). `docs.go` stays under
-   `api/` because Go imports it and the ledger contract test reads
-   `components/ledger/api/swagger.json`.
-2. Converts each `swagger.json` to `openapi.yaml` with
-   `openapitools/openapi-generator-cli:v7.10.0` (Docker required).
-3. Copies the `swagger.json` + `swagger.yaml` + `openapi.yaml` triple into
-   `postman/specs/<service>/` so the hub is self-describing.
-4. Converts each spec to a Postman collection and merges them into one
+1. Regenerates each component's native Huma OAS 3.1 dump
+   (`components/<service>/api/openapi.huma.yaml`) by running its golden-dump test
+   `TestOpenAPISpecDump` with `-update`. No `swag`, no Docker — the spec comes
+   straight from the Huma router at build time.
+2. Copies each `openapi.huma.yaml` into `postman/specs/<service>/` so the hub is
+   self-describing.
+3. Joins the per-component specs into one consolidated spec
+   (`postman/specs/midaz.openapi.{yaml,json}`) with `@redocly/cli join` (ledger
+   first, so it acts as the "main" and takes precedence on shared metadata).
+4. Converts the consolidated spec to a Postman collection and merges into one
    `MIDAZ.postman_collection.json`, with a single merged
    `MIDAZ.postman_environment.json`.
 
@@ -32,24 +33,28 @@ make generate-docs
 |---------|------|-------|
 | `ledger` | `:3002` | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees, all on one base URL |
 | `tracer` | `:4020` | Real-time transaction validation / fraud prevention |
-| `reporter` | `:4005` | Async report management API |
 
-`reporter-worker` is health-only (no REST API) and `crm` is a package tree folded
-into the ledger binary (its endpoints are part of the ledger swagger), so neither
-is generated separately.
+Only `ledger` and `tracer` are generated. `crm` is a package tree folded into the
+ledger binary (its endpoints are part of the ledger spec) and `reporter-worker` is
+health-only (no REST API), so neither is generated separately.
 
 ## General-info parity (enforced by `make check-docs`)
 
-The three component specs MUST agree on these `info` fields — keep them in sync when editing any `components/<c>/cmd/app/main.go` header:
+The Huma dumps emit only `info.title` and `info.version`; the swaggo-era
+`info.contact` / `info.license` / `info.termsOfService` / `schemes` fields are
+honestly dropped (OAS 3.1 has no `.schemes`). `make check-docs` enforces:
 
-- `info.contact` — Discord community / https://discord.gg/DnhqKwkGv3
-- `info.license` — Elastic License 2.0 / https://www.elastic.co/licensing/elastic-license
-- `info.termsOfService` — https://www.elastic.co/licensing/elastic-license
-- `schemes` — `http https`
-- `info.version` — `4.0.0` (no `v` prefix)
-- `info.title` — must start with `Midaz `
+- `info.version` — byte-identical across ledger and tracer, matching `^4.0.0$`
+  (no `v` prefix). Set it in each `components/<c>/cmd/app/main.go` header.
+- `info.title` — must start with `Midaz ` (each plane names itself, e.g.
+  "Midaz Ledger API" vs "Midaz Tracer API"); title is NOT byte-parity metadata.
 
-Security schemes intentionally differ and are NOT part of parity: ledger/reporter use `BearerAuth` (Authorization header), tracer uses `ApiKeyAuth` (X-API-Key). Do not normalize them.
+With `CHECK_DOCS_REGEN=1`, `make check-docs` also regenerates the docs and asserts
+the committed artifacts still reproduce (drift check).
+
+Security schemes intentionally differ and are NOT part of parity: ledger uses
+`BearerAuth` (Authorization header), tracer uses `ApiKeyAuth` (X-API-Key). Do not
+normalize them.
 
 ## Layout
 
@@ -59,10 +64,10 @@ postman/
 ├── WORKFLOW.md                        # Ledger end-to-end workflow definition (DO NOT MODIFY)
 ├── MIDAZ.postman_collection.json      # Merged collection (ledger + tracer + reporter)
 ├── MIDAZ.postman_environment.json     # Merged environment
-├── specs/                             # Published OpenAPI specs per service
-│   ├── ledger/{swagger.json,swagger.yaml,openapi.yaml}
-│   ├── tracer/{swagger.json,swagger.yaml,openapi.yaml}
-│   └── reporter/{swagger.json,swagger.yaml,openapi.yaml}
+├── specs/                             # Published OpenAPI specs
+│   ├── ledger/openapi.huma.yaml       # Per-component Huma OAS 3.1 dumps
+│   ├── tracer/openapi.huma.yaml
+│   └── midaz.openapi.{yaml,json}      # Consolidated (redocly join) spec
 ├── backups/                           # Timestamped collection/environment backups (gitignored)
 ├── temp/                              # Scratch space used during a run (gitignored)
 └── generator/                         # Generation tooling
@@ -107,16 +112,18 @@ newman run postman/MIDAZ.postman_collection.json \
 
 ## Requirements
 
-- `swag` v1.16.6 (`go install github.com/swaggo/swag/cmd/swag@v1.16.6`)
-- Docker (for `openapi-generator-cli:v7.10.0`)
+- Go toolchain (the Huma dumps are produced by `go test ... -update`; no `swag`,
+  no Docker)
 - Node.js (>= 16) and `jq`
 
 `make set-env` / `scripts/setup-deps.sh` install the Go and Node toolchain pins.
+`@redocly/cli` and the Postman converters are bundled under
+`postman/generator/node_modules` (installed on first run).
 
 ## Troubleshooting
 
-- **swag not found**: install the pinned version above, or run `scripts/setup-deps.sh`.
-- **Docker errors**: `openapi.yaml` generation needs Docker running.
+- **redocly not found**: run `make generate-docs` once to install the bundled
+  Node dependencies under `postman/generator/node_modules`.
 - **Inspect the collection**:
   ```bash
   jq '.item[].name' postman/MIDAZ.postman_collection.json

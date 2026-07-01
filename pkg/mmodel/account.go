@@ -11,25 +11,6 @@ import (
 )
 
 // CreateAccountInput is a struct designed to encapsulate request create payload data.
-//
-// swagger:model CreateAccountInput
-//
-//	@Description	Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.
-//
-//	@example		{
-//	  "name": "Corporate Checking Account",
-//	  "assetCode": "USD",
-//	  "status": {
-//	    "code": "ACTIVE"
-//	  },
-//	  "alias": "@treasury_checking",
-//	  "type": "deposit",
-//	  "metadata": {
-//	    "department": "Treasury",
-//	    "purpose": "Operating Expenses",
-//	    "region": "Global"
-//	  }
-//	}
 type CreateAccountInput struct {
 	// Human-readable name of the account
 	// required: false
@@ -101,13 +82,9 @@ type CreateAccountInput struct {
 	// requested without the override is rejected with HTTP 422.
 	// required: false
 	Skip *AccountSkip `json:"skip,omitempty"`
-} //	@name	CreateAccountInput
+}
 
 // AccountSkip carries the per-call control skips honored on the account create path.
-//
-// swagger:model AccountSkip
-//
-//	@Description	Per-call control skips for account creation. Each flag is honored only when the request sets it AND the ledger opts into it via its override policy (overrides.allow*Skip); a skip requested without the matching override is rejected with HTTP 422.
 type AccountSkip struct {
 	// Skip the holder existence check on account creation. Honored only when this
 	// flag is set AND the ledger's overrides.allowHolderSkip is enabled; rejected
@@ -115,25 +92,9 @@ type AccountSkip struct {
 	// required: false
 	// default: false
 	Holder bool `json:"holder,omitempty" example:"false"`
-} //	@name	AccountSkip
+}
 
 // UpdateAccountInput is a struct designed to encapsulate request update payload data.
-//
-// swagger:model UpdateAccountInput
-//
-//	@Description	Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.
-//
-//	@example		{
-//	  "name": "Primary Corporate Checking Account",
-//	  "status": {
-//	    "code": "ACTIVE"
-//	  },
-//	  "metadata": {
-//	    "department": "Global Treasury",
-//	    "purpose": "Primary Operations",
-//	    "region": "Global"
-//	  }
-//	}
 type UpdateAccountInput struct {
 	// Updated name of the account
 	// required: false
@@ -175,35 +136,9 @@ type UpdateAccountInput struct {
 	// Used internally to enable RFC 7396 JSON Merge Patch semantics.
 	// Hidden from JSON serialization.
 	NullFields []string `json:"-"`
-} // @name UpdateAccountInput
+}
 
 // Account is a struct designed to encapsulate response payload data.
-//
-// swagger:model Account
-//
-//	@Description	Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.
-//
-//	@example		{
-//	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-//	  "name": "Corporate Checking Account",
-//	  "assetCode": "USD",
-//	  "organizationId": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
-//	  "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
-//	  "portfolioId": "d4e5f6a1-b2c3-7890-defg-4567890123ef",
-//	  "segmentId": "e5f6a1b2-c3d4-7890-efgh-5678901234fg",
-//	  "status": {
-//	    "code": "ACTIVE"
-//	  },
-//	  "alias": "@treasury_checking",
-//	  "type": "deposit",
-//	  "createdAt": "2022-04-15T09:30:00Z",
-//	  "updatedAt": "2022-04-15T09:30:00Z",
-//	  "metadata": {
-//	    "department": "Treasury",
-//	    "purpose": "Operating Expenses",
-//	    "region": "Global"
-//	  }
-//	}
 type Account struct {
 	// Unique identifier for the account (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -299,7 +234,7 @@ type Account struct {
 	// Used internally to enable RFC 7396 JSON Merge Patch semantics.
 	// Hidden from JSON serialization.
 	NullFields []string `json:"-"`
-} //	@name	Account
+}
 
 // IDtoUUID converts the account's string ID to a UUID object
 //
@@ -309,43 +244,6 @@ func (a *Account) IDtoUUID() uuid.UUID {
 }
 
 // Accounts struct to return a paginated list of accounts.
-//
-// swagger:model Accounts
-//
-//	@Description	Paginated list of accounts with metadata about the current page, limit, and the account items themselves. Used for list operations.
-//
-//	@example		{
-//	  "items": [
-//	    {
-//	      "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-//	      "name": "Corporate Checking Account",
-//	      "assetCode": "USD",
-//	      "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
-//	      "status": {
-//	        "code": "ACTIVE"
-//	      },
-//	      "alias": "@treasury_checking",
-//	      "type": "deposit",
-//	      "createdAt": "2022-04-15T09:30:00Z",
-//	      "updatedAt": "2022-04-15T09:30:00Z"
-//	    },
-//	    {
-//	      "id": "f6a1b2c3-d4e5-7890-fghi-6789012345gh",
-//	      "name": "Operating Expenses",
-//	      "assetCode": "USD",
-//	      "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
-//	      "status": {
-//	        "code": "ACTIVE"
-//	      },
-//	      "alias": "@operating_expenses",
-//	      "type": "expense",
-//	      "createdAt": "2022-04-16T10:15:00Z",
-//	      "updatedAt": "2022-04-16T10:15:00Z"
-//	    }
-//	  ],
-//	  "page": 1,
-//	  "limit": 10
-//	}
 type Accounts struct {
 	// Array of account records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Corporate Checking Account","assetCode":"USD","status":{"code": "ACTIVE"}}]
@@ -361,44 +259,20 @@ type Accounts struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} //	@name	Accounts
+}
 
 // AccountResponse represents a success response containing a single account.
-//
-// swagger:response AccountResponse
-//
-//	@Description	Successful response containing a single account entity.
 type AccountResponse struct {
-	// in: body
 	Body Account
 }
 
 // AccountsResponse represents a success response containing a paginated list of accounts.
-//
-// swagger:response AccountsResponse
-//
-//	@Description	Successful response containing a paginated list of accounts.
 type AccountsResponse struct {
-	// in: body
 	Body Accounts
 }
 
 // AccountErrorResponse represents an error response for account operations.
-//
-// swagger:response AccountErrorResponse
-//
-//	@Description	Error response for account operations with error code and message.
-//
-//	@example		{
-//	  "code": 400001,
-//	  "message": "Invalid input: field 'assetCode' is required",
-//	  "details": {
-//	    "field": "assetCode",
-//	    "violation": "required"
-//	  }
-//	}
 type AccountErrorResponse struct {
-	// in: body
 	Body struct {
 		// Error code identifying the specific error
 		// example: 400001

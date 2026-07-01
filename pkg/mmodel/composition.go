@@ -20,10 +20,6 @@ package mmodel
 // CreateAccountInput field except HolderID is mirrored here, so a future field
 // addition to CreateAccountInput breaks the build's tests instead of being
 // silently dropped on the composite wire.
-//
-// swagger:model CreateHolderAccountInput
-//
-//	@Description	Composite request payload for opening a holder-owned account with an optional instrument in one call. The account fields mirror the standard account-create payload; the holder is taken from the path. When banking/regulatory/related-party fields are present an instrument is created and linked to the new account; otherwise only the account is created.
 type CreateHolderAccountInput struct {
 	// Human-readable name of the account
 	// required: false
@@ -104,7 +100,7 @@ type CreateHolderAccountInput struct {
 	// List of related parties for the instrument (optional).
 	// required: false
 	RelatedParties []*RelatedParty `json:"relatedParties,omitempty"`
-} //	@name	CreateHolderAccountInput
+}
 
 // ToCreateAccountInput projects the composite body onto the account-create
 // contract, attaching the path-sourced holder as the account owner. It carries
@@ -137,10 +133,6 @@ func (in *CreateHolderAccountInput) ToCreateAccountInput(holderID string) *Creat
 // InstrumentError is set ONLY when the account committed but the instrument
 // write failed: the account remains persisted and usable (no compensating
 // delete), and the failure is surfaced for client-driven retry.
-//
-// swagger:model HolderAccountResponse
-//
-//	@Description	Composite response for opening a holder-owned account. Account is always present on success. Instrument is present when one was requested and created. When the account succeeded but the instrument write failed, instrumentError carries a typed, client-actionable failure block and the account remains persisted (no rollback).
 type HolderAccountResponse struct {
 	// The account that was created (always present on success).
 	Account *Account `json:"account"`
@@ -153,17 +145,13 @@ type HolderAccountResponse struct {
 	// instrument write failed. Omitted on full success and on the account-only
 	// path.
 	InstrumentError *InstrumentFailure `json:"instrumentError,omitempty"`
-} //	@name	HolderAccountResponse
+}
 
 // InstrumentFailure is the typed partial-failure block surfaced when the
 // account committed but the instrument write failed. Reason is a stable,
 // client-actionable code (never raw internal error text), so a client can
 // decide to retry the standalone instrument create against the surviving
 // account.
-//
-// swagger:model InstrumentFailure
-//
-//	@Description	Typed partial-failure block returned when an account was created but its instrument could not be written. Status reflects the instrument outcome; Reason is a stable, client-actionable code (not internal error text).
 type InstrumentFailure struct {
 	// Outcome status of the instrument write (e.g. FAILED).
 	// example: FAILED
@@ -172,4 +160,4 @@ type InstrumentFailure struct {
 	// Stable, client-actionable reason code for the instrument-write failure.
 	// example: 0001
 	Reason string `json:"reason" example:"0001"`
-} //	@name	InstrumentFailure
+}

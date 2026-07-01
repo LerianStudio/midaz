@@ -45,7 +45,7 @@ type LedgerSettings struct {
 	// Overrides contains the per-ledger opt-ins that permit callers to skip
 	// individual controls (fees, tracer, holder) on a per-request basis.
 	Overrides OverridePolicy `json:"overrides"`
-} //	@name LedgerSettings
+}
 
 // AccountingValidation represents the accounting-related validation settings.
 // These settings control validation behavior during transaction processing.
@@ -64,7 +64,7 @@ type AccountingValidation struct {
 	// When true, account creation rejects accounts whose resolved holder does not exist.
 	// Default: false (permissive - no validation)
 	RequireHolder bool `json:"requireHolder" example:"false"`
-} //	@name AccountingValidation
+}
 
 // defaultAccountingValidation is the canonical source of default validation settings.
 // All validation flags are false by default for backwards compatibility.
@@ -90,7 +90,7 @@ type OverridePolicy struct {
 	// AllowHolderSkip permits callers to skip the holder existence check on account creation.
 	// Default: false (callers cannot skip the holder check).
 	AllowHolderSkip bool `json:"allowHolderSkip" example:"false"`
-} //	@name OverridePolicy
+}
 
 // defaultOverridePolicy is the canonical source of default override opt-ins.
 // All opt-ins are false by default so no control can be skipped without an explicit opt-in.
@@ -120,7 +120,7 @@ type TracerSettings struct {
 	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
 	// Default: 250.
 	TimeoutMs int `json:"timeoutMs" example:"250"`
-} //	@name TracerSettings
+}
 
 // Allowed values for TracerSettings.Mode.
 const (

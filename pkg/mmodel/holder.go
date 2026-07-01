@@ -11,38 +11,6 @@ import (
 )
 
 // CreateHolderInput is a struct designed to encapsulate request create payload data.
-//
-// swagger:model CreateHolderInput
-//
-//	@Description	Request payload for creating a new holder. A holder represents an identified party (individual or legal entity) that can own accounts within the ledger system. The type field controls which person-type sub-object is applicable.
-//
-//	@example		{
-//	  "externalId": "G4K7N8M2",
-//	  "type": "NATURAL_PERSON",
-//	  "name": "John Doe",
-//	  "document": "91315026015",
-//	  "addresses": {
-//	    "primary": {
-//	      "line1": "123 Main St",
-//	      "city": "New York",
-//	      "state": "NY",
-//	      "country": "US",
-//	      "zipCode": "10001"
-//	    }
-//	  },
-//	  "contact": {
-//	    "primaryEmail": "john.doe@example.com",
-//	    "mobilePhone": "+15555550100"
-//	  },
-//	  "naturalPerson": {
-//	    "birthDate": "1990-01-01",
-//	    "nationality": "American"
-//	  },
-//	  "metadata": {
-//	    "source": "onboarding",
-//	    "region": "us-east"
-//	  }
-//	}
 type CreateHolderInput struct {
 	// Optional client-supplied correlation key for idempotency and external system linking.
 	// required: false
@@ -88,25 +56,9 @@ type CreateHolderInput struct {
 	// required: false
 	// example: {"source": "onboarding", "region": "us-east"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateHolderRequest
+}
 
 // UpdateHolderInput is a struct designed to encapsulate update request data.
-//
-// swagger:model UpdateHolderInput
-//
-//	@Description	Request payload for updating an existing holder. All fields are optional — only provided fields are applied. Omitted fields remain unchanged, enabling partial updates to name, addresses, contact, person details, and metadata.
-//
-//	@example		{
-//	  "name": "Jonathan Doe",
-//	  "contact": {
-//	    "primaryEmail": "jonathan.doe@example.com",
-//	    "mobilePhone": "+15555550199"
-//	  },
-//	  "metadata": {
-//	    "source": "profile-update",
-//	    "region": "us-west"
-//	  }
-//	}
 type UpdateHolderInput struct {
 	// Updated client-supplied correlation key.
 	// required: false
@@ -140,44 +92,9 @@ type UpdateHolderInput struct {
 	// required: false
 	// example: {"source": "profile-update", "region": "us-west"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateHolderRequest
+}
 
 // Holder is a struct designed to store holder data.
-//
-// swagger:model Holder
-//
-//	@Description	Complete holder entity returned by create, update, and get operations. Contains all holder fields including system-generated ID, person-type sub-objects, and audit timestamps.
-//
-//	@example		{
-//	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-//	  "externalId": "G4K7N8M2",
-//	  "type": "NATURAL_PERSON",
-//	  "name": "John Doe",
-//	  "document": "91315026015",
-//	  "addresses": {
-//	    "primary": {
-//	      "line1": "123 Main St",
-//	      "city": "New York",
-//	      "state": "NY",
-//	      "country": "US",
-//	      "zipCode": "10001"
-//	    }
-//	  },
-//	  "contact": {
-//	    "primaryEmail": "john.doe@example.com",
-//	    "mobilePhone": "+15555550100"
-//	  },
-//	  "naturalPerson": {
-//	    "birthDate": "1990-01-01",
-//	    "nationality": "American"
-//	  },
-//	  "metadata": {
-//	    "source": "onboarding"
-//	  },
-//	  "createdAt": "2025-01-01T00:00:00Z",
-//	  "updatedAt": "2025-01-01T00:00:00Z",
-//	  "deletedAt": null
-//	}
 type Holder struct {
 	// Unique system-generated identifier for the holder (UUID format).
 	// example: 00000000-0000-0000-0000-000000000000
@@ -234,13 +151,9 @@ type Holder struct {
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z" format:"date-time"`
-} // @name HolderResponse
+}
 
 // Addresses is a struct designed to store addresses data.
-//
-// swagger:model Addresses
-//
-//	@Description	Physical address collection for a holder, supporting one primary address and up to two additional addresses.
 type Addresses struct {
 	// Primary registered address of the holder.
 	Primary *Address `json:"primary,omitempty"`
@@ -250,13 +163,9 @@ type Addresses struct {
 
 	// Second supplementary address (e.g. branch or alternate location).
 	Additional2 *Address `json:"additional2,omitempty"`
-} // @name Addresses
+}
 
 // Contact is a struct designed to store contact data.
-//
-// swagger:model Contact
-//
-//	@Description	Communication contact details for a holder, including email addresses and phone numbers.
 type Contact struct {
 	// The primary email address of the holder.
 	// example: john.doe@example.com
@@ -277,13 +186,9 @@ type Contact struct {
 	// example: +1555555555
 	// maxLength: 32
 	OtherPhone *string `json:"otherPhone,omitempty" example:"+1555555555" maxLength:"32"`
-} // @name Contact
+}
 
 // NaturalPerson is a struct designed to store natural person data.
-//
-// swagger:model NaturalPerson
-//
-//	@Description	Individual (natural person) biographical and demographic details, used in both request and response payloads when the holder type is NATURAL_PERSON.
 type NaturalPerson struct {
 	// The person's nickname or preferred name.
 	// example: John
@@ -329,13 +234,9 @@ type NaturalPerson struct {
 	// example: Active
 	// maxLength: 100
 	Status *string `json:"status,omitempty" example:"Active" maxLength:"100"`
-} // @name NaturalPerson
+}
 
 // LegalPerson is a struct designed to store legal person data.
-//
-// swagger:model LegalPerson
-//
-//	@Description	Legal entity (company) details for an organizational holder, used in both request and response payloads when the holder type is LEGAL_PERSON.
 type LegalPerson struct {
 	// The registered business name of the company, if applicable.
 	// example: Lerian Studio
@@ -369,13 +270,9 @@ type LegalPerson struct {
 
 	// Details of the company's legal representative.
 	Representative *Representative `json:"representative,omitempty"`
-} // @name LegalPerson
+}
 
 // Representative is a struct designed to store legal person representative data.
-//
-// swagger:model Representative
-//
-//	@Description	Legal representative details for a company-type holder, identifying the individual authorized to act on behalf of the legal entity.
 type Representative struct {
 	// The legal representative's full name.
 	// example: John Doe
@@ -396,4 +293,4 @@ type Representative struct {
 	// example: CFO
 	// maxLength: 100
 	Role *string `json:"role,omitempty" example:"CFO" maxLength:"100"`
-} // @name Representative
+}

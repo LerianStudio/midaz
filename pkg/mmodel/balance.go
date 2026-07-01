@@ -17,9 +17,6 @@ import (
 )
 
 // Balance is a struct designed to encapsulate response payload data.
-//
-// swagger:model Balance
-// @Description Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.
 type Balance struct {
 	// Unique identifier for the balance (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -118,13 +115,10 @@ type Balance struct {
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	Balance
+}
 
 // BalanceHistory represents a historical balance snapshot without permission flags.
 // Permission flags (AllowSending/AllowReceiving) are not tracked historically.
-//
-// swagger:model BalanceHistory
-// @Description Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.
 type BalanceHistory struct {
 	// Unique identifier for the balance (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -206,7 +200,7 @@ type BalanceHistory struct {
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-} // @name BalanceHistory
+}
 
 // ToHistoryResponse converts a Balance to BalanceHistory (without permission flags).
 // Settings are deep-copied so the history snapshot is fully independent of the
@@ -301,9 +295,6 @@ func (b *Balance) ToTransactionBalance() (*mtransaction.Balance, error) {
 }
 
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
-//
-// swagger:model CreateAdditionalBalance
-// @Description Request payload for creating a new balance with specified permissions and custom key.
 type CreateAdditionalBalance struct {
 	// Unique key for the balance
 	// required: true
@@ -330,12 +321,9 @@ type CreateAdditionalBalance struct {
 	// balance scope). When omitted, platform defaults are applied.
 	// required: false
 	Settings *BalanceSettings `json:"settings,omitempty"`
-} // @name CreateAdditionalBalance
+}
 
 // UpdateBalance is a struct designed to encapsulate balance update request payload data.
-//
-// swagger:model UpdateBalance
-// @Description Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 type UpdateBalance struct {
 	// Whether the account should be allowed to send funds from this balance
 	// required: false
@@ -352,7 +340,7 @@ type UpdateBalance struct {
 	// Direction is intentionally absent: it is immutable after creation.
 	// required: false
 	Settings *BalanceSettings `json:"settings,omitempty"`
-} // @name UpdateBalance
+}
 
 // CreateBalanceInput is the input model used by services to create a balance synchronously.
 //
@@ -415,9 +403,6 @@ func (b *Balance) IDtoUUID() uuid.UUID {
 }
 
 // Balances struct to return paginated list of balances.
-//
-// swagger:model Balances
-// @Description Paginated list of balances with metadata about the current page, limit, and the balance items themselves. Used for list operations.
 type Balances struct {
 	// Array of balance records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","accountId":"00000000-0000-0000-0000-000000000000","assetCode":"USD","available":1500}]
@@ -433,7 +418,7 @@ type Balances struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} // @name Balances
+}
 
 // BalanceRedis is an internal struct for Redis cache representation of balance data.
 //
@@ -605,11 +590,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 }
 
 // BalanceErrorResponse represents an error response for balance operations.
-//
-// swagger:response BalanceErrorResponse
-// @Description Error response for balance operations with error code and message.
 type BalanceErrorResponse struct {
-	// in: body
 	Body struct {
 		// Error code identifying the specific error
 		// example: 400001

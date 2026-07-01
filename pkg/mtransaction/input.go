@@ -11,9 +11,6 @@ import (
 )
 
 // CreateTransactionInput is a struct design to encapsulate payload data.
-//
-// swagger:model CreateTransactionInput
-// @Description CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.
 type CreateTransactionInput struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING
@@ -59,7 +56,7 @@ type CreateTransactionInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
-} // @name CreateTransactionInput
+}
 
 // BuildTransaction converts a CreateTransactionInput to a Transaction.
 func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
@@ -88,19 +85,13 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 }
 
 // SendInflow structure for marshaling/unmarshalling JSON for inflow transactions.
-//
-// swagger:model SendInflow
-// @Description SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.
 type SendInflow struct {
 	Asset      string          `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value      decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
 	Distribute Distribute      `json:"distribute,omitempty" validate:"required"`
-} // @name SendInflow
+}
 
 // CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
-//
-// swagger:model CreateTransactionInflowInput
-// @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.
 type CreateTransactionInflowInput struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING
@@ -142,7 +133,7 @@ type CreateTransactionInflowInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
-} // @name CreateTransactionInflowInput
+}
 
 // BuildInflowEntry converts a CreateTransactionInflowInput to a Transaction.
 func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
@@ -176,19 +167,13 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 }
 
 // SendOutflow structure for marshaling/unmarshalling JSON for outflow transactions.
-//
-// swagger:model SendOutflow
-// @Description SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.
 type SendOutflow struct {
 	Asset  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
 	Source Source          `json:"source,omitempty" validate:"required"`
-} // @name SendOutflow
+}
 
 // CreateTransactionOutflowInput is a struct design to encapsulate payload data for outflow transactions.
-//
-// swagger:model CreateTransactionOutflowInput
-// @Description CreateTransactionOutflowInput is the input payload to create an outflow transaction. Contains all necessary fields to create a financial transaction with source information only, without destination.
 type CreateTransactionOutflowInput struct {
 	// Chart of accounts group name for accounting purposes
 	// example: WITHDRAWAL
@@ -234,7 +219,7 @@ type CreateTransactionOutflowInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
-} // @name CreateTransactionOutflowInput
+}
 
 // BuildOutflowEntry converts a CreateTransactionOutflowInput to a Transaction.
 func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
