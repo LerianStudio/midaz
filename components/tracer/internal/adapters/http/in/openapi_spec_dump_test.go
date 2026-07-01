@@ -58,7 +58,7 @@ func buildTracerHumaAPI() huma.API {
 		// env-independent, matching the ledger dump (contract_spec_routes_test.go).
 		// info.version carries no contract value in an offline golden; a CI job that
 		// exported VERSION would otherwise drift this golden and fail an unrelated PR.
-		Version: "test",
+		Version: "4.0.0",
 		Servers: []string{"/v1"},
 	})
 
