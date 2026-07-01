@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
@@ -332,11 +334,31 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		}
 	}
 
+	// Huma bootstrap (Phase 2a). problem.Install() overrides the process-global
+	// huma.NewError to the org-wide RFC 9457 model; it MUST run before any
+	// huma.Register (runtime + spec-gen) and is idempotent (sync.Once). The Huma
+	// API binds to the SAME /v1 group `api` that carries the tenant middleware —
+	// so the humafiber v2 adapter's ctx (built from c.UserContext()) reaches the
+	// migrated handlers with the tenant/DB intact, no bridge needed.
+	problem.Install()
+
+	humaAPI := openapi.New(f, api, openapi.Config{
+		Title:   "Midaz Tracer API",
+		Version: os.Getenv("VERSION"),
+		Servers: []string{"/v1"},
+	})
+
 	// Rule endpoints
 	ruleHandler := NewHandler(ruleService)
-	api.Post("/rules", guard.With("rules", "post", false), ruleHandler.CreateRule)
+	// CreateRule + GetRule migrated to Huma (reference for the 2b fan-out). Auth
+	// stays a Fiber middleware attached to the exact method+path BEFORE the Huma
+	// registration, so guard.With runs first and c.Next() advances into the Huma
+	// handler — byte-identical auth behavior, no Huma per-op Security yet.
+	api.Post("/rules", guard.With("rules", "post", false))
+	api.Get("/rules/:id", guard.With("rules", "get", false))
+	RegisterRuleRoutes(humaAPI, ruleHandler)
+
 	api.Get("/rules", guard.With("rules", "get", false), ruleHandler.ListRules)
-	api.Get("/rules/:id", guard.With("rules", "get", false), ruleHandler.GetRule)
 	api.Patch("/rules/:id", guard.With("rules", "patch", false), ruleHandler.UpdateRule)
 	api.Delete("/rules/:id", guard.With("rules", "delete", false), ruleHandler.DeleteRule)
 	api.Post("/rules/:id/activate", guard.With("rules", "post", false), ruleHandler.ActivateRule)

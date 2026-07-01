@@ -8,6 +8,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -68,7 +69,26 @@ func NewHandler(service RuleService) *Handler {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules [post]
 func (h *Handler) CreateRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.createRule(c.UserContext(), c.Body())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, result)
+}
+
+// createRule is the transport-agnostic core of the create-rule operation shared
+// by the Fiber method (CreateRule) and the Huma func (CreateRuleHuma). It owns
+// the span, the imperative parse + Validate(), the service call, and the
+// success log — and it CANONICALIZES every error before returning it (parse /
+// validation errors are already canonical; the service error is run through
+// classifyServiceError here). So both callers render the returned error the same
+// way — Fiber via http.WithError, Huma via ProblemDetail — and the two
+// transports emit the byte-identical RFC 9457 envelope. Error rendering is the
+// ONLY thing that differs between transports; it stays at the edge.
+//
+// On error the returned *model.Rule is nil and err is the canonical Midaz error.
+func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.create")
@@ -77,15 +97,14 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 	logger = logging.WithTrace(ctx, logger)
 
 	var input CreateRuleInput
-	if err := c.BodyParser(&input); err != nil {
+	if err := json.Unmarshal(rawBody, &input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
-		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Convert HTTP input to service input
@@ -93,7 +112,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateRule(ctx, serviceInput)
 	if err != nil {
-		return handleServiceError(c, span, err)
+		return nil, classifyServiceError(span, err)
 	}
 
 	logger.With(
@@ -101,7 +120,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", result.ID.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule created")
 
-	return http.Created(c, result)
+	return result, nil
 }
 
 // UpdateRule godoc
@@ -191,7 +210,20 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id} [get]
 func (h *Handler) GetRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.getRule(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// getRule is the transport-agnostic core of the get-rule operation shared by
+// the Fiber method (GetRule) and the Huma func (GetRuleHuma). See createRule for
+// the split rationale: it owns the span + id parse + service call + success log,
+// and canonicalizes every error before returning so both transports render the
+// identical body.
+func (h *Handler) getRule(ctx context.Context, idParam string) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.get")
@@ -199,18 +231,15 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse rule ID from path
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	result, err := h.service.GetRule(ctx, id)
 	if err != nil {
-		return handleServiceError(c, span, err)
+		return nil, classifyServiceError(span, err)
 	}
 
 	logger.With(
@@ -219,7 +248,7 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 		libLog.String("rule.name", result.Name),
 	).Log(ctx, libLog.LevelDebug, "Rule retrieved")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // ListRules godoc
@@ -485,54 +514,71 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 
 // handleLifecycleError converts lifecycle service errors to appropriate HTTP responses.
 func handleLifecycleError(c *fiber.Ctx, span trace.Span, err error) error {
+	return http.WithError(c, classifyLifecycleError(span, err))
+}
+
+// classifyLifecycleError maps a raw lifecycle error to its canonical Midaz
+// error, attributing the span, WITHOUT rendering. Shared by the Fiber writer
+// (handleLifecycleError) and the Huma StatusError path.
+func classifyLifecycleError(span trace.Span, err error) error {
 	var invalidTransitionErr *model.InvalidTransitionError
 	if errors.As(err, &invalidTransitionErr) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrRuleInvalidStatus, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrRuleInvalidStatus, constant.EntityRule)
 	}
 
-	return handleServiceError(c, span, err)
+	return classifyServiceError(span, err)
 }
 
 // handleServiceError converts service errors to appropriate HTTP responses.
 func handleServiceError(c *fiber.Ctx, span trace.Span, err error) error {
+	return http.WithError(c, classifyServiceError(span, err))
+}
+
+// classifyServiceError maps a raw service error to its canonical Midaz error,
+// attributing the span, WITHOUT rendering. It is the single classification the
+// Fiber writer (handleServiceError -> http.WithError) and the Huma path
+// (RuleHumaError -> *http.Detail) both consume, so both transports emit the
+// byte-identical envelope. The errors.Is cascade and the canonical mapping are
+// preserved verbatim from the pre-Huma handler.
+func classifyServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrRuleNameAlreadyExistsInCtx, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrRuleNameAlreadyExistsInCtx, constant.EntityRule)
 	case errors.Is(err, constant.ErrRuleNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrRuleNameAlreadyExists, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrRuleNameAlreadyExists, constant.EntityRule)
 	case errors.Is(err, constant.ErrExpressionSyntax):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid CEL expression syntax", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrExpressionSyntax, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrExpressionSyntax, constant.EntityRule)
 	case errors.Is(err, constant.ErrExpressionType):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression must evaluate to boolean", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrExpressionType, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrExpressionType, constant.EntityRule)
 	case errors.Is(err, constant.ErrExpressionCostExceeded):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cost exceeds limit", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrExpressionCostExceeded, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrExpressionCostExceeded, constant.EntityRule)
 	case errors.Is(err, constant.ErrExpressionNotModifiable):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cannot be modified for non-DRAFT rules", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrExpressionNotModifiable, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrExpressionNotModifiable, constant.EntityRule)
 	case errors.Is(err, constant.ErrRuleNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrRuleNotFound, constant.EntityRule)
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityRule)
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityRule))
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityRule)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
+		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
 }
 

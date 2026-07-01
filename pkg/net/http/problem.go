@@ -140,6 +140,31 @@ func fieldsToErrors(err error) []*huma.ErrorDetail {
 // entityType and the fields->errors[] remap are the two carries problem.Detail
 // does not do for free; both are non-money-path envelope shape.
 func withProblem(c *fiber.Ctx, err error) error {
+	body, ok := ProblemDetail(err)
+	if !ok {
+		// MapError always returns *Detail; this is unreachable defensive code.
+		return InternalServerError(c, constant.ErrInternalServer.Error(),
+			http.StatusText(http.StatusInternalServerError), "internal error")
+	}
+
+	c.Set(fiber.HeaderContentType, problemContentType)
+
+	return c.Status(body.Status).JSON(body)
+}
+
+// ProblemDetail builds the frozen RFC 9457 *Detail for err WITHOUT writing it
+// to a fiber response. It is the single source of the (code, status, title,
+// entityType, errors[]) envelope shared by the Fiber path (withProblem) and the
+// Huma path (handlers return the *Detail as a huma.StatusError so Huma
+// serializes the identical body). ok is false only on MapError's unreachable
+// non-*Detail return.
+//
+// It reproduces the money-path classification verbatim: classifyForProblem's
+// errors.As cascade + lib-commons MapError (5xx scrub) + the <500 title restore
+// + the fields->errors[] carry. The golden net (errors_golden_test.go) guards
+// this against drift; the Huma handlers inherit that guarantee for free by
+// reusing this function.
+func ProblemDetail(err error) (Detail, bool) {
 	var (
 		capturedEntityType string
 		capturedTitle      string
@@ -166,9 +191,7 @@ func withProblem(c *fiber.Ctx, err error) error {
 
 	pd, ok := mapped.(*libProblem.Detail)
 	if !ok {
-		// MapError always returns *Detail; this is unreachable defensive code.
-		return InternalServerError(c, constant.ErrInternalServer.Error(),
-			http.StatusText(http.StatusInternalServerError), "internal error")
+		return Detail{}, false
 	}
 
 	// Restore the registry title for <500 (r3 §2.8: Title is verbatim below 500).
@@ -183,9 +206,7 @@ func withProblem(c *fiber.Ctx, err error) error {
 		body.Errors = errs
 	}
 
-	c.Set(fiber.HeaderContentType, problemContentType)
-
-	return c.Status(pd.Status).JSON(body)
+	return body, true
 }
 
 // withProblemStatus renders err as the problem+json envelope at an EXPLICIT
