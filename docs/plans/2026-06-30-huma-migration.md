@@ -23,7 +23,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Envelope RFC 9457 no runtime dos dois planos; golden test code→status verde antes e depois do swap; zero código/status alterado | 1.1, 1.2, 1.3 | **Complete** |
-| 2 | Tracer 100% Huma: 31 ops re-tipadas, spec OAS 3.1 nativa, `Install()` nos dois paths, auth (Bearer+ApiKey) declarada; served body == spec | 2.1, 2.2, 2.3 | **Detailed** |
+| 2 | Tracer 100% Huma: 28 ops protegidas re-tipadas, spec OAS 3.1 nativa ADITIVA (swaggo intacto), auth (Bearer+ApiKey) declarada por-op; served == spec | 2.1, 2.2, 2.3 | **Complete** |
 | 3 | Ledger 100% Huma: 115 ops re-tipadas, auth route-chain → Security por-op preservando granularidade resource/verb, `pkg.HTTPError` fundido | 3.1, 3.2, 3.3 | Epic-level |
 | 4 | Pipeline 2-planos migrado para Huma 3.1 nativo, `redocly join` + guard preservados, identidade total de schema, paridade pristine verificada | 4.1, 4.2 | Epic-level |
 
@@ -270,11 +270,11 @@ Workflow `wf_f70f2f3a-4b0`: 6 implement serial → 5 reviewers → 5 contrarian,
 - **Div 3:** aposentar swaggo do tracer ISOLADO QUEBRA o pipeline compartilhado (`postman/generator/check-docs.sh`: parity ledger+tracer, security-coverage, drift-check `swag init` p/ ambos + `git diff --exit-code`); `components/tracer/api/` tem `types.go` escrito-à-mão (`ReadyzResponse`/`ReadyzCheck`) importado por `readyz.go` → não deletável. **Aposentadoria completa (remover @securityDefinitions, deletar swagger 2.0, flipar check-docs) = Fase 4** (com ledger migrado). Nesta epic: só ADITIVO.
 **Scope:** `bootstrap/config.go`, `http_server.go` (propagação), `routes.go`, os 6 `*_handler_huma.go` (Security por-op). NÃO tocar `main.go` annotations nem `api/`.
 **Dependencies:** Epic 2.2. ✅
-**Done when:** `humaAPI.OpenAPI().Components.SecuritySchemes` tem BearerAuth (type:http,scheme:bearer) + ApiKeyAuth (type:apiKey,in:header,name:X-API-Key); 27 ops declaram `[{BearerAuth},{ApiKeyAuth}]`, `POST /v1/validations` declara `[{ApiKeyAuth}]` (bate com `cfg.APIKeyOnlyValidation`), 3 públicas sem security; `ServeSpec(f,humaAPI,lg,"/v1",...)` gated em SwaggerEnabled serve `/v1/openapi.yaml`+`/v1/docs`; error schema no spec = `problem.Detail`; swaggo 2.0 INTACTO (check-docs verde, api/ buildando); suites+golden verdes.
-**Status:** Detailed
+**Done when:** `humaAPI.OpenAPI().Components.SecuritySchemes` tem BearerAuth (type:http,scheme:bearer) + ApiKeyAuth (type:apiKey,in:header,name:X-API-Key); **as 28 ops declaram `[{BearerAuth},{ApiKeyAuth}]`** (POST /validations incluído — ver correção no gate abaixo), 3 públicas sem security; `ServeSpec(f,humaAPI,lg,"/v1",...)` gated em SwaggerEnabled serve `/v1/openapi.yaml`+`/v1/docs`; error schema no spec = `problem.Detail`; swaggo 2.0 INTACTO (drift `swag init` zero, api/ buildando); suites+golden verdes.
+**Status:** Done
 
 #### Task 2.3.1: Config `SwaggerEnabled` + schemes + ServeSpec + helpers de Security
-- [ ] Done
+- [x] Done — `61b4b0366`
 **Context:** `openapi.New(f,api,cfg)` (`routes.go:345`) zera `OpenAPIPath`/`DocsPath` → não auto-monta docs. `openapi.ServeSpec(app,api,logger,prefix,title)` (lib-commons openapi.go:150) monta `{prefix}/openapi.json|yaml|docs`, snapshota 1x, fora da auth chain; doc manda gated no flag. `problem.Install()` (`routes.go:343`) já roda antes dos Register → error schema já é problem.Detail.
 **Implementation vision:** (1) `SwaggerEnabled bool` em `bootstrap/config.go` (~:48-221) com env `SWAGGER_ENABLED` + default; propagar até `NewRoutes` via `RouteConfig` (routes.go:84). (2) Após `openapi.New`: `openapi.DeclareBearerAuth(humaAPI)` + `humaAPI.OpenAPI().Components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{Type:"apiKey",In:"header",Name:"X-API-Key"}` (nil-guard nos maps como DeclareBearerAuth faz). (3) Declarar helpers package-level em UM `_huma.go`: `var secBearerOrAPIKey = []map[string][]string{{"BearerAuth":{}},{"ApiKeyAuth":{}}}` e `var secAPIKeyOnly = []map[string][]string{{"ApiKeyAuth":{}}}`. (4) `if cfg.SwaggerEnabled { openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API") }`. NÃO tocar o `/swagger/*` existente (:257) nem main.go.
 **Files:** Modify `components/tracer/bootstrap/config.go`, `components/tracer/bootstrap/http_server.go` (ou onde RouteConfig é montado), `components/tracer/internal/adapters/http/in/routes.go`, um `_huma.go` (helpers).
@@ -282,7 +282,7 @@ Workflow `wf_f70f2f3a-4b0`: 6 implement serial → 5 reviewers → 5 contrarian,
 **Done when:** schemes nos Components, helpers disponíveis, ServeSpec gated funcional, swaggo intacto.
 
 #### Task 2.3.2: Security por-op nas 28 protegidas
-- [ ] Done
+- [x] Done — `0dcf9248b` + correção `ca1a0ee82` (POST /validations = union, não ApiKey-only)
 **Context:** ZERO ops declaram Security hoje (auth é middleware; spec-only deferido). Campo `huma.Operation.Security []map[string][]string`.
 **Implementation vision:** adicionar `Security: secBearerOrAPIKey` nas 27 ops (rules 8, limits 9, tx-val 2, reservations 5, audit 3) e `Security: secAPIKeyOnly` na op validateTransaction (`validation_handler_huma.go:78`). Só metadata de spec — ZERO mudança de runtime. Referências nos `RegisterXxxRoutes` dos 6 `_huma.go`.
 **Files:** Modify os 6 `*_handler_huma.go` (rule/limit/transaction_validation/validation/reservation/audit_event).
@@ -290,12 +290,24 @@ Workflow `wf_f70f2f3a-4b0`: 6 implement serial → 5 reviewers → 5 contrarian,
 **Done when:** as 28 ops têm o requirement certo; POST /validations = ApiKey-only; runtime inalterado.
 
 #### Task 2.3.3: Teste de spec (schemes + Security por-op + problem.Detail)
-- [ ] Done
+- [x] Done — `286ab6593` + `5bb314b6c` (tabela 28-op)
 **Context:** served É o spec in-memory por construção (ServeSpec serve `api.OpenAPI().YAML()`). lib-commons tem padrão em `openapi_test.go:156,175`.
 **Implementation vision:** teste (estilo routes_test) que constrói as rotas, pega o `huma.API`, e assert: (a) 2 schemes com shape exato; (b) Security por-op nas 28 (spot os casos-chave: um Bearer|ApiKey + o POST /validations ApiKey-only + confirmar públicas ausentes do huma spec); (c) error schema referencia problem.Detail (RFC 9457 fields). NÃO-paralelo se tocar o estado global do Install.
 **Files:** Test em `components/tracer/internal/adapters/http/in/`.
 **Verification:** `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde incluindo o novo teste.
 **Done when:** spec trava (schemes+security+problem.Detail) coberta por teste.
+
+---
+
+##### Gate Epic 2.3 (2026-07-01) — PASS → **FASE 2 COMPLETA**
+Workflow `wf_0947a55c-f4a`: 3 implement serial → 4 reviewers → 5 contrarian → self-heal. Commits `61b4b0366`(config+schemes+ServeSpec), `0dcf9248b`(Security por-op), `286ab6593`+`5bb314b6c`(spec-lock tests + tabela 28-op). Retornou ISSUES; adjudicação do supervisor:
+- **Test-reviewer High (fechado no self-heal `5bb314b6c`):** comentário afirmava que o check-docs security-coverage cobre as 28 ops do tracer — falso (a gate é `SECURITY_COVERAGE_COMPONENT=ledger`). Self-heal adicionou `TestSpecLock_AllOpsSecurity` (tabela das 28 ops, `require.Lenf(...,28)`) — o backstop real.
+- **Lens 3 refuted=true = ARTEFATO de framing** (lente pedia pra refutar uma propriedade boa; o reason PROVA spec-only/zero-regressão). Descartado.
+- **Lens 1 + logic-reviewer Medium = REAL (bug MEU no task spec), corrigido por mim `ca1a0ee82`:** POST /validations declarava `secAPIKeyOnly` estático, mas o guard é config-driven (`cfg.APIKeyOnlyValidation`, default false, proibido em MT) → default+MT rodam Bearer. Spec estático não espelha flag de runtime → declarar o superset union `[{Bearer},{ApiKey}]` uniforme com as outras 27; helper morto removido; 2 asserts de lock flipados. Spec-only, zero runtime.
+- **Drift swaggo verificado por mim:** `swag init` do tracer reproduz `api/` byte-a-byte (zero drift) — 2b-2 não perturbou o swaggo; check-docs CI limpo no tracer.
+Verificado independentemente: build EXIT0, vet limpo, spec-lock + http/in (4.76s) + golden (0.50s) verdes.
+
+**Deferido p/ Fase 4 (registrado):** aposentar swaggo (remover @securityDefinitions + swagger 2.0 + flipar check-docs pra Huma) — junto com ledger. **Follow-up p/ Fred:** pushar `DeclareApiKeyAuth` pra lib-commons (simetria com DeclareBearerAuth).
 
 ---
 
