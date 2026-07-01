@@ -117,11 +117,76 @@
 - **Residual Low (aceito):** `problemDetailPkgPath` casado por string — frágil a refactor de path do lib-commons, mas o parity test pega. Guardado, não bloqueia.
 
 ### Epic 4.1: Pipeline → Huma 3.1 nativo + aposentar swaggo + Epic 3.3
-**Goal:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` a partir das specs Huma 3.1 (Task 4.0), sem estágio Docker; swaggo aposentado nos 2 planos; `pkg.HTTPError` morto deletado.
-**Scope:** `postman/generator/{generate-docs,check-docs}.sh`, `redocly.yaml`, `components/*/api/`, annotations dos 2 planos, `components/*/cmd/app/main.go` (general-info), `tracer/scripts/verify-api-docs.sh`, Makefiles (swag targets), `pkg/errors.go`, 4 testes de fees.
+**Goal:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` a partir das specs Huma 3.1, sem swag nem Docker; swaggo aposentado (annotations + runtime + gerados) nos 2 planos; `pkg.HTTPError` morto deletado; `make ci` verde.
+**Scope:** `postman/generator/{generate-docs,check-docs}.sh` + `redocly.yaml`; handlers dos 2 planos (annotations); `components/*/cmd/app/main.go` (general-info); wiring de runtime swaggo (`ledger/internal/bootstrap/{unified-server,swagger}.go`, `tracer/internal/adapters/http/in/swagger.go`); gerados `components/*/api/{docs.go,swagger.json,swagger.yaml,openapi.yaml}`; `go.mod`; `tracer/scripts/verify-api-docs.sh` + Makefiles; `pkg/errors.go` + 5 testes.
 **Dependencies:** Task 4.0. ✅
-**Done when:** `make generate-docs` sem estágio Docker; `CHECK_DOCS_REGEN=1 make check-docs` verde; `grep @Router|@Security` = 0; `pkg.HTTPError` não existe; build+testes verdes.
-**Status:** Pending — **elaborar em tasks dispatch-ready contra `generate-docs.sh`/`check-docs.sh`/`redocly.yaml` reais no lançamento da onda** (recon do pipeline primeiro).
+**Status:** Detailed — fatiada em duas ondas (de-risk do pipeline primeiro; recon `recon-epic41`, 2026-07-01).
+
+**Fatos do recon-epic41 que moldam a fase:**
+- **Tooling presente** (node 26 / npm 11 / redocly 2.32 / docker 29; `postman/generator/node_modules` existe) → o workflow **roda o pipeline e se auto-verifica**.
+- **`generate-docs.sh` (435 linhas):** REPLACE `resolve_swag_bin`(57-81)/`generate_openapi_spec`(86-110, swag init)/`generate_openapi_yaml`(113-142, openapi-generator Docker); MODIFY `publish_specs`(145-160) e `consolidate_openapi`(165-270) — trocar os inputs do `redocly join`(207-216, ledger-first) de `api/openapi.yaml`→`api/openapi.huma.yaml`; PRESERVE version-parity assert(183-203), security jq guard(235-247, os 2 schemes já existem no dump), orphan-ref guard(249-264), npm/postman/verify.
+- **`check-docs.sh` (238 linhas):** `parity_check`(125-134) e `security_coverage_check`(140-166, `SECURITY_COVERAGE_COMPONENT=ledger`) lêem o `swagger.json` swaggo (seam `read_field*`/`assert_*`, 60-123, hardcode 63/76) → retarget p/ `openapi.huma.yaml`. **`.schemes`(131) não existe em OAS 3.1** → dropar/reescrever p/ `servers`. `.info.version ^4\.0\.0$`(132) — ver Task 4.1.1. `drift_check`(201-218, `CHECK_DOCS_REGEN=1`) roda generate-docs + git-diff `components/*/api` `postman/specs` — preservar.
+- **swaggo tem WIRING DE RUNTIME (não é só comment):** ledger `unified-server.go:20` blank-import `_ ".../ledger/api"` (dispara `SwaggerInfo` via `docs.go init()`), `:26` `fiberSwagger`, `:99-103` rotas `/swagger`+`/swagger/*`, `bootstrap/swagger.go` (`initSwaggerFromEnv` lê `SWAGGER_*`→`api.SwaggerInfo`); tracer `in/swagger.go` (rota swaggo). **A UI de docs migra p/ o Huma `/v1/docs` (ServeSpec).**
+- **`tracer/api/types.go` SOBREVIVE** (hand-written `ReadyzResponse`/`ReadyzCheck`, LIVE em `readyz.go:157,162,+sigs`). Deletar só os gerados do pacote, não o pacote.
+- **Epic 3.3 = 5 compile-breakers (não 4):** o 5º é `pkg/errors_test.go:278-306` `TestHTTPError_Error` que **constrói** o struct (deletar a função inteira); os 4 de fees são branches `if _, ok := err.(*pkg.HTTPError)` mortos (`validate-package-range-amount_test.go:267`, `feeshared/nethttp/httputils_test.go:217,319`, `feeshared/model/package_test.go:2190`).
+
+#### Onda 4.1a — Pipeline → Huma 3.1 (ADITIVO, swaggo intacto) + de-risk join/lint
+Prova que o `redocly join` + guards + `redocly lint` passam nas 2 specs Huma **antes** de aposentar swaggo (o join nunca foi rodado — Task 4.0 só provou determinismo + paridade Error). Swaggo fica 100% presente; só o pipeline troca de fonte.
+
+##### Task 4.1.1: Promover a versão do dump `test`→`4.0.0` (2 planos) + regen goldens
+- [ ] Done
+**Context:** o dump Huma usa `Version: "test"` (tracer `openapi_spec_dump_test.go:56` pós-hermetização `d4f44b84e`; ledger `contract_spec_routes_test.go:116`). O `parity_check`(check-docs.sh:132) exige `.info.version ^4\.0\.0$` — o `@version 4.0.0` do swaggo main.go retirado. O artefato publicado + committed precisa da versão de contrato.
+**Implementation vision:** trocar `Version` dos 2 builders de dump p/ `"4.0.0"` (fixo/hermético — não `os.Getenv`, preserva drift-determinismo), regen os 2 goldens via `go test -run TestOpenAPISpecDump ./components/{plane}/... -update`. `info.version` fica `4.0.0` nos 2 `openapi.huma.yaml`. (Versão dinâmica de build, se um dia desejada, é no path servido em runtime, não no golden committed.)
+**Files:** Modify `components/tracer/internal/adapters/http/in/openapi_spec_dump_test.go:56`, `components/ledger/internal/adapters/http/in/contract_spec_routes_test.go:116`, os 2 `components/*/api/openapi.huma.yaml` (regen).
+**Verification:** `go -C <wt> test -buildvcs=false -run TestOpenAPISpecDump ./components/{ledger,tracer}/internal/adapters/http/in/` verde `-count=2` (determinístico); `grep 'version: 4.0.0'` nos 2 goldens; parity Error (`tests/openapi`) segue verde.
+**Done when:** os 2 goldens carregam `version: 4.0.0`, determinístico, paridade intacta.
+
+##### Task 4.1.2: Rewire `generate-docs.sh` p/ dump Huma (drop swag+Docker, retarget join)
+- [ ] Done
+**Context:** anchors no recon acima. Decisão (a): emit = `go test -run TestOpenAPISpecDump -update` (reusa o wiring dos contract-tests). O join precisa dos `openapi.huma.yaml`; o drift_check re-roda generate-docs → a etapa de spec-gen DEVE regenerar (não só consumir committed).
+**Implementation vision:** substituir `resolve_swag_bin`/`generate_openapi_spec`/`generate_openapi_yaml` por uma etapa que roda `go test -run TestOpenAPISpecDump ./components/{ledger,tracer}/... -update -buildvcs=false` (regenera os 2 `api/openapi.huma.yaml`); `publish_specs` copia `openapi.huma.yaml`→`postman/specs/<c>/`; `consolidate_openapi` troca os 2 inputs do `redocly join`(207-216) p/ `openapi.huma.yaml` mantendo ledger-first + `--prefix-tags-with-info-prop title`. PRESERVAR os 3 guards (version-parity, security-scheme, orphan-ref) — ambos os dumps são `3.1.0` + declaram os 2 schemes. Atualizar o comentário stale "ApiKeyAuth (tracer)"(245) → tracer tem os 2.
+**Files:** Modify `postman/generator/generate-docs.sh`.
+**Verification:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` (openapi 3.1.0, 141 ops, `Error` unificado) SEM chamar swag nem Docker; rodar 2× → git-diff limpo (determinístico).
+**Done when:** pipeline gera o joined 3.1 das specs Huma, guards verdes, zero swag/Docker.
+
+##### Task 4.1.3: Reformar `check-docs.sh` (retarget seam + dropar `.schemes`)
+- [ ] Done
+**Context:** seam `read_field*`/`assert_*`(60-123) + parity_check(125-134) + security_coverage_check(140-166) lêem `components/<c>/api/swagger.json`.
+**Implementation vision:** retarget o path do seam p/ `components/<c>/api/openapi.huma.yaml`; remover a asserção `.schemes`(131, inexistente em 3.1) — se quiser paridade de servidor, comparar `.servers`; manter `.info.version ^4\.0\.0$`(agora satisfeito pela 4.1.1) + `.info.title ^Midaz`; security_coverage jq `.paths[].{verb}.security`(150-152) funciona igual em 3.1, só troca o path; manter drift_check.
+**Files:** Modify `postman/generator/check-docs.sh`.
+**Verification:** `CHECK_DOCS_REGEN=1 make check-docs` verde (parity + security-coverage + redocly lint + drift git-diff-clean).
+**Done when:** check-docs valida a spec Huma 3.1, sem referência a `swagger.json`/`.schemes`.
+
+##### Task 4.1.4 (integração/de-risk): rodar o pipeline ponta-a-ponta
+- [ ] Done
+**Context:** tooling presente. Este é o de-risk: provar join+lint+guards nas specs Huma reais.
+**Implementation vision:** rodar `make generate-docs` + `CHECK_DOCS_REGEN=1 make check-docs` end-to-end; confirmar `redocly lint` do joined NÃO é skip (existe) e passa com as regras atuais; commitar o `postman/specs/midaz.openapi.{yaml,json}` regenerado (o único evento de spec-regen). Swaggo permanece 100% presente (annotations, `/swagger/*`, gerados) — verificar que `swag init` ainda reproduz `api/swagger.json` byte-a-byte (aditivo).
+**Files:** commit dos artefatos `postman/specs/`.
+**Verification:** `make generate-docs` + `CHECK_DOCS_REGEN=1 make check-docs` verdes; joined = OAS 3.1, 141 ops, `Error` unificado; swaggo drift 0.
+**Done when:** o pipeline Huma 3.1 roda limpo end-to-end com swaggo ainda intacto — bridge provada antes de queimar.
+
+#### Onda 4.1b — Aposentar swaggo + Epic 3.3 (após gate da 4.1a)
+Agora que o pipeline Huma está provado, remover swaggo por completo.
+
+##### Task 4.1.5: Deletar annotations swaggo + general-info
+- [ ] Done
+**Escopo:** todas as `@Router`/`@Security`/`@Success`/`@Failure`/`@Param`/`@securityDefinitions` dos handlers dos 2 planos (ledger ~114/137/570/565; tracer 31/28/123/83) + os blocos general-info em `components/{ledger,tracer}/cmd/app/main.go` (ledger:19-75, tracer:25-53). NÃO tocar código executável.
+**Verification:** `grep -rn '@Router\|@Security' components/ --include='*.go'` = 0 (fora de `_test`); build EXIT0.
+
+##### Task 4.1.6: Remover wiring de runtime swaggo + gerados (preservar `tracer/api/types.go`)
+- [ ] Done
+**Escopo:** ledger — `unified-server.go:20` (blank import), `:26` (`fiberSwagger`), `:99-103` (rotas `/swagger`), `bootstrap/swagger.go` (`initSwaggerFromEnv`/`SWAGGER_*`/`WithSwaggerEnvConfig`); tracer — `in/swagger.go` + sua rota. Deletar gerados `components/{ledger,tracer}/api/{docs.go,swagger.json,swagger.yaml,openapi.yaml}` **mantendo `tracer/api/types.go`** (LIVE em `readyz.go`) — o pacote `tracer/api` sobrevive. `go mod tidy` (drop `swaggo/fiber-swagger` + `swaggo/swag`). Deletar `tracer/scripts/verify-api-docs.sh` + targets swag nos Makefiles (ledger:171-173, tracer:146-149+128+181-182). Docs UI passa a ser Huma `/v1/docs` (ServeSpec).
+**Verification:** build módulo EXIT0; `readyz` compila (usa `api.ReadyzResponse`); `grep swaggo go.mod` = 0; tracer + ledger sobem sem `/swagger/*`.
+
+##### Task 4.1.7: Epic 3.3 — deletar `pkg.HTTPError` + corrigir 5 compile-breakers
+- [ ] Done
+**Escopo:** deletar struct `pkg/errors.go:139-150` (zero construtores runtime, confirmado). As 10 annotations `@Failure pkg.HTTPError` (audit.go:88-89, encryption.go:39-43,143-145) já morreram na 4.1.5. Corrigir ATÔMICO (senão build quebra): deletar os branches mortos `if _, ok := err.(*pkg.HTTPError)` em `validate-package-range-amount_test.go:267`/`feeshared/nethttp/httputils_test.go:217,319`/`feeshared/model/package_test.go:2190`; deletar a função inteira `TestHTTPError_Error` (`pkg/errors_test.go:278-306`, constrói o struct).
+**Verification:** `grep -rn 'HTTPError' pkg/ components/ --include='*.go'` sem o struct morto; build + `go test ./pkg/... ./components/ledger/internal/services/fees/... ./components/ledger/pkg/feeshared/...` verdes.
+
+##### Task 4.1.8 (verify): `make ci` verde
+- [ ] Done
+**Verification:** `make ci` (lint → check-telemetry → proto-check → test-unit -race → `CHECK_DOCS_REGEN=1 check-docs`) verde end-to-end; `grep @Router` = 0; `pkg.HTTPError` inexistente; golden money-path verde.
+**Done when:** swaggo aposentado, pkg.HTTPError deletado, `make ci` verde — Epic 4.1 completa.
 
 ### Epic 4.2: Trava de paridade + verificação pristine + `make ci`
 **Goal:** travar no `check-docs.sh` a identidade total do schema `Error` entre os 2 planos; re-habilitar as regras redocly (decisão c); verificação final de OAS 3.1 pristine com UM shape de erro; `make ci` verde end-to-end.
