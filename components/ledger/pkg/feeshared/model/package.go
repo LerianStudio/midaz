@@ -51,10 +51,6 @@ const (
 )
 
 // Fee is a struct designed to encapsulate request create payload data.
-//
-// swagger:model Fee
-//
-//	@Description	Fee is the input payload to create a fee of a pack.
 type Fee struct {
 	FeeLabel         string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
 	CalculationModel *CalculationModel `json:"calculationModel" validate:"required"`
@@ -64,7 +60,7 @@ type Fee struct {
 	CreditAccount    string            `json:"creditAccount" validate:"required" example:"conta_receita_taxas_adm"`
 	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
 	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
-} //	@name	Fee
+}
 
 func (f *Fee) GetIsDeductibleFrom() bool {
 	if f.IsDeductibleFrom == nil {
@@ -91,24 +87,16 @@ func (f *Fee) GetRouteTo() string {
 }
 
 // CalculationModel structure for marshaling/unmarshalling JSON.
-//
-// swagger:model CalculationModel
-//
-//	@Description	CalculationModel is a struct designed to store the calculation of a fee from a pack.
 type CalculationModel struct {
 	ApplicationRule string        `json:"applicationRule" validate:"oneof=maxBetweenTypes flatFee percentual" example:"maxBetweenTypes"`
 	Calculations    []Calculation `json:"calculations" validate:"dive"`
-} //	@name	CalculationModel
+}
 
 // Calculation structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Calculation
-//
-//	@Description	Calculation is a struct designed to store the calculation details of a fee from a pack.
 type Calculation struct {
 	Type  string `json:"type" validate:"oneof=percentage flat" example:"percentage" enums:"percentage,flat"`
 	Value string `json:"value" validate:"required" example:"100.00"`
-} //	@name	Calculation
+}
 
 // validateCalculationModel validate the calculation model
 func validateCalculationModel(model *CalculationModel, minAmount, feeKey string, isDeductibleFrom bool) error {

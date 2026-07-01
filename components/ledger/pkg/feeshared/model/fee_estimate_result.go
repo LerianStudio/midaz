@@ -13,10 +13,6 @@ import (
 // transaction returned by the estimate endpoint. It mirrors the output-relevant
 // fields of the transaction input shape but omits the deprecated Route field —
 // callers consume routeId.
-//
-// swagger:model FeeAdjustedTransaction
-//
-//	@Description	FeeAdjustedTransaction is the fee-adjusted transaction returned by the fee-estimate endpoint.
 type FeeAdjustedTransaction struct {
 	ChartOfAccountsGroupName string                       `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
 	Description              string                       `json:"description,omitempty" example:"Description"`
@@ -26,20 +22,16 @@ type FeeAdjustedTransaction struct {
 	RouteID                  *string                      `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	TransactionDate          *transaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send                     transaction.Send             `json:"send"`
-} //	@name	FeeAdjustedTransaction
+}
 
 // FeeEstimateResult is the response-only DTO for the fee-estimate endpoint. It
 // projects the engine carrier (FeeCalculate) onto the wire, keeping the mutable
 // full-transaction carrier out of the public schema.
-//
-// swagger:model FeeEstimateResult
-//
-//	@Description	FeeEstimateResult is the projected fee-estimate result returned by the estimate endpoint.
 type FeeEstimateResult struct {
 	LedgerID    uuid.UUID              `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	SegmentID   *uuid.UUID             `json:"segmentId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Transaction FeeAdjustedTransaction `json:"transaction"`
-} //	@name	FeeEstimateResult
+}
 
 // NewFeeEstimateResult projects the engine carrier into the wire DTO. It copies
 // the scalar/id fields, carries Send/Metadata/RouteID/TransactionDate through,

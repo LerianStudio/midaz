@@ -11,10 +11,6 @@ import (
 )
 
 // EvaluationResult contains the result of rule evaluation per API Design v1.3.0.
-//
-// swagger:model EvaluationResult
-//
-//	@Description	Result produced by evaluating transaction context against the active rule set. Contains the final decision, the identifiers of matched and evaluated rules, a human-readable reason, and truncation metadata when the rule set exceeded the per-request maximum.
 type EvaluationResult struct {
 	// Final decision produced by rule evaluation
 	// enums: ALLOW,DENY,REVIEW
@@ -37,7 +33,7 @@ type EvaluationResult struct {
 	// True when active rules exceeded MAX_RULES_PER_REQUEST and were truncated
 	// example: false
 	Truncated bool `json:"truncated" example:"false"`
-} //	@name	EvaluationResult
+}
 
 // normalizeUUIDs converts nil slice to empty slice for consistent JSON serialization.
 func normalizeUUIDs(ids []uuid.UUID) []uuid.UUID {

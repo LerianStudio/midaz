@@ -88,7 +88,7 @@ type Package struct {
 	CreatedAt        time.Time            `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt        time.Time            `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt        *time.Time           `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-} //	@name	Package
+}
 
 // NewPackage creates a new Package with validation of required fields.
 // Use this constructor when creating a new package from user input.

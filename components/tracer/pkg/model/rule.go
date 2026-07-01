@@ -14,7 +14,7 @@ import (
 )
 
 // RuleStatus represents the lifecycle status of a rule
-type RuleStatus string //	@name	RuleStatus
+type RuleStatus string
 
 const (
 	RuleStatusDraft    RuleStatus = "DRAFT"
@@ -40,10 +40,6 @@ func (s RuleStatus) String() string {
 
 // Rule represents a validation rule with CEL expression.
 // Note: priority field removed from MVP (TRD v1.2.4) - all rules evaluated, DENY takes precedence.
-//
-// swagger:model Rule
-//
-//	@Description	A validation rule containing a CEL expression evaluated against transaction context. Rules are created in DRAFT status, activated to apply enforcement, and produce a Decision (ALLOW/DENY/REVIEW) when matched.
 type Rule struct {
 	// Unique identifier for the rule
 	// format: uuid
@@ -98,7 +94,7 @@ type Rule struct {
 	// compiled programs from cache to evaluator, avoiding recompilation
 	// on the hot evaluation path.
 	CompiledProgram any `json:"-"`
-} //	@name	Rule
+}
 
 // MaxRuleNameLength defines the maximum length for rule names (aligned with VARCHAR(255) in database)
 const MaxRuleNameLength = 255

@@ -18,7 +18,7 @@ import (
 )
 
 // LimitType represents the period type of a limit
-type LimitType string //	@name	LimitType
+type LimitType string
 
 const (
 	LimitTypeDaily          LimitType = "DAILY"
@@ -29,7 +29,7 @@ const (
 )
 
 // LimitStatus represents the lifecycle status of a limit
-type LimitStatus string //	@name	LimitStatus
+type LimitStatus string
 
 const (
 	LimitStatusDraft    LimitStatus = "DRAFT"
@@ -77,10 +77,6 @@ var safeDescriptionRegex = regexp.MustCompile(`^[^<>]*$`)
 //
 // CustomStartDate/CustomEndDate define the period for CUSTOM limits.
 // These are required for CUSTOM limitType and forbidden for other types.
-//
-// swagger:model Limit
-//
-//	@Description	A transaction spending limit enforced during validation. Limits accumulate usage across a configurable period (DAILY/WEEKLY/MONTHLY/CUSTOM/PER_TRANSACTION) and block or flag transactions that would exceed the configured MaxAmount for the matched currency and scope.
 type Limit struct {
 	// Unique identifier for the limit
 	// format: uuid
@@ -142,7 +138,7 @@ type Limit struct {
 	// Timestamp when the limit was soft deleted, null if not deleted
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt,omitempty" format:"date-time" example:"2021-01-01T00:00:00Z"`
-} //	@name	Limit
+}
 
 // UsageCounter tracks current usage for a limit within a specific scope and period.
 // CurrentUsage is expressed as a decimal value.
@@ -1056,7 +1052,7 @@ type UsageSnapshot struct {
 	NearLimit bool `json:"nearLimit" example:"false"`
 	// When counter resets (nil for PER_TRANSACTION)
 	ResetAt *time.Time `json:"resetAt,omitempty" format:"date-time"`
-} //	@name	UsageSnapshot
+}
 
 // NearLimitThreshold is the threshold percentage (80%) above which nearLimit is true.
 const NearLimitThreshold = 80.0

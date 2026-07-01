@@ -14,7 +14,7 @@ import (
 )
 
 // ActorType represents the type of actor that performed an action.
-type ActorType string //	@name	ActorType
+type ActorType string
 
 const (
 	ActorTypeUser   ActorType = "user"
@@ -33,7 +33,7 @@ func (a ActorType) IsValid() bool {
 }
 
 // AuditEventType represents the type of audit event.
-type AuditEventType string //	@name	AuditEventType
+type AuditEventType string
 
 const (
 	// Transaction validation events
@@ -141,7 +141,7 @@ func (r AuditResult) IsValid() bool {
 }
 
 // ResourceType represents the type of resource affected.
-type ResourceType string //	@name	ResourceType
+type ResourceType string
 
 const (
 	ResourceTypeTransaction ResourceType = "transaction"
@@ -167,7 +167,7 @@ type Actor struct {
 	Name      string    `json:"name" example:"Jane Doe"`
 	Role      string    `json:"role,omitempty" example:"admin"`
 	IPAddress string    `json:"ipAddress" example:"203.0.113.42"`
-} //	@name	Actor
+}
 
 // ValidationResponseContext holds additional validation-specific fields for context.response.
 // Used when event_type = TRANSACTION_VALIDATED.
@@ -179,10 +179,6 @@ type ValidationResponseContext struct {
 }
 
 // AuditEvent represents an immutable audit record for compliance (SOX/GLBA).
-//
-// swagger:model AuditEvent
-//
-//	@Description	Immutable audit record for SOX/GLBA compliance. Each event captures who performed what action on which resource, the outcome, and a full context snapshot. Events are hash-chained to detect tampering; the hash covers all core fields.
 type AuditEvent struct {
 	// Internal fields (system-managed)
 	ID int64 `json:"-"` // Internal sequence, not exposed
@@ -236,7 +232,7 @@ type AuditEvent struct {
 
 	// Additional metadata such as ticketId or correlationId
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	AuditEvent
+}
 
 // NewAuditEvent creates a new AuditEvent with validation.
 // Returns error if:

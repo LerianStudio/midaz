@@ -20,10 +20,6 @@ import (
 )
 
 // UpdatePackageInput is a struct designed to update data.
-//
-// swagger:model UpdatePackageInput
-//
-//	@Description	UpdatePackageInput is the input payload to update a pack.
 type UpdatePackageInput struct {
 	FeeGroupLabel  string         `json:"feeGroupLabel" example:"Pacote Padrão"`
 	Description    string         `json:"description" example:"Pacote de taxas administrativas padrão"`
@@ -32,7 +28,7 @@ type UpdatePackageInput struct {
 	WaivedAccounts *[]string      `json:"waivedAccounts" example:"acc001,acc002"`
 	Fee            map[string]Fee `json:"fees"`
 	EnablePackage  *bool          `json:"enable,omitempty" example:"true"`
-} //	@name	UpdatePackageInput
+}
 
 // GetMinimumAmount returns the minimum amount value
 func (up *UpdatePackageInput) GetMinimumAmount() string {

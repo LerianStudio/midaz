@@ -34,7 +34,7 @@ type ReserveRequest struct {
 	// validation never sees it.
 	LongLived               bool `json:"longLived,omitempty" example:"false"`
 	model.ValidationRequest `swaggerignore:"true"`
-} //	@name	ReserveRequest
+}
 
 // NormalizeAndReserveValidate validates the reserve body: the transactionId must be
 // present, then the embedded validation-request fields are normalized and validated
@@ -67,7 +67,7 @@ type ReserveResponse struct {
 	TransactionID  uuid.UUID   `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Denied         bool        `json:"denied" example:"false"`
 	ReservationIDs []uuid.UUID `json:"reservationIds" swaggertype:"array,string" format:"uuid"`
-} //	@name	ReserveResponse
+}
 
 // ReservationActionResponse is the body returned by confirm and release. Status is
 // the terminal state the reservation resolves to (CONFIRMED or RELEASED). Confirm
@@ -76,7 +76,7 @@ type ReserveResponse struct {
 type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
-} //	@name	ReservationActionResponse
+}
 
 // TransactionActionResponse is the body returned by the by-transaction confirm and
 // release endpoints. The ledger /commit and /cancel address reservations by the
@@ -89,4 +89,4 @@ type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
 	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
-} //	@name	TransactionActionResponse
+}

@@ -97,7 +97,7 @@ type CreateLimitInput struct {
 	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
 	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
 	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
-} //	@name	CreateLimitInput
+}
 
 // Validate validates the CreateLimitInput struct using validator/v10.
 func (i *CreateLimitInput) Validate() error {
@@ -128,7 +128,7 @@ type UpdateLimitInput struct {
 	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
 	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
 	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
-} //	@name	UpdateLimitInput
+}
 
 // Validate validates the UpdateLimitInput struct using validator/v10.
 func (i *UpdateLimitInput) Validate() error {
@@ -296,7 +296,7 @@ type ListLimitsResponse struct {
 	Limits     []model.Limit `json:"limits"`
 	NextCursor string        `json:"nextCursor,omitempty" example:"eyJpZCI6IjAxOTI4In0="`
 	HasMore    bool          `json:"hasMore" example:"true"`
-} //	@name	ListLimitsResponse
+}
 
 // Note: UsageSnapshot is now defined in pkg/model/limit.go
 // The HTTP response uses model.UsageSnapshot directly.

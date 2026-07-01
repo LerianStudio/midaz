@@ -5,7 +5,7 @@
 package model
 
 // TransactionType represents the type of financial transaction
-type TransactionType string //	@name	TransactionType
+type TransactionType string
 
 const (
 	TransactionTypeCard   TransactionType = "CARD"

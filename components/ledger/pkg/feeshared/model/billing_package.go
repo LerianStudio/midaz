@@ -41,37 +41,25 @@ const (
 const maxAliasesCount = 100
 
 // PricingTier defines a quantity range and the unit price that applies within it.
-//
-// swagger:model PricingTier
-//
-//	@Description	PricingTier defines a quantity range and the unit price that applies within it.
 type PricingTier struct {
 	MinQuantity int64           `json:"minQuantity" bson:"min_quantity" example:"0"`
 	MaxQuantity *int64          `json:"maxQuantity,omitempty" bson:"max_quantity,omitempty" example:"999"`
 	UnitPrice   decimal.Decimal `json:"unitPrice" bson:"unit_price" swaggertype:"string" example:"1.50"`
-} //	@name	PricingTier
+}
 
 // DiscountTier defines a quantity threshold above which a discount percentage applies.
-//
-// swagger:model DiscountTier
-//
-//	@Description	DiscountTier defines a quantity threshold above which a discount percentage applies.
 type DiscountTier struct {
 	MinQuantity        int64           `json:"minQuantity" bson:"min_quantity" example:"1000"`
 	DiscountPercentage decimal.Decimal `json:"discountPercentage" bson:"discount_percentage" swaggertype:"string" example:"10.00"`
-} //	@name	DiscountTier
+}
 
 // AccountTarget identifies which accounts a maintenance billing package targets.
 // Exactly one of SegmentID, PortfolioID, or Aliases must be set.
-//
-// swagger:model AccountTarget
-//
-//	@Description	AccountTarget identifies which accounts a maintenance billing package targets. Exactly one of segmentId, portfolioId, or aliases must be set.
 type AccountTarget struct {
 	SegmentID   *uuid.UUID `json:"segmentId,omitempty" bson:"segment_id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID *uuid.UUID `json:"portfolioId,omitempty" bson:"portfolio_id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Aliases     []string   `json:"aliases,omitempty" bson:"aliases,omitempty" example:"account_alpha,account_beta"`
-} //	@name	AccountTarget
+}
 
 // Validate ensures exactly one targeting field is set, aliases do not exceed the allowed maximum,
 // and no alias contains an empty or whitespace-only string.
@@ -118,14 +106,10 @@ func (a *AccountTarget) Validate() error {
 }
 
 // EventFilter identifies the transaction route and status used to match billing events.
-//
-// swagger:model EventFilter
-//
-//	@Description	EventFilter identifies the transaction route and status used to match billing events.
 type EventFilter struct {
 	TransactionRoute string `json:"transactionRoute" bson:"transaction_route" example:"payment_route"`
 	Status           string `json:"status" bson:"status" example:"APPROVED" enums:"CREATED,APPROVED,PENDING,CANCELED,NOTED"`
-} //	@name	EventFilter
+}
 
 // Validate checks that EventFilter has a non-blank route and a non-blank status.
 func (ef *EventFilter) Validate() error {
@@ -141,10 +125,6 @@ func (ef *EventFilter) Validate() error {
 }
 
 // BillingPackage is the main domain model for the billing package CRUD feature.
-//
-// swagger:model BillingPackage
-//
-//	@Description	BillingPackage is the full representation of a billing package, covering both volume and maintenance types.
 type BillingPackage struct {
 	ID             string  `json:"id" bson:"_id" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID string  `json:"organizationId" bson:"organization_id" example:"00000000-0000-0000-0000-000000000000"`
@@ -174,7 +154,7 @@ type BillingPackage struct {
 	CreatedAt string  `json:"createdAt" bson:"created_at" example:"2026-01-01T00:00:00Z"`
 	UpdatedAt string  `json:"updatedAt" bson:"updated_at" example:"2026-01-01T00:00:00Z"`
 	DeletedAt *string `json:"deletedAt,omitempty" bson:"deleted_at,omitempty" example:"2026-06-01T00:00:00Z"`
-} //	@name	BillingPackage
+}
 
 // Validate checks the BillingPackage fields for consistency and correctness.
 func (bp *BillingPackage) Validate() error {
@@ -478,15 +458,11 @@ func (bp *BillingPackage) validateCountMode() error {
 
 // BillingPackageUpdate is the DTO for partial updates to a BillingPackage.
 // Pointer fields allow distinguishing between "not provided" (nil) and "set to zero value".
-//
-// swagger:model BillingPackageUpdate
-//
-//	@Description	BillingPackageUpdate is the request payload for partial updates to a billing package. Only provided fields are applied.
 type BillingPackageUpdate struct {
 	Label       *string `json:"label,omitempty" example:"Updated Billing Label"`
 	Description *string `json:"description,omitempty" example:"Updated description for the billing package"`
 	Enable      *bool   `json:"enable,omitempty" example:"false"`
-} //	@name	BillingPackageUpdate
+}
 
 // Validate checks that provided update fields contain valid values.
 // Label, when provided, must not be empty or whitespace-only.

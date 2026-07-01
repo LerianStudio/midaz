@@ -18,7 +18,7 @@ type AccountContext struct {
 	Type     string         `json:"type" example:"checking"`
 	Status   string         `json:"status" example:"active"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	AccountContext
+}
 
 // Clone creates a copy of AccountContext.
 // Returns nil if the receiver is nil.
@@ -64,7 +64,7 @@ type MerchantContext struct {
 	Category string         `json:"category" example:"5411"` // e.g., ISO 18245 MCC code
 	Country  string         `json:"country" example:"US"`    // ISO 3166-1 alpha-2 code
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	MerchantContext
+}
 
 // Clone creates a copy of MerchantContext.
 // Returns nil if the receiver is nil.
@@ -109,7 +109,7 @@ type SegmentContext struct {
 	ID       uuid.UUID      `json:"segmentId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Name     string         `json:"name,omitempty" example:"retail"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	SegmentContext
+}
 
 // Clone creates a copy of SegmentContext.
 // Returns nil if the receiver is nil.
@@ -152,7 +152,7 @@ type PortfolioContext struct {
 	ID       uuid.UUID      `json:"portfolioId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Name     string         `json:"name,omitempty" example:"growth"`
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	PortfolioContext
+}
 
 // Clone creates a copy of PortfolioContext.
 // Returns nil if the receiver is nil.

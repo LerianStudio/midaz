@@ -60,8 +60,6 @@ func inferLegacyDirectionFromType(operationType string) string {
 }
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
-//
-// @Description Database model for storing operation information in PostgreSQL
 type OperationPostgreSQLModel struct {
 	ID                    string           // Unique identifier (UUID format)
 	TransactionID         string           // Parent transaction ID
@@ -176,9 +174,6 @@ func (t *OperationPointInTimeModel) ToEntity() *Operation {
 }
 
 // Status structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Status
-// @Description Status is the struct designed to represent the status of an operation. Contains code and optional description for operation states.
 type Status struct {
 	// Status code identifying the state of the operation
 	// example: ACTIVE
@@ -189,7 +184,7 @@ type Status struct {
 	// example: Active status
 	// maxLength: 256
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
-} // @name Status
+}
 
 // IsEmpty method that set empty or nil in fields
 func (s Status) IsEmpty() bool {
@@ -197,15 +192,12 @@ func (s Status) IsEmpty() bool {
 }
 
 // Amount structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Amount
-// @Description Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.
 type Amount struct {
 	// The amount value in the smallest unit of the asset (e.g., cents)
 	// example: 1500
 	// minimum: 0
 	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
-} // @name Amount
+}
 
 // IsEmpty method that set empty or nil in fields
 func (a Amount) IsEmpty() bool {
@@ -213,9 +205,6 @@ func (a Amount) IsEmpty() bool {
 }
 
 // Balance structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Balance
-// @Description Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).
 type Balance struct {
 	// Amount available for transactions (in the smallest unit of asset)
 	// example: 1500
@@ -241,7 +230,7 @@ type Balance struct {
 	// example: 130
 	// minimum: 0
 	OverdraftUsed decimal.Decimal `json:"overdraftUsed" example:"130" minimum:"0"`
-} // @name Balance
+}
 
 // IsEmpty method that set empty or nil in fields
 func (b Balance) IsEmpty() bool {
@@ -249,9 +238,6 @@ func (b Balance) IsEmpty() bool {
 }
 
 // Operation is a struct designed to encapsulate response payload data.
-//
-// swagger:model Operation
-// @Description Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.
 type Operation struct {
 	// Unique identifier for the operation
 	// example: 00000000-0000-0000-0000-000000000000
@@ -383,7 +369,7 @@ type Operation struct {
 	// `snapshot` column, and round-tripped through the Redis cache envelope.
 	// Forward-compatible: future keys may be added without schema migration.
 	Snapshot mmodel.OperationSnapshot `json:"-"`
-} // @name Operation
+}
 
 // ToEntity converts an OperationPostgreSQLModel to entity Operation
 func (t *OperationPostgreSQLModel) ToEntity() *Operation {
@@ -705,9 +691,6 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 }
 
 // UpdateOperationInput is a struct design to encapsulate payload data.
-//
-// swagger:model UpdateOperationInput
-// @Description UpdateOperationInput is the input payload to update an operation. Contains fields that can be modified after an operation is created.
 type UpdateOperationInput struct {
 	// Human-readable description of the operation
 	// example: Credit card operation
@@ -717,23 +700,15 @@ type UpdateOperationInput struct {
 	// Additional custom attributes
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateOperationInput
+}
 
 // OperationResponse represents a success response containing a single operation.
-//
-// swagger:response OperationResponse
-// @Description Successful response containing a single operation entity.
 type OperationResponse struct {
-	// in: body
 	Body Operation
 }
 
 // OperationsResponse represents a success response containing a paginated list of operations.
-//
-// swagger:response OperationsResponse
-// @Description Successful response containing a paginated list of operations.
 type OperationsResponse struct {
-	// in: body
 	Body struct {
 		Items      []Operation `json:"items"`
 		Pagination struct {
@@ -745,8 +720,6 @@ type OperationsResponse struct {
 }
 
 // OperationLog is a struct designed to represent the operation data that should be stored in the audit log
-//
-// @Description Immutable log entry for audit purposes representing a snapshot of operation state at a specific point in time.
 type OperationLog struct {
 	// Unique identifier for the operation
 	// example: 00000000-0000-0000-0000-000000000000

@@ -5,10 +5,6 @@
 package model
 
 // Pagination is a struct designed to encapsulate pagination response payload data.
-//
-// swagger:model Pagination
-//
-//	@Description	Pagination is the struct designed to store the pagination data of an entity list.
 type Pagination struct {
 	// Items holds the page of results. The element type is overridden per-endpoint via the
 	// model.Pagination{items=[]X} generic annotation on each list endpoint.
@@ -16,7 +12,7 @@ type Pagination struct {
 	Page  int `json:"page,omitempty" example:"1"`
 	Limit int `json:"limit" example:"10"`
 	Total int `json:"total" example:"10"`
-} //	@name	Pagination
+}
 
 // SetItems set an array of any struct in items.
 func (p *Pagination) SetItems(items any) {

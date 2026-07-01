@@ -57,7 +57,7 @@ const DefaultMaxTimestampAge = 24 * time.Hour
 var MaxTimestampAge = DefaultMaxTimestampAge
 
 // Decision represents the validation decision
-type Decision string //	@name	Decision
+type Decision string
 
 const (
 	DecisionAllow  Decision = "ALLOW"
@@ -82,7 +82,7 @@ type ValidationRequest struct {
 	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
 	Merchant             *MerchantContext  `json:"merchant,omitempty"`
 	Metadata             map[string]any    `json:"metadata,omitempty"`
-} //	@name	ValidationRequest
+}
 
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
 // Currency is normalized to uppercase and trimmed (auto-corrects case).
@@ -263,15 +263,11 @@ type LimitUsageDetail struct {
 	// period key mismatch when rollback crosses a period boundary.
 	// Empty for PER_TRANSACTION limits (no period counters).
 	InternalPeriodKey string `json:"-"`
-} //	@name	LimitUsageDetail
+}
 
 // ValidationResponse is the output of transaction validation.
 // Embeds EvaluationResult to avoid field duplication.
 // Aligned with TRD v1.2.4: arrays for matched/evaluated rules and limit details.
-//
-// swagger:model ValidationResponse
-//
-//	@Description	Response returned after evaluating a transaction against the active rules and limits. Contains the evaluation decision, matched rule identifiers, per-limit usage details, and timing metadata. EvaluationResult fields (decision, reason, matchedRuleIds, evaluatedRuleIds, totalRulesLoaded, truncated) are promoted to the top level via Go embedding.
 type ValidationResponse struct {
 	// Unique identifier for this validation result
 	// format: uuid
@@ -292,7 +288,7 @@ type ValidationResponse struct {
 	// Timestamp when the evaluation was performed
 	// format: date-time
 	EvaluatedAt time.Time `json:"evaluatedAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
-} //	@name	ValidationResponse
+}
 
 // NewValidationResponse creates a ValidationResponse with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.

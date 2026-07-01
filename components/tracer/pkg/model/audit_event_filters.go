@@ -139,4 +139,4 @@ type HashChainVerificationResult struct {
 	FirstInvalidID *int64 `json:"firstInvalidId,omitempty" example:"42"`
 	TotalChecked   int64  `json:"totalChecked" example:"1000"`
 	Message        string `json:"message" example:"hash chain intact"`
-} //	@name	HashChainVerificationResult
+}

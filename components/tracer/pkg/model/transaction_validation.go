@@ -16,10 +16,6 @@ import (
 // TransactionValidation is the immutable audit record for compliance (SOX/GLBA).
 // Stores individual fields for explicit traceability and queryability.
 // Embeds EvaluationResult to avoid field duplication.
-//
-// swagger:model TransactionValidation
-//
-//	@Description	Persisted record of a completed transaction validation, combining the original request context with the evaluation outcome. Used for compliance auditing, idempotency replay, and historical querying. Embeds EvaluationResult fields (decision, reason, matchedRuleIds, etc.) directly.
 type TransactionValidation struct {
 	// Unique identifier for this validation record
 	// format: uuid
@@ -76,7 +72,7 @@ type TransactionValidation struct {
 	// Timestamp when this validation record was created
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" format:"date-time" example:"2021-01-01T00:00:00Z"`
-} //	@name	TransactionValidation
+}
 
 // NewTransactionValidation creates a TransactionValidation with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.

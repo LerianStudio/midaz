@@ -10,7 +10,7 @@ type ErrorResponse struct {
 	Code    string `json:"code" validate:"required" example:"0053"`
 	Title   string `json:"title" validate:"required" example:"Bad Request"`
 	Message string `json:"message" validate:"required" example:"Invalid input provided"`
-} // @name ErrorResponse
+}
 
 // VersionResponse represents the response of the version endpoint.
 type VersionResponse struct {
@@ -19,7 +19,7 @@ type VersionResponse struct {
 	Commit      string `json:"commit" example:"a1b2c3d"`
 	BuildTime   string `json:"buildTime" example:"2025-01-01T00:00:00Z"`
 	Dirty       bool   `json:"dirty" example:"false"`
-} // @name VersionResponse
+}
 
 // ReadyzResponse is the canonical readiness probe response per the Lerian
 // /readyz contract. Top-level Status is "healthy" iff every check is in
@@ -30,7 +30,7 @@ type ReadyzResponse struct {
 	Checks         map[string]ReadyzCheck `json:"checks"`
 	Version        string                 `json:"version" example:"1.2.3"`
 	DeploymentMode string                 `json:"deployment_mode" example:"saas"`
-} // @name ReadyzResponse
+}
 
 // ReadyzCheck is a single dependency probe result for the canonical /readyz
 // contract. Status is restricted to the closed vocabulary
@@ -52,4 +52,4 @@ type ReadyzCheck struct {
 	LatencyMs int64  `json:"latency_ms,omitempty" example:"3"`
 	TLS       *bool  `json:"tls,omitempty" example:"true"`
 	Error     string `json:"error,omitempty"`
-} // @name ReadyzCheck
+}

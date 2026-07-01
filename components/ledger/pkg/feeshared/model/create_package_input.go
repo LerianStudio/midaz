@@ -12,10 +12,6 @@ import (
 )
 
 // CreatePackageInput is a struct designed to encapsulate request create payload data.
-//
-// swagger:model CreatePackageInput
-//
-//	@Description	CreatePackageInput is the input payload to create a pack.
 type CreatePackageInput struct {
 	FeeGroupLabel    string         `json:"feeGroupLabel" validate:"required" example:"Pacote Padrão"`
 	Description      *string        `json:"description,omitempty" example:"Pacote de taxas administrativas padrão"`
@@ -27,7 +23,7 @@ type CreatePackageInput struct {
 	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
 	Fee              map[string]Fee `json:"fees" validate:"required,min=1,dive"`
 	Enable           *bool          `json:"enable" validate:"required"`
-} //	@name	CreatePackageInput
+}
 
 func (cp *CreatePackageInput) GetTransactionRoute() string {
 	if cp.TransactionRoute == nil {

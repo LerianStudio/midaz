@@ -111,16 +111,12 @@ func ParseWeeklyPeriod(period string) (time.Time, time.Time, bool) {
 // Period must be in "YYYY-MM" (monthly), "YYYY-Www" (weekly), or "YYYY-MM-DD" (daily) format (e.g. "2026-01", "2026-W13", or "2026-01-15").
 // Type is optional; when provided it restricts the calculation to "volume" or
 // "maintenance" packages only. When omitted both types are calculated.
-//
-// swagger:model BillingCalculateRequest
-//
-//	@Description	BillingCalculateRequest carries the parameters required to trigger a billing calculation for a given ledger and period.
 type BillingCalculateRequest struct {
 	OrganizationID string `json:"-"`
 	LedgerID       string `json:"ledgerId"       validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Period         string `json:"period"         validate:"required" example:"2026-01"` // YYYY-MM, YYYY-Www, or YYYY-MM-DD format
 	Type           string `json:"type,omitempty" example:"volume"`                      // "volume", "maintenance", or empty for both
-} //	@name	BillingCalculateRequest
+}
 
 // BillingCalculationResult represents the billing outcome for a single billing
 // package within the requested period.
@@ -140,10 +136,6 @@ type BillingCalculateRequest struct {
 //   - "billingPeriod"      — period in "YYYY-MM" format
 //   - "totalAccounts"      — total number of accounts charged in this batch
 //   - "feeAmount"          — fixed maintenance fee per account (decimal string)
-//
-// swagger:model BillingCalculationResult
-//
-//	@Description	BillingCalculationResult represents the billing outcome for a single billing package within the requested period.
 type BillingCalculationResult struct {
 	BillingPackageID    string          `json:"billingPackageId" example:"00000000-0000-0000-0000-000000000000"`
 	BillingPackageLabel string          `json:"billingPackageLabel" example:"Monthly Volume Billing"`
@@ -154,32 +146,24 @@ type BillingCalculationResult struct {
 	TotalSkipped        int             `json:"totalSkipped" example:"20"`
 	TotalNetAmount      decimal.Decimal `json:"totalNetAmount" swaggertype:"string" example:"123.45"`
 	TransactionPayload  json.RawMessage `json:"transactionPayload" swaggertype:"object"`
-} //	@name	BillingCalculationResult
+}
 
 // BillingCalculateSummary aggregates the totals across all BillingCalculationResult
 // entries returned in a single BillingCalculateResponse.
-//
-// swagger:model BillingCalculateSummary
-//
-//	@Description	BillingCalculateSummary aggregates the totals across all billing calculation results for the requested period.
 type BillingCalculateSummary struct {
 	TotalResults     int             `json:"totalResults" example:"10"`
 	TotalVolume      int             `json:"totalVolume" example:"7"`
 	TotalMaintenance int             `json:"totalMaintenance" example:"3"`
 	TotalNetAmount   decimal.Decimal `json:"totalNetAmount" swaggertype:"string" example:"456.78"`
-} //	@name	BillingCalculateSummary
+}
 
 // BillingCalculateResponse is the top-level response returned by the billing
 // calculation endpoint. It contains one BillingCalculationResult per billing
 // package processed and a consolidated BillingCalculateSummary.
-//
-// swagger:model BillingCalculateResponse
-//
-//	@Description	BillingCalculateResponse is the top-level response returned by the billing calculation endpoint.
 type BillingCalculateResponse struct {
 	Results []BillingCalculationResult `json:"results"`
 	Summary BillingCalculateSummary    `json:"summary"`
-} //	@name	BillingCalculateResponse
+}
 
 // DiscountDetail carries the discount information applied to a single pricing
 // tier during a volume billing calculation. It is used internally when building

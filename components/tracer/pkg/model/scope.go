@@ -115,10 +115,6 @@ func cloneAndNormalizeScope(s Scope) Scope {
 // At least one field must be set for a scope to be valid.
 // Validation tags are used by the HTTP layer for input validation.
 // SubType is normalized to lowercase canonical form on write; matching is case-insensitive.
-//
-// swagger:model Scope
-//
-//	@Description	Hierarchical scope that constrains which transactions a rule or limit applies to. At least one field must be set. When multiple fields are set, all must match (AND semantics). Nil fields match any value.
 type Scope struct {
 	// Segment the scope is restricted to (optional)
 	// format: uuid
@@ -144,7 +140,7 @@ type Scope struct {
 	// example: purchase
 	// maxLength: 50
 	SubType *string `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
-} //	@name	Scope
+}
 
 // IsEmpty returns true if all scope fields are nil.
 func (s *Scope) IsEmpty() bool {

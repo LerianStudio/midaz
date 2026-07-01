@@ -269,7 +269,7 @@ type ListAuditEventsResponse struct {
 	AuditEvents []*model.AuditEvent `json:"auditEvents" validate:"max=1000" maxItems:"1000"`
 	NextCursor  string              `json:"nextCursor,omitempty" example:"eyJpZCI6IjAxOTI4In0="`
 	HasMore     bool                `json:"hasMore" example:"true"`
-} //	@name	ListAuditEventsResponse
+}
 
 // toAuditEventFilters converts ListAuditEventsInput to model.AuditEventFilters.
 func toAuditEventFilters(input *ListAuditEventsInput) (*model.AuditEventFilters, error) {
