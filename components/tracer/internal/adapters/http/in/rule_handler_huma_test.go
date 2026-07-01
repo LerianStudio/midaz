@@ -963,3 +963,97 @@ func TestHuma_ListRules_InvalidEnumParams(t *testing.T) {
 		})
 	}
 }
+
+// TestHuma_ListRules_RepeatedKeyParity pins the repeated-query-key contract.
+// Fiber's c.QueryParser (gorilla/schema over a scalar target) is LAST-wins:
+// `?status=ACTIVE&status=garbage` binds "garbage". The Huma binder MUST resolve
+// the SAME last value; reading the first value (url.Values.Get) flips the
+// status/code for every affected field. Each row is empirically anchored to
+// fiber v2.52.13's real QueryParser output against the real ListRulesInput; the
+// expected code is what that LAST value hits in the shared imperative Validate().
+// This is the money-path regression for the Phase 2b-1 review finding.
+func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
+	// Repeated keys whose LAST value fails Validate: canonical 400, service NOT reached.
+	rejectCases := []struct {
+		name  string
+		query string
+		code  string // canonical Midaz code, identical to the Fiber last-wins path
+	}{
+		// Fiber last-wins "garbage" -> RuleStatus invalid -> 0082. First-wins "ACTIVE" would 200 (FLIP).
+		{"status last invalid", "?status=ACTIVE&status=garbage", "0082"},
+		// Fiber last-wins "abc" -> gorilla int decode error -> 0082. First-wins "25" would 200 (FLIP).
+		{"limit last non-numeric", "?limit=25&limit=abc", "0082"},
+		// Fiber last-wins "priority" -> not in sort whitelist -> 0332. First-wins "name" would 200 (FLIP).
+		{"sort_by last invalid", "?sort_by=name&sort_by=priority", "0332"},
+		// Last-wins subsumes present-but-empty: last "" -> RuleStatus("") invalid -> 0082.
+		{"status last empty", "?status=ACTIVE&status=", "0082"},
+	}
+	for _, tc := range rejectCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Non-nil listResult so that if the (buggy first-wins) binder wrongly
+			// lets the LAST-invalid value pass Validate, the request returns a
+			// silent 200 — the flip this test catches — instead of panicking in
+			// the service layer on a nil result.
+			svc := &tenantSpyService{listResult: &model.ListRulesResult{Rules: nil}}
+			app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"repeated key %q must resolve to Fiber's LAST value and 400 — never the first-value 200 (a status flip)", tc.query)
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+			assert.Equal(t, tc.code, got["code"], "code must match Fiber's last-wins value for %q", tc.query)
+			assert.Empty(t, svc.capturedTenant, "service must not be reached on a rejected query param")
+		})
+	}
+
+	// Repeated keys whose LAST value passes Validate: 200, filter built from the
+	// LAST value. Guards the reverse flip (last-wins accepting where first-wins
+	// would reject) and confirms last-wins subsumes the empty-then-valid case.
+	passCases := []struct {
+		name       string
+		query      string
+		wantLimit  int
+		wantStatus model.RuleStatus // "" => Status expected nil
+		wantSortBy string
+	}{
+		// Fiber last-wins "25" -> 200. First-wins "101" would 400/0080 (reverse FLIP).
+		{"limit last in-range", "?limit=101&limit=25", 25, "", ""},
+		// Last-wins subsumes present-but-empty: last "ACTIVE" after empty -> valid.
+		{"status empty then valid", "?status=&status=ACTIVE", 10, model.RuleStatusActive, ""},
+	}
+	for _, tc := range passCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &tenantSpyService{listResult: &model.ListRulesResult{Rules: nil}}
+			app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			_, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode,
+				"repeated key %q must resolve to Fiber's LAST value and 200", tc.query)
+			require.NotNil(t, svc.listFilter, "service must be reached for %q", tc.query)
+			assert.Equal(t, tc.wantLimit, svc.listFilter.Limit, "limit must be the LAST value for %q", tc.query)
+			if tc.wantStatus == "" {
+				assert.Nil(t, svc.listFilter.Status, "status must be nil for %q", tc.query)
+			} else {
+				require.NotNil(t, svc.listFilter.Status, "status must be set for %q", tc.query)
+				assert.Equal(t, tc.wantStatus, *svc.listFilter.Status, "status must be the LAST value for %q", tc.query)
+			}
+		})
+	}
+}

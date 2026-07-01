@@ -173,14 +173,19 @@ func (in *ListRulesInputHuma) Resolve(ctx huma.Context) []error {
 }
 
 // bindListRulesInput copies the query params into a *ListRulesInput in the exact
-// field shape Fiber's c.QueryParser produces, reading in.rawQuery so present-vs-
-// absent matches Fiber:
+// field shape Fiber's c.QueryParser produces, reading in.rawQuery so both
+// present-vs-absent AND repeated-key resolution match Fiber:
 //   - key absent            -> pointer stays nil (SetDefaults()/no-filter applies)
 //   - key present-but-empty -> non-nil pointer to "" (or 0 for limit), exactly as
 //     Fiber's gorilla-schema decoder yields; downstream Validate() then rejects
 //     ?status= /?action= (0082) and ?limit= (limit 0 -> 0331), same as Fiber.
+//   - key repeated          -> the LAST value binds, matching Fiber's gorilla-
+//     schema decode into a scalar target (via the local last() helper, NOT
+//     url.Values.Get which returns the first). This subsumes present-but-empty:
+//     ?status=A&status= binds "" (rejected 0082); ?status=&status=A binds "A".
 //
-// The only value that can fail here is limit: a non-numeric limit (e.g. ?limit=abc)
+// The only value that can fail here is limit: a non-numeric LAST limit (e.g.
+// ?limit=abc, or ?limit=25&limit=abc where the last value is abc)
 // returns an error, which listRules canonicalizes to ErrInvalidQueryParameter
 // (0082) — the SAME code Fiber's QueryParser-failure arm produced. An empty limit
 // (?limit=) is NOT an error: it binds to 0 (matching gorilla), and Validate()
@@ -194,14 +199,30 @@ func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
 
 	q := in.rawQuery
 
+	// last returns the LAST value of a repeated query key, matching Fiber's
+	// c.QueryParser (gorilla/schema binds the last value into a scalar target),
+	// NOT url.Values.Get which returns the FIRST. For a single or absent key it is
+	// identical to Get; the divergence only appears on repeated keys, where using
+	// the first value would flip the status/code vs. the Fiber path. nil-safe:
+	// callers gate on q.Has(key), and an empty slice returns "".
+	last := func(key string) string {
+		vs := q[key]
+		if len(vs) == 0 {
+			return ""
+		}
+
+		return vs[len(vs)-1]
+	}
+
 	// optStr mirrors Fiber's QueryParser for *string fields: a present key (even
-	// empty) yields a non-nil pointer; an absent key leaves it nil.
+	// empty) yields a non-nil pointer holding the LAST value; an absent key leaves
+	// it nil.
 	optStr := func(key string) *string {
 		if !q.Has(key) {
 			return nil
 		}
 
-		s := q.Get(key)
+		s := last(key)
 
 		return &s
 	}
@@ -213,22 +234,22 @@ func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
 	out.MerchantID = optStr("merchant_id")
 	out.TransactionType = optStr("transaction_type")
 	out.SubType = optStr("sub_type")
-	out.Cursor = q.Get("cursor")
-	out.SortBy = q.Get("sort_by")
-	out.SortOrder = q.Get("sort_order")
+	out.Cursor = last("cursor")
+	out.SortBy = last("sort_by")
+	out.SortOrder = last("sort_order")
 
 	if q.Has("status") {
-		s := model.RuleStatus(q.Get("status"))
+		s := model.RuleStatus(last("status"))
 		out.Status = &s
 	}
 
 	if q.Has("action") {
-		a := model.Decision(q.Get("action"))
+		a := model.Decision(last("action"))
 		out.Action = &a
 	}
 
 	if q.Has("limit") {
-		v := q.Get("limit")
+		v := last("limit")
 
 		// Empty limit binds to 0 (gorilla decodes "" as 0), NOT an error — Validate
 		// then rejects 0 (0331). Only a non-numeric limit is a bind error (0082).
