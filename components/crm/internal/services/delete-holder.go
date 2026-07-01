@@ -53,8 +53,6 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name())
 	}
 
-	deletedAt := time.Now()
-
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to delete holder by id: %v", err)
@@ -62,6 +60,8 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 		return err
 	}
+
+	deletedAt := time.Now()
 
 	uc.emitHolderDeletedEvent(ctx, span, logger, id.String(), organizationID, hardDelete, deletedAt)
 
