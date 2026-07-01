@@ -186,6 +186,28 @@ Huma montado no `/v1` do tracer; `problem.Install()` no path de runtime (spec-ge
 
 **Done when:** as 8 ops de `rule_handler.go` estão em Huma (2 da 2a + 6 aqui), wired em `routes.go` com auth preservada; 4 sub-shapes novas (PATCH+body, list+query sem 422, POST id-only, 204 no-body) provadas por teste; harness não-paralelo; golden net verde.
 
+##### Gate 2b-1 (2026-07-01) — ISSUES→fix wave, depois PASS
+
+Workflow `wf_37e2511c-823` rodou o harness completo (implement→5 reviewers→4 contrarian→self-heal 5+4). Resultado e adjudicação:
+- **Implement `28ddb4ee5`:** 6 ops migradas; 4 sub-shapes provadas. Zero-422 confirmado (query = string sem tags de validação; body = RawBody+SkipValidateBody; path sem `format`); DeleteRule 204 bodiless verificado no mecanismo (huma.go `outBodyIndex==-1`).
+- **Contrarian LENS 3 REFUTOU** o claim de paridade de query → defeito money-path REAL: query param **present-but-empty** (`?status=`, `?limit=`) colapsava pra `nil` → Huma devolvia 200 onde Fiber devolve 400 canônico (0082/0331). Mesma classe do `format:"uuid"` da 2a. **Self-heal `312847d60`** corrigiu na raiz: `ListRulesInputHuma` implementa `huma.Resolver` (captura `ctx.URL().Query()`, retorna nil→sem 422) + `bindListRulesInput` usa `url.Values.Has` pra reproduzir present-vs-absent do Fiber.
+- **High remanescente (re:nil-reviewer) → fix wave `a…`:** `bindListRulesInput` lê `url.Values.Get` (**first**-wins) mas o gorilla-schema do Fiber é **last**-wins → chaves repetidas (`?status=ACTIVE&status=garbage`) FLIPAM status/code (400↔200). Terceiro-trilho (identidade byte-a-byte Fiber→Huma) + este arquivo é o **exemplar copiado 5× no 2b-2** → fechar aqui. Fix = helper `last(key)` lendo `q[key][len-1]` em todos os call sites; `q.Has` fica pro gating de presença. Irmão direto do bug present-but-empty; last-wins subsume o fix anterior.
+
+##### Fix wave 2b-1 — repeated-key last-wins parity
+- [ ] Done
+
+**Context:** `bindListRulesInput` (`rule_handler_huma.go:188-250`) usa `q.Get`/`optStr` (first value) pra `status`(221)/`action`(226)/`limit`(231)/`sort_by`(217)/`sort_order`(218)/`cursor`(216) + scope fields (209-215 via optStr:204). Fiber v2.52.13 QueryParser (gorilla-schema) é last-wins. Divergência confirmada empiricamente por 3+ agentes contra o fiber real.
+
+**Implementation vision:** Introduzir `last := func(key string) string { vs := q[key]; if len(vs)==0 { return "" }; return vs[len(vs)-1] }` e trocar TODO `q.Get(key)`→`last(key)` (inclusive dentro de `optStr`). `q.Has` permanece pro gating present-vs-absent (Has-true garante slice não-vazio → `vs[len-1]` seguro). Last-wins subsume o present-but-empty: `?status=A&status=`→last=""→0082; `?status=&status=A`→last="A"→200 (ambos Fiber-idênticos). NENHUM 422 novo (Resolve segue retornando nil; validação segue imperativa).
+
+**Files:**
+- Modify: `components/tracer/internal/adapters/http/in/rule_handler_huma.go` (binder → last-wins)
+- Test: `components/tracer/internal/adapters/http/in/rule_handler_huma_test.go` (parity test de chave repetida)
+
+**Verification:** RED = teste `?status=ACTIVE&status=garbage`→400/0082 e `?limit=101&limit=25`→200 FALHA no first-wins atual; GREEN passa no last-wins. `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde; `go test -buildvcs=false -run TestGolden ./pkg/net/http/` verde. Probe fiber empírico FORA do worktree cobrindo TODOS os campos afetados.
+
+**Done when:** chaves repetidas produzem o mesmo code/status que o Fiber pra todos os campos de query; parity test no harness não-paralelo; golden net verde; exemplar limpo pro fan-out 2b-2.
+
 ### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec 3.1 nativa + paridade served==spec
 **Goal:** Declarar os 2 security schemes no shape correto (`BearerAuth` `type:http,scheme:bearer` — não o hack apiKey-in-header do swagger atual; `ApiKeyAuth` `type:apiKey,in:header,name:X-API-Key`); requirement por-op nas 28 ops (`POST /validations` reflete o `forceAPIKeyAuth`); spec OAS 3.1 servida por `ServeSpec` (gated em `Swagger.Enabled`); remover `@securityDefinitions` swaggo do `main.go`.
 **Scope:** `components/tracer/cmd/app/main.go`, `routes.go`, `ServeSpec` wiring, `components/tracer/api/` (artefatos gerados).
