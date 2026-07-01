@@ -77,7 +77,28 @@ func NewAuditEventHandler(service AuditEventService) *AuditEventHandler {
 //	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/audit-events [get]
 func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	// Fiber binds the query with QueryParser; the shared core owns the rest.
+	response, err := h.listAuditEvents(c.UserContext(), c.QueryParser)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, response)
+}
+
+// listAuditEvents is the transport-agnostic core of the list-audit-events
+// operation shared by the Fiber method (ListAuditEvents) and the Huma func
+// (ListAuditEventsHuma). See rule_handler.go:listRules for the split rationale.
+//
+// Query BINDING is the only transport-specific step and stays at the edge: the
+// caller passes a bind func that populates *ListAuditEventsInput from its own
+// query source (Fiber's c.QueryParser, or the Huma func's imperative
+// string->typed copy). A bind error is canonicalized to ErrInvalidQueryParameter
+// (0082) — the SAME code the Fiber QueryParser-failure path produced. Everything
+// after binding (Validate -> SetDefaults -> filters -> service -> response) is
+// shared, and every error is canonicalized before it returns, so both transports
+// emit field/status/code-identical results.
+func (h *AuditEventHandler) listAuditEvents(ctx context.Context, bind func(any) error) (*ListAuditEventsResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.audit_event.list")
@@ -85,12 +106,10 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse query parameters into input struct
 	var input ListAuditEventsInput
-
-	if err := c.QueryParser(&input); err != nil {
+	if err := bind(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAuditEvent, "filters"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAuditEvent, "filters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
@@ -101,7 +120,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to validate request parameters")
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Apply defaults after validation
@@ -116,12 +135,12 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to convert filter parameters")
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	result, err := h.service.ListAuditEvents(ctx, filters)
 	if err != nil {
-		return handleAuditEventServiceError(c, span, err)
+		return nil, classifyAuditEventError(span, err)
 	}
 
 	// Convert to response
@@ -133,7 +152,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelDebug, "Audit events listed")
 
-	return http.OK(c, response)
+	return response, nil
 }
 
 // GetAuditEvent godoc
@@ -153,7 +172,19 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/audit-events/{id} [get]
 func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.getAuditEvent(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// getAuditEvent is the transport-agnostic core of the get-audit-event operation
+// shared by the Fiber method (GetAuditEvent) and the Huma func (GetAuditEventHuma).
+// It owns the span + id parse + service call + success log, and canonicalizes
+// every error before returning so both transports render the identical body.
+func (h *AuditEventHandler) getAuditEvent(ctx context.Context, idParam string) (*model.AuditEvent, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.audit_event.get")
@@ -161,18 +192,15 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse event ID from path
-	idParam := c.Params("id")
-
 	eventID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id")
 	}
 
 	result, err := h.service.GetAuditEvent(ctx, eventID)
 	if err != nil {
-		return handleAuditEventServiceError(c, span, err)
+		return nil, classifyAuditEventError(span, err)
 	}
 
 	logger.With(
@@ -181,7 +209,7 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 		libLog.Any("audit_event.type", result.EventType),
 	).Log(ctx, libLog.LevelDebug, "Audit event retrieved")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // VerifyHashChain godoc
@@ -201,7 +229,19 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/audit-events/{id}/verify [get]
 func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.verifyHashChain(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// verifyHashChain is the transport-agnostic core of the verify-hash-chain
+// operation shared by the Fiber method (VerifyHashChain) and the Huma func
+// (VerifyHashChainHuma). It owns the span + id parse + service call + success
+// log, and canonicalizes every error before returning.
+func (h *AuditEventHandler) verifyHashChain(ctx context.Context, idParam string) (*model.HashChainVerificationResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.audit_event.verify_chain")
@@ -209,18 +249,15 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse event ID from path parameter
-	eventIDParam := c.Params("id")
-
-	eventID, err := uuid.Parse(eventIDParam)
+	eventID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityAuditEvent, "id")
 	}
 
 	result, err := h.service.VerifyHashChain(ctx, eventID)
 	if err != nil {
-		return handleAuditEventServiceError(c, span, err)
+		return nil, classifyAuditEventError(span, err)
 	}
 
 	logger.With(
@@ -229,29 +266,35 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 		libLog.Any("total_checked", result.TotalChecked),
 	).Log(ctx, libLog.LevelDebug, "Hash chain verification completed")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
-// handleAuditEventServiceError converts service errors to appropriate HTTP responses.
-func handleAuditEventServiceError(c *fiber.Ctx, span trace.Span, err error) error {
+// classifyAuditEventError maps a raw service error to its canonical Midaz error,
+// attributing the span, WITHOUT rendering. It is the single classification the
+// Fiber wrappers (which render via http.WithError) and the Huma path
+// (humaProblem -> *http.Detail) both consume, so both transports emit
+// field/status/code/type-identical envelopes. The errors.Is cascade and the
+// canonical mapping are preserved verbatim from the pre-Huma handler
+// (handleAuditEventServiceError), minus the render.
+func classifyAuditEventError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrAuditEventNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Audit event not found", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrAuditEventNotFound, constant.EntityAuditEvent))
+		return pkg.ValidateBusinessError(constant.ErrAuditEventNotFound, constant.EntityAuditEvent)
 	case errors.Is(err, constant.ErrInvalidAuditEventFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidAuditEventFilters, constant.EntityAuditEvent))
+		return pkg.ValidateBusinessError(constant.ErrInvalidAuditEventFilters, constant.EntityAuditEvent)
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityAuditEvent))
+		return pkg.ValidateBusinessError(constant.ErrInvalidCursor, constant.EntityAuditEvent)
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityAuditEvent))
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortColumn, constant.EntityAuditEvent)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-		return http.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
+		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
 }
