@@ -27,7 +27,7 @@ import (
 //
 //  1. AUTH is appName "plugin-fees" (fees_routes.go feesApplicationName — the LEGACY
 //     RBAC namespace preserved verbatim), resource "estimates", verb "post". The
-//     swaggo @Security on the Fiber wrapper is BearerAuth ONLY, so the per-op Security
+//     Fiber guard chain is Bearer-only, so the per-op Security
 //     metadata here is Bearer-only too — SPEC metadata only; runtime auth stays the
 //     Fiber guard chain (auth.Authorize("plugin-fees","estimates","post") + tenant +
 //     ParseUUIDPathParameters("estimates")) attached BEFORE the Huma terminal.
@@ -45,7 +45,7 @@ import (
 //  4. Errors go through the shared pkgHTTP.HumaProblem.
 
 // secFeeBearer advertises that the estimate operation accepts a JWT bearer token
-// (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC metadata only;
+// (Bearer-only, matching the Fiber guard chain). SPEC metadata only;
 // runtime auth is the Fiber guard chain.
 var secFeeBearer = []map[string][]string{
 	{"BearerAuth": {}},
@@ -93,14 +93,13 @@ type EstimateFeeInputHuma struct {
 // Body is a pre-serialized []byte, NOT *model.FeeEstimateResponse: the response
 // embeds the projected transaction tree (FeeEstimateResult → FeeAdjustedTransaction →
 // mtransaction.Send / mtransaction.TransactionDate), and mtransaction.TransactionDate
-// is a named `time.Time` alias carrying an `example:"2021-01-01T00:00:00Z"` swaggo tag
+// is a named `time.Time` alias carrying an `example:"2021-01-01T00:00:00Z"` struct tag
 // that Huma's schema generator parses as JSON — a bare timestamp is invalid JSON for a
 // non-string schema, so schema gen panics. No other migrated ledger resource exposes
 // the transaction tree, so this is the fee-estimate-only escape hatch. The raw []byte
 // keeps Huma from recursing into that tree (it schema-gens as an opaque string) while
-// the wire bytes stay byte-identical to the Fiber commonsHttp.Respond(JSON) path;
-// swaggo remains the OAS source of truth for this op (annotations INTACT on the Fiber
-// wrapper). ContentType pins application/json so the response header matches Fiber.
+// the wire bytes stay byte-identical to the Fiber commonsHttp.Respond(JSON) path.
+// ContentType pins application/json so the response header matches Fiber.
 type EstimateFeeOutputHuma struct {
 	Status int
 	Body   []byte `contentType:"application/json"`

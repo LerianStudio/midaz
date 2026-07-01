@@ -17,13 +17,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	_ "github.com/LerianStudio/midaz/v4/components/ledger/api"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber router.
@@ -37,8 +35,7 @@ type HumaRouteRegistrar func(group fiber.Router, api huma.API)
 
 // swaggerEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
 // surface should be served (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs).
-// Independent of the legacy swaggo /swagger/* mount, which is always on. Off by
-// default; opt in with LEDGER_HUMA_DOCS_ENABLED=true.
+// Off by default; opt in with LEDGER_HUMA_DOCS_ENABLED=true.
 func swaggerEnabled() bool {
 	return os.Getenv("LEDGER_HUMA_DOCS_ENABLED") == "true"
 }
@@ -95,14 +92,6 @@ func NewUnifiedServer(
 		app.Get("/readyz", readyzHandler.HandleReadyz)
 	}
 
-	// Swagger documentation (unified onboarding + transaction)
-	app.Get("/swagger", func(c *fiber.Ctx) error {
-		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
-	})
-	app.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("swagger"),
-	))
-
 	// Register routes from each module
 	for _, registrar := range routeRegistrars {
 		if registrar != nil {
@@ -155,8 +144,7 @@ func NewUnifiedServer(
 		humaMount(apiV1, humaAPI)
 
 		// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on swaggerEnabled().
-		// Mounted AFTER humaMount so the snapshotted spec is complete. Independent of
-		// the legacy swaggo /swagger/* mount.
+		// Mounted AFTER humaMount so the snapshotted spec is complete.
 		if swaggerEnabled() {
 			openapi.ServeSpec(app, humaAPI, logger, "/v1", "Midaz Ledger API")
 		}

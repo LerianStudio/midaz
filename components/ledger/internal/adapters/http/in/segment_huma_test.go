@@ -67,7 +67,7 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 
 	// Mirror the production chain: ParseUUIDPathParameters runs as Fiber middleware
 	// (no terminal) before the Huma terminal on each segment route. The Fiber path
-	// param is :id (matches routes.go pre-migration, NOT the swaggo :segment_id doc).
+	// param is :id (matches routes.go pre-migration, NOT :segment_id).
 	parse := pkgHTTP.ParseUUIDPathParameters("segment")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/segments"
 	apiV1.Post(base, parse)

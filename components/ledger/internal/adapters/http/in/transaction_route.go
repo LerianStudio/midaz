@@ -204,8 +204,7 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
 // methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
-// shared core. The swaggo doc-comments below are preserved verbatim (the migration is
-// ADDITIVE; swaggo is unchanged) so the generated api/ spec keeps its per-op security.
+// shared core.
 
 // Create a Transaction Route.
 func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {

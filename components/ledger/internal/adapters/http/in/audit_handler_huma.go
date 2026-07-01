@@ -19,8 +19,8 @@ import (
 // for the full conventions. Audit-specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource
-//     "protection". The swaggo @Security on the Fiber wrapper is BearerAuth ONLY,
-//     so the per-op Security metadata here is Bearer-only too — SPEC metadata only;
+//     "protection". The Fiber guard chain is Bearer-only, so the per-op Security
+//     metadata here is Bearer-only too — SPEC metadata only;
 //     runtime auth stays the Fiber guard chain (auth.Authorize("midaz","protection",
 //     "get") + tenant + ParseUUIDPathParameters("organization")) attached BEFORE the
 //     Huma terminal.
@@ -35,7 +35,7 @@ import (
 //  4. Errors go through pkgHTTP.HumaProblem.
 
 // secAuditBearer advertises that the audit operation accepts a JWT bearer token
-// (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC metadata only;
+// (Bearer-only, matching the Fiber guard chain). SPEC metadata only;
 // runtime auth is the Fiber guard chain.
 var secAuditBearer = []map[string][]string{
 	{"BearerAuth": {}},

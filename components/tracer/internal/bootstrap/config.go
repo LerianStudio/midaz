@@ -157,8 +157,7 @@ type Config struct {
 	MultiTenantAllowInsecureHTTP bool `env:"MULTI_TENANT_ALLOW_INSECURE_HTTP"`
 
 	// SwaggerEnabled gates the native Huma OpenAPI 3.1 spec + Scalar docs surface
-	// (/v1/openapi.{json,yaml} and /v1/docs) served by openapi.ServeSpec. It is
-	// SEPARATE from the legacy swaggo /swagger/* mount, which is always on. Off by
+	// (/v1/openapi.{json,yaml} and /v1/docs) served by openapi.ServeSpec. Off by
 	// default (lib-commons SetConfigFromEnvVars does not honor envDefault tags, and
 	// an unset bool is false); operators opt in with SWAGGER_ENABLED=true.
 	SwaggerEnabled bool `env:"SWAGGER_ENABLED"`

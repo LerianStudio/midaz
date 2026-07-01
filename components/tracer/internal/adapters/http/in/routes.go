@@ -27,7 +27,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
@@ -102,8 +101,7 @@ type RouteConfig struct {
 	TrustedProxyCIDRs []*net.IPNet
 
 	// SwaggerEnabled gates the native Huma OpenAPI 3.1 spec + Scalar docs surface
-	// (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs). Independent of the
-	// legacy swaggo /swagger/* mount, which is always on. Default false.
+	// (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs). Default false.
 	SwaggerEnabled bool
 }
 
@@ -251,16 +249,13 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// never sees it (K8s probes are unauthenticated; a 401 here would be
 	// interpreted by the kubelet as "not ready" and kill the pod).
 	//
-	// Public endpoints: /health, /readyz, /metrics, /version, /swagger/*
+	// Public endpoints: /health, /readyz, /metrics, /version
 	f.Get("/health", hc.LivenessHandler())
 	f.Get("/readyz", hc.ReadyzHandler())
 	// /metrics MUST be mounted BEFORE the /v1 group so Prometheus scrapes
 	// (typically unauthenticated, mesh-internal) are not blocked by AuthGuard.
 	f.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 	f.Get("/version", Version)
-
-	// Doc Swagger
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 
 	// Protected API group (uses /v1/ prefix per API Design v1.3.0)
 	// Auth is handled per-endpoint by AuthGuard based on configuration flags.
@@ -271,7 +266,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// and stashes both into the request context. Repos pick them up through
 	// tmcore.GetPGContext(ctx) / tmcore.GetTenantIDContext(ctx).
 	//
-	// Registered ONLY on /v1, keeping /health, /readyz, /version, /swagger/*
+	// Registered ONLY on /v1, keeping /health, /readyz, /version
 	// callable without a token (public endpoints).
 	if multiTenantEnabled && pgManager != nil {
 		tenantMW := tmmiddleware.NewTenantMiddleware(
@@ -427,9 +422,8 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on SwaggerEnabled. Mounted
 	// AFTER every huma.Register above so the snapshotted spec is complete. These
-	// routes are off the auth/tenant chain (public-within-the-gate) and are
-	// independent of the legacy swaggo /swagger/* mount. Never registered when the
-	// flag is false.
+	// routes are off the auth/tenant chain (public-within-the-gate). Never
+	// registered when the flag is false.
 	if cfg.SwaggerEnabled {
 		openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API")
 	}

@@ -78,7 +78,6 @@ help:
 	@echo "  make migrate / migrate-down / seed"
 	@echo ""
 	@echo "$(BOLD)Documentation Commands:$(NC)"
-	@echo "  make verify-api-docs             - Verify API documentation coverage"
 	@echo "  (API docs are generated from the repo root: make generate-docs)"
 	@echo ""
 	@echo "$(BOLD)Developer Helper Commands:$(NC)"
@@ -86,7 +85,7 @@ help:
 	@echo ""
 	@echo "$(BOLD)Workflow Aggregators (run before push / merge):$(NC)"
 	@echo "  make pre-push                    - Fast pre-push gate: tidy + format + lint + sec + test-unit (no Docker)"
-	@echo "  make pre-merge                   - Full pre-merge gate: pre-push + verify-api-docs + test-integration + test-e2e (requires Docker, DESTRUCTIVE)"
+	@echo "  make pre-merge                   - Full pre-merge gate: pre-push + test-integration + test-e2e (requires Docker, DESTRUCTIVE)"
 	@echo ""
 
 #-------------------------------------------------------
@@ -125,7 +124,7 @@ pre-push:
 
 define pre_merge_steps
 $(call title1,"Running pre-merge gate (full CI parity — requires Docker, DESTRUCTIVE: resets Docker volumes via test-e2e)")
-@$(MAKE) pre-push && $(MAKE) verify-api-docs && $(MAKE) test-integration && $(MAKE) test-e2e
+@$(MAKE) pre-push && $(MAKE) test-integration && $(MAKE) test-e2e
 @echo "$(GREEN)$(BOLD)[ok]$(NC) pre-merge gate completed successfully — safe to merge$(GREEN) ✔️$(NC)"
 endef
 
@@ -133,21 +132,8 @@ endef
 pre-merge:
 	$(pre_merge_steps)
 
-#-------------------------------------------------------
-# Documentation Commands
-#-------------------------------------------------------
 # API docs/OpenAPI generation is single-sourced at the repo root
 # (`make generate-docs`); the `check-docs` parity guardrail lives there too.
-# This target keeps only the per-component annotation-coverage check used by
-# tracer's pre-merge gate; it runs the tracer-local ./scripts/verify-api-docs.sh.
-
-# Verify API documentation coverage
-# Checks if all API endpoints have proper Swagger annotations
-.PHONY: verify-api-docs
-verify-api-docs:
-	$(call title1,"Verifying API documentation coverage")
-	@sh ./scripts/verify-api-docs.sh
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
 
 # Git hooks are a monorepo-wide concern: the root Makefile's setup-git-hooks
 # target runs `git config core.hooksPath .githooks`, which applies repo-wide and
@@ -177,9 +163,6 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
-	fi
-	@if ! command -v swag >/dev/null 2>&1; then \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
 	@if ! command -v mockgen >/dev/null 2>&1; then \
 		go install go.uber.org/mock/mockgen@v0.6.0; \

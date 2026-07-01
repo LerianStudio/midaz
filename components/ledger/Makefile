@@ -168,10 +168,6 @@ dev-setup:
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
 		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 	fi
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
 	@if ! command -v mockgen >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing mockgen...$(NC)"; \
 		go install go.uber.org/mock/mockgen@v0.6.0; \

@@ -17,8 +17,7 @@ import (
 
 // TestRoutes_ServeSpec_GatedBySwaggerEnabled proves the native Huma OpenAPI 3.1
 // spec + docs surface (openapi.ServeSpec) is mounted under /v1 ONLY when
-// RouteConfig.SwaggerEnabled is true, and absent (404) when false. The legacy
-// swaggo /swagger/* mount is unaffected either way.
+// RouteConfig.SwaggerEnabled is true, and absent (404) when false.
 func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
 	guardCfg := middleware.AuthGuardConfig{
 		APIKey:        "test-secret-key-32-characters-long",

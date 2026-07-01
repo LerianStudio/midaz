@@ -20,8 +20,8 @@ import (
 // that file's header for the full conventions. Operation-route-specific notes:
 //
 //  1. AUTH is the "routing" appName, resource "operation-routes" (protectedRouting
-//     in routes.go), NOT "midaz". The swaggo @Security on the Fiber wrappers is
-//     BearerAuth ONLY (no X-API-Key), so the per-op Security metadata here is
+//     in routes.go), NOT "midaz". The Fiber guard chain is Bearer-only (no
+//     X-API-Key), so the per-op Security metadata here is
 //     Bearer-only too — this is SPEC metadata only; runtime auth stays the Fiber
 //     guard chain (auth.Authorize("routing","operation-routes",verb) + tenant +
 //     ParseUUIDPathParameters("operation_route")) attached in the unified server
@@ -40,7 +40,7 @@ import (
 //  4. Errors go through the shared pkgHTTP.HumaProblem.
 
 // secOperationRouteBearer advertises that each operation-route operation accepts a
-// JWT bearer token (Bearer-only, matching the Fiber swaggo @Security BearerAuth).
+// JWT bearer token (Bearer-only, matching the Fiber guard chain).
 // SPEC metadata only; runtime auth is the Fiber guard chain.
 var secOperationRouteBearer = []map[string][]string{
 	{"BearerAuth": {}},

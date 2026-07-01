@@ -22,9 +22,9 @@ import (
 // specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "instruments".
-//     The swaggo @Security on the Fiber wrappers is BearerAuth ONLY, so the per-op
-//     Security metadata here is Bearer-only too — SPEC metadata only; runtime auth
-//     stays the Fiber guard chain (auth.Authorize("midaz","instruments",verb) + tenant
+//     The Fiber guard chain is Bearer-only, so the per-op Security metadata here is
+//     Bearer-only too — SPEC metadata only; runtime auth stays the Fiber guard chain
+//     (auth.Authorize("midaz","instruments",verb) + tenant
 //     + ParseUUIDPathParameters) attached BEFORE the Huma terminal.
 //  2. Instruments are HOLDER-SCOPED for create/get/patch/delete (org+holder+instrument
 //     in the path); the list is ORG-SCOPED (org only, holder is a query filter). The
@@ -43,7 +43,7 @@ import (
 //     body validator (never a native Huma 422). Errors go through pkgHTTP.HumaProblem.
 
 // secInstrumentBearer advertises that each instrument operation accepts a JWT bearer
-// token (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC metadata
+// token (Bearer-only, matching the Fiber guard chain). SPEC metadata
 // only; runtime auth is the Fiber guard chain.
 var secInstrumentBearer = []map[string][]string{
 	{"BearerAuth": {}},

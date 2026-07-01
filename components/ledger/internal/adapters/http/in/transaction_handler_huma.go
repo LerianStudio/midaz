@@ -59,7 +59,7 @@ import (
 // SUNSET 2026-08-01, and stays a pure Fiber route (out of the Huma spec).
 
 // secTransactionBearer advertises a JWT bearer token per operation (Bearer-only,
-// matching the Fiber swaggo @Security BearerAuth on every transaction wrapper). SPEC
+// matching the Fiber guard chain on every transaction wrapper). SPEC
 // metadata only; runtime auth is the Fiber guard chain.
 var secTransactionBearer = []map[string][]string{
 	{"BearerAuth": {}},

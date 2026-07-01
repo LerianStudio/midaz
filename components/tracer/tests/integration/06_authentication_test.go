@@ -448,31 +448,6 @@ func TestAuth_6_1_10_PublicEndpointsNoAuthRequired(t *testing.T) {
 				assert.Contains(t, result, "requestDate", "should have requestDate field")
 			},
 		},
-		{
-			name:           "/swagger/index.html",
-			path:           "/swagger/index.html",
-			expectedStatus: http.StatusOK,
-			validateHeaders: func(t *testing.T, resp *http.Response) {
-				contentType := resp.Header.Get("Content-Type")
-				assert.Contains(t, contentType, "text/html", "swagger index should return HTML")
-			},
-		},
-		{
-			name:           "/swagger/doc.json",
-			path:           "/swagger/doc.json",
-			expectedStatus: http.StatusOK,
-			validateHeaders: func(t *testing.T, resp *http.Response) {
-				contentType := resp.Header.Get("Content-Type")
-				assert.Contains(t, contentType, "application/json", "swagger doc should return JSON")
-			},
-			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]any
-				err := json.Unmarshal(body, &result)
-				require.NoError(t, err)
-				// OpenAPI spec should have these fields
-				assert.True(t, result["openapi"] != nil || result["swagger"] != nil, "should be valid OpenAPI spec")
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -514,8 +489,6 @@ func TestAuth_6_1_11_PublicEndpointsIgnoreInvalidKey(t *testing.T) {
 		{"/health", "/health", http.StatusOK},
 		{"/readyz", "/readyz", http.StatusOK},
 		{"/version", "/version", http.StatusOK},
-		{"/swagger/index.html", "/swagger/index.html", http.StatusOK},
-		{"/swagger/doc.json", "/swagger/doc.json", http.StatusOK},
 	}
 
 	for _, tc := range tests {

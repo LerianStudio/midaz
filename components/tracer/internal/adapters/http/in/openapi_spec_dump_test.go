@@ -25,11 +25,9 @@ import (
 // against it: `go test ./... -run TestOpenAPISpecDump -update -buildvcs=false`.
 var update = flag.Bool("update", false, "rewrite the committed OpenAPI 3.1 golden spec")
 
-// humaSpecPath is the committed native Huma OAS 3.1 dump. It is DELIBERATELY a
-// distinct filename from api/openapi.yaml — that file is the swaggo/openapi-
-// generator OAS 3.0.1 artifact the active docs pipeline still consumes. This dump
-// is additive: it writes the Huma snapshot beside the swaggo one so neither
-// clobbers the other until the pipeline is rewired onto Huma in a later phase.
+// humaSpecPath is the committed native Huma OAS 3.1 dump — the sole OpenAPI
+// artifact for this component and the input the active docs pipeline consumes.
+// The legacy swaggo/openapi-generator files it once sat beside have been retired.
 const humaSpecPath = "../../../../api/openapi.huma.yaml"
 
 // buildTracerHumaAPI mirrors the SPEC surface of NewRoutes: it runs the same

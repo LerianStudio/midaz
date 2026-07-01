@@ -21,8 +21,8 @@ import (
 // conventions. Transaction-route-specific notes:
 //
 //  1. AUTH is the "routing" appName, resource "transaction-routes" (protectedRouting
-//     in routes.go), NOT "midaz". The swaggo @Security on the Fiber wrappers is
-//     BearerAuth ONLY, so the per-op Security metadata here is Bearer-only too —
+//     in routes.go), NOT "midaz". The Fiber guard chain is Bearer-only, so the
+//     per-op Security metadata here is Bearer-only too —
 //     SPEC metadata only; runtime auth stays the Fiber guard chain
 //     (auth.Authorize("routing","transaction-routes",verb) + tenant +
 //     ParseUUIDPathParameters("transaction_route")) attached in the unified server
@@ -40,7 +40,7 @@ import (
 //  5. Errors go through the shared pkgHTTP.HumaProblem.
 
 // secTransactionRouteBearer advertises that each transaction-route operation accepts
-// a JWT bearer token (Bearer-only, matching the Fiber swaggo @Security BearerAuth).
+// a JWT bearer token (Bearer-only, matching the Fiber guard chain).
 // SPEC metadata only; runtime auth is the Fiber guard chain.
 var secTransactionRouteBearer = []map[string][]string{
 	{"BearerAuth": {}},

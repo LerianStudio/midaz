@@ -48,19 +48,6 @@ check_system_dependencies() {
     echo "  ✅ System dependencies OK"
 }
 
-# Install swag tool globally if not present
-install_swag() {
-    echo "Checking swag tool..."
-    
-    if ! command_exists swag; then
-        echo "  Installing swag tool..."
-        go install github.com/swaggo/swag/cmd/swag@v1.16.6
-        echo "  ✅ swag installed"
-    else
-        echo "  ✅ swag available"
-    fi
-}
-
 # Install Node.js dependencies for postman collection generation
 install_node_dependencies() {
     echo "Installing Node.js dependencies..."
@@ -179,10 +166,7 @@ main() {
     
     check_system_dependencies
     echo ""
-    
-    install_swag
-    echo ""
-    
+
     create_directories
     echo ""
     

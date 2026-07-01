@@ -124,9 +124,7 @@ func (handler *AssetRateHandler) getAllAssetRatesByAssetCode(ctx context.Context
 // These stay so the legacy Fiber unit/integration tests keep exercising the
 // handler methods directly; each pulls the transport inputs from *fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `p`) and
-// delegates to the shared core. The swaggo doc-comments below are preserved
-// verbatim (the migration is ADDITIVE; swaggo is unchanged) so the generated api/
-// spec keeps its per-op security. NOTE: the LIVE asset-rate routes are Huma now
+// delegates to the shared core. NOTE: the LIVE asset-rate routes are Huma now
 // (see assetrate_handler_huma.go + RegisterAssetRateRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 

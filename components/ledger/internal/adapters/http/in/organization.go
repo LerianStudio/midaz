@@ -226,8 +226,7 @@ func (handler *OrganizationHandler) countOrganizations(ctx context.Context) (int
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
 // methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload) and delegates to the shared
-// core. The swaggo doc-comments below are preserved verbatim (the migration is
-// ADDITIVE). NOTE: the LIVE organization routes are Huma now (see
+// core. NOTE: the LIVE organization routes are Huma now (see
 // organization_handler_huma.go + RegisterOrganizationRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 

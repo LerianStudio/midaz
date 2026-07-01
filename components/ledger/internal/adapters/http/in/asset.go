@@ -190,9 +190,7 @@ func (handler *AssetHandler) countAssets(ctx context.Context, organizationID, le
 // These stay so the legacy Fiber unit/integration tests keep exercising the
 // handler methods directly; each pulls the transport inputs from *fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `a`) and
-// delegates to the shared core. The swaggo doc-comments below are preserved
-// verbatim (the migration is ADDITIVE; swaggo is unchanged) so the generated api/
-// spec keeps its per-op security. NOTE: the LIVE asset routes are Huma now (see
+// delegates to the shared core. NOTE: the LIVE asset routes are Huma now (see
 // asset_handler_huma.go + RegisterAssetRoutesToApp); these Fiber wrappers are not
 // mounted by the unified server.
 

@@ -22,7 +22,7 @@ import (
 // Holder-specific notes:
 //
 //  1. AUTH is appName "midaz" (crm_routes.go ApplicationName), resource "holders".
-//     The swaggo @Security on the Fiber wrappers is BearerAuth ONLY, so the per-op
+//     The Fiber guard chain is Bearer-only, so the per-op
 //     Security metadata here is Bearer-only too — SPEC metadata only; runtime auth
 //     stays the Fiber guard chain (auth.Authorize("midaz","holders",verb) + tenant
 //     + ParseUUIDPathParameters("holder")) attached BEFORE the Huma terminal.
@@ -42,7 +42,7 @@ import (
 //     sole body validator (never a native Huma 422). Errors go through pkgHTTP.HumaProblem.
 
 // secHolderBearer advertises that each holder operation accepts a JWT bearer token
-// (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC metadata only;
+// (Bearer-only, matching the Fiber guard chain). SPEC metadata only;
 // runtime auth is the Fiber guard chain.
 var secHolderBearer = []map[string][]string{
 	{"BearerAuth": {}},

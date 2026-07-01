@@ -21,8 +21,8 @@ import (
 //
 //  1. AUTH is appName "midaz" (composition_routes.go midazName, resource "accounts",
 //     verb "post"): a tenant that can already open accounts uses composition with no
-//     new RBAC grant. The swaggo @Security on the Fiber wrapper is BearerAuth ONLY,
-//     so the per-op Security metadata here is Bearer-only too — SPEC metadata only;
+//     new RBAC grant. The Fiber guard chain is Bearer-only, so the per-op Security
+//     metadata here is Bearer-only too — SPEC metadata only;
 //     runtime auth stays the Fiber guard chain (auth.Authorize("midaz","accounts",
 //     "post") + tenant + ParseUUIDPathParameters("holder")) attached BEFORE the Huma
 //     terminal, NOT a Huma Security scheme.
@@ -39,7 +39,7 @@ import (
 //     rides the success path here unchanged. Errors go through pkgHTTP.HumaProblem.
 
 // secCompositionBearer advertises that the composition operation accepts a JWT
-// bearer token (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC
+// bearer token (Bearer-only, matching the Fiber guard chain). SPEC
 // metadata only; runtime auth is the Fiber guard chain.
 var secCompositionBearer = []map[string][]string{
 	{"BearerAuth": {}},

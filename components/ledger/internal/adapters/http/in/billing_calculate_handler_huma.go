@@ -21,7 +21,7 @@ import (
 //
 //  1. AUTH is appName "plugin-fees" (fees_routes.go feesApplicationName — the LEGACY
 //     RBAC namespace preserved verbatim), resource "billing-calculate", verb "post".
-//     The swaggo @Security on the Fiber wrapper is BearerAuth ONLY, so the per-op
+//     The Fiber guard chain is Bearer-only, so the per-op
 //     Security metadata here is Bearer-only too — SPEC metadata only; runtime auth
 //     stays the Fiber guard chain (auth.Authorize("plugin-fees","billing-calculate",
 //     "post") + tenant + ParseUUIDPathParameters("billing-calculate")) attached BEFORE

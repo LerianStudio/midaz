@@ -120,7 +120,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
-	@echo "  make generate-docs               - Generate Swagger documentation for all services"
+	@echo "  make generate-docs               - Generate OpenAPI (Huma) documentation for all services"
 	@echo "  make check-docs                  - Verify OpenAPI spec metadata parity (CHECK_DOCS_REGEN=1 also checks drift)"
 	@echo ""
 	@echo ""
@@ -353,9 +353,9 @@ check-telemetry:
 # suite (test-unit already exports ALLOW_INSECURE_TLS=true). Each leg is a separate
 # $(MAKE) under `set -e`, so the first failure aborts and `make ci` exits non-zero.
 # Mirrors the required PR-validation gates so a green `make ci` predicts a green
-# PR: lint, telemetry, protobuf-stub drift, unit tests, and OpenAPI/Swagger doc
+# PR: lint, telemetry, protobuf-stub drift, unit tests, and OpenAPI doc
 # drift (CHECK_DOCS_REGEN). proto-check runs buf via `go run` (no global install);
-# check-docs regenerates the specs, so it needs swag + node + Docker (run
+# check-docs regenerates the specs, so it needs node + redocly (run
 # `make dev-setup` and have Docker up) and is ordered last so the pure-Go gates
 # report first. For the heavier integration/property/chaos matrix run `make ci-tests`.
 .PHONY: ci

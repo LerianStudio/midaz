@@ -276,11 +276,9 @@ func (handler *LedgerHandler) updateLedgerSettings(ctx context.Context, organiza
 // These stay so the legacy Fiber unit/integration tests keep exercising the
 // handler methods directly; each pulls the transport inputs from *fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload) and
-// delegates to the shared core. The swaggo doc-comments are preserved verbatim
-// (the migration is ADDITIVE; swaggo is unchanged) so the generated api/ spec keeps
-// its per-op security. NOTE: once RegisterLedgerRoutesToApp is wired, the LIVE
-// ledger routes are Huma (see ledger_handler_huma.go); these Fiber wrappers are the
-// inline routes.go handlers and keep compiling until the integration task.
+// delegates to the shared core. NOTE: once RegisterLedgerRoutesToApp is wired, the
+// LIVE ledger routes are Huma (see ledger_handler_huma.go); these Fiber wrappers are
+// the inline routes.go handlers and keep compiling until the integration task.
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

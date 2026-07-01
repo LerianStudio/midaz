@@ -15,8 +15,6 @@ require (
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
-	github.com/swaggo/fiber-swagger v1.3.0
-	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/otel v1.44.0
@@ -32,7 +30,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.11.0 // indirect
-	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/bxcodec/dbresolver/v2 v2.2.1
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -41,16 +38,6 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-openapi/jsonpointer v0.23.1 // indirect
-	github.com/go-openapi/jsonreference v0.21.6 // indirect
-	github.com/go-openapi/spec v0.22.5 // indirect
-	github.com/go-openapi/swag/conv v0.26.0 // indirect
-	github.com/go-openapi/swag/jsonname v0.26.0 // indirect
-	github.com/go-openapi/swag/jsonutils v0.26.0 // indirect
-	github.com/go-openapi/swag/loading v0.26.0 // indirect
-	github.com/go-openapi/swag/stringutils v0.26.0 // indirect
-	github.com/go-openapi/swag/typeutils v0.26.0 // indirect
-	github.com/go-openapi/swag/yamlutils v0.26.0 // indirect
 	github.com/go-redsync/redsync/v4 v4.16.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
@@ -64,7 +51,6 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/sony/gobreaker v1.0.0
-	github.com/swaggo/files v1.0.1 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -89,7 +75,6 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/text v0.37.0
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/api v0.283.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect

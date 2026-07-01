@@ -21,8 +21,8 @@ import (
 // conventions. Package-specific notes:
 //
 //  1. AUTH is appName "plugin-fees" (fees_routes.go feesApplicationName — the LEGACY
-//     RBAC namespace preserved verbatim), resource "packages". The swaggo @Security on
-//     the Fiber wrappers is BearerAuth ONLY, so the per-op Security metadata here is
+//     RBAC namespace preserved verbatim), resource "packages". The Fiber guard chain
+//     is Bearer-only, so the per-op Security metadata here is
 //     Bearer-only too — SPEC metadata only; runtime auth stays the Fiber guard chain
 //     (auth.Authorize("plugin-fees","packages",verb) + tenant +
 //     ParseUUIDPathParameters("packages")) attached BEFORE the Huma terminal.
@@ -42,7 +42,7 @@ import (
 //  5. Errors go through the shared pkgHTTP.HumaProblem.
 
 // secPackageBearer advertises that each package operation accepts a JWT bearer token
-// (Bearer-only, matching the Fiber swaggo @Security BearerAuth). SPEC metadata only;
+// (Bearer-only, matching the Fiber guard chain). SPEC metadata only;
 // runtime auth is the Fiber guard chain.
 var secPackageBearer = []map[string][]string{
 	{"BearerAuth": {}},

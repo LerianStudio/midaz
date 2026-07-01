@@ -188,8 +188,7 @@ func (handler *PortfolioHandler) countPortfolios(ctx context.Context, organizati
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
 // methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
-// shared core. The swaggo doc-comments below are preserved verbatim (the migration
-// is ADDITIVE; swaggo is unchanged). NOTE: once wired, the LIVE portfolio routes are
+// shared core. NOTE: once wired, the LIVE portfolio routes are
 // Huma (see portfolio_handler_huma.go + RegisterPortfolioRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 

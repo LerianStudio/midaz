@@ -258,9 +258,7 @@ func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID
 // These stay so the legacy Fiber unit/integration tests keep exercising the
 // handler methods directly; each pulls the transport inputs from *fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and
-// delegates to the shared core. The swaggo doc-comments below are preserved
-// verbatim (the migration is ADDITIVE; swaggo is unchanged) so the generated api/
-// spec keeps its per-op security. NOTE: the LIVE account routes are Huma now (see
+// delegates to the shared core. NOTE: the LIVE account routes are Huma now (see
 // account_handler_huma.go + RegisterAccountRoutesToApp); these Fiber wrappers are
 // not mounted by the unified server.
 

@@ -335,9 +335,7 @@ func parseBalanceHistoryDate(ctx context.Context, span trace.Span, logger libLog
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
 // handler methods directly; each pulls the transport inputs from *fiber.Ctx and
-// delegates to the shared core. The swaggo doc-comments are preserved verbatim
-// (the migration is ADDITIVE; swaggo is unchanged, and the security-coverage CI is
-// ledger-only always-on). NOTE: the LIVE balance routes are Huma now (see
+// delegates to the shared core. NOTE: the LIVE balance routes are Huma now (see
 // balance_handler_huma.go + RegisterBalanceRoutes); these Fiber wrappers are
 // not mounted by the unified server.
 

@@ -187,8 +187,7 @@ func (handler *SegmentHandler) countSegments(ctx context.Context, organizationID
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
 // methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
-// shared core. The swaggo doc-comments below are preserved verbatim (the migration is
-// ADDITIVE). NOTE: the LIVE segment routes become Huma via segment_handler_huma.go +
+// shared core. NOTE: the LIVE segment routes become Huma via segment_handler_huma.go +
 // RegisterSegmentRoutesToApp; these Fiber wrappers keep the inline routes compiling
 // until integration wires the mount.
 
