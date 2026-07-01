@@ -20404,9 +20404,9 @@
         "type": "object"
       },
       "Error": {
-        "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
+        "description": "RFC-9457-aligned error body: a stable machine-readable code, a title, a human message, and optional entityType/fields.",
         "example": {
-          "code": "ERR_INVALID_INPUT",
+          "code": "0147",
           "entityType": "Organization",
           "fields": {
             "key": "fields"
@@ -20416,8 +20416,8 @@
         },
         "properties": {
           "code": {
-            "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT\nmaxLength: 50",
-            "example": "ERR_INVALID_INPUT",
+            "description": "Error code identifying the specific error condition\nexample: 0147\nmaxLength: 50",
+            "example": "0147",
             "maxLength": 50,
             "type": "string"
           },
@@ -20447,6 +20447,11 @@
             "type": "string"
           }
         },
+        "required": [
+          "code",
+          "message",
+          "title"
+        ],
         "type": "object"
       },
       "EventFilter": {

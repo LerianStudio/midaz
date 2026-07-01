@@ -12852,14 +12852,19 @@ const docTemplate = `{
             }
         },
         "Error": {
-            "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
+            "description": "RFC-9457-aligned error body: a stable machine-readable code, a title, a human message, and optional entityType/fields.",
             "type": "object",
+            "required": [
+                "code",
+                "message",
+                "title"
+            ],
             "properties": {
                 "code": {
-                    "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT\nmaxLength: 50",
+                    "description": "Error code identifying the specific error condition\nexample: 0147\nmaxLength: 50",
                     "type": "string",
                     "maxLength": 50,
-                    "example": "ERR_INVALID_INPUT"
+                    "example": "0147"
                 },
                 "entityType": {
                     "description": "Optional type of entity associated with the error\nexample: Organization\nmaxLength: 100",

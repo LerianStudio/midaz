@@ -14017,11 +14017,10 @@ components:
       type: object
     Error:
       description: >-
-        Standardized error response format used across all API endpoints for
-        error situations. Provides structured information about errors including
-        codes, messages, and field-specific validation details.
+        RFC-9457-aligned error body: a stable machine-readable code, a title, a
+        human message, and optional entityType/fields.
       example:
-        code: ERR_INVALID_INPUT
+        code: '0147'
         entityType: Organization
         fields:
           key: fields
@@ -14033,9 +14032,9 @@ components:
         code:
           description: |-
             Error code identifying the specific error condition
-            example: ERR_INVALID_INPUT
+            example: 0147
             maxLength: 50
-          example: ERR_INVALID_INPUT
+          example: '0147'
           maxLength: 50
           type: string
         entityType:
@@ -14074,6 +14073,10 @@ components:
           example: Bad Request
           maxLength: 100
           type: string
+      required:
+        - code
+        - message
+        - title
       type: object
     EventFilter:
       description: >-
