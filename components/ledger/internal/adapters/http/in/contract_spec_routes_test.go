@@ -16,6 +16,7 @@ import (
 	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -77,6 +78,18 @@ func canonicalizePath(p string) string {
 // mode only) — get non-nil zero-value handlers so the full surface matches the
 // served contract.
 func buildUnifiedRouteSurface() *fiber.App {
+	app, _ := buildUnifiedHumaAPI()
+	return app
+}
+
+// buildUnifiedHumaAPI is the shared seam behind buildUnifiedRouteSurface: it
+// composes the exact registrar set the unified ledger server mounts and returns
+// BOTH the Fiber app (for the route-diff gate) and the shared huma.API (for the
+// offline OpenAPI 3.1 spec dump — see openapi_spec_dump_test.go). Keeping the
+// registration in one place means the route-diff gate and the spec dump can never
+// drift onto different surfaces. See buildUnifiedRouteSurface's doc for the full
+// rationale on zero-value handlers and the humaMount mirror.
+func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
 
@@ -150,7 +163,7 @@ func buildUnifiedRouteSurface() *fiber.App {
 		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
 	RegisterCompositionRoutesToApp(apiV1, humaAPI, auth, &CompositionHandler{}, nil)
 
-	return app
+	return app, humaAPI
 }
 
 // collectMountedRoutes returns the normalized "METHOD {path}" set the unified app
