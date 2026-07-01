@@ -56,25 +56,39 @@ type BillingCalculateHandler struct {
 func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
-
 	payload, ok := p.(*model.BillingCalculateRequest)
 	if !ok || payload == nil {
 		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
 	}
+
+	result, err := handler.calculateBilling(ctx, organizationID, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, result)
+}
+
+// calculateBilling is the transport-agnostic core of the calculate op, shared by the
+// Fiber wrapper (CalculateBilling) and the Huma shell. It owns the span, stamps the
+// path org onto the request, runs the handler-level validateBillingCalculateRequest,
+// and calls the service; the caller resolves the org id, decodes the payload, and
+// renders the response/error.
+func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, organizationID uuid.UUID, payload *model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
 
 	payload.OrganizationID = organizationID.String()
 
@@ -87,21 +101,21 @@ func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) er
 	if errValidation := validateBillingCalculateRequest(payload); errValidation != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing calculate request validation failed", errValidation)
 
-		return http.WithError(c, errValidation)
+		return nil, errValidation
 	}
 
 	result, errCalc := handler.Service.Calculate(ctx, *payload)
 	if errCalc != nil {
 		handleSpanByErrorClass(span, "Failed to calculate billing", errCalc)
 
-		return http.WithError(c, errCalc)
+		return nil, errCalc
 	}
 
 	if result == nil {
-		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
+		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation")
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, result)
+	return result, nil
 }
 
 // validateBillingCalculateRequest validates the billing calculate request payload.

@@ -59,25 +59,38 @@ type BillingPackageHandler struct {
 func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_billing_package")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
-
 	payload, ok := p.(*model.BillingPackage)
 	if !ok || payload == nil {
 		return http.WithError(c, feeerrors.ValidateInternalError(nil, feeconstant.EntityBillingPackage))
 	}
+
+	result, err := handler.createBillingPackage(ctx, organizationID, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusCreated, result)
+}
+
+// createBillingPackage is the transport-agnostic core of the create op, shared by the
+// Fiber wrapper (CreateBillingPackage) and the Huma shell. It owns the span, stamps
+// the path org onto the payload, and calls the service; the caller resolves the org
+// id, decodes the payload, and renders the created package/error.
+func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, organizationID uuid.UUID, payload *model.BillingPackage) (*model.BillingPackage, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_billing_package")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
 
 	payload.OrganizationID = organizationID.String()
 
@@ -93,14 +106,14 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 	if errCreate != nil {
 		handleSpanByErrorClass(span, "Failed to create billing package", errCreate)
 
-		return http.WithError(c, errCreate)
+		return nil, errCreate
 	}
 
 	if result == nil {
-		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingPackage"))
+		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingPackage")
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusCreated, result)
+	return result, nil
 }
 
 // GetAllBillingPackages is a method that retrieves all BillingPackages.
@@ -125,22 +138,37 @@ func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) 
 func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_all_billing_packages")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	pagination, err := handler.getAllBillingPackages(ctx, organizationID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
+}
+
+// getAllBillingPackages is the transport-agnostic core of the list op, shared by the
+// Fiber wrapper (GetAllBillingPackages) and the Huma shell. It owns the span, the
+// ledgerId/type/limit/page query parsing+validation, the service call, and the
+// pagination envelope. The caller resolves the org id and passes the raw query map
+// (c.Queries() on Fiber, queriesFromValues(rawQuery) on Huma) so the binder is
+// byte-identical, then renders the envelope/error.
+func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_billing_packages")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	ledgerIDParam := c.Query("ledgerId")
+	ledgerIDParam := queries["ledgerId"]
 
 	var ledgerID *uuid.UUID
 
@@ -150,7 +178,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 			err := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "", "ledgerId")
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledgerId query parameter", err)
 
-			return http.WithError(c, err)
+			return model.Pagination{}, err
 		}
 
 		ledgerID = &parsedLedgerID
@@ -161,32 +189,29 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	limit := 10
 	page := 1
 
-	if l := c.Query("limit"); l != "" {
+	if l := queries["limit"]; l != "" {
 		parsed, errParse := strconv.Atoi(l)
 		if errParse != nil || parsed < 1 {
-			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "limit")
-			return http.WithError(c, validationErr)
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "limit")
 		}
 
 		if parsed > maxPaginationLimit {
-			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrPaginationLimitExceeded, "BillingPackage", maxPaginationLimit)
-			return http.WithError(c, validationErr)
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrPaginationLimitExceeded, "BillingPackage", maxPaginationLimit)
 		}
 
 		limit = parsed
 	}
 
-	if p := c.Query("page"); p != "" {
+	if p := queries["page"]; p != "" {
 		parsed, errParse := strconv.Atoi(p)
 		if errParse != nil || parsed < 1 {
-			validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "page")
-			return http.WithError(c, validationErr)
+			return model.Pagination{}, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidQueryParameter, "BillingPackage", "page")
 		}
 
 		page = parsed
 	}
 
-	billingType := c.Query("type")
+	billingType := queries["type"]
 
 	span.SetAttributes(
 		attribute.String("app.request.ledger_id", ledgerIDParam),
@@ -199,7 +224,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	if errGet != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all billing packages", errGet)
 
-		return http.WithError(c, errGet)
+		return model.Pagination{}, errGet
 	}
 
 	pagination := model.Pagination{
@@ -210,7 +235,7 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 	pagination.SetItems(results)
 	pagination.SetTotal(int(total))
 
-	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
+	return pagination, nil
 }
 
 // GetBillingPackageByID is a method that retrieves a BillingPackage by ID.
@@ -233,11 +258,6 @@ func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error 
 func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_billing_package_by_id")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -247,6 +267,24 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	result, err := handler.getBillingPackageByID(ctx, organizationID, id)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, result)
+}
+
+// getBillingPackageByID is the transport-agnostic core of the get-by-id op, shared by
+// the Fiber wrapper (GetBillingPackageByID) and the Huma shell. It owns the span, the
+// service call, and the error log-level branch; the caller resolves the org+package
+// ids and renders the returned package/error.
+func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context, organizationID, id uuid.UUID) (*model.BillingPackage, error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_billing_package_by_id")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -265,10 +303,10 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 
 		logger.Log(ctx, logLevel, "Failed to retrieve BillingPackage", libLog.String("billing_package_id", id.String()), libLog.Err(errGet))
 
-		return http.WithError(c, errGet)
+		return nil, errGet
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, result)
+	return result, nil
 }
 
 // UpdateBillingPackage is a method that updates a BillingPackage by ID.
@@ -293,11 +331,6 @@ func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error 
 func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_billing_package")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -308,18 +341,34 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 		return http.WithError(c, err)
 	}
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.billing_package_id", id.String()),
-	)
-
 	payload, ok := p.(*model.BillingPackageUpdate)
 	if !ok || payload == nil {
 		return http.WithError(c, feeerrors.ValidateInternalError(nil, feeconstant.EntityBillingPackage))
 	}
 
+	result, err := handler.updateBillingPackage(ctx, organizationID, id, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, result)
+}
+
+// updateBillingPackage is the transport-agnostic core of the update op, shared by the
+// Fiber wrapper (UpdateBillingPackage) and the Huma shell. It owns the span, the
+// merge-patch Validate() + ToMap() + empty-update (ErrNothingToUpdate) guard, and the
+// service call; the caller resolves the org+package ids, decodes the payload, and
+// renders the updated package/error.
+func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, organizationID, id uuid.UUID, payload *model.BillingPackageUpdate) (*model.BillingPackage, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_billing_package")
+	defer span.End()
+
 	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.billing_package_id", id.String()),
 		attribute.Bool("app.request.payload.has_label", payload.Label != nil),
 		attribute.Bool("app.request.payload.has_description", payload.Description != nil),
 		attribute.Bool("app.request.payload.has_enable", payload.Enable != nil),
@@ -328,7 +377,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 	if validationErr := payload.Validate(); validationErr != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid update payload", validationErr)
 
-		return http.WithError(c, validationErr)
+		return nil, validationErr
 	}
 
 	updates := payload.ToMap()
@@ -336,17 +385,17 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 		validationErr := feeerrors.ValidateBusinessError(feeconstant.ErrNothingToUpdate, "BillingPackage")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty update payload", validationErr)
 
-		return http.WithError(c, validationErr)
+		return nil, validationErr
 	}
 
 	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, updates)
 	if errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
-		return http.WithError(c, errUpdate)
+		return nil, errUpdate
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, result)
+	return result, nil
 }
 
 // DeleteBillingPackage is a method that soft-deletes a BillingPackage by ID.
@@ -368,11 +417,6 @@ func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) 
 func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.delete_billing_package")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -382,6 +426,23 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	if err := handler.deleteBillingPackage(ctx, organizationID, id); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
+}
+
+// deleteBillingPackage is the transport-agnostic core of the delete op, shared by the
+// Fiber wrapper (DeleteBillingPackage) and the Huma shell. It owns the span, the
+// service call, and the error log-level branch; the caller resolves the org+package
+// ids and renders the 204/error.
+func (handler *BillingPackageHandler) deleteBillingPackage(ctx context.Context, organizationID, id uuid.UUID) error {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_billing_package")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -399,8 +460,8 @@ func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
 
 		logger.Log(ctx, logLevel, "Failed to remove BillingPackage", libLog.String("billing_package_id", id.String()), libLog.Err(errDelete))
 
-		return http.WithError(c, errDelete)
+		return errDelete
 	}
 
-	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
+	return nil
 }
