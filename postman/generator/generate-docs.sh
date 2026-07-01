@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # Clean documentation generation script
-# Abstracts swag complexity and provides beautiful output
+# Regenerates the native Huma OAS 3.1 dumps and consolidates them for the hub
 
 # Root directory of the repo (this script lives in postman/generator/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -54,94 +54,33 @@ print_step() {
     fi
 }
 
-# Resolve swag even when GOPATH/bin is not on PATH.
-resolve_swag_bin() {
-    if command -v swag >/dev/null 2>&1; then
-        command -v swag
-        return 0
-    fi
-
-    local go_bin=""
-    go_bin="$(go env GOBIN 2>/dev/null || true)"
-
-    if [ -z "${go_bin}" ]; then
-        local go_path=""
-        go_path="$(go env GOPATH 2>/dev/null || true)"
-        if [ -n "${go_path}" ]; then
-            go_bin="${go_path}/bin"
-        fi
-    fi
-
-    if [ -n "${go_bin}" ] && [ -x "${go_bin}/swag" ]; then
-        printf '%s\n' "${go_bin}/swag"
-        return 0
-    fi
-
-    return 1
-}
-
-SWAG_BIN=""
-
-# Generate OpenAPI specs for a component
+# Regenerate a component's native Huma OAS 3.1 dump (components/<c>/api/openapi.huma.yaml)
+# by running its golden-dump test with -update. No swag, no Docker.
 generate_openapi_spec() {
     local component="$1"
-    local component_dir="${ROOT_DIR}/components/${component}"
     local start_time=$(date +%s.%N)
 
-    print_step "Generating ${component} OpenAPI spec" "PROCESSING"
+    print_step "Generating ${component} OpenAPI spec (Huma dump)" "PROCESSING"
 
-    # Redirect all swag output to log files
-    local out_log="${LOG_DIR}/${component}_swag.out"
-    local err_log="${LOG_DIR}/${component}_swag.err"
+    local out_log="${LOG_DIR}/${component}_dump.out"
+    local err_log="${LOG_DIR}/${component}_dump.err"
 
-    local swag_args=(init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml)
-
-    if (cd "${component_dir}" && "${SWAG_BIN}" "${swag_args[@]}" > "${out_log}" 2> "${err_log}"); then
+    if (go -C "${ROOT_DIR}" test -buildvcs=false -run TestOpenAPISpecDump \
+            "./components/${component}/internal/adapters/http/in/" -update \
+            > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
-        print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"
+        print_step "Generated ${component} OpenAPI spec (Huma dump)" "SUCCESS" "${elapsed}"
         return 0
     else
-        print_step "Generate ${component} OpenAPI spec" "FAILED"
+        print_step "Generate ${component} OpenAPI spec (Huma dump)" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         head -5 "${err_log}" | sed 's/^/        /'
         return 1
     fi
 }
 
-# Generate openapi.yaml from swagger JSON using Docker
-generate_openapi_yaml() {
-    local component="$1"
-    local component_dir="${ROOT_DIR}/components/${component}"
-    local start_time=$(date +%s.%N)
-
-    print_step "Generating ${component} openapi.yaml" "PROCESSING"
-
-    local out_log="${LOG_DIR}/${component}_openapi.out"
-    local err_log="${LOG_DIR}/${component}_openapi.err"
-    local swagger_file="swagger.json"
-
-    if (cd "${component_dir}" && \
-        docker run --rm -v ./:/workspace --user "$(id -u):$(id -g)" \
-            openapitools/openapi-generator-cli:v7.10.0 generate \
-            -i "/workspace/api/${swagger_file}" \
-            -g openapi-yaml \
-            -o /workspace/api > "${out_log}" 2> "${err_log}" && \
-        mv api/openapi/openapi.yaml api/openapi.yaml && \
-        rm -rf api/README.md api/.openapi-generator* api/openapi); then
-        local end_time=$(date +%s.%N)
-        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
-        print_step "Generated ${component} openapi.yaml" "SUCCESS" "${elapsed}"
-        return 0
-    else
-        print_step "Generate ${component} openapi.yaml" "FAILED"
-        echo -e "      ${RED}Error details:${NC}"
-        head -5 "${err_log}" | sed 's/^/        /'
-        return 1
-    fi
-}
-
-# Copy generated spec artifacts into postman/specs/<component>/ for the hub
+# Copy the Huma dump into postman/specs/<component>/ for the hub
 publish_specs() {
     local component="$1"
     local api_dir="${ROOT_DIR}/components/${component}/api"
@@ -150,7 +89,7 @@ publish_specs() {
     print_step "Publishing ${component} specs to postman/specs" "PROCESSING"
 
     if mkdir -p "${dest_dir}" && \
-        cp "${api_dir}/swagger.json" "${api_dir}/swagger.yaml" "${api_dir}/openapi.yaml" "${dest_dir}/"; then
+        cp "${api_dir}/openapi.huma.yaml" "${dest_dir}/"; then
         print_step "Published ${component} specs to postman/specs" "SUCCESS"
         return 0
     else
@@ -180,10 +119,10 @@ consolidate_openapi() {
         return 1
     fi
 
-    # 1. Assert all three component specs declare the same openapi: version.
+    # 1. Assert all component specs declare the same openapi: version.
     local ref_version="" version=""
     for component in "${COMPONENTS[@]}"; do
-        local spec="${ROOT_DIR}/components/${component}/api/openapi.yaml"
+        local spec="${ROOT_DIR}/components/${component}/api/openapi.huma.yaml"
         if [ ! -f "${spec}" ]; then
             print_step "Consolidate OpenAPI specs" "FAILED"
             echo -e "      ${RED}Error details:${NC}"
@@ -205,8 +144,8 @@ consolidate_openapi() {
     # 2. Join (ledger first => takes precedence). Run the locally-installed binary
     #    directly so the component paths stay relative to ROOT_DIR.
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
-            components/ledger/api/openapi.yaml \
-            components/tracer/api/openapi.yaml \
+            components/ledger/api/openapi.huma.yaml \
+            components/tracer/api/openapi.huma.yaml \
             --prefix-tags-with-info-prop title \
             -o postman/specs/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
@@ -242,7 +181,7 @@ consolidate_openapi() {
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         echo "        Consolidated spec is missing required securityScheme(s): ${missing}."
-        echo "        Expected both BearerAuth (ledger) and ApiKeyAuth (tracer)."
+        echo "        Expected both BearerAuth and ApiKeyAuth (both declared by the tracer dump)."
         return 1
     fi
 
@@ -347,20 +286,12 @@ verify_outputs() {
 
 # Main execution
 main() {
-    print_header "Generating Swagger API Documentation"
-    
+    print_header "Generating OpenAPI API Documentation"
+
     # Track overall success
     local overall_success=true
 
-    if ! SWAG_BIN="$(resolve_swag_bin)"; then
-        print_step "Resolve swag executable" "FAILED"
-        echo -e "      ${RED}Error details:${NC}"
-        echo "        swag was not found on PATH or in Go's bin directory."
-        echo "        Install it with: go install github.com/swaggo/swag/cmd/swag@v1.16.6"
-        overall_success=false
-    fi
-    
-    # Generate OpenAPI specs for each component
+    # Regenerate each component's native Huma OAS 3.1 dump via its golden test.
     if [ "$overall_success" = true ]; then
         for component in "${COMPONENTS[@]}"; do
             if ! generate_openapi_spec "$component"; then
@@ -370,18 +301,8 @@ main() {
         done
     fi
 
-    # Generate openapi.yaml for each component
-    if [ "$overall_success" = true ]; then
-        for component in "${COMPONENTS[@]}"; do
-            if ! generate_openapi_yaml "$component"; then
-                overall_success=false
-                break
-            fi
-        done
-    fi
-
     # Publish spec artifacts into postman/specs/<component>/ (copies; the api/
-    # directory stays the swag output home that Go and the contract test import)
+    # directory stays the dump home that Go and the contract test import)
     if [ "$overall_success" = true ]; then
         for component in "${COMPONENTS[@]}"; do
             if ! publish_specs "$component"; then
