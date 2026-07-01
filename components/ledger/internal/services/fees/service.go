@@ -238,3 +238,19 @@ func (uc *UseCase) invalidatePackageCache(ctx context.Context, logger libLog.Log
 		logger.Log(ctx, libLog.LevelWarn, "Failed to invalidate fee package cache", libLog.Err(err))
 	}
 }
+
+// segmentIDToString maps an optional segment UUID to an optional string.
+func segmentIDToString(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+
+	s := id.String()
+
+	return &s
+}
+
+// enableOrFalse dereferences an optional enable flag, defaulting to false.
+func enableOrFalse(enable *bool) bool {
+	return enable != nil && *enable
+}

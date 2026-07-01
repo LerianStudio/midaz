@@ -10,16 +10,21 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability"
 
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CreatePackage creates a new pack persists data in the repository.
@@ -104,7 +109,21 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 	// transaction create re-fetches the now-changed set instead of a stale one.
 	uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
 
+	uc.emitFeesPackageCreatedEvent(ctx, span, logger, resultPackModel, organizationID)
+
 	return resultPackModel, nil
+}
+
+// emitFeesPackageCreatedEvent publishes fees-package.created. IMPORTANT posture.
+func (uc *UseCase) emitFeesPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *pack.Package, organizationID uuid.UUID) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesPackageCreated(
+				p.ID.String(), organizationID.String(), p.LedgerID.String(),
+				segmentIDToString(p.SegmentID), p.TransactionRoute, enableOrFalse(p.Enable),
+				p.CreatedAt, p.UpdatedAt,
+			).ToEmitRequest(tenantID, p.CreatedAt)
+		})
 }
 
 // validateExistenceOfAccountOnMidaz validates that all credit accounts referenced by fees exist on Midaz.
