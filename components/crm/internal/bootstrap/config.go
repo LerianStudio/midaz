@@ -239,7 +239,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
 	}
 
-	// INVARIANT: every error return below this point MUST call _ = streamingClose() to drain the producer on partial boot.
+	// Drain the streaming producer on any partial-boot error return below. On
+	// success the cleanup is disarmed (swapped to a no-op) because the Service
+	// then owns the drain on SIGTERM. The defer covers every error path —
+	// including ones added later — without each return closing manually.
+	streamingCleanup := streamingClose
+
+	defer func() { _ = streamingCleanup() }()
 
 	useCases := &services.UseCase{
 		HolderRepo: holderMongoDBRepository,
@@ -267,21 +273,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {
-		_ = streamingClose()
-
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}
 
 	// Build readyz handler with MongoDB and Vault checkers (reuses the shared metricsFactory)
 	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, kms, metricsFactory)
 	if err != nil {
-		_ = streamingClose()
-
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
 
 	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
+
+	streamingCleanup = noopStreamingCloser
 
 	return &Service{
 		Server:                  serverAPI,
