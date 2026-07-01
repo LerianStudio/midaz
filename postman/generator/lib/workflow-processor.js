@@ -11,13 +11,19 @@
  * the complete workflow from markdown and collection inputs.
  */
 
-const { v4: uuidv4 } = require('uuid');
+const { v5: uuidv5 } = require('uuid');
 const { MarkdownParser } = require('./markdown-parser');
 const { RequestMatcher } = require('./request-matcher');
 const { VariableMapper } = require('./variable-mapper');
 const { PathResolver } = require('./path-resolver');
 const { RequestBodyGenerator } = require('./request-body-generator');
 const { generateEnhancedTestScript, generateEnhancedPreRequestScript, generateWorkflowSummaryScript } = require('../enhance-tests');
+
+// Fixed namespace for deterministic Postman element ids. uuidv5(seed, NS) is
+// stable across runs given the same seed, so the generated collection stays
+// byte-identical (a random uuidv4 would drift every run).
+const ID_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+const stableId = (seed) => uuidv5(seed, ID_NAMESPACE);
 
 class WorkflowProcessor {
   constructor(config) {
@@ -241,7 +247,7 @@ class WorkflowProcessor {
     workflowItem.event.push({
       listen: 'test',
       script: {
-        id: uuidv4(),
+        id: stableId(`workflow-test-${step.number}`),
         exec: [testScript],
         type: 'text/javascript'
       }
@@ -250,7 +256,7 @@ class WorkflowProcessor {
     workflowItem.event.push({
       listen: 'prerequest',
       script: {
-        id: uuidv4(),
+        id: stableId(`workflow-prerequest-${step.number}`),
         exec: [preRequestScript],
         type: 'text/javascript'
       }
@@ -333,7 +339,7 @@ if (pm.response.code === 200) {
         {
           listen: "test",
           script: {
-            id: uuidv4(),
+            id: stableId(`placeholder-test-${step.method}-${step.path}`),
             exec: [
               `// Request not found in collection for: ${step.method} ${step.path}`,
               `// Variables to extract: ${JSON.stringify(step.outputs)}`,
@@ -357,7 +363,7 @@ if (pm.response.code === 200) {
       name: "Complete API Workflow",
       description: "A sequence of API calls representing a typical workflow, generated from WORKFLOW.md.",
       item: workflowItems,
-      _postman_id: uuidv4(),
+      _postman_id: stableId('workflow-folder'),
       event: []
     };
 
@@ -377,7 +383,7 @@ if (pm.response.code === 200) {
         {
           listen: "test",
           script: {
-            id: uuidv4(),
+            id: stableId('workflow-summary-test'),
             exec: [generateWorkflowSummaryScript(steps.length)],
             type: "text/javascript"
           }

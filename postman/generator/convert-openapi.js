@@ -73,6 +73,11 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
+// Fixed timestamp for date-time example fields. Using a constant instead of
+// new Date().toISOString() keeps the generated collection byte-identical across
+// runs so it can sit clean under a drift check.
+const EXAMPLE_DATE_TIME = '2025-01-01T00:00:00Z';
+
 //=============================================================================
 // COMMAND LINE ARGUMENT HANDLING
 //=============================================================================
@@ -1769,7 +1774,7 @@ function generateObjectExample(schema, path = '', url = '') {
         if (propSchema.format === 'uuid') {
           example[propName] = null;
         } else if (propSchema.format === 'date-time') {
-          example[propName] = new Date().toISOString();
+          example[propName] = EXAMPLE_DATE_TIME;
         } else if (propName.toLowerCase().includes('status')) {
           // Follow project standard for status fields - always use {"code": "ACTIVE"}
           example[propName] = { code: "ACTIVE" };
@@ -1974,7 +1979,7 @@ function generateExampleFromSchema(schema, spec, url = '') {
     if (schema.format === 'uuid') {
       return '00000000-0000-0000-0000-000000000000';
     } else if (schema.format === 'date-time') {
-      return new Date().toISOString();
+      return EXAMPLE_DATE_TIME;
     } else if (schema.enum && schema.enum.length > 0) {
       return schema.enum[0];
     }
@@ -2011,7 +2016,7 @@ function buildExampleFromProperties(properties, spec) {
         if (propSchema.format === 'uuid') {
           example[propName] = null;
         } else if (propSchema.format === 'date-time') {
-          example[propName] = new Date().toISOString();
+          example[propName] = EXAMPLE_DATE_TIME;
         } else if (propName.toLowerCase().includes('status')) {
           // Follow project standard for status fields - always use {"code": "ACTIVE"}
           example[propName] = { code: "ACTIVE" };
