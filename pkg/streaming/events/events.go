@@ -49,3 +49,12 @@ type Definition struct {
 func (d Definition) Key() string {
 	return d.ResourceType + "." + d.EventType
 }
+
+// Deletion-type values carried on every *.deleted event. "soft" sets DeletedAt
+// and retains the record; "hard" purges it. Consumers branch on this to decide
+// retention/erasure semantics. Package-neutral so any aggregate's deleted event
+// shares the same wire literals.
+const (
+	deletionTypeSoft = "soft"
+	deletionTypeHard = "hard"
+)

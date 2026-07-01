@@ -7,9 +7,9 @@ package events
 import "github.com/google/uuid"
 
 // derefString returns the pointed-to string, or "" when the pointer is nil.
-// Used by the holder events because mmodel.Holder types its scalars as *string;
+// Used by the CRM events because their mmodel sources type scalars as *string;
 // a nil-safe deref keeps the constructors panic-free on a partially-built
-// holder.
+// domain object.
 func derefString(s *string) string {
 	if s == nil {
 		return ""

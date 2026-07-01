@@ -12,26 +12,24 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming"
 )
 
-// HolderDeletedDefinition is the routing contract for holder.deleted.
+// AliasDeletedDefinition is the routing contract for alias.deleted.
 // IMPORTANT posture: emit failures MUST NOT fail the request; durability is
 // owned by PG + (follow-up task) the outbox subsystem.
-var HolderDeletedDefinition = Definition{
-	ResourceType:  "holder",
+var AliasDeletedDefinition = Definition{
+	ResourceType:  "alias",
 	EventType:     "deleted",
 	SchemaVersion: "1.0.0",
 }
 
-// HolderDeletedPayload is the wire payload for holder.deleted. Kept minimal:
-// identity, organization scope, the deletion type (soft vs hard), and the
-// deletion timestamp. No classification type or correlation externalId is
-// carried, and no PII ever crosses the wire. The JSONShape test
-// (holder_deleted_test.go) locks the present key set AND the absence of every
-// PII key.
-//
-// Idempotency hint for consumers: id + deletedAt is unique per deletion;
-// consumers safe-deduping on that pair can replay this event without effect.
-type HolderDeletedPayload struct {
+// AliasDeletedPayload is the wire payload for alias.deleted. Kept minimal:
+// identity, holder + organization scope, the deletion type (soft vs hard), and
+// the deletion timestamp. Unlike holder.deleted it carries holderId so
+// consumers can attribute the removal to a holder without a lookup. No
+// classification, references, or PII ever cross the wire. The JSONShape test
+// locks the present key set AND the absence of every PII key.
+type AliasDeletedPayload struct {
 	ID             string `json:"id"`
+	HolderID       string `json:"holderId"`
 	OrganizationID string `json:"organizationId"`
 
 	// DeletionType is "soft" or "hard", derived from the hardDelete flag at
@@ -42,19 +40,20 @@ type HolderDeletedPayload struct {
 	DeletedAt string `json:"deletedAt"`
 }
 
-// NewHolderDeleted builds the wire payload from the identifiers and flags
-// available at the emit site. The holder record is not required (and on a hard
-// delete may already be gone); id, organizationID, the hardDelete flag, and the
+// NewAliasDeleted builds the wire payload from the identifiers and flags
+// available at the emit site. The alias record is not required (and on a hard
+// delete may already be gone); the ids, the hardDelete flag, and the
 // post-commit deletedAt instant are all the emit site has and all the contract
 // needs. deletionType derives from hardDelete.
-func NewHolderDeleted(id, organizationID string, hardDelete bool, deletedAt time.Time) HolderDeletedPayload {
+func NewAliasDeleted(id, holderID, organizationID string, hardDelete bool, deletedAt time.Time) AliasDeletedPayload {
 	deletionType := deletionTypeSoft
 	if hardDelete {
 		deletionType = deletionTypeHard
 	}
 
-	return HolderDeletedPayload{
+	return AliasDeletedPayload{
 		ID:             id,
+		HolderID:       holderID,
 		OrganizationID: organizationID,
 		DeletionType:   deletionType,
 		DeletedAt:      deletedAt.Format(time.RFC3339),
@@ -62,19 +61,19 @@ func NewHolderDeleted(id, organizationID string, hardDelete bool, deletedAt time
 }
 
 // ToEmitRequest assembles a libStreaming.EmitRequest ready for the Emitter. ts
-// is typically the same wall-clock instant passed into NewHolderDeleted as
-// deletedAt.
+// is typically the same wall-clock instant passed into NewAliasDeleted as
+// deletedAt. Subject is the alias ID (the aggregate).
 //
 // Returns a wrapped json.Marshal error so callers can decide whether to log
 // Warn (IMPORTANT posture) or fail the request (CRITICAL posture).
-func (p HolderDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
+func (p AliasDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {
-		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", HolderDeletedDefinition.Key(), err)
+		return libStreaming.EmitRequest{}, fmt.Errorf("marshal %s payload: %w", AliasDeletedDefinition.Key(), err)
 	}
 
 	return libStreaming.EmitRequest{
-		DefinitionKey: HolderDeletedDefinition.Key(),
+		DefinitionKey: AliasDeletedDefinition.Key(),
 		TenantID:      tenantID,
 		Subject:       p.ID,
 		Timestamp:     ts,
