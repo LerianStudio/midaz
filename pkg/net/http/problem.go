@@ -58,33 +58,43 @@ func classifyForProblem(err error) (code, msg, title, entityType string, status 
 	if e := (pkg.EntityNotFoundError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusNotFound, true
 	}
+
 	if e := (pkg.EntityConflictError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusConflict, true
 	}
+
 	if e := (pkg.ValidationError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusBadRequest, true
 	}
+
 	if e := (pkg.UnprocessableOperationError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusUnprocessableEntity, true
 	}
+
 	if e := (pkg.UnauthorizedError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusUnauthorized, true
 	}
+
 	if e := (pkg.ForbiddenError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusForbidden, true
 	}
+
 	if e := (pkg.ValidationKnownFieldsError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusBadRequest, true
 	}
+
 	if e := (pkg.ValidationUnknownFieldsError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusBadRequest, true
 	}
+
 	if e := (pkg.InternalServerError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusInternalServerError, true
 	}
+
 	if e := (pkg.FailedPreconditionError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusInternalServerError, true // NOT 412 — §1 row 11
 	}
+
 	if e := (pkg.ServiceUnavailableError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusServiceUnavailable, true
 	}
