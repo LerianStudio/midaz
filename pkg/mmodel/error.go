@@ -7,22 +7,22 @@ package mmodel
 // Error represents a standardized API error response format
 //
 // swagger:model Error
-// @Description Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.
+// @Description RFC-9457-aligned error body: a stable machine-readable code, a title, a human message, and optional entityType/fields.
 type Error struct {
 	// Error code identifying the specific error condition
-	// example: ERR_INVALID_INPUT
+	// example: 0147
 	// maxLength: 50
-	Code string `json:"code" example:"ERR_INVALID_INPUT" maxLength:"50"`
+	Code string `json:"code" validate:"required" example:"0147" maxLength:"50"`
 
 	// Short, human-readable error title
 	// example: Bad Request
 	// maxLength: 100
-	Title string `json:"title" example:"Bad Request" maxLength:"100"`
+	Title string `json:"title" validate:"required" example:"Bad Request" maxLength:"100"`
 
 	// Detailed error message explaining the issue
 	// example: The request contains invalid fields. Please check the field 'name' and try again.
 	// maxLength: 500
-	Message string `json:"message" example:"The request contains invalid fields. Please check the field 'name' and try again." maxLength:"500"`
+	Message string `json:"message" validate:"required" example:"The request contains invalid fields. Please check the field 'name' and try again." maxLength:"500"`
 
 	// Optional type of entity associated with the error
 	// example: Organization
