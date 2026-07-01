@@ -2187,8 +2187,6 @@ func TestFee_SetAndValidateHasFieldsToUpdate(t *testing.T) {
 						assert.Contains(t, validationErr.Code, tt.errCode)
 					} else if validationErr, ok := err.(pkg.ValidationError); ok {
 						assert.Contains(t, validationErr.Code, tt.errCode)
-					} else if httpErr, ok := err.(*pkg.HTTPError); ok {
-						assert.Contains(t, httpErr.Code, tt.errCode)
 					}
 				}
 			} else {

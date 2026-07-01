@@ -275,36 +275,6 @@ func TestUnprocessableOperationError_Error(t *testing.T) {
 	}
 }
 
-func TestHTTPError_Error(t *testing.T) {
-	tests := []struct {
-		name     string
-		errorObj HTTPError
-		expected string
-	}{
-		{
-			name: "With message",
-			errorObj: HTTPError{
-				Message: "HTTP error occurred",
-			},
-			expected: "HTTP error occurred",
-		},
-		{
-			name: "Empty message",
-			errorObj: HTTPError{
-				Message: "",
-			},
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.errorObj.Error()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestFailedPreconditionError_Error(t *testing.T) {
 	tests := []struct {
 		name     string

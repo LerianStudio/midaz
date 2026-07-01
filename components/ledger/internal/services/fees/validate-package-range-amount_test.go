@@ -264,9 +264,7 @@ func TestValidatePackageMaxAndMinAmountRange(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errCode != "" {
-					if httpErr, ok := err.(*pkg.HTTPError); ok {
-						assert.Contains(t, httpErr.Code, tt.errCode)
-					} else if validationErr, ok := err.(*pkg.ValidationError); ok {
+					if validationErr, ok := err.(*pkg.ValidationError); ok {
 						assert.Contains(t, validationErr.Code, tt.errCode)
 					}
 				}

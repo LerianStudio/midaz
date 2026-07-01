@@ -136,19 +136,6 @@ func (e UnprocessableOperationError) Error() string {
 	return e.Message
 }
 
-// HTTPError indicates an http error raised in an http client.
-type HTTPError struct {
-	EntityType string `json:"entityType,omitempty"`
-	Title      string `json:"title,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Code       string `json:"code,omitempty"`
-	Err        error  `json:"err,omitempty"`
-}
-
-func (e HTTPError) Error() string {
-	return e.Message
-}
-
 // FailedPreconditionError indicates a precondition failed during an operation.
 type FailedPreconditionError struct {
 	EntityType string `json:"entityType,omitempty"`

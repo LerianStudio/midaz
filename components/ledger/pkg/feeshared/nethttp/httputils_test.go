@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -213,10 +212,6 @@ func TestValidateParameters_DateValidation(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
-
-			if httpErr, ok := err.(*pkg.HTTPError); ok {
-				assert.Contains(t, httpErr.Code, tt.errCode)
-			}
 		})
 	}
 }
@@ -315,10 +310,6 @@ func TestValidateParameters_PaginationValidation(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
-
-				if httpErr, ok := err.(*pkg.HTTPError); ok {
-					assert.Contains(t, httpErr.Code, tt.errCode)
-				}
 				return
 			}
 
