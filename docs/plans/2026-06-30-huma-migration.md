@@ -1,470 +1,151 @@
 # Migração swaggo→Huma + Envelope de Erro Unificado (RFC 9457) no midaz
 
-> **Para implementadores:** Use ring:executing-plans (rolling wave), ou
-> ring:dispatching-workflows para rodar cada fase como workflow multi-agente
-> revisado. **Motor recomendado desta migração:** a skill
-> `ring:adopting-lib-commons-huma-wrapper` (playbook de 11 gates, TDD, despacha
-> `ring:backend-go`) — ela já codifica os landmines desta migração. Este
-> documento é a fonte viva de verdade; a elaboração de tasks das fases
-> posteriores é escrita de volta aqui durante a execução.
+> **Para implementadores:** documento rolling-wave (`ring:writing-plans`).
+> Fases completas ficam colapsadas em registros Done + as lições que ainda
+> vinculam o trabalho restante; a fase corrente é a única detalhada a nível de
+> task. Execução via `ring:dispatching-workflows` (um workflow por onda:
+> implement → review → contrarian embutidos, self-heal, gate do supervisor).
+> Esta é a fonte viva de verdade; o histórico gate-a-gate vive no git.
 >
-> **Local:** `docs/plans/2026-06-30-huma-migration.md` no worktree dedicado
-> `/Users/fredamaral/repos/lerianstudio/midaz-huma` (repo `midaz`, branch
-> `feat/monorepo-consolidation`). Aprovado por Fred em 2026-06-30.
+> **Local:** worktree dedicado `/Users/fredamaral/repos/lerianstudio/midaz-huma`
+> (repo `midaz`, módulo `github.com/LerianStudio/midaz/v4`, branch
+> `feat/monorepo-consolidation` — **não** `main`; consentimento explícito do
+> Fred em 2026-06-30). Comandos Go exigem `-buildvcs=false`.
 
-**Goal:** Migrar os dois planos HTTP do midaz (ledger + tracer) de swaggo/Fiber-nativo para o wrapper Huma do lib-commons (`commons/net/http/{openapi,problem}`), adotando `problem.Detail` (RFC 9457) como o **único** envelope de erro, com **identidade total de schema** entre os planos e **preservação byte-a-byte** de todos os ~585 códigos de erro e seu mapeamento code→status. Entregável final: specs OAS 3.1 pristine e em paridade que o `midaz-sdk-golang` v4 vai consumir.
+**Goal:** Migrar os dois planos HTTP do midaz (ledger + tracer) de swaggo/Fiber-nativo para o wrapper Huma do lib-commons (`commons/net/http/{openapi,problem}`), adotando `problem.Detail` (RFC 9457) como o **único** envelope de erro, com **identidade total de schema `Error`** entre os planos e **preservação byte-a-byte** de todos os códigos de erro e seu mapeamento code→status. Entregável final: specs OAS 3.1 pristine e em paridade que o `midaz-sdk-golang` v4 vai consumir.
 
-**Architecture:** Introdução greenfield do wrapper Huma (zero adoção hoje). O envelope de erro é a espinha money-path, então ele vem primeiro e sozinho (Fase 1), guardado por um golden test que varre toda a tabela code→status e trava antes de qualquer swap de dispatcher. Só depois vem a reescrita de assinatura dos 146 handlers, plano a plano (tracer piloto → ledger), e por fim a troca do pipeline de geração de spec para emissão Huma 3.1 nativa com trava de paridade. Fiber permanece v2.52.13 (o wrapper usa `humafiber.NewV2WithGroup`; **sem upgrade de framework**).
+**Architecture:** O envelope de erro é a espinha money-path — vem primeiro e sozinho (Fase 1), guardado por um golden test que varre toda a tabela code→status e trava antes e depois do swap de dispatcher. Depois a reescrita de assinatura dos handlers, plano a plano (tracer piloto → ledger), preservando auth como middleware Fiber e declarando `Security` por-op só no spec. Por fim (Fase 4) a troca do pipeline de geração para emissão Huma 3.1 nativa com trava de paridade. Fiber permanece v2.52.13 (`humafiber.NewV2WithGroup`; **sem upgrade de framework**).
 
-**Tech Stack:** Go 1.26.4 · Fiber v2.52.13 (mantido) · `github.com/LerianStudio/lib-commons/v5 v5.8.0` (`commons/net/http/openapi` + `commons/net/http/problem`) · `github.com/danielgtaylor/huma/v2 v2.38.0` (via `humafiber`) · OpenAPI 3.1.0 · `@redocly/cli join` (mantido) · `testify` + `app.Test` (não `humatest`).
+**Tech Stack:** Go 1.26.x · Fiber v2.52.13 (mantido) · `lib-commons/v5 v5.8.0` (`commons/net/http/{openapi,problem}`) · `huma/v2 v2.38.0` (via `humafiber`) · OpenAPI 3.1.0 · `@redocly/cli join` (mantido) · `testify` + `app.Test`.
+
+**Superfície verificada:** tracer = **28 ops protegidas** migradas para Huma + **3 públicas** (health/version/readyz) que ficam Fiber cru fora do group `/v1`. ledger = **113 ops** em Huma. DSL multipart de transação (`.casl`) **não migra** (sunset 2026-08-01) — fica Fiber, fora do spec Huma. Total Huma: **141 ops**.
 
 ## Phase Overview
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | Envelope RFC 9457 no runtime dos dois planos; golden test code→status verde antes e depois do swap; zero código/status alterado | 1.1, 1.2, 1.3 | **Complete** |
-| 2 | Tracer 100% Huma: 28 ops protegidas re-tipadas, spec OAS 3.1 nativa ADITIVA (swaggo intacto), auth (Bearer+ApiKey) declarada por-op; served == spec | 2.1, 2.2, 2.3 | **Complete** |
-| 3 | Ledger 100% Huma: 113 ops re-tipadas, auth route-chain → Security por-op preservando granularidade resource/verb (Epic 3.3 pkg.HTTPError deferido p/ Fase 4) | 3.1, 3.2, 3.3 | Complete |
-| 4 | Pipeline 2-planos migrado para Huma 3.1 nativo, `redocly join` + guard preservados, identidade total de schema, paridade pristine verificada | 4.1, 4.2 | Epic-level |
+| 1 | Envelope RFC 9457 no runtime dos 2 planos; golden code→status verde antes/depois do swap; zero código/status alterado | 1.1, 1.2, 1.3 | Complete |
+| 2 | Tracer 100% Huma: 28 ops re-tipadas, spec OAS 3.1 nativa ADITIVA (swaggo intacto), auth Bearer+ApiKey por-op | 2.1, 2.2, 2.3 | Complete |
+| 3 | Ledger 100% Huma: 113 ops re-tipadas, auth route-chain → Security por-op nos 3 namespaces (midaz/routing/plugin-fees) | 3.1, 3.2 | Complete |
+| 4 | Pipeline 2-planos migrado para Huma 3.1 nativo; swaggo aposentado; `pkg.HTTPError` morto deletado; identidade total de schema `Error`; paridade pristine travada; `make ci` verde | 4.1, 4.2 | Detailed (Task 4.0 Done) |
 
 ---
 
-## Decisões travadas (contexto para todos os implementadores)
+## Decisões travadas (contexto vinculante para todos os implementadores)
 
-1. **Shape canônico = `problem.Detail` (RFC 9457)**, não a Opção B minimalista. Decisão do Fred no checkpoint Wave 1a: adotar o lib-commons de verdade (terceiro rail), não um alias de doc.
+1. **Shape canônico = `problem.Detail` (RFC 9457)** — adotar o lib-commons de verdade (terceiro-trilho), não um alias de doc. Superset local `Detail{ problem.Detail; EntityType string }`.
 2. **Paridade = identidade total**, incluindo `@name` unificado (`Error` nos dois planos). Não basta mesmo conjunto de campos.
-3. **Branch = direto na `feat/monorepo-consolidation`** no `../midaz`. Não é `main`/`master`; consentimento explícito dado.
-4. **Money path é terceiro rail:** o envelope pode mudar de **shape**; **códigos, semântica e status HTTP não**. Toda mudança que toca `pkg/errors.go`, `pkg/constant/errors.go`, `pkg/net/http/errors.go` passa pelo golden test.
-5. **Motor de execução:** **um workflow `ring:dispatching-workflows` por fase**, com reviewers **e fixers embedded** (self-heal: fix → re-review dentro da própria onda), usando o conhecimento da skill `ring:adopting-lib-commons-huma-wrapper` (modo migração-de-swaggo; Gate 6 "deletar wrapper local" pulado — não existe wrapper Huma local hoje) como disciplina de implementação. Rolling wave: uma fase detalhada por vez; checkpoint com Fred entre fases.
+3. **Branch = direto na `feat/monorepo-consolidation`** no `../midaz`. Consentimento explícito dado.
+4. **Money path é terceiro-trilho:** o envelope pode mudar de **shape**; **códigos, semântica e status HTTP não**. Toda mudança que toca `pkg/errors.go`, `pkg/constant/errors.go`, `pkg/net/http/errors.go` passa pelo golden test.
+5. **Motor de execução:** um workflow `ring:dispatching-workflows` por onda, reviewers **e** fixers embutidos (self-heal: fix → re-review dentro da onda). Rolling wave: uma fase/onda detalhada por vez; supervisor faz gate independente em cada retorno (nunca confia no status do harness).
 
-### Decisão aprovada — Scrub de 5xx (ACEITO)
-
-Adotar `problem.Install()` faz respostas 500/503 terem `title`→`"Internal Server Error"` e `detail`→`"internal error"` (texto sanitizado). **`code` e `status` sobrevivem verbatim** — invariante money-path mantida —; muda só o **texto** dos corpos 5xx. É fechamento deliberado de vazamento de causa interna e o comportamento canônico do lib-commons. **Fred aprovou 100% em 2026-06-30.** O golden test afere só code+status, então continua verde; asserção de texto em 5xx iria — corretamente — a vermelho (não a incluímos).
+**Scrub de 5xx (ACEITO — Fred, 2026-06-30):** `problem.Install()` sanitiza o **texto** de 500/503 (`title`→"Internal Server Error", `detail`→"internal error"). **`code` e `status` sobrevivem verbatim** — invariante money-path mantida. O golden afere só code+status, então continua verde.
 
 ---
 
-## Fase 1 — Fundação do envelope de erro (money-path)
+## Fase 1 — Fundação do envelope de erro (money-path) · **Complete**
 
-**Milestone:** Os dois planos passam a emitir corpos de erro no shape RFC 9457 em runtime. O golden test varre toda a tabela code→status e está **verde antes e depois** do swap. Nenhum código, semântica ou status HTTP muda. Handlers **não** são tocados nesta fase.
+**Entregue (2026-07-01):** os dois planos emitem `application/problem+json` (RFC 9457) em runtime; `WithError` reescrito para construir/serializar `*Detail` preservando code+status byte-a-byte; `mmodel.Error` limpo + política de tags; golden test auto-gerador (`pkg/net/http/errors_golden_test.go`, `TestGolden`) varre toda a tabela code→status e fica **verde antes e depois** do swap. Nenhum handler tocado. Commits-âncora: `4793eca44` (golden), `270bc45ef` (swap WithError→problem), `7ca117f9a` (mmodel.Error), `88ab870aa`+`b5cf781d8` (reconciliação de 264 testes de handler, 0 asserções de code/status removidas).
 
-**Nota de estado interino (bounded, documentada):** ao fim da Fase 1 o runtime emite `problem+json` mas as specs ainda são swaggo (shape antigo). Essa divergência runtime↔spec é intra-branch, não-liberada, e é resolvida por-plano nas Fases 2–3 quando a geração Huma 3.1 entra. O golden test guarda as invariantes money-path durante todo o interino. Este staging é explicitamente endossado pela mecânica do `MapError` (retorna um `*Detail` concreto, independente do transporte Huma).
-
-### ✅ Fase 1 CONCLUÍDA (2026-07-01)
-
-Executada em duas ondas `ring:dispatching-workflows`. **PASS** verificado pelo supervisor:
-- **Onda 1** (golden + swap + mmodel): commits `4793eca44` (golden net code→status), `270bc45ef` (swap `WithError`→`problem`/RFC 9457), `7ca117f9a` (`mmodel.Error`), `e9ce63c24` (guarda do braço `libCommons.Response` no golden).
-- **Onda 2** (fix-wave de reconciliação): o flip de envelope deixou 264 testes de handler vermelhos (todos shape-drift, zero regressão de code/status). Reconciliados pro RFC 9457 preservando code+status byte-a-byte: commits `88ab870aa` (ledger, 128 subtests) + `b5cf781d8` (tracer, 46). Auditoria de diff: 0 linhas removendo asserção de code/status.
-- **Gate independente do supervisor:** `go test ./...` verde, golden net verde (`-count=10 -race` limpo), só `_test.go` tocado na onda 2.
-
-**Lição de harness (aplicada às fases seguintes):** contrarians são **read-only** (proibido mutar fonte no worktree compartilhado — foi o que gerou um falso 409→400 na onda 1) e reviewers **rodam a suíte downstream inteira** (não só o diff).
-
-**⚠️ RESÍDUO bounded → fecha na Fase 3:** existe um **terceiro** caminho produtor de status que a análise r3 não pegou: `pkg/net/http/withBody.go → response.BadRequest()` (JSON cru), usado pela **validação de campo do decode wrapper** dos handlers `WithBody`. Ele NÃO foi trocado na Fase 1, então ~7 respostas 400 de validação de campo (holder/instrument CreateXxx, códigos 0009/0050/0051) ainda emitem o envelope legado `{code,title,message,fields}`. **Não é money-path** (code+status intactos) e **se aposenta sozinho na Fase 3**, quando os handlers ledger migram pra Huma e o `withBody.go` decode wrapper é substituído por In-structs tipadas + 400/422 nativos do Huma. Não swapar agora = evitar trabalho jogado fora + não abrir superfície money-path nova sem golden. **A Fase 3 (Epic 3.1) deve fechar isto explicitamente e o golden/parity deve verificar.**
-
-### Epic 1.1: Golden test da tabela code→status (a rede money-path)
-
-**Goal:** Um teste auto-gerador que varre todos os sentinels de `pkg/constant/errors.go` + os caminhos de helper + os dois braços de status explícito, afere `(code, status)` e está verde contra o `WithError` atual.
-**Scope:** `pkg/net/http/` (novo `errors_golden_test.go`), leitura de `pkg/errors.go` + `pkg/constant/errors.go`.
-**Dependencies:** nenhuma.
-**Done when:** teste verde no código atual; prova de RED deliberado documentada (perturbar um braço → vermelho → reverter); cobre os 3 casos ambíguos (0485→405, 0143→413, 0094→status 94).
-**Status:** Pending
-
-#### Task 1.1.1: Golden test auto-gerador sobre toda a tabela code→status
-
-- [ ] Done
-
-**Context:** Os testes de contrato existentes (`components/ledger/internal/adapters/http/in/{crm,fee,mainline}_error_contract_test.go` = 45 casos escolhidos a dedo, `tracer_error_contract_test.go` = 24) são spot-checks, **não** varredura. A tabela real vive em `WithError` (`pkg/net/http/errors.go:26-111`) + os helpers de `pkg/net/http/response.go`, e o status é função do **tipo Go** escolhido em `ValidateBusinessError` (`pkg/errors.go:391`), nunca do código numérico. Há **dois** dispatchers de status: `WithError` e `CanonicalFiberErrorHandler`/`renderCanonical` (`pkg/net/http/fiber_error_handler.go:28-75`), este último emite 405/413 com status explícito.
-
-**Implementation vision:** Criar `pkg/net/http/errors_golden_test.go` (package `http`). Estratégia auto-gerada (drift-proof): enumerar todos os sentinels `constant.Err*` exportados de `pkg/constant/errors.go`; para cada um, chamar `pkg.ValidateBusinessError(sentinel, entityType)` e dirigir o erro pelo dispatcher real (`http.WithError`) via um `fiber.New()` + `app.Test(httptest.NewRequest(...))`; aferir **apenas** `resp.StatusCode` (invariante #1) e `body["code"]` (invariante #2). Aferir só code+status faz o mesmo teste ficar verde antes (`{code,title,message}`) e depois (`{code,title,detail,type,...}`) do swap. Derivar o status esperado classificando o tipo Go retornado com a mesma cascata `errors.As` da tabela §1 do `r3-moneypath-swap-spec.md` — o classificador do teste É o `statusOf` congelado que a produção terá de casar. Unir três fontes: (a) todo o mapa `ValidateBusinessError`; (b) os ~18 sentinels definidos-mas-não-mapeados alcançados por `ValidateInternalError`/`ValidateBadRequestFieldsError`/`ValidateUnmarshallingError` (aferir code+status explicitamente, incluindo 0094→94 via `strconv.Atoi`); (c) os dois braços de status explícito — dirigir `*fiber.Error{Code:405}` e `{Code:413}` por `CanonicalFiberErrorHandler` e travar 0485→405, 0143→413. Casos-limite nomeados: `FailedPreconditionError`→**500** (não 412); `ResponseError`/0094→status 94 (status-in-Code, ramo próprio); fallthrough sem match→500/code 0046.
-
-**Files:**
-- Create: `pkg/net/http/errors_golden_test.go`
-- Test: o próprio arquivo (é o teste)
-
-**Verification:** `go test ./pkg/net/http/ -run TestErrorEnvelopeGolden -v` — verde no código atual, todos os sentinels varridos. Prova de teeth: perturbar temporariamente um braço (ex.: `0007`→400) e confirmar vermelho, depois reverter.
-
-**Done when:** o teste enumera todos os ~585 códigos mapeados + os 18 não-mapeados + os 2 de status explícito, está verde no `WithError` atual, e a prova de RED deliberado está no PR.
-
-### Epic 1.2: Swap do dispatcher `WithError` → `problem` (shape RFC 9457)
-
-**Goal:** `WithError` passa a construir e serializar um `*Detail` (RFC 9457 + superset `entityType`) preservando code+status; ambos os planos emitem `application/problem+json`. Assinatura de `WithError` inalterada (só as entranhas mudam).
-**Scope:** `pkg/net/http/` (`errors.go`, novo `problem` wiring, `Detail` superset), dependência `commons/net/http/problem`.
-**Dependencies:** Epic 1.1 (o golden test tem de existir e estar verde antes).
-**Done when:** golden test **continua verde** pós-swap; corpos <500 = `{type,title,status,detail,code,entityType?,errors?}`; 5xx sanitizados (pendente ack); os dois braços de status explícito preservados fora da tabela; `ResponseError`/0094 tratado em ramo próprio.
-**Status:** Pending
-
-*(Tasks detalhadas na entrada em execução; visão travada em `r3-moneypath-swap-spec.md §2`: `codeOf` cascata sobre os 11 tipos na mesma ordem de declaração; `statusOf` = mapa `codeStatus` congelado construído do `ValidateBusinessError` (Opção (i) do r3 — reusa a lib, terceiro rail); `fallbackCode = "0046"`; `message`→`detail`; `entityType` via superset local `Detail{ problem.Detail; EntityType string }`; `fields`→`Errors[]huma.ErrorDetail` com `Location` congelado; os braços 405/413 do `renderCanonical` mantidos como override de status explícito.)*
-
-### Epic 1.3: Limpeza do `mmodel.Error` + política de tags (preparação da paridade)
-
-**Goal:** `mmodel.Error` deixa de emitir schema sujo (exemplo fictício + descrição corrompida) e ganha a política de `validate` que fará o `required[]` bater com o do tracer.
-**Scope:** `pkg/mmodel/error.go` (só tags/doc, sem mudança de campo nem de runtime).
-**Dependencies:** nenhuma (pode rodar paralela à 1.1/1.2).
-**Done when:** exemplo do `code` = `"0147"` (código real); `@Description` limpa; `code`/`title`/`message` com `validate:"required"`, `entityType`/`fields` opcionais; sem mudança de campo ou de comportamento de runtime.
-**Status:** Pending
-
-*(Visão em `r3-moneypath-swap-spec.md §4.1/§4.2`. O fold efetivo do `pkg.HTTPError` e a unificação de `@name` são doc/spec e aterrissam com a geração Huma nas Fases 2–3, mas a política de tags é travada aqui.)*
+**Lições que vinculam o trabalho restante:**
+- **Golden money-path é a rede permanente:** afere só `(code, status)`, sobrevive ao swap de shape e a toda fase seguinte. É a trava do terceiro-trilho.
+- **Estado interino spec↔runtime:** ao fim da Fase 1 o runtime era `problem+json` mas as specs ainda eram swaggo. Resolvido por-plano nas Fases 2–3; o resíduo `http.BadRequest` (validação de campo do decode wrapper) fechou na Fase 3 (`withBody.go` → `DecodeAndValidate` fonte única Fiber+Huma).
+- **Harness read-only:** reviewers **e** contrarians não mutam a fonte no worktree compartilhado (mutar gerou um falso 409→400 na onda 1).
 
 ---
 
-## Fase 2 — Tracer → Huma (piloto)
+## Fase 2 — Tracer → Huma (piloto) · **Complete**
 
-**Milestone:** O plano tracer (31 ops, 8 arquivos) está 100% em Huma: assinaturas re-tipadas, `openapi.New` + `problem.Install()` nos paths de runtime **e** de spec-gen, schemas de segurança Bearer+ApiKey declarados com requirement por-op, spec OAS 3.1 nativa servida por `ServeSpec` (gated em `Swagger.Enabled`). O corpo servido bate com a spec committada (ambos `problem+json`). Piloto valida o padrão inteiro no plano menor antes do ledger.
+**Entregue (2026-07-01):** 28 ops protegidas 100% Huma; `openapi.New` + `problem.Install()` nos paths de runtime e spec-gen; 2 security schemes (Bearer + ApiKey) declarados com requirement por-op; `ServeSpec` gated em `SwaggerEnabled` serve OAS 3.1 nativa **em paralelo** ao swagger 2.0 (aditivo, swaggo intacto). Registro extraído por-arquivo (`RegisterXxxRoutes`). Commits-âncora: `5d3a4307e` (bootstrap+referência), `28ddb4ee5`+`c9f89b2a5` (rule 8 ops), `dffa59704`/`ac663569a`/`c51e2fba6`/`3869eda67`/`5e1f711ef`/`f4f2c0537` (fan-out 20 ops + wiring), `61b4b0366`/`0dcf9248b`/`5bb314b6c`/`ca1a0ee82` (auth+spec-lock).
 
-**Por que tracer primeiro:** menor superfície (31 vs 115), auth mais simples de modelar (Bearer primário + X-API-Key fallback, confirmado em `auth_guard.go`), e é o plano cujo swagger estava mais divergente — validar aqui de-risca o ledger.
+**Padrão de referência (replicado no ledger):** In struct com `RawBody []byte \`contentType:"application/json"\`` + `huma.Operation{SkipValidateBody:true}` → decode/validação imperativos → code canônico, **zero 422 nativo**; path/query com tags `path:`/`query:`/`doc:` **sem** tags de validação; erro via `humaProblem(err)` → `*Detail` (`problem+json`); DELETE 204 = Out sem `Body` + `DefaultStatus:204`; HEAD-count = 204 + `X-Total-Count` + `Content-Length:0`; auth = middleware Fiber, `Security` do Huma é só spec.
 
-**Superfície real (recon `scratchpad/r4-tracer-phase2-surface.md`):** os **31 ops = 28 protegidos `/v1` + 3 públicos** (health/version/readyz). Só os **28 protegidos** migram pra Huma; os 3 públicos ficam rotas fiber cruas fora do group Huma (health é text/plain, os outros são probes de K8s pré-`/v1`). Registro hoje é **inline em `NewRoutes`** (`routes.go:335-401`): `api.Post("/rules", guard.With("rules","post",false), h.CreateRule)`. Handlers todos `func(c *fiber.Ctx) error`; path via `c.Params`, body via `c.BodyParser`, query via `c.QueryParser`; **nenhum handler lê header direto** (auth/tenant no middleware).
-
-**Decisões travadas (recon + investigação do adapter humafiber):**
-1. **ctx threading é NÃO-problema — sem middleware-ponte.** `humafiber_v2.go:207-214` constrói o ctx do handler Huma a partir de `c.UserContext()` (+ copia fasthttp locals via `VisitUserValuesAll`). O tenant MW injeta tenant-id/`*sql.DB` em `c.UserContext()` via `tmcore` (`routes.go:268-333`) → chega intacto no handler Huma. **Única condição de fiação:** as 28 ops Huma montam no MESMO group `f.Group("/v1")` (`routes.go:259`) que carrega o tenant MW, pra a ordem middleware→handler se manter.
-2. **Auth continua MIDDLEWARE fiber.** `guard.With(resource, verb, forceAPIKey)` (`auth_guard.go:108`) permanece como middleware fiber na rota/group; o `Security` por-op do Huma é **só spec**. Preservar: Bearer-primeiro-depois-APIkey (`Protect:85`), o gate 401 `UNAUTHORIZED_MISSING_SUB` quando falta `sub` (`auth_guard.go:163-172`), a tupla `(resource,method)`, e o `forceAPIKeyAuth=true` **só** em `POST /v1/validations` (`routes.go:370`, `cfg.APIKeyOnlyValidation`).
-3. **Validação imperativa FICA no service/handler.** `ListTransactionValidations.Validate()` (`transaction_validation_handler.go:256-291`: cursor/data/UUID) e `Validate.NormalizeAndValidate(now)` (clock-based) **não viram struct-tag** — traduzir mudaria o 422. Struct-tags Huma só onde a validação de campo já produz 400/422 hoje (**não introduzir 422 novo** — muda o contrato de erro).
-4. **Registro extraído pra funcs por-arquivo** `RegisterRuleRoutes(api huma.API, h *Handler)` etc., pra os arquivos ficarem independentes (habilita fan-out paralelo com worktree isolation). `NewRoutes` passa a chamar cada `RegisterXxxRoutes`.
-
-### Epic 2.1: Bootstrap Huma + handler de referência (de-risk do padrão)
-**Goal:** `openapi.New(app, group, cfg)` monta a API Huma sobre o `*fiber.App` do tracer no group `/v1`; `problem.Install()` roda **antes** de qualquer `huma.Register` (runtime **e** spec-gen); UM handler de referência (rule CreateRule + GetRule) migrado ponta-a-ponta estabelece o padrão (In/Out structs, func `RegisterRuleRoutes`, auth middleware preservado, ctx threading verificado, teste via `app.Test`).
-**Scope:** `components/tracer/cmd/app/main.go`, `components/tracer/internal/adapters/http/in/routes.go`, `rule_handler.go` (parcial), bootstrap.
-**Dependencies:** Fase 1 completa. ✅
-**Done when:** app tracer sobe com Huma montado no `/v1`; `Install()` provado nos 2 paths; CreateRule+GetRule respondem via Huma com body idêntico ao atual (`problem+json` no erro), auth middleware inalterado, tenant/DB lido do ctx OK; teste `app.Test` verde; padrão de registro por-arquivo documentado no PR pros demais handlers seguirem.
-**Status:** Complete
-
-#### Task 2.1.1: Montar Huma no `/v1` + `problem.Install()` + migrar CreateRule/GetRule como referência
-- [ ] Done
-
-**Context:** `NewRoutes` (`routes.go:165`) cria o `*fiber.App` (`fiber.New` `:186`, `ErrorHandler: CanonicalFiberErrorHandler`) e registra as rotas inline no group `api := f.Group("/v1")` (`:259`). O tenant MW roda no group (`:268-333`). O erro já é RFC 9457 (Fase 1). lib-commons expõe `openapi.New(app *fiber.App, group fiber.Router, cfg Config) huma.API` (wraps `humafiber.NewV2WithGroup`), `openapi.ServeSpec(app, api, logger, prefix, title)`, `problem.Install()`. `huma/v2 v2.38.0` + `lib-commons v5.8.0` já no `go.mod`.
-
-**Implementation vision:** Chamar `problem.Install()` uma vez no bootstrap antes de qualquer Register. Criar a `huma.API` via `openapi.New(f, api, cfg)` passando o group `/v1` (garante que o tenant MW roda antes do handler Huma — ver decisão #1). Extrair `RegisterRuleRoutes(hAPI huma.API, h *Handler)` e migrar CreateRule (`rule_handler.go:70`, POST /rules, body `CreateRuleInput`+`Validate()`, 201 `model.Rule`) e GetRule (`:193`, GET /rules/:id, 200) pra assinatura Huma `func(ctx, *In)(*Out,err)` — In com `Body CreateRuleInput` + tags (só as constraints que já existem), path param `ID string \`path:"id"\``; Out com `Body model.Rule` + `Status`. Manter `guard.With("rules",verb,false)` como middleware fiber na rota (auth = middleware, Security do Huma é spec — decisão #2). Verificar que o handler lê tenant/DB do ctx (decisão #1). As outras 6 rotas de rule ficam inline no estilo antigo por enquanto (migradas na Epic 2.2).
-
-**Files:**
-- Modify: `components/tracer/internal/adapters/http/in/routes.go`, `rule_handler.go`, `components/tracer/cmd/app/main.go`, bootstrap (onde `problem.Install()` mora)
-- Test: `rule_handler_test.go` (ou novo `*_huma_test.go` via `app.Test`)
-
-**Verification:** `go -C <wt> build -buildvcs=false ./...`; `go -C <wt> test -buildvcs=false ./components/tracer/internal/adapters/http/in/ -run Rule`; probe manual/teste: CreateRule 201 + GetRule 200 com tenant resolvido do ctx; erro de validação mantém code+status+shape RFC 9457.
-
-**Done when:** Huma montado, `Install()` nos 2 paths, CreateRule+GetRule via Huma verdes, ctx threading confirmado, padrão de `RegisterXxxRoutes` documentado.
-
-### ✅ Fase 2a CONCLUÍDA (2026-07-01) — PASS (Epic 2.1)
-
-Huma montado no `/v1` do tracer; `problem.Install()` no path de runtime (spec-gen ainda não existe — ver obrigação diferida); CreateRule+GetRule migrados ponta-a-ponta como referência. Commits: `5d3a4307e` (bootstrap + 2 handlers + `RegisterRuleRoutes`), `edccf8d65` (drop `format:"uuid"` do path param → preserva 400/0065 canônico, não o 422 nativo da Huma), `f5119b6a7` (deflake do harness + guard de `$schema` ausente + claim de byte-identidade honesta).
-
-**Gate do supervisor (PASS):** golden net money-path verde (`pkg/net/http` ok), pacote `http/in` verde em `-count=3` single-process, tree limpa, escopo confirmado. **Padrão de referência** no header de `rule_handler_huma.go`: In/Out com `RawBody []byte`+`contentType` + `SkipValidateBody:true` (malformed/validação de campo caem no `json.Unmarshal`+`Validate()` imperativo → code canônico, sem 422 novo); core transport-agnóstico compartilhado com o método Fiber legado; erro via `humaProblem(err)` → `*pkgHTTP.Detail` (satisfaz `huma.StatusError`+`ContentTypeFilter` → `problem+json`); `RegisterXxxRoutes` por-arquivo; auth `guard.With` como middleware fiber; ctx via `c.UserContext()` do adapter humafiber, sem ponte.
-
-**Correção de claim (relevante pro fan-out):** o body de sucesso NÃO é byte-idêntico ao Fiber — diverge por um `\n` final (Huma usa `json.Encoder.Encode`) e HTML-escaping (`SetEscapeHTML(false)` vs default Fiber). Invisível pra qualquer parser JSON (ambos decodificam idêntico, incl. o SDK gerado); só consumidor de byte-cru/hash/ETag observaria — esta API não tem nenhum. Garantia real = **field/status/code/type/entityType-identical**, guardada pelo golden net. NÃO alinhar encoders.
-
-**Lição de harness (custou um falso High):** a "flakiness" reportada (422 fantasma intermitente) é quase certamente **artefato de worktree compartilhado** — `re:test-reviewer` perturbava a fonte (re-adicionava `format:"uuid"` pra verificar RED) DENTRO da janela em que `re:security-reviewer` rodava a suíte em laço no MESMO worktree → o 422 induzido foi mis-atribuído como flakiness. Não-reproduzível em 165+ runs, incluindo binário single-process com concorrência máxima (a condição real de corrida de estado global). `t.Parallel()` removido mesmo assim (zero benefício em testes <1s; fecha janela latente antes de copiar 28×). **Regra nova pro 2b:** READ-ONLY vale pra REVIEWERS também, não só contrarians — verificação de RED não pode perturbar o worktree compartilhado (cópia fora do worktree, ou confiar no RED do implementador + spot-check determinístico do supervisor).
-
-**Obrigação diferida:** `problem.Install()` antes do path de spec-gen só morde quando `ServeSpec`/emissão OAS 3.1 existir — Epic 2.3. Hoje o tracer serve swagger 2.0 (swaggo, `/swagger/*`), independente da Huma.
-
-### Epic 2.2: Re-tipar os 26 handlers protegidos restantes (fan-out por arquivo)
-**Goal:** Cada handler protegido `func(c *fiber.Ctx) error` vira `func(ctx, *In)(*Out, error)` com I/O tipada + `huma.Operation`, seguindo o padrão da Epic 2.1, agrupado por arquivo (`RegisterXxxRoutes`).
-**Scope:** `rule_handler.go` (6 restantes), `limit_handler.go` (9), `transaction_validation_handler.go` (2), `validation_handler.go` (1), `reservation_handler.go` (5), `audit_event_handler.go` (3).
-**Dependencies:** Epic 2.1 (padrão estabelecido). ✅
-**Done when:** 26 ops via `huma.Register`; landmines endereçados — dual-status Validate 200/201 (`validation_handler.go:149-154`) via responses explícitas; UpdateLimit raw-body probe de campo imutável (`limit_handler.go:272-285`) preservado; 204 no-body deletes (`DeleteRule`/`DeleteLimit`) com Out vazio + `DefaultStatus:204`; list com query-param + validação imperativa sem 422 novo; reservation = 2 helpers `terminate`/`terminateByTransaction` → 4 shells. Testes `app.Test` (harness não-paralelo) verdes; golden net verde; sem 422 novo.
-**Status:** Done — 2b-1 ✅ (rule, 8 ops); 2b-2 ✅ (20 ops + wiring). **28 ops protegidas do tracer em Huma.**
-
-**Fatiamento (de-risk das sub-shapes que a 2a NÃO tocou):** a 2a provou body-POST + path-param + error seam + ctx + auth + harness. Os 26 restantes trazem: **list com query-param + validação imperativa** (risco 422, mesma classe do `format:"uuid"`), **204 no-body**, **dual-status** (Validate 201/200), **POST id-only** (actions), **413 guard** (Validate). Fanning out 26 numa shape de list não-validada = risco de retrabalho. Então divide em duas waves:
-- **2b-1 (wave detalhada, gated — Task 2.2.1 abaixo):** completar `rule_handler.go` (6 ops) — exercita 4 sub-shapes novas (PATCH+body, list+query, POST id-only, 204) num arquivo só, vira o exemplar completo + prova o wiring em `routes.go`.
-- **2b-2 (epic-level, detalhada após o gate da 2b-1):** fan-out paralelo dos outros 5 arquivos, cada um copiando a sub-shape provada; + task serial de integração (Epic 2.3).
-
-#### Task 2.2.1: Completar `rule_handler.go` em Huma — UpdateRule, ListRules, Activate/Deactivate/Draft, DeleteRule
-- [x] Done — commits `28ddb4ee5` (6 ops) + `312847d60` (present-but-empty self-heal) + `c9f89b2a5` (repeated-key last-wins). Gate PASS.
-
-**Context:** A 2a migrou CreateRule (`rule_handler.go:70`) e GetRule (`:193`) e criou `rule_handler_huma.go` (padrão + `RegisterRuleRoutes`) + `rule_handler_huma_test.go` (harness `buildHumaRuleApp`, NÃO-paralelo). As 6 ops restantes ainda estão inline fiber em `NewRoutes` (`routes.go`). Como é UM arquivo (não fan-out), o wiring em `routes.go` pode ser feito direto aqui — isso prova o padrão de wiring (list/action/delete + guard.With) antes do fan-out 2b-2.
-
-**Implementation vision:**
-- **UpdateRule** (PATCH `/rules/{id}`, body `UpdateRuleInput`+`Validate()`/`IsEmpty()`, 200 `model.Rule`): igual CreateRule mas PATCH + path param `ID`. `RawBody []byte`+`SkipValidateBody:true`; core `updateRule(ctx, id, rawBody)` compartilhado com o método Fiber legado.
-- **ListRules** (GET `/rules`, query `ListRulesInput`+`Validate()`/`SetDefaults()`, 200 `ListRulesResponse`): **sub-shape nova (query-param).** In struct com os campos de query taggeados `query:"..."` MAS **sem tags de validação** (min/max/enum/required) — senão Huma emite 422 nativo antes do handler. Preferir tipos que Huma coage sem 422 (string; se `int`/`bool` forçar tipo, aceitar e validar imperativamente no core). O core `listRules` roda o equivalente ao `QueryParser` + `input.Validate()`/`SetDefaults()` imperativo → 400 canônico em erro. Out = `ListRulesResponse` (cursor DTO próprio) serializado verbatim. **Teste obrigatório:** query param inválido (ex. cursor malformado / limit fora de range) → 400 canônico, NÃO 422 nativo.
-- **ActivateRule/DeactivateRule/DraftRule** (POST `/rules/{id}/activate|deactivate|draft`, id-only, sem body, 200 `model.Rule`): In só com path param `ID` (SEM `RawBody`, não há body → sem `SkipValidateBody`); Out `model.Rule` 200. Core compartilhado por ação.
-- **DeleteRule** (DELETE `/rules/{id}`, 204 no-body): Out **sem campo `Body`** + `huma.Operation{DefaultStatus:204}`; core `deleteRule(ctx, id)`. Confirmar que Huma emite 204 sem corpo (não um 200 com `null`).
-- Cada op: core transport-agnóstico em `rule_handler.go` (extrair do método Fiber atual, mantendo o Fiber como wrapper fino pros testes diretos existentes) + método `XxxHuma` em `rule_handler_huma.go` + entrada no `RegisterRuleRoutes`. Em `routes.go`, trocar as 6 rotas inline por `api.<Verb>(path, guard.With("rules",verb,false))` (middleware-only) — o `RegisterRuleRoutes` já registra o handler Huma no mesmo path/verb. Preservar a tupla `(resource="rules", verb, forceAPIKey=false)` byte-a-byte.
-- Testes no `buildHumaRuleApp` (NÃO-paralelo — ver lição 2a): por op, sucesso (status + campos via `json.Unmarshal` + tenant capturado + `$schema` ausente), erro canônico (code+400/status+`problem+json`, service não alcançado onde aplicável, **sem 422 novo**), e pro Delete o 204 sem corpo.
-
-**Files:**
-- Modify: `components/tracer/internal/adapters/http/in/rule_handler.go` (extrair cores), `rule_handler_huma.go` (In/Out + methods + `RegisterRuleRoutes` expandido), `routes.go` (6 rotas inline → guard.With middleware + registro Huma)
-- Test: `components/tracer/internal/adapters/http/in/rule_handler_huma_test.go`
-
-**Verification:** `go -C <wt> build -buildvcs=false ./...`; `go -C <wt> test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` (verde); `go -C <wt> test -buildvcs=false -run TestGolden ./pkg/net/http/` (money path verde); teste de query-param inválido em ListRules → 400 canônico (prova zero-422 da sub-shape de list).
-
-**Done when:** as 8 ops de `rule_handler.go` estão em Huma (2 da 2a + 6 aqui), wired em `routes.go` com auth preservada; 4 sub-shapes novas (PATCH+body, list+query sem 422, POST id-only, 204 no-body) provadas por teste; harness não-paralelo; golden net verde.
-
-##### Gate 2b-1 (2026-07-01) — ISSUES→fix wave, depois PASS
-
-Workflow `wf_37e2511c-823` rodou o harness completo (implement→5 reviewers→4 contrarian→self-heal 5+4). Resultado e adjudicação:
-- **Implement `28ddb4ee5`:** 6 ops migradas; 4 sub-shapes provadas. Zero-422 confirmado (query = string sem tags de validação; body = RawBody+SkipValidateBody; path sem `format`); DeleteRule 204 bodiless verificado no mecanismo (huma.go `outBodyIndex==-1`).
-- **Contrarian LENS 3 REFUTOU** o claim de paridade de query → defeito money-path REAL: query param **present-but-empty** (`?status=`, `?limit=`) colapsava pra `nil` → Huma devolvia 200 onde Fiber devolve 400 canônico (0082/0331). Mesma classe do `format:"uuid"` da 2a. **Self-heal `312847d60`** corrigiu na raiz: `ListRulesInputHuma` implementa `huma.Resolver` (captura `ctx.URL().Query()`, retorna nil→sem 422) + `bindListRulesInput` usa `url.Values.Has` pra reproduzir present-vs-absent do Fiber.
-- **High remanescente (re:nil-reviewer) → fix wave `a…`:** `bindListRulesInput` lê `url.Values.Get` (**first**-wins) mas o gorilla-schema do Fiber é **last**-wins → chaves repetidas (`?status=ACTIVE&status=garbage`) FLIPAM status/code (400↔200). Terceiro-trilho (identidade byte-a-byte Fiber→Huma) + este arquivo é o **exemplar copiado 5× no 2b-2** → fechar aqui. Fix = helper `last(key)` lendo `q[key][len-1]` em todos os call sites; `q.Has` fica pro gating de presença. Irmão direto do bug present-but-empty; last-wins subsume o fix anterior.
-
-##### Fix wave 2b-1 — repeated-key last-wins parity ✅ PASS (`c9f89b2a5`)
-- [x] Done — helper `last(key)` (`vs[len-1]`, nil-safe) em todos os call sites; `q.Has` mantido pro gating. Teste `TestHuma_ListRules_RepeatedKeyParity` prova o flip nos 2 sentidos (status/limit/sort_by→400 canônico; `?limit=101&limit=25`→200 limit=25). Suites verdes (http/in 4.751s, golden 0.471s) verificados pelo supervisor independentemente. **Gate 2b-1 = PASS. Task 2.2.1 completa (8 ops rule em Huma). Exemplar limpo pro fan-out.**
-
-**Context:** `bindListRulesInput` (`rule_handler_huma.go:188-250`) usa `q.Get`/`optStr` (first value) pra `status`(221)/`action`(226)/`limit`(231)/`sort_by`(217)/`sort_order`(218)/`cursor`(216) + scope fields (209-215 via optStr:204). Fiber v2.52.13 QueryParser (gorilla-schema) é last-wins. Divergência confirmada empiricamente por 3+ agentes contra o fiber real.
-
-**Implementation vision:** Introduzir `last := func(key string) string { vs := q[key]; if len(vs)==0 { return "" }; return vs[len(vs)-1] }` e trocar TODO `q.Get(key)`→`last(key)` (inclusive dentro de `optStr`). `q.Has` permanece pro gating present-vs-absent (Has-true garante slice não-vazio → `vs[len-1]` seguro). Last-wins subsume o present-but-empty: `?status=A&status=`→last=""→0082; `?status=&status=A`→last="A"→200 (ambos Fiber-idênticos). NENHUM 422 novo (Resolve segue retornando nil; validação segue imperativa).
-
-**Files:**
-- Modify: `components/tracer/internal/adapters/http/in/rule_handler_huma.go` (binder → last-wins)
-- Test: `components/tracer/internal/adapters/http/in/rule_handler_huma_test.go` (parity test de chave repetida)
-
-**Verification:** RED = teste `?status=ACTIVE&status=garbage`→400/0082 e `?limit=101&limit=25`→200 FALHA no first-wins atual; GREEN passa no last-wins. `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde; `go test -buildvcs=false -run TestGolden ./pkg/net/http/` verde. Probe fiber empírico FORA do worktree cobrindo TODOS os campos afetados.
-
-**Done when:** chaves repetidas produzem o mesmo code/status que o Fiber pra todos os campos de query; parity test no harness não-paralelo; golden net verde; exemplar limpo pro fan-out 2b-2.
-
-#### 2b-2 — Fan-out dos 5 arquivos restantes (20 ops) + wiring (elaborado 2026-07-01 do recon-2b2)
-
-**Divergências vs exemplar rule (recon confirmou):** cada arquivo tem SEU handler struct (`LimitHandler`/`TransactionValidationHandler`/`ValidationHandler`/`ReservationHandler`/`AuditEventHandler`), NÃO o `Handler` do rule → shells são métodos desses structs. NENHUM core extraído ainda → cada task EXTRAI o core (span+parse+Validate+service+log inline → core puro), deixa o método Fiber como wrapper fino, cria o shell Huma. `humaProblem` (`rule_handler_huma.go:482`) é package-level → reusar verbatim, não redefinir. Split `handleXxxServiceError` (render via `http.WithError` Fiber-bound) em `classifyXxxError` (sem render) + render no edge, como rule fez. **Binder de list (`last()`/`optStr`) copiado INLINE por arquivo — NÃO extrair helper compartilhado (serializaria as tasks de list).** Teste: `buildHumaXxxApp` copiado de `rule_handler_huma_test.go:102`, NÃO-PARALELO (`problem.Install()`+pools globais Huma), `tenantSpyService` pra ctx-threading.
-
-Execução: **5 tasks de implement SERIAIS no worktree compartilhado** (disjuntas mas serializadas — compile/test/commit no mesmo tree colidiriam em paralelo; worktree-isolation forçaria merge-back frágil no money-path; correctness>tempo) + 1 task serial de integração. Review + contrarian paralelos (read-only).
-
-##### Task 2.2.2: `limit_handler.go` → Huma (9 ops)
-- [ ] Done
-**Ops:** CreateLimit(POST /limits, body+Validate, 201), GetLimit(GET /limits/{id}, 200), ListLimits(GET /limits, 13 query, 200 — **Resolver+last-wins inline**), UpdateLimit(PATCH /limits/{id}, body+Validate+IsEmpty, 200 — **raw-body immutable probe**), Activate/Deactivate/Draft(POST /limits/{id}/{action}, id-only, 200), DeleteLimit(DELETE /limits/{id}, **204 no-body**), GetLimitUsage(GET /limits/{id}/usage, 200).
-**Landmine raw-body (`:270-285`):** UpdateLimit faz `json.Unmarshal(body,&map)` e rejeita se `limitType`/`currency` presentes (`ErrLimitImmutableField`) ANTES de BodyParser. Core `updateLimit(ctx,id,rawBody)` preserva o map-probe verbatim; shell passa `in.RawBody`. **204:** copiar `DeleteRuleOutputHuma struct{}`+`DefaultStatus:204`. **Query** (`ListLimitsInput`,`limit_validation.go:159`): dropar tags `enums:`, só `doc:`; `.Validate()`+`.SetDefaults()` imperativos.
-**Files:** Modify `limit_handler.go`,`limit_validation.go`; Create `limit_handler_huma.go`,`limit_handler_huma_test.go`. NÃO tocar routes.go.
-**Verification:** build+`go test -count=1 ./components/tracer/internal/adapters/http/in/` verde; golden net verde; teste query inválido→400 canônico (não 422), raw-body probe→erro imutável, repeated-key last-wins, 204 sem corpo.
-
-##### Task 2.2.3: `transaction_validation_handler.go` → Huma (2 ops)
-- [ ] Done
-**Ops:** ListTransactionValidations(GET /validations, 12 query, 200 — **Resolver+last-wins**, só `limit` é pointer), GetTransactionValidation(GET /validations/{id}, 200).
-**Files:** Modify `transaction_validation_handler.go`,`transaction_validation_validation.go` (se o binder morar lá); Create `_huma.go`,`_huma_test.go`.
-**Verification:** idem 2.2.2 (list sem 422, repeated-key).
-
-##### Task 2.2.4: `validation_handler.go` → Huma (1 op)
-- [ ] Done
-**Op:** Validate(POST /validations, body `ValidationRequest`+`NormalizeAndValidate(now)`, **dual-status 200/201**).
-**Landmine dual-status (`:149-154`):** `IsDuplicate`→200, senão 201. Out carrega `Status int` que o shell define via `IsDuplicate`; `huma.Register` declara responses 200+201 explícitas, SEM `DefaultStatus` fixo. Core `validate(ctx,rawBody)(*ValidateResult,error)`. **Landmine payload-size (`:90`):** `len(body)>maxPayloadSize`(100KB,`:30`)→`ErrPayloadTooLarge` — checar no core sobre `len(rawBody)`. `handleValidationError`(`:158`) é método → core também método. forceAPIKey (`cfg.APIKeyOnlyValidation`) é do wiring (Task 2.2.7), não do shell.
-**Files:** Modify `validation_handler.go`; Create `_huma.go`,`_huma_test.go`.
-**Verification:** build+suite+golden; teste dual-status (duplicate→200, novo→201), payload >100KB→ErrPayloadTooLarge (não 422 nativo).
-
-##### Task 2.2.5: `reservation_handler.go` → Huma (5 ops)
-- [ ] Done
-**Ops:** Reserve(POST /reservations, body+`NormalizeAndReserveValidate`, 201, payload-size), Confirm(POST /reservations/{id}/confirm, 200), Release(POST /reservations/{id}/release, 200), ConfirmByTransaction(POST /reservations/transaction/{transaction_id}/confirm, 200), ReleaseByTransaction(.../release, 200).
-**Landmine 2 helpers→4 shells:** os 4 lifecycle ops delegam a `h.terminate(...)`(`:279`, param `id`) / `h.terminateByTransaction(...)`(`:234`, param `transaction_id`) com `(operation,terminalStatus,action)`. Refatorar em cores puros `terminate(ctx,id,op,status,action)(*ReservationActionResponse,error)` e `terminateByTransaction(ctx,txID,...)(*TransactionActionResponse,error)`. 4 shells explícitos: Confirm→terminate+StatusConfirmed+service.Confirm; Release→terminate+StatusReleased+service.Release; ConfirmByTransaction→terminateByTx+StatusConfirmed; ReleaseByTransaction→terminateByTx+StatusReleased. Ops 4-5: In com `TransactionID string \`path:"transaction_id"\``.
-**Files:** Modify `reservation_handler.go`,`reservation_validation.go`; Create `_huma.go`,`_huma_test.go`.
-**Verification:** build+suite+golden; teste os 4 lifecycle + Reserve (payload-size), path param transaction_id resolve.
-
-##### Task 2.2.6: `audit_event_handler.go` → Huma (3 ops)
-- [ ] Done
-**Ops:** ListAuditEvents(GET /audit-events, **18 query — o mais pesado, Resolver+last-wins**), GetAuditEvent(GET /audit-events/{id}, 200), VerifyHashChain(GET /audit-events/{id}/verify, 200).
-**Query** (`ListAuditEventsInput`,`audit_event_validation.go:159`): typed pointers (`*AuditEventType`/`*AuditAction`/`*AuditResult`/`*ResourceType`/`*ActorType`) + strings + `limit`(`*int`); dropar `validate:`/`enums:`, só `doc:`; binder converte string→typed pointer via `q.Has`+`last`. `.Validate()`+`.SetDefaults()`+`toAuditEventFilters`(retorna error).
-**Files:** Modify `audit_event_handler.go`,`audit_event_validation.go`; Create `_huma.go`,`_huma_test.go`.
-**Verification:** idem list (sem 422, repeated-key, typed-pointer binding).
-
-##### Task 2.2.7: Integração — wiring routes.go (serial, após 2.2.2–2.2.6)
-- [ ] Done
-**Context:** trocar as 20 rotas inline (`routes.go:371-431`) por middleware-only + 5 `RegisterXxxRoutes`, espelhando o padrão rule (`:359-367`). /v1 group `:261`, huma.API mount `:345` (após `problem.Install():343`), tenant MW `:270-335` roda antes → cobre Huma.
-**Preservar byte-a-byte:** tuplas `guard.With(resource,verb,forceAPIKey)` exatas; **reservation = DOIS middlewares** (`resTenantMW`+`guard.With`, ordem transaction-first `:421-424` antes de `:id`); **validation = `cfg.APIKeyOnlyValidation`** como 3º arg (NÃO literal `true`). Rotas Fiber middleware-only mantêm `:id`/`:transaction_id`; `RegisterXxxRoutes` usa `{id}`/`{transaction_id}`.
-**Flat-401 (`pkgHTTP.Unauthorized`,`pkg/net/http/response.go:16`):** emite envelope FLAT `{code,title,message}`, não problem+json; auth é middleware pré-Huma → 401 nunca passa pelo Huma. **PRESERVAR (paridade) + documentar a divergência.** Unificar 401→problem+json é mudança de contrato em todo o tracer (blast radius alto) → decisão explícita do Fred, FORA desta wave.
-**Files:** Modify `routes.go`.
-**Verification:** build+`go test -count=1 ./components/tracer/internal/adapters/http/in/` verde; golden net verde; grep confirma 0 rotas inline dessas 5 resources restantes; auth tuplas idênticas ao pré-wiring (diff só troca handler terminal por middleware-only+Register).
-**Done when (Epic 2.2):** 26 ops via huma.Register (8 rule+18 aqui... na verdade 20 aqui, 28 protegidas totais), landmines endereçadas, wired em routes.go com auth preservada, suites+golden verdes. Epic 2.3 (per-op Security spec+ServeSpec+Unauthorized decision) é wave seguinte.
-
-##### Gate 2b-2 (2026-07-01) — PASS (Epic 2.2 completa)
-Workflow `wf_f70f2f3a-4b0`: 6 implement serial → 5 reviewers → 5 contrarian, **PASS clean** (0 blocking, 0 refutado, 0 self-heal). Tasks 2.2.2–2.2.7 todas Done. Commits: `dffa59704`(limit 9), `ac663569a`(tx-val 2), `c51e2fba6`(validation 1), `3869eda67`(reservation 5), `5e1f711ef`(audit 3), `f4f2c0537`(wiring routes.go). Suites verdes verificadas por mim (build EXIT0, http/in 4.75s, golden 0.50s, vet limpo). Contrarians provaram empíricamente (fiber v2.52.13/huma v2.38.0): no-422 nos 3 lists + typed-pointer, landmines (probe→0380, dual-status 200/201, payload 100KB, reservation 4-shells), auth byte-a-byte, repeated-key last-wins, wiring completo sem órfãos.
-**Nit `time_of_day.go` (meu catch, resolvido):** `dffa59704` appendou `MarshalText`/`UnmarshalText` (+32, 0 del) num arquivo pré-existente — faz o gerador OpenAPI do Huma renderizar `TimeOfDay` (campos unexported) como string `"HH:MM"` no schema de resposta de `model.Limit`; runtime byte-idêntico (encoding/json prefere MarshalJSON). Migration-necessário, não-breaking.
-**Deferidos pra Epic 2.3 (nenhum bloqueia):** (1) `@Failure 413` stale em reserve/validate (mentira swaggo pré-existente — ErrPayloadTooLarge→code canônico, não 413; some quando swaggo aposenta); (2) `enums:` removido só de ListLimitsInput (metadata morto, spec vem de *InputHuma); (3) flat-401 decisão (preservado+documentado; unificar→problem+json é decisão do Fred fora da wave).
-
-### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec OAS 3.1 nativa ADITIVA (swaggo intacto)
-**Goal:** Servir a spec OAS 3.1 do Huma EM PARALELO ao swagger 2.0 (não aposentar), com os 2 security schemes corretos + requirement por-op, gated num flag novo.
-**Escopo REVISADO (recon-23, 3 divergências do plano original):**
-- **Div 1:** `Swagger.Enabled` NÃO existe no tracer → CRIAR `SwaggerEnabled bool env:"SWAGGER_ENABLED"` em `bootstrap/config.go` + propagar via `RouteConfig`/`NewRoutes`.
-- **Div 2:** lib-commons v5.8.0 tem `openapi.DeclareBearerAuth(api)` mas NÃO tem `DeclareApiKeyAuth` → declarar `ApiKeyAuth {type:apiKey,in:header,name:X-API-Key}` LOCAL via `humaAPI.OpenAPI().Components.SecuritySchemes[...]` (não é workaround — huma nativo; lib-commons não wrappa isso). **Follow-up p/ Fred: pushar `DeclareApiKeyAuth` pra lib-commons (simetria com DeclareBearerAuth) — troca de 1 linha depois.**
-- **Div 3:** aposentar swaggo do tracer ISOLADO QUEBRA o pipeline compartilhado (`postman/generator/check-docs.sh`: parity ledger+tracer, security-coverage, drift-check `swag init` p/ ambos + `git diff --exit-code`); `components/tracer/api/` tem `types.go` escrito-à-mão (`ReadyzResponse`/`ReadyzCheck`) importado por `readyz.go` → não deletável. **Aposentadoria completa (remover @securityDefinitions, deletar swagger 2.0, flipar check-docs) = Fase 4** (com ledger migrado). Nesta epic: só ADITIVO.
-**Scope:** `bootstrap/config.go`, `http_server.go` (propagação), `routes.go`, os 6 `*_handler_huma.go` (Security por-op). NÃO tocar `main.go` annotations nem `api/`.
-**Dependencies:** Epic 2.2. ✅
-**Done when:** `humaAPI.OpenAPI().Components.SecuritySchemes` tem BearerAuth (type:http,scheme:bearer) + ApiKeyAuth (type:apiKey,in:header,name:X-API-Key); **as 28 ops declaram `[{BearerAuth},{ApiKeyAuth}]`** (POST /validations incluído — ver correção no gate abaixo), 3 públicas sem security; `ServeSpec(f,humaAPI,lg,"/v1",...)` gated em SwaggerEnabled serve `/v1/openapi.yaml`+`/v1/docs`; error schema no spec = `problem.Detail`; swaggo 2.0 INTACTO (drift `swag init` zero, api/ buildando); suites+golden verdes.
-**Status:** Done
-
-#### Task 2.3.1: Config `SwaggerEnabled` + schemes + ServeSpec + helpers de Security
-- [x] Done — `61b4b0366`
-**Context:** `openapi.New(f,api,cfg)` (`routes.go:345`) zera `OpenAPIPath`/`DocsPath` → não auto-monta docs. `openapi.ServeSpec(app,api,logger,prefix,title)` (lib-commons openapi.go:150) monta `{prefix}/openapi.json|yaml|docs`, snapshota 1x, fora da auth chain; doc manda gated no flag. `problem.Install()` (`routes.go:343`) já roda antes dos Register → error schema já é problem.Detail.
-**Implementation vision:** (1) `SwaggerEnabled bool` em `bootstrap/config.go` (~:48-221) com env `SWAGGER_ENABLED` + default; propagar até `NewRoutes` via `RouteConfig` (routes.go:84). (2) Após `openapi.New`: `openapi.DeclareBearerAuth(humaAPI)` + `humaAPI.OpenAPI().Components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{Type:"apiKey",In:"header",Name:"X-API-Key"}` (nil-guard nos maps como DeclareBearerAuth faz). (3) Declarar helpers package-level em UM `_huma.go`: `var secBearerOrAPIKey = []map[string][]string{{"BearerAuth":{}},{"ApiKeyAuth":{}}}` e `var secAPIKeyOnly = []map[string][]string{{"ApiKeyAuth":{}}}`. (4) `if cfg.SwaggerEnabled { openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API") }`. NÃO tocar o `/swagger/*` existente (:257) nem main.go.
-**Files:** Modify `components/tracer/bootstrap/config.go`, `components/tracer/bootstrap/http_server.go` (ou onde RouteConfig é montado), `components/tracer/internal/adapters/http/in/routes.go`, um `_huma.go` (helpers).
-**Verification:** build EXIT0; suite http/in + golden verdes; teste que com SwaggerEnabled=true as rotas `/v1/openapi.yaml` e `/v1/docs` respondem 200 e OFF quando false.
-**Done when:** schemes nos Components, helpers disponíveis, ServeSpec gated funcional, swaggo intacto.
-
-#### Task 2.3.2: Security por-op nas 28 protegidas
-- [x] Done — `0dcf9248b` + correção `ca1a0ee82` (POST /validations = union, não ApiKey-only)
-**Context:** ZERO ops declaram Security hoje (auth é middleware; spec-only deferido). Campo `huma.Operation.Security []map[string][]string`.
-**Implementation vision:** adicionar `Security: secBearerOrAPIKey` nas 27 ops (rules 8, limits 9, tx-val 2, reservations 5, audit 3) e `Security: secAPIKeyOnly` na op validateTransaction (`validation_handler_huma.go:78`). Só metadata de spec — ZERO mudança de runtime. Referências nos `RegisterXxxRoutes` dos 6 `_huma.go`.
-**Files:** Modify os 6 `*_handler_huma.go` (rule/limit/transaction_validation/validation/reservation/audit_event).
-**Verification:** build+suites+golden verdes; `humaAPI.OpenAPI().Paths[...].<Verb>.Security` bate com o alvo por op.
-**Done when:** as 28 ops têm o requirement certo; POST /validations = ApiKey-only; runtime inalterado.
-
-#### Task 2.3.3: Teste de spec (schemes + Security por-op + problem.Detail)
-- [x] Done — `286ab6593` + `5bb314b6c` (tabela 28-op)
-**Context:** served É o spec in-memory por construção (ServeSpec serve `api.OpenAPI().YAML()`). lib-commons tem padrão em `openapi_test.go:156,175`.
-**Implementation vision:** teste (estilo routes_test) que constrói as rotas, pega o `huma.API`, e assert: (a) 2 schemes com shape exato; (b) Security por-op nas 28 (spot os casos-chave: um Bearer|ApiKey + o POST /validations ApiKey-only + confirmar públicas ausentes do huma spec); (c) error schema referencia problem.Detail (RFC 9457 fields). NÃO-paralelo se tocar o estado global do Install.
-**Files:** Test em `components/tracer/internal/adapters/http/in/`.
-**Verification:** `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde incluindo o novo teste.
-**Done when:** spec trava (schemes+security+problem.Detail) coberta por teste.
+**Lições que vinculam o trabalho restante:**
+- **Body de sucesso NÃO é byte-idêntico ao Fiber** (`\n` final + HTML-escaping). Invisível a qualquer parser JSON (incl. o SDK gerado). Garantia real = field/status/code/type/entityType-identical, guardada pelo golden. **Não alinhar encoders.**
+- **Query params: present-but-empty e repeated-key.** `?x=` (vazio) e `?x=a&x=b` divergiam Huma↔Fiber (gorilla-schema do Fiber é **last-wins**). Binder de list usa `url.Values.Has` (gating presença) + helper `last(key)` (`vs[len-1]`). Copiado inline por arquivo, **não** extraído (serializaria as tasks).
+- **flat-401 do tracer preservado:** `pkgHTTP.Unauthorized` emite `{code,title,message}` flat (não `problem+json`); auth é MW pré-Huma → 401 nunca passa pelo Huma. Unificar 401→problem+json é blast-radius alto → **decisão do Fred, fora de escopo.**
+- **Follow-up p/ Fred:** pushar `DeclareApiKeyAuth` pra lib-commons (simetria com `DeclareBearerAuth`; hoje o ApiKey scheme é declarado local nos 2 planos).
 
 ---
 
-##### Gate Epic 2.3 (2026-07-01) — PASS → **FASE 2 COMPLETA**
-Workflow `wf_0947a55c-f4a`: 3 implement serial → 4 reviewers → 5 contrarian → self-heal. Commits `61b4b0366`(config+schemes+ServeSpec), `0dcf9248b`(Security por-op), `286ab6593`+`5bb314b6c`(spec-lock tests + tabela 28-op). Retornou ISSUES; adjudicação do supervisor:
-- **Test-reviewer High (fechado no self-heal `5bb314b6c`):** comentário afirmava que o check-docs security-coverage cobre as 28 ops do tracer — falso (a gate é `SECURITY_COVERAGE_COMPONENT=ledger`). Self-heal adicionou `TestSpecLock_AllOpsSecurity` (tabela das 28 ops, `require.Lenf(...,28)`) — o backstop real.
-- **Lens 3 refuted=true = ARTEFATO de framing** (lente pedia pra refutar uma propriedade boa; o reason PROVA spec-only/zero-regressão). Descartado.
-- **Lens 1 + logic-reviewer Medium = REAL (bug MEU no task spec), corrigido por mim `ca1a0ee82`:** POST /validations declarava `secAPIKeyOnly` estático, mas o guard é config-driven (`cfg.APIKeyOnlyValidation`, default false, proibido em MT) → default+MT rodam Bearer. Spec estático não espelha flag de runtime → declarar o superset union `[{Bearer},{ApiKey}]` uniforme com as outras 27; helper morto removido; 2 asserts de lock flipados. Spec-only, zero runtime.
-- **Drift swaggo verificado por mim:** `swag init` do tracer reproduz `api/` byte-a-byte (zero drift) — 2b-2 não perturbou o swaggo; check-docs CI limpo no tracer.
-Verificado independentemente: build EXIT0, vet limpo, spec-lock + http/in (4.76s) + golden (0.50s) verdes.
+## Fase 3 — Ledger → Huma · **Complete**
 
-**Deferido p/ Fase 4 (registrado):** aposentar swaggo (remover @securityDefinitions + swagger 2.0 + flipar check-docs pra Huma) — junto com ledger. **Follow-up p/ Fred:** pushar `DeclareApiKeyAuth` pra lib-commons (simetria com DeclareBearerAuth).
+**Entregue (2026-07-01):** ledger 100% Huma (**113 ops**) = de-risk `asset.go` (6) + wave-1 CRUD core no-money (45) + wave-2 money-read+routing (23) + wave-3 aditivas open-source (28) + wave-4 money-write (11). Mount huma.API criado no `unified-server.go` (novo group `/v1`, `openapi.New` com `Servers:["/v1"]`, `problem.Install` antes dos Register, `ServeSpec` gated em `LEDGER_HUMA_DOCS_ENABLED`). Auth `ProtectedRouteChain`→Security por-op preservada byte-a-byte nos 3 namespaces (`protectedMidaz`="midaz" / `protectedRouting`="routing" / `protectedFees`="plugin-fees"). Helper compartilhado `pkg/net/http/huma_error.go` (`HumaProblem`) + `DecodeAndValidate` (fonte única Fiber+Huma, fecha o resíduo `http.BadRequest` da Fase 1). swaggo 0-drift em todas as waves.
 
----
+**Aditivas = third-rail RESOLVIDO por evidência** (recon `aacaa9e243807dc5b`): TODAS as superfícies (CRM holder/instrument/encryption/audit; fees/billing; composition) são **open-source nativas** no monorepo — zero proxy/cliente para plugin closed. `plugin-fees` é namespace RBAC **legado** preservado verbatim (compat X1), não indício de código closed. Migrei tudo, rail avaliado e limpo.
 
-## Fase 3 — Ledger → Huma
+**Lições que vinculam o trabalho restante (CRÍTICAS para Fase 4 e Plano B):**
+- **⚠️ Contrato de header de idempotência money-path:** os headers de runtime são `X-Idempotency` / `X-TTL` (lib-commons/v5), **não** `X-Idempotency-Key`/`X-Idempotency-TTL` (o doc-comment CRM estava errado). A wave-4 pegou os shells Huma de create ligados aos nomes errados → chave do caller silenciosamente dropada → fallback pra payload-hash → **retry keyed executaria 2ª mutação de balance** (violação double-entry). Corrigido (`2f06a416c`) + revert-TTL 0→300 (`ParseIdempotencyTTL("")`) + regressão (`4c843f451`). **Lição: money-path exige verificar o CONTRATO de header, não só o helper de parse.** O SDK v4 (Plano B) DEVE mandar `X-Idempotency`/`X-TTL`.
+- **Merge-patch RFC 7396** (operation_route/holder/instrument PATCH): campo-ausente vs `null` colapsaria sob decode tipado. O core Huma popula `*Raw` a partir de `in.RawBody` e reproduz a probe de unknown-key; `FindNilFields` compartilhado. Guardado por `TestHuma_UpdateOperationRoute_MergePatch`.
+- **201-sempre** em transaction create/commit/cancel/revert (+ replay); read/update/patch = 200.
+- **Migração é transport-only:** extrai core transport-agnóstico, wrapper Fiber fino, shell Huma delega ao **mesmo** `services/{command,query}`. Lógica de double-entry/balance nunca tocada.
+- **Harness — schema contrarian:** `refuted` (dupla-negativa) gerou falso-positivos (agente que provava correção escrevia `refuted:true`). Trocado por `defectFound:boolean` (true SÓ com defeito real ou verificação inconclusiva). Aplicar nas ondas da Fase 4.
+- **`swag init` reprodutível:** a wave que tocar `pkg/net/http` compartilhado quebra/regenera specs dos 2 planos — buildar o MÓDULO inteiro + rodar a suíte do tracer também em cada gate.
 
-**Milestone:** O plano ledger está 100% em Huma (spec OAS 3.1 aditiva), auth `ProtectedRouteChain`→Security por-op preservando os 3 appName namespaces, `pkg.HTTPError` morto removido. Padrão da Fase 2 em escala maior + a auth `lib-auth/v2` do ledger.
-
-**REVISÃO do recon-f3 (3 correções ao briefing):**
-- **113 ops / 23 handlers, não 115/27.** **Core clássico = 86 ops / ~17 arquivos** (money-path = 34 ops/8 arquivos). **27 ops aditivas** (CRM: holder/instrument/encryption/audit; fees/billing; composition) wired em `crm_routes.go`/`fees_routes.go`/`composition_routes.go`.
-- **Auth = `lib-auth/v2` `auth.Authorize(appName,resource,action)`** via `ProtectedRouteChain` (`pkg/net/http/protected_routes.go:24`: authHandler→PostAuthMiddlewares(tenant scoped)→ParseUUIDPathParameters→WithBody→handler). NÃO é `guard.With`. **3 appName namespaces a preservar: `midaz` / `routing` (account-types/operation-routes/transaction-routes) / `plugin-fees`.** Wrappers `protectedMidaz`/`protectedRouting` (routes.go:183-189). Sem `/v1` group (rotas inline `/v1/...`). App em `bootstrap/unified-server.go:49`.
-- **`pkg.HTTPError` é CÓDIGO MORTO** (`pkg/errors.go:140-148`): zero construtores runtime, só 20 annotations swaggo stale + 4 dead asserts em testes de fees. **Epic 3.3 = DELETAR struct + repontar 20 annotations → problem.Detail + limpar 4 testes.** Não é fusão.
-
-**Fatos-chave:** huma.API **NÃO montada no ledger** (Fase 1 mexeu runtime mas não montou huma — de-risk CRIA o mount no unified-server, análogo tracer routes.go:349). **401 do ledger JÁ é problem+json** (`fiber_error_handler.go:39`, `CanonicalFiberErrorHandler` em unified-server.go:52) — sem issue flat-401 do tracer. `http.BadRequest` (`pkg/net/http/response.go:34`, NÃO `response.BadRequest`): 9 call sites (withBody.go decode/unknown-fields/ValidateStruct + WithBodyLimit + ledger.go:456 settings allowlist); 6 evaporam sob Huma (decode+strict-schema), 3 portam explícito (validator tags de negócio withBody.go:96 + allowlist settings ledger.go:456). **check-docs security-coverage é LEDGER-ONLY e sempre-on** → toda op do swagger.json ledger DEVE ter `.security` → **manter os `@Security` swaggo intactos na migração aditiva** (não strippar), senão CI quebra.
-
-**LANDMINES money-path (concentradas nas waves 3-4):** (1) **Idempotência** transaction_create.go:1037-1059 (`X-Idempotency`+`X-TTL` headers, hash sobre payload decodificado, resp `X-Idempotency-Replayed`; NOTA: transaction usa `X-Idempotency`, CRM doc `X-Idempotency-Key` — confirmar). (2) **createTransaction 480 linhas, 9 cleanup points intercalados** → migrar como **corpo OPACO, nunca decompor em hooks Huma.** (3) **201 sempre** (commit/cancel/revert + replay = 201, não 200). (4) **id-only c/ side-effect distribuído** (commit/cancel/revert chamam tracer two-phase). (5) **HEAD+204 header-only** (count → 204, dado em `X-Total-Count`, Content-Length:0 manual). (6) **[ALTO] raw-body re-read p/ JSON Merge Patch** operation_route.go:92,231 (RFC 7396 campo-ausente vs null; Huma colapsa → quebra silenciosa do PATCH). (7) **DSL multipart** transaction.go:234-296 (.casl, **sunset 2026-08-01 → NÃO PORTAR**, deixar Fiber-puro, fora do spec Huma). (8) 3 padrões de paginação + validador de data do audit.
-
-**DECISÕES do supervisor (2026-07-01):**
-- **(a) Aditivas — third rail RESOLVIDO por evidência (recon `aacaa9e243807dc5b`, 2026-07-01): TODAS as 16 superfícies restantes são OPEN-SOURCE NATIVAS no monorepo.** Zero proxy/cliente HTTP/gRPC pra plugin closed. CRM (holder/instrument/encryption/audit) → `internal/crm/services|adapters`; fees/billing → in-process `pkg/fee`+`pkg/feeshared` (interface `FeeService`/`BillingPackageUseCase` injetada no bootstrap, sem cliente externo); composition → `internal/services/composition`. O appName **`plugin-fees` é namespace RBAC legado** preservado verbatim (`fees_routes.go:16-19`) pra compat X1 (`plugin-fees:*`→`midaz:*`), NÃO indício de código closed. A branch `feat/monorepo-consolidation` PUXOU os plugins formerly-standalone PRA DENTRO do midaz open-source. Endpoint de servidor open-source → cliente open-source por construção. **Sem gate do Fred; migro tudo.** (Rail avaliado e limpo, não silenciado.)
-- **(b) DSL multipart: NÃO portar** (sunset 2026-08-01), Fiber-puro, fora do spec Huma (SDK não gera cliente pra endpoint em sunset). transaction.go migra 12 dos 13 ops; DSL fica Fiber.
-- **(c) De-risk = `asset.go`** (não transaction) — cria o mount, prova ProtectedRouteChain/auth.Authorize, fecha http.BadRequest, exercita DELETE-204+HEAD-count, tudo NON-money.
-- **(d) RE-SLICE risk-ordered (2026-07-01, pós-recon):** money-read+routing ANTES das aditivas (core antes de periférico); money-write fica ISOLADO por último. Migração é **transport-only** (extrai core, wrapper Fiber fino, shell Huma delega ao MESMO `services/command|query`) → lógica de double-entry/balance NUNCA tocada, só re-frontada; risco confinado à shape de transporte (status/envelope/headers), guardado por golden+suite.
-
-**FATIAMENTO (re-slice 2026-07-01):** de-risk `asset.go` ✅ → **wave 1** CRUD core no-money (~45 ops) ✅ → **wave 2** money-read + routing (balance 10, operation 3, count 1, operation-route 5, transaction-route 5 = **24 ops**; landmine ALTO = merge-patch RFC 7396 em operation_route/transaction_route; balance tem 3 write-ops money-adjacent → golden/op) → **wave 3** aditivas open-source (CRM holder/instrument/holder-accounts/encryption/audit + fees/billing + composition = **28 ops**) + Epic 3.3 (deletar `pkg.HTTPError` morto, pois audit.go/encryption.go carregam as 20 annotations stale) → **wave 4** money-write (transaction, **12 ops Huma** [DSL fica Fiber], **SEQUENCIAL, 1 agente, golden a cada op, revisão adversária**, createTransaction opaco 480 linhas). Total restante 24+28+12 = **64** (bate com contagem file-by-file do recon). Auth (Epic 3.2) e HTTPError-delete (Epic 3.3) entram como tasks dentro das waves.
-
-### Epic 3.1: Bootstrap Huma do ledger + re-tipar o core (86 ops)
-**Goal:** huma.API montada no unified-server (New+Install+ServeSpec gated); os handlers do core re-tipados `func(ctx,*In)(*Out,error)` com Security por-op; `http.BadRequest` residual fechado; swaggo intacto (aditivo).
-**Scope:** `components/ledger/internal/adapters/http/in/` (core ~17 arquivos), `components/ledger/internal/bootstrap/unified-server.go`, `routes.go`.
-**Dependencies:** Fase 2 (padrão validado). ✅
-**Done when:** core 86 ops via `huma.Register` com auth resource/verb preservada; mount criado; build+`-race`+golden+check-docs verdes.
-**Status:** Complete — 113 ops em Huma (de-risk+waves 1-4), mount criado, http.BadRequest fechado, swaggo intacto.
-
-#### Task 3.1.0 (DE-RISK): `asset.go` → Huma + criar o mount huma.API no ledger
-- [x] Done — `9a106388c` (mount+asset) + `80513dad5` (regen specs, fecha drift Fase-1) + `9a4c48d45` (Content-Length lock). Gate PASS.
-**Context:** huma.API NÃO existe no ledger. `AssetHandler` (`asset.go`, 6 ops: POST/PATCH/GET-list/GET-id/DELETE-204/HEAD-count) é wired via `protectedMidaz(auth,"asset",verb,...)` no registrar de `routes.go` sob appName `midaz`. Cadeia atual: `ProtectedRouteChain` (protected_routes.go:24). Exemplar Huma provado: tracer `rule_handler_huma.go`. 401 do ledger já é problem+json.
-**Implementation vision:**
-- **Criar o mount** em `unified-server.go` (~:49-52): `problem.Install()` + `humaAPI := openapi.New(app, <group-ou-app>, cfg)` + `openapi.DeclareBearerAuth` + ServeSpec gated (análogo tracer). Como o ledger não tem `/v1` group Fiber, decidir na execução: montar a huma.API no `app` com Servers `["/v1"]` e paths group-relative, ou criar o group. Ler o tracer e o unified-server real antes.
-- **Extrair cores** transport-agnósticos de cada método `AssetHandler` (o método Fiber vira wrapper fino); shell Huma `func(ctx,*In)(*Out,error)` delega ao core; erro via `humaProblem` (reusar o package-level do pkg/net/http, NÃO redefinir). Body via `RawBody`+`SkipValidateBody`; path params sem `format`; DELETE 204 = Out sem Body + `DefaultStatus:204`; **HEAD-count**: replicar `X-Total-Count`+Content-Length:0 (landmine #5 provada aqui, non-money).
-- **Auth preservada:** MW pré-Register que chama `auth.Authorize("midaz","asset",verb)` — emular `ProtectedRouteChain` (auth + PostAuthMiddlewares tenant) como MW Fiber antes do handler Huma. Security por-op no huma.Operation (`[{BearerAuth}]` ou o shape que o ledger usa) — **manter `@Security` swaggo intacto** (security-coverage CI).
-- **Fechar `http.BadRequest`** onde asset.go o dispara (se dispara) → problem.Detail canônico via o core.
-- Paginação: `ValidateParameters(c.Queries())` cursor → binder imperativo no core (padrão tracer list, inline).
-**Files:** Create `asset_handler_huma.go`, `asset_handler_huma_test.go`; Modify `asset.go`, `unified-server.go`, `routes.go` (wiring da asset).
-**Verification:** `go build -buildvcs=false ./components/ledger/...` EXIT0; `go test -buildvcs=false -count=1 ./components/ledger/internal/adapters/http/in/` verde; golden net verde; **`swag init` do ledger → zero drift** OU regen+commit consciente; asset com HEAD-204 e DELETE-204 corpo vazio; auth.Authorize("midaz","asset",verb) preservado byte-a-byte; sem 422 novo.
-**Done when:** 6 ops de asset em Huma, mount criado e reutilizável pelas waves seguintes, auth+security-coverage preservados, padrão ledger provado.
-
-##### Gate de-risk Fase 3 (2026-07-01) — PASS
-Workflow `wf_0a355da9-229`: implement → 4 reviewers → 5 contrarian → self-heal. **PASS** (0 blocking, 0 refutado final). **Mount:** novo group `app.Group("/v1")` no `NewUnifiedServer` após MW app-level, `openapi.New(app, apiV1, {Servers:["/v1"]})` paths group-relative, `problem.Install` antes dos Register, DeclareBearerAuth + ApiKeyAuth local, ServeSpec gated em `LEDGER_HUMA_DOCS_ENABLED`, threaded via novo param `HumaRouteRegistrar` (só asset opta in; os 5 fiber registrars intactos). **Novo helper compartilhado `pkg/net/http/huma_error.go` (HumaProblem)** — projeção de erro do ledger (o `humaProblem` do tracer é package-local, não reusável cross-package; este fica em pkg/ e ambos os planos podem convergir depois). **`withBody.go` refatorado:** `DecodeAndValidate` extraído como fonte única Fiber+Huma (fecha o resíduo `http.BadRequest` da Fase 1). **BÔNUS — contrarian pegou drift Fase-1:** `swag init` do ledger não reproduzia `api/` (commit `7ca117f9a` mudou `ErrorResponse`→RFC9457 sem regenerar); self-heal regenerou `api/`+`postman/specs/*` → **drift agora ZERO** (verificado por mim). Auth `auth.Authorize("midaz","assets",verb)` — resource é **"assets" PLURAL** (preservado byte-a-byte; lição: ler routes.go pré-migração p/ a string exata, NÃO assumir). Verificado por mim: build EXIT0, ledger http/in + golden + bootstrap verdes, swag drift 0.
-
-#### Wave 1 (fan-out CRUD core no-money) — 8 arquivos, ~45 ops
-- [x] Done — impl `53aac14d8`(org) `dc51edade`(ledger) `5319ae131`(portfolio) `239e4907e`(segment) `beaecf520`(account) `b10c70720`(accounttype) `38818572c`(metadata) `3bf0903c2`(assetrate) + integração `b51b89ac7`. Gate PASS.
-**Escopo:** org(6), ledger(8), portfolio(6), segment(6), account(8), accounttype(5), metadata(3), assetrate(3). **~45 ops** (asset já feito). Todos copiam o exemplar `asset_handler_huma.go`. **appName por arquivo (ler routes.go pré-migração p/ confirmar a tupla EXATA `protectedMidaz`/`protectedRouting(appName,resource,verb)`):** `midaz` = org/ledger/portfolio/segment/account/metadata/assetrate; **`routing` = accounttype** (account-types). Resource strings são as reais do routes.go (ex. "assets" plural) — NÃO assumir.
-**Padrão (do de-risk):** extrair cores transport-agnósticos por handler, método Fiber vira wrapper fino, shell Huma delega, erro via `pkgHTTP.HumaProblem`; body RawBody+SkipValidateBody→`DecodeAndValidate`; path via `ParseUUIDPathParameters`; query cursor via `ValidateParameters` inline; DELETE 204 bodiless; HEAD-count 204+X-Total-Count+Content-Length:0. Cada `RegisterXxxRoutesToApp` anexa a cadeia auth+tenant+parse (MW-only) no group /v1 + `RegisterXxxRoutes` no humaAPI. **Manter `@Security` swaggo intacto** (security-coverage CI). `assetrate` é [MONEY-adjacent] → golden a cada op.
-**Execução:** implement SERIAL no worktree compartilhado (7 tasks, disjuntas por arquivo) + 1 integração (estender o `humaMount` closure em config.go pra registrar os 7 + swap das rotas inline). Review+contrarian paralelos read-only.
-**Verification:** build ledger EXIT0; `go test -count=1 ./components/ledger/internal/adapters/http/in/` verde; golden verde; **`swag init` drift ZERO** (ou regen consciente); auth tuplas byte-a-byte por-op; zero 422 novo.
-**Done when:** os 8 arquivos (45 ops) em Huma wired no mount, auth preservada por appName, suites+golden+drift verdes.
-
-##### Gate Wave 1 Fase 3 (2026-07-01) — PASS
-Workflow `wf_64c88231-0b3`: 9 implement (8 handlers serial + integração) → 4 reviewers (logic/security/commons/nil) → 5 contrarian lenses → self-heal. **PASS** (0 blocking, 0 refutado, `healCommit: null`; commons-reviewer 0 findings). **Verificado por mim** (não só o harness): build ledger EXIT0; `http/in` suite ok 0.686s; **TestGolden ok 0.435s** (rede money-path); zero arquivo de spec gerada no diff + **0 linhas `// @swaggo` alteradas** (`swag init` reproduzível, CI-safe); auth wiring em `config.go:1031-1039` (`humaMount`) — 9 `RegisterXxxRoutesToApp` com routeOptions load-bearing corretos (metadata→`ledgerRouteOptions` sem WithTenantDB; assetrate→`transactionRouteOptions` money-adjacent; accounttype→`onboardingRouteOptions` MAS appName `routing`; resto `onboardingRouteOptions`+`midaz`). **2 findings Low, ambos fechados por mim, não-blocking:** (1) body-limit de settings virou pós-read (`len(RawBody)`) — mas Huma monta no mesmo Fiber app cujo **default BodyLimit=4MB** é o backstop; código `0143` byte-idêntico, só o *timing* da rejeição muda, limitado a 4MB em endpoint autenticado → paridade semântica, não é DoS. (2) `asset_code` path-decode Huma vs Fiber — **não-issue**: Huma monta no MESMO router Fiber, `c.Params` e o binder Huma lêem o MESMO param decodificado, não dois decoders independentes. Terceiro-trilho (auth) intacto, confirmado por 2 passes adversários independentes (security-reviewer + contrarian lens 1) reconstruindo as 45 tuplas byte-a-byte.
-
-#### Wave 2 (money-read + routing) — 5 arquivos, 23 ops
-- [x] Done — impl `b428d260c`(balance 10) `0f2e9ee11`(operation 2-read) `df5c8e0d5`(count 1) `62364dd9e`(operation-route 5) `bf2b26690`(transaction-route 5) + integração `d8332ec88`. Gate PASS. **23 ops** (não 24: operation.go tem 2 reads migrados + 1 write `UpdateOperation` PATCH que fica Fiber pra wave 4 money-write).
-**Escopo (contagem file-by-file do recon `aacaa9e243807dc5b`):** `balance.go`(10: 7 read GET/HEAD + 3 write PATCH-update/POST-create-additional/DELETE), `operation.go`(3 read), `count_transactions_by_filters.go`(1 HEAD-count), `operation_route.go`(5 CRUD), `transaction_route.go`(5 CRUD). **appName:** `midaz` = balance/operation/count; **`routing`** = operation-route/transaction-route (`protectedRouting`, routes.go:169). Rotas em routes.go:105-162. Cores em `internal/services/{query,command}` — NÃO tocados (transport-only).
-**Padrão:** idêntico ao de-risk/wave1 — extrair cores transport-agnósticos, wrapper Fiber fino, shell Huma delega, erro via `pkgHTTP.HumaProblem`; body `RawBody`+`SkipValidateBody`→`DecodeAndValidate`; path via `ParseUUIDPathParameters`; query cursor via binder inline; DELETE-204 bodiless; HEAD-count 204+X-Total-Count+Content-Length:0. `@Security` swaggo intacto. Cada `RegisterXxxRoutesToApp` no `humaMount` (config.go).
-**LANDMINES (esta wave):**
-- **[ALTO] Merge-patch RFC 7396** em `operation_route.go` APENAS (`transaction_route.go` usa BodyParser normal, sem merge-patch — grep confirmou zero raw-body/Unmarshal/map). Sites: unknown-key probe em `:90-97`(create) e `:229-236`(update) via `json.Unmarshal(c.Body(), &map[string]json.RawMessage)`; o merge RFC 7396 real em `UpdateOperationRoute` (`:226-269`) usa `payload.AccountingEntriesRaw` (`json.RawMessage`) + `mergeAccountingEntries(existing, incoming, rawUpdates)` (`:1004-1030`) pra distinguir campo-AUSENTE vs `null`. Huma decode tipado COLAPSA essa distinção → quebra silenciosa. **O core Huma DEVE popular `AccountingEntriesRaw` a partir de `in.RawBody` exatamente como o path Fiber, e reproduzir a probe de unknown-key.** Ler `:85-100`, `:226-270`, `:1004-1030` e preservar byte-a-byte. **Contrarian lens dedicada** a field-absent-vs-null em UpdateOperationRoute.
-- **Balance 3 write-ops [MONEY-adjacent]:** PATCH-update/POST-create-additional/DELETE mutam registro de balance. Migração é transport-only (core `command` intacto) mas **golden a cada write-op** + revisão. NÃO é posting double-entry (isso é transaction.go/wave4), é CRUD-de-balance administrativo.
-- **HEAD-count** (count_transactions_by_filters + qualquer count de balance): replicar `X-Total-Count`+`Content-Length:0`+204 (padrão asset).
-- **Balance date-history** (GetAccountBalancesAtTimestamp/GetBalanceAtTimestamp): query param de data — SEM tags de validação (`format`/`min`) → sem 422 nativo; validar imperativo no core se preciso.
-**Execução:** implement SERIAL no worktree compartilhado (5 tasks disjuntas por arquivo) + 1 integração (estender `humaMount` em config.go pros 5 + swap das rotas inline em routes.go). Review+contrarian paralelos read-only.
-**Reviewers:** logic, security, commons, nil (como wave 1).
-**Contrarian lenses:** (1) auth 24 tuplas byte-a-byte (routing appName correto p/ os 2 route-files); (2) zero-422 + code/status parity + golden; (3) **merge-patch RFC 7396 field-absent-vs-null preservado** (a landmine ALTO); (4) HEAD/204 + balance-write money-adjacency (golden por write-op); (5) swaggo intacto + wiring completo sem órfãos.
-**Verification (supervisor):** build ledger EXIT0; `go test -count=1 ./components/ledger/internal/adapters/http/in/` + `./components/ledger/internal/bootstrap/` verdes; golden verde; `swag init` drift ZERO; auth 24 tuplas byte-a-byte; zero 422 novo; PATCH merge-patch semântica preservada.
-**Done when:** 5 arquivos (24 ops) em Huma wired no mount, auth por appName preservada, merge-patch RFC 7396 intacto, suites+golden+drift verdes.
-
-##### Gate Wave 2 Fase 3 (2026-07-01) — PASS (após reverify de HEALED_NEEDS_REVERIFY)
-Workflow `wf_d712684f-3c4`: 6 implement (5 handlers + integração) → 4 reviewers → 5 contrarian → self-heal. Retornou `HEALED_NEEDS_REVERIFY` com 2 refutações — **AMBAS FALSO-POSITIVAS** (artefato de fraseado da lens, dupla-negativa): lenses 2 e 3 setaram `refuted:true` mas o texto prova "nenhum defeito / não quebrou". Self-heal NÃO criou commit novo (`healCommit` == commit de integração `d8332ec88`; working tree limpo) — reconheceu que não havia o que consertar. **Verificado por mim (reverify completo, não aceitei o status do harness):** build EXIT0; http/in ok 0.683s + bootstrap ok 2.011s + golden ok 1.221s; **`TestHuma_UpdateOperationRoute_MergePatch` rodado por mim — os 2 sub-casos PASSAM** (`overdraft_ABSENT_keeps_existing` + `overdraft_null_removes_existing`): a landmine RFC 7396 (campo-ausente vs null) está genuinamente preservada — o core `updateOperationRoute` popula `AccountingEntriesRaw` de `in.RawBody`, `splitMergePatch` no postgres roteia `null`→removeKeys vs ausente→coluna intocada. Zero spec-drift + 0 linhas swaggo. **Auth 23 tuplas verificadas por mim em routes.go** (RegisterXxxRoutesToApp lá, não no _handler_huma.go): balances(10)/operations(2)/transactions-head(1) = `protectedMidaz` appName midaz; operation-routes(5)/transaction-routes(5) = `protectedRouting` appName routing. Nenhuma rota pública; money-writes (transaction + operation-patch) permanecem Fiber (`f.`) pra wave 4. balance 3-writes transport-only (services/command intocado no diff --stat).
-**LIÇÃO HARNESS (aplicar wave 3-4):** a lens contrarian com fraseado "REFUTE / default refuted=true se em dúvida" INVERTE a semântica — agente que prova correção escreve refuted:true. FIX: usar campo `defectFound:boolean` (true=defeito real, false=limpo) em vez de `refuted`; instruir "defectFound=true SÓ com defeito real ou verificação incompleta; se provou correto, defectFound=false". Synthesize bloqueia em defectFound=true.
-
-#### Wave 3 (additives open-source) — 10 arquivos, 28 ops
-- [x] Done — impl `7ff29cf12`(holder+holder-accounts 6) `d30bbc27e`(instrument 6) `b1ac76a9f`(encryption+audit 3) `2ffb1ff19`(fees+package 6) `35adc7149`(billing-pkg+calculate 6) `1e79a3838`(composition 1) + integração `d5f0ee784`. Gate PASS.
-**Escopo:** CRM (holder 5, holder-accounts 1, instrument 6, encryption 2, audit 1 = 15, appName `midaz`) + fees/billing (packages 5, estimates 1, billing-packages 5, billing-calculate 1 = 12, appName `plugin-fees`) + composition (1, appName `midaz`/accounts). Registrados em 3 registrars separados (crm_routes/fees_routes/composition_routes), NÃO routes.go. **Todos OPEN-SOURCE nativos** (recon confirmou). Padrão asset. `@Security`+`pkg.HTTPError` annotations INTACTOS (Epic 3.3 fora).
-**Landmines endereçadas:** (1) **conditional nil-guards** holder-accounts(hah!=nil)/encryption(eh!=nil)/audit(auditHandler!=nil) — o guard envolve TANTO a cadeia auth Fiber QUANTO o `RegisterXxxRoutes` Huma (simetria, crm_routes.go:70-96); (2) **feehttp.WithBodyTracing** span preservado via novo `decodeFeeBodyInSpan` (WithBodyTracing original virou órfão, harmless); (3) **merge-patch RFC 7396** em holder/instrument PATCH via `FindNilFields` (findNilFields renomeado exportado em withBody.go, comportamento inalterado, fonte única Fiber+Huma); (4) **CRM idempotência** (crm_idempotency.go deletado, lógica migrada pra CreateHolderHuma: X-Idempotency-Key/TTL + X-Idempotency-Replayed via `ParseIdempotencyTTL` extraído de GetIdempotencyKeyAndTTL — refactor puro, path transaction inalterado); (5) `huma_schema_namer.go` prefixo `Fee` p/ resolver colisão feeshared/model.Pagination vs pkg/net/http.Pagination (só schema OAS nativo, swaggo intacto).
-**Verificado por mim (gate):** build MÓDULO INTEIRO EXIT0 (pkg/net/http compartilhado tocado → build tudo); ledger http/in 0.721s + bootstrap 2.438s + pkg/net/http 0.576s verdes; **TRACER http/in 4.811s verde (sem regressão Fase-2 dos changes em pkg/net/http compartilhado)**; idempotência = refactor byte-idêntico (TestGetIdempotencyKeyAndTTL_* passam, transaction.go fora do diff); 0 spec-drift + 0 linhas swaggo; auth 28 tuplas via protectedMidaz("midaz")/protectedFees("plugin-fees") com nil-guards simétricos, nenhuma pública (verifiquei crm_routes.go:62-96 + fees_routes.go:55-87 + protectedFees→auth.Authorize(feesApplicationName)). self-heal 0 commits, 0 defectFound (schema `defectFound` funcionou — sem falso-positivo). **2 findings Low não-blocking:** terminais Fiber legados órfãos (dead code) + WithBodyTracing órfão → cleanup no Epic 3.3 / depois.
-
-#### Wave 4 (MONEY-WRITE — crown jewel) — transaction 10 + operation-patch 1 = 11 ops
-- [x] Done — impl `f5d1b79d9`(transaction 10) `fd3aec2c4`(operation-patch) `ade6a69b8`(mount test) + self-heal `2f06a416c` + regressão `4c843f451`. Gate PASS (após reverify de HEALED_NEEDS_REVERIFY). DSL fica Fiber.
-**Escopo:** transaction.go 10 ops Huma (4 create json/inflow/outflow/annotation + 3 state commit/cancel/revert + 1 PATCH + 2 read; **DSL sunset 2026-08-01 fica Fiber-puro `f.`**, routes.go:265) + operation UpdateOperation PATCH (deferido da wave 2). appName `midaz`. SEQUENCIAL, golden/op, 6 reviewers + 8 lenses money-path.
-**⚠️ 2 DEFEITOS MONEY-PATH REAIS encontrados (a scrutiny extra valeu) + healed:**
-- **[CRITICAL] nomes de header de idempotência errados:** os shells Huma de create liam `X-Idempotency-Key`/`X-Idempotency-TTL` (copiado do doc-comment @Param) mas o contrato de runtime (lib-commons/v5 `IdempotencyKey="X-Idempotency"`, `IdempotencyTTL="X-TTL"`, lido pelo Fiber via `GetIdempotencyKeyAndTTL`) é `X-Idempotency`/`X-TTL`. Huma bind por nome literal → chave do caller SILENCIOSAMENTE DROPADA → fallback pra payload-hash → **retry keyed com payload alterado executaria 2ª mutação de balance (violação double-entry).** Mesmo bug latente em holder/instrument (waves 1-3). Fix `2f06a416c`: todas as tags → `X-Idempotency`/`X-TTL`. **Verifiquei o contrato empiricamente:** lib-commons/v5 constants + o `crm_idempotency.go` original (@ee6d786363) ambos usavam `GetIdempotencyKeyAndTTL`→`X-Idempotency` (o doc-comment CRM `X-Idempotency-Key` era mentira; runtime sempre `X-Idempotency`). Resolve a ambiguidade da memória.
-- **[HIGH] revert TTL=0:** `revertTransaction` passava TTL hardcoded 0 → go-redis `SetNX(...,0)` = `SET NX` SEM expiry = chave Redis PERMANENTE (leak + semântica de replay alterada). Pré-migração o Fiber chegava em `executeCreateTransaction`→`GetIdempotencyKeyAndTTL`→default 300. Fix `2f06a416c`: `ParseIdempotencyTTL("")`=300.
-- **Lacuna de teste fechada** `4c843f451`: 3 testes de wiring (header canônico→core, 4 variants + holder + TTL default) + o self-heal já tinha adicionado guards estruturais (tag-check por reflection + revert-TTL por AST). 3 camadas onde antes havia buraco.
-**Verificado por mim (gate reverify — o mais rigoroso do plano):** build MÓDULO INTEIRO EXIT0; ledger http/in 0.663s + bootstrap 2.045s + golden 1.272s + **TRACER 5.716s** verdes; TODAS as tags idempotência canônicas (0 wrong); revert TTL=300; **201-sempre** confirmado (create+commit/cancel/revert=`StatusCreated`; read/update/patch=`StatusOK`); auth 11 tuplas `protectedMidaz` midaz; **DSL fica Fiber `f.` não dupla-registrada** (routes.go:265); side-effects two-phase/FeeApplier intactos (lens 5 afirmativo); os 4 testes idempotência PASS rodados por mim; sem 3º defeito (3 defectFound = os mesmos 2 roots).
-**LIÇÃO:** wave 3 passou meu gate SEM eu verificar o NOME do header de idempotência (só verifiquei o ParseIdempotencyTTL byte-idêntico) — a scrutiny money-path da wave 4 (6 reviewers/8 lenses) pegou o bug latente. Money-path exige verificar o CONTRATO de header, não só o helper de parse.
-
-### ✅ FASE 3 COMPLETA (2026-07-01) — ledger 100% Huma (113 ops)
-de-risk(6) + wave1(45) + wave2(23) + wave3(28) + wave4(11) = **113 ops**. Epic 3.1 (bootstrap+core) DONE; Epic 3.2 (auth ProtectedRouteChain→per-op preservada nos 3 namespaces midaz/routing/plugin-fees) DONE (verificado byte-a-byte em cada wave). **Epic 3.3 (deletar pkg.HTTPError morto + repontar 20 annotations) DEFERIDO pra Fase 4** — junto do rework do pipeline de spec, pra concentrar o único evento de spec-regen. swaggo intacto em todas as waves (0 drift, aditivo). Próximo: Fase 4.
-
-### Epic 3.2: Auth `ProtectedRouteChain` → Security por-op (3 appName namespaces)
-**Goal:** MW Huma que preserva `auth.Authorize(appName,resource,action)` + Security por-op no spec, para os 3 namespaces (`midaz`/`routing`/`plugin-fees`). Modelado no de-risk (asset=midaz) e replicado nas waves.
-**Scope:** o MW de auth compartilhado + os huma.Operation de cada handler.
-**Dependencies:** Epic 3.1 (de-risk estabelece o padrão).
-**Done when:** toda rota protegida mantém a MESMA decisão `auth.Authorize(appName,resource,action)` de hoje; nenhuma rota vira pública (verificado contra o mapa); security-coverage CI verde.
-**Status:** Done — auth preservada byte-a-byte em todas as waves via `protectedMidaz`("midaz") / `protectedRouting`("routing") / `protectedFees`("plugin-fees"); verificado op-por-op no gate de cada wave; nenhuma rota pública.
-
-### Epic 3.3: DELETAR o `pkg.HTTPError` morto
-**Goal:** Remover o struct morto `pkg.HTTPError` (`pkg/errors.go:140-148`) e repontar as 20 annotations `@Failure {object} pkg.HTTPError` (audit.go:86-87; encryption.go:36-40,129-131 + api/docs.go gerado) → o schema problem.Detail; limpar as 4 dead asserts em testes de fees.
-**Scope:** `pkg/errors.go`, `components/ledger/internal/adapters/http/in/{audit,encryption}.go`, testes de fees.
-**Dependencies:** Epic 3.1 (idealmente na wave que toca audit/encryption — aditivas, wave 2).
-**Done when:** `pkg.HTTPError` não existe; spec não tem `definitions."pkg.HTTPError"`; build+testes verdes; `err:{}` fora do contrato.
-**Status:** Epic-level — **DEFERIDO p/ Fase 4** (concentrar o único evento de spec-regen com o rework do pipeline; audit.go/encryption.go mantêm as 20 annotations `@Failure pkg.HTTPError` intactas até lá, swaggo 0-drift preservado nas waves).
+**Epic 3.3 (deletar `pkg.HTTPError` morto) → movido para Fase 4:** `pkg.HTTPError` (`pkg/errors.go:139-150`) é código morto (zero construtores runtime) carregando 10 annotations swaggo stale + type-asserts em 4 testes. Foi deliberadamente diferido para concentrar o **único evento de spec-regen** com o rework do pipeline. audit.go/encryption.go mantêm as annotations intactas até lá (swaggo 0-drift preservado).
 
 ---
 
-## Fase 4 — Pipeline de spec 2-planos + trava de paridade
+## Fase 4 — Pipeline de spec 2-planos + trava de paridade · **Detailed** (onda corrente)
 
-**Milestone:** O pipeline de geração (`postman/generator/generate-docs.sh`) é migrado de swag→openapi-generator-Docker→3.0.1 para emissão Huma 3.1 nativa por plano; o `redocly join` + o guard de security-scheme sobrevivem; `check-docs.sh` é reformulado; as duas specs atingem **identidade total** de schema de erro (`@name Error` unificado, `required[]` idêntico). Entregável: OAS 3.1 pristine + paridade — o insumo do remodel do SDK.
+**Milestone:** o pipeline de geração (`postman/generator/generate-docs.sh`) migra de swag→openapi-generator-Docker→3.0.1 para emissão Huma 3.1 nativa por plano; `redocly join` (ledger-first) + guard de security-scheme + orphan-ref guard sobrevivem; `check-docs.sh` reformulado; swaggo aposentado nos 2 planos; `pkg.HTTPError` morto deletado; as duas specs atingem **identidade total** do schema `Error`; `make ci` verde end-to-end. Entregável: OAS 3.1 pristine + paridade — o insumo do remodel do SDK (Plano B).
 
-**REVISÃO do recon-f4 (`a059c23a70`, 2026-07-01) — 3 fatos que reformam a fase:**
-- **A spec Huma-nativa NUNCA foi dumpada em disco** (só servida em runtime via ServeSpec gated). Ninguém diffou as duas specs Huma. `openapi.New(...)` retorna `huma.API`; `api.OpenAPI()` → `*huma.OpenAPI` com `MarshalJSON()`/`YAML()`, snapshot completo após os `huma.Register`, ANTES do listen → **dump offline trivial, sem server/DB/Docker.**
-- **O schema de erro Huma-nativo chama-se `Detail`** (nome do tipo `problem.Detail`) nos DOIS planos — já é name-parity, mas NÃO o nome-alvo `Error`. Os nomes `Error`(ledger `mmodel.Error` `@name Error`)/`ErrorResponse`(tracer `api/types.go:13`) são SÓ do swaggo, de tipos separados que morrem com as annotations. **Impor `Error` = trabalho NOVO (schema-namer), não reconciliação de diff.** SHAPE = `problem.Detail` (RFC 9457), muda vs `mmodel.Error` → **contrato SDK-visível** (mas já travado na Fase 1 + remodel breaking /v4; consequência, não decisão nova).
-- **Version-lock do `redocly join`** (generate-docs.sh:183-203) recusa merge se os `openapi:` divergem → os 2 planos migram em LOCKSTEP 3.0.1→3.1 (ambos já Huma, limpo).
+**Fatos do recon-f4 (`a059c23a70`) que reformam a fase:**
+- A spec Huma-nativa **nunca era dumpada em disco** (só servida em runtime). `api.OpenAPI().YAML()` snapshota tudo após os `huma.Register`, antes do listen → dump offline trivial (sem server/DB/Docker). **Resolvido pela Task 4.0.**
+- O schema de erro Huma-nativo chamava-se `Detail` (nome do tipo) nos 2 planos. Impor `Error` = trabalho novo (schema-namer), não reconciliação de diff. **Resolvido pela Task 4.0** (namer compartilhado `problem.Detail`→`Error`).
+- **Version-lock do `redocly join`** recusa merge se os `openapi:` divergem → os 2 planos migram em LOCKSTEP 3.0.1→3.1 (ambos já Huma).
 
-**DECISÕES do supervisor (2026-07-01, recon-f4) — todas judgment, sem gate do Fred:**
-- **(a) Emit = test-golden com flag `-update`** (não `cmd/dump-spec`): reusa o wiring da Huma API que os contract-tests dos 2 planos já constroem, casa com o modelo regen+git-diff do drift. Custo: extrair seam de registro no tracer (inline hoje em routes.go; ledger já tem `humaMount` closure).
-- **(b) Nome `Error` via schema-namer COMPARTILHADO no repo** (`problem.Detail`→`Error`), estendendo `pkg/net/http/huma_schema_namer.go` (ledger já tem; aplicar ao tracer também) — NÃO empurrar opinião de nome pra lib-commons (outros consumidores podem não querer o erro chamado `Error`).
-- **(c) redocly.yaml:** re-habilitar as regras relaxadas SÓ por artefato swag/openapi-generator (`no-invalid-schema-examples`, `no-server-trailing-slash`, `no-server-example.com`, talvez `security-defined` com override per-path pros públicos do tracer) — o ponto da spec pristine.
-- **(d) Epic 3.3 escopo COMPLETO:** struct `pkg.HTTPError` (pkg/errors.go:139-150) + 10 annotations swaggo (audit.go:88-89, encryption.go:39-43,143-145) + **4 arquivos de teste com type-assertion que QUEBRAM compilação** (validate-package-range-amount_test.go:267, feeshared/nethttp/httputils_test.go:217,319, feeshared/model/package_test.go:2190) — correção do recon: NÃO é seguro deixar os testes.
-- **(e) De-risk primeiro** (espelha o de-risk da Fase 3 que valeu): dump das 2 specs + namer, olhar a realidade, provar determinismo + OAS 3.1 válida + paridade `Error`, ANTES de reformar o pipeline.
+**Decisões do supervisor (2026-07-01, recon-f4 — todas judgment, sem gate do Fred):**
+- **(a) Emit = test-golden com flag `-update`** (não `cmd/dump-spec`): reusa o wiring que os contract-tests já constroem, casa com o modelo regen+git-diff do drift.
+- **(b) Nome `Error` via schema-namer COMPARTILHADO no repo** (`pkg/net/http/huma_schema_namer.go`), **não** empurrado pra lib-commons (outros consumidores podem não querer o erro chamado `Error`).
+- **(c) redocly.yaml:** re-habilitar as regras relaxadas SÓ por artefato swag/openapi-generator (`no-invalid-schema-examples`, `no-server-trailing-slash`, `no-server-example.com`, `security-defined` com override per-path pros públicos do tracer).
+- **(d) Epic 3.3 escopo COMPLETO:** struct + 10 annotations + **4 arquivos de teste com type-assertion que QUEBRAM compilação** (validate-package-range-amount_test.go, feeshared/nethttp/httputils_test.go ×2, feeshared/model/package_test.go). Não é seguro deixar os testes.
+- **(e) De-risk primeiro** (espelha o de-risk da Fase 3 que valeu): dump + namer + prova de determinismo/OAS-3.1/paridade ANTES de reformar o pipeline.
 
-#### Task 4.0 (DE-RISK): dump offline das 2 specs Huma + schema-namer `Detail`→`Error`
-- [ ] Done
-**Context:** `openapi.New` no ledger (`unified-server.go:126`, `humaMount` closure `:157`) e tracer (`routes.go:351`, registro INLINE — precisa seam). `api.OpenAPI().YAML()`/`MarshalJSON()` dumpam sem server. Ledger tem `InstallLedgerSchemaNamer` (`pkg/net/http/huma_schema_namer.go:42`) que NÃO toca o tipo de erro; tracer não tem namer.
-**Implementation vision:** (1) Extrair um seam de registro de rotas no tracer (análogo ao `humaMount` do ledger) chamável de teste sem bootstrap/DB. (2) Teste golden `-update` por plano que constrói a Huma API (reusa wiring dos contract-tests) e escreve `components/{plane}/api/openapi.yaml` (3.1). (3) Estender/criar schema-namer compartilhado que nomeia `problem.Detail`→`Error`, aplicado aos 2 planos. NÃO tocar swaggo ainda (aditivo até o rewire do pipeline).
-**Files:** Create `components/{ledger,tracer}/.../*_spec_dump_test.go` (ou análogo); Modify `pkg/net/http/huma_schema_namer.go`, tracer routes seam.
-**Verification:** dump determinístico (rodar 2×, diff vazio); as 2 `openapi.yaml` são OAS 3.1 válidas (redocly lint); ambas têm `components.schemas.Error` (não `Detail`); diff dos 2 schemas `Error` é vazio (nome+required+campos); build+http/in+golden+tracer verdes.
-**Done when:** 2 specs Huma 3.1 em disco com `Error` unificado, dump determinístico provado, realidade da paridade confirmada — insumo pro rewire do pipeline.
+### Task 4.0 (DE-RISK): dump offline das 2 specs Huma + schema-namer `Detail`→`Error` — **Done**
 
-### Epic 4.1: Trocar o pipeline de geração para Huma 3.1 nativo (+ deletar swaggo + Epic 3.3)
-**Goal:** Substituir os estágios `generate_openapi_spec`(swag init)/`generate_openapi_yaml`(openapi-generator Docker) pelo dump Huma (Task 4.0); preservar publish + `redocly join` (ledger-first) + o jq guard `BearerAuth`+`ApiKeyAuth` (ambos os planos declaram os 2 schemes → sobrevive) + orphan-ref guard; reformar `check-docs.sh` (retarget parity_check + security_coverage_check do swaggo `swagger.json` pra spec Huma 3.1, re-expressar pra estrutura 3.1 `components.*`); DELETAR swaggo (annotations dos 2 planos + general-info em `cmd/app/main.go` dos 2 + `tracer/scripts/verify-api-docs.sh` + swag dos Makefiles); Epic 3.3 (deletar pkg.HTTPError + 10 annotations + 4 testes).
-**Scope:** `postman/generator/{generate-docs,check-docs}.sh`, `redocly.yaml`, `components/*/api/`, handlers dos 2 planos (annotations), `cmd/app/main.go` (2), `pkg/errors.go`, 4 testes de fees.
-**Dependencies:** Task 4.0.
-**Done when:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` das specs Huma 3.1 sem estágio Docker; `CHECK_DOCS_REGEN=1 make check-docs` verde; zero resíduo swaggo (grep `@Router`/`@Security`=0); pkg.HTTPError não existe; build+testes verdes.
-**Status:** Epic-level (detalhar após Task 4.0)
+- [x] Done — impl `24196c4da` (namer compartilhado), `0e1a59def` (seam `registerTracerHumaRoutes`), `497394642` (golden `-update` dump por plano), `2b5575abf` (lock cross-plane de paridade), `72f53d32c` (self-heal: comentário 31→28), `d4f44b84e` (supervisor: dump do tracer hermético). **Gate PASS.**
 
-### Epic 4.2: Trava de paridade + verificação pristine
-**Goal:** Travar no `check-docs.sh` a identidade total do schema de erro `Error` entre os 2 planos (nome+required+campos); re-habilitar as regras redocly (decisão c); verificação final de que as specs são OAS 3.1 pristine e o SDK (Plano B) tem UM shape de erro.
+**Entregue:** (1) schema-namer compartilhado renomeia `problem.Detail`→`Error` nos 2 planos (guarda `Name()=="Detail" && PkgPath()==problem`; `ledgerSchemaNamer` mantém os prefixos Fee/Operation/Transaction das waves 1-4 e cai no fallthrough compartilhado). (2) Seam `registerTracerHumaRoutes` extraído (análogo ao `humaMount` do ledger) — chamável de teste sem bootstrap/DB; produção e teste chamam a MESMA função (28 ops byte-a-byte vs base). (3) Dump golden `-update` por plano → `components/{ledger,tracer}/api/openapi.huma.yaml` (OAS 3.1), **nome distinto** do swaggo `api/openapi.yaml`. (4) `tests/openapi/error_schema_parity_test.go` trava a identidade do closure `Error` (computado, não hardcoded).
+
+**Gate do supervisor (verificado independentemente, não o status do harness):**
+- Diff `ba2ecc944..HEAD` toca só 11 arquivos; **zero** swaggo/pipeline (`swagger.json`/`generate-docs.sh`/`check-docs.sh`/`docs.go`/`@Router`/`@Security` intactos).
+- Determinismo: `TestOpenAPISpecDump` verde `-count=2` nos 2 planos (golden reproduzível, drift=0).
+- Paridade: `Error` byte-idêntico entre planos (closure `{Error, ErrorDetail}`); nenhum schema `Detail` cru; ledger 113 ops / tracer 28 ops.
+- Money-path golden verde; módulo inteiro builda EXIT0; tracer http/in (4.75s) + ledger http/in + bootstrap verdes.
+- **Medium fechado por mim:** o dump do tracer lia `Version` de `os.Getenv("VERSION")` (não-hermético; ledger já era `"test"`). Hardcoded `"test"` + regen do golden. Regressão confirmada: `VERSION=v9.9.9-CI go test -run TestOpenAPISpecDump` **agora passa** (antes falhava).
+- **Residual Low (aceito):** `problemDetailPkgPath` casado por string — frágil a refactor de path do lib-commons, mas o parity test pega. Guardado, não bloqueia.
+
+### Epic 4.1: Pipeline → Huma 3.1 nativo + aposentar swaggo + Epic 3.3
+**Goal:** `make generate-docs` produz `postman/specs/midaz.openapi.yaml` a partir das specs Huma 3.1 (Task 4.0), sem estágio Docker; swaggo aposentado nos 2 planos; `pkg.HTTPError` morto deletado.
+**Scope:** `postman/generator/{generate-docs,check-docs}.sh`, `redocly.yaml`, `components/*/api/`, annotations dos 2 planos, `components/*/cmd/app/main.go` (general-info), `tracer/scripts/verify-api-docs.sh`, Makefiles (swag targets), `pkg/errors.go`, 4 testes de fees.
+**Dependencies:** Task 4.0. ✅
+**Done when:** `make generate-docs` sem estágio Docker; `CHECK_DOCS_REGEN=1 make check-docs` verde; `grep @Router|@Security` = 0; `pkg.HTTPError` não existe; build+testes verdes.
+**Status:** Pending — **elaborar em tasks dispatch-ready contra `generate-docs.sh`/`check-docs.sh`/`redocly.yaml` reais no lançamento da onda** (recon do pipeline primeiro).
+
+### Epic 4.2: Trava de paridade + verificação pristine + `make ci`
+**Goal:** travar no `check-docs.sh` a identidade total do schema `Error` entre os 2 planos; re-habilitar as regras redocly (decisão c); verificação final de OAS 3.1 pristine com UM shape de erro; `make ci` verde end-to-end.
 **Scope:** `check-docs.sh` (parity_check do `Error`), `redocly.yaml`, specs consolidadas.
 **Dependencies:** Epic 4.1.
-**Done when:** diff dos 2 schemas `Error` vazio (travado no CI); redocly lint verde com regras re-habilitadas; golden money-path verde; `make ci` verde end-to-end.
-**Status:** Epic-level (detalhar após Epic 4.1)
+**Done when:** diff dos 2 schemas `Error` vazio (travado no CI); redocly lint verde com regras re-habilitadas; golden money-path verde; `make ci` verde.
+**Status:** Epic-level (detalhar após Epic 4.1).
+
+---
+
+## Handoff para o Plano B (SDK v4 remodel)
+
+O entregável desta fase é o contrato que o `midaz-sdk-golang` v4 consome. Invariantes que o SDK DEVE respeitar (herdadas das lições acima):
+- **Um único envelope de erro** = `Error` (RFC 9457, `problem.Detail` + `entityType`), idêntico nos 2 planos.
+- **Idempotência:** mandar `X-Idempotency` / `X-TTL` (nomes de runtime), nunca `X-Idempotency-Key`.
+- **Paginação tipada** + ambos os planos first-class (ledger + tracer).
+- Specs OAS 3.1 pristine como insumo de codegen (hybrid codegen+facade, breaking em `/v4`, sem shim de compat).
 
 ---
 
 ## Self-review (checklist do ring:writing-plans)
 
-- **Cobertura da spec:** os 5 buracos dos juízes da Wave 1a estão cobertos — auth mal-declarado (Epics 2.3/3.2), `pkg.HTTPError` (Epic 3.3), `required[]` divergente (Epic 1.3/4.2), `mmodel.Error` sujo (Epic 1.3), nome de schema divergente (Epic 4.2). ✅
-- **Money path:** front-loaded na Fase 1 com golden test RED-first; invariante code+status guardada em todas as fases. ✅
-- **Fronteiras de fase:** cada fase termina buildando + testável (Fase 1 com estado interino spec-drift documentado e guardado). ✅
-- **Consistência de contrato:** o envelope canônico (`Detail` = `problem.Detail` + `entityType`) é definido uma vez (Fase 1) e referenciado por todas as fases. ✅
-- **Sem tasks vagas na wave detalhada:** Fase 1 detalhada com file:line e edge cases nomeados; Fases 2–4 em epic-level (rolling wave). ✅
-- **Snippets:** evitados no plano; a mecânica concreta vive nos relatórios `r{1,3}-*.md` referenciados. ✅
+- **Cobertura da spec:** os 5 buracos dos juízes originais cobertos — auth mal-declarado (Fases 2/3), `pkg.HTTPError` (Epic 4.1/3.3), `required[]` divergente (Fase 1 + Epic 4.2), `mmodel.Error` sujo (Fase 1), nome de schema divergente (Task 4.0 + Epic 4.2). ✅
+- **Money path:** front-loaded na Fase 1 com golden RED-first; invariante code+status guardada em todas as fases; contrato de header de idempotência verificado na wave-4. ✅
+- **Fronteiras de fase:** cada fase termina buildando + testável. ✅
+- **Consistência de contrato:** envelope canônico (`Error` = `problem.Detail` + `entityType`) definido uma vez, referenciado por todas as fases + handoff do Plano B. ✅
+- **Rolling wave:** Fases 1-3 colapsadas a Done + lições; Fase 4 corrente com Task 4.0 Done e Epics 4.1/4.2 a detalhar no lançamento da onda. ✅
