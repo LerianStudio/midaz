@@ -6,7 +6,6 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -26,28 +25,16 @@ const SettingsMaxPayloadSize = 64 * 1024
 
 // RegisterMetadataRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func RegisterMetadataRoutesToApp(f fiber.Router, auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Metadata Indexes
-	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
-		http.ProtectedRouteChain(
-			auth.Authorize(midazName, "settings", "post"),
-			routeOptions,
-			http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex),
-		)...)
-
-	f.Get("/v1/settings/metadata-indexes",
-		http.ProtectedRouteChain(
-			auth.Authorize(midazName, "settings", "get"),
-			routeOptions,
-			mdi.GetAllMetadataIndexes,
-		)...)
-
-	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
-		http.ProtectedRouteChain(
-			auth.Authorize(midazName, "settings", "delete"),
-			routeOptions,
-			mdi.DeleteMetadataIndex,
-		)...)
+//
+// Wave-1 MIGRATED TO HUMA: the metadata-index routes no longer register inline here.
+// Their terminal handlers live on the shared Huma API and their auth + tenant
+// middleware chain (authz resource "settings", NOT "metadata-indexes") is attached on
+// the /v1 group by RegisterMetadataIndexRoutesToApp, called from the unified server's
+// humaMount. The (resource, verb) authz tuples are preserved byte-for-byte there.
+//
+// The parameters are retained on this signature (blanked for now) because
+// CreateRouteRegistrar and the contract-spec test still construct and pass them.
+func RegisterMetadataRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *MetadataIndexHandler, _ *http.ProtectedRouteOptions) {
 }
 
 // CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
@@ -61,62 +48,20 @@ func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler
 // RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
 // The app should already have middleware configured (telemetry, cors, logging).
-func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Organizations
-	f.Post("/v1/organizations", protectedMidaz(auth, "organizations", "post", routeOptions, http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))...)
-	f.Patch("/v1/organizations/:id", protectedMidaz(auth, "organizations", "patch", routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))...)
-	f.Get("/v1/organizations", protectedMidaz(auth, "organizations", "get", routeOptions, oh.GetAllOrganizations)...)
-	f.Get("/v1/organizations/:id", protectedMidaz(auth, "organizations", "get", routeOptions, http.ParseUUIDPathParameters("organization"), oh.GetOrganizationByID)...)
-	f.Delete("/v1/organizations/:id", protectedMidaz(auth, "organizations", "delete", routeOptions, http.ParseUUIDPathParameters("organization"), oh.DeleteOrganizationByID)...)
-	f.Head("/v1/organizations/metrics/count", protectedMidaz(auth, "organizations", "head", routeOptions, oh.CountOrganizations)...)
-
-	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "post", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))...)
-	f.Get("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", protectedMidaz(auth, "ledgers", "head", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)...)
-
-	// Assets — MIGRATED TO HUMA (see RegisterAssetRoutesToApp). They are no longer
-	// wired here: their terminal handlers live on the shared Huma API and their auth
-	// + tenant + ParseUUIDPathParameters middleware chain is attached on the /v1
-	// group by RegisterAssetRoutesToApp, called from the unified server's humaMount.
-
-	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "post", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "patch", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetAllPortfolios)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetPortfolioByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "delete", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.DeletePortfolioByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count", protectedMidaz(auth, "portfolios", "head", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.CountPortfolios)...)
-
-	// Segment
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "post", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "patch", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetAllSegments)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetSegmentByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "delete", routeOptions, http.ParseUUIDPathParameters("segment"), sh.DeleteSegmentByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count", protectedMidaz(auth, "segments", "head", routeOptions, http.ParseUUIDPathParameters("segment"), sh.CountSegments)...)
-
-	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "patch", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAllAccounts)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByAlias)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountExternalByCode)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "delete", routeOptions, http.ParseUUIDPathParameters("account"), ah.DeleteAccountByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", protectedMidaz(auth, "accounts", "head", routeOptions, http.ParseUUIDPathParameters("account"), ah.CountAccounts)...)
-
-	// Account Types
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedRouting(auth, "account-types", "post", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedRouting(auth, "account-types", "patch", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.UpdateAccountTypeInput), ath.UpdateAccountType))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedRouting(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAccountTypeByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedRouting(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAllAccountTypes)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedRouting(auth, "account-types", "delete", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.DeleteAccountTypeByID)...)
+//
+// Wave-1 MIGRATED TO HUMA: organizations, ledgers, portfolios, segments, accounts,
+// and account-types no longer register inline here. Their terminal handlers live on
+// the shared Huma API and their auth + tenant + ParseUUIDPathParameters middleware
+// chains are attached on the /v1 group by the per-resource RegisterXxxRoutesToApp
+// wrappers (RegisterOrganizationRoutesToApp, RegisterLedgerRoutesToApp,
+// RegisterPortfolioRoutesToApp, RegisterSegmentRoutesToApp, RegisterAccountRoutesToApp,
+// RegisterAccountTypeRoutesToApp), all called from the unified server's humaMount.
+// The (resource, verb) authz tuples are preserved byte-for-byte in those wrappers.
+//
+// The handler parameters are retained on this signature (blanked for now) because the
+// unified server and contract-spec test still construct and pass them, and the
+// non-migrated Wave 3/4 onboarding routes will re-attach here as they land.
+func RegisterOnboardingRoutesToApp(_ fiber.Router, _ *middleware.AuthClient, _ *AccountHandler, _ *PortfolioHandler, _ *LedgerHandler, _ *OrganizationHandler, _ *SegmentHandler, _ *AccountTypeHandler, _ *http.ProtectedRouteOptions) {
 }
 
 // RegisterAssetRoutesToApp wires the Huma-migrated asset resource. For each of the
@@ -179,10 +124,15 @@ func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient,
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetOperationByAccount)...)
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", protectedMidaz(auth, "operations", "patch", routeOptions, http.ParseUUIDPathParameters("operation"), http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))...)
 
-	// Asset-rate
-	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", protectedMidaz(auth, "asset-rates", "put", routeOptions, http.ParseUUIDPathParameters("asset-rate"), http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)...)
+	// Asset-rate — Wave-1 MIGRATED TO HUMA (see RegisterAssetRateRoutesToApp). The
+	// three asset-rate ops no longer register inline here; their terminal handlers
+	// live on the shared Huma API and their auth ("asset-rates", verb) + tenant +
+	// ParseUUIDPathParameters("asset-rate") chain is attached on the /v1 group by
+	// RegisterAssetRateRoutesToApp, called from the unified server's humaMount.
+	// asset-rate is MONEY-adjacent; the authz tuples are preserved byte-for-byte
+	// there. The ah *AssetRateHandler param is retained on this signature (blanked
+	// below) because the unified server and contract-spec test still pass it.
+	_ = ah
 
 	// Balance
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "patch", routeOptions, http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))...)

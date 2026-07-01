@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -330,4 +332,36 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 		// the Out struct), matching the Fiber http.NoContent + header path.
 		DefaultStatus: http.StatusNoContent,
 	}, h.CountOrganizationsHuma)
+}
+
+// RegisterOrganizationRoutesToApp wires the Huma-migrated organization resource,
+// mirroring RegisterAssetRoutesToApp. For each of the six ops it attaches the Fiber
+// auth chain — protectedMidaz(auth,"organizations",verb) (= auth.Authorize("midaz",
+// "organizations",verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no
+// terminal) on the /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma
+// terminals via RegisterOrganizationRoutes on the SAME group's Huma API. This
+// preserves the pre-Huma ("organizations", verb) authz tuples and tenant resolution
+// BYTE-FOR-BYTE — no organization route becomes public.
+//
+// ParseUUIDPathParameters("organization") is attached ONLY on the three ops that had
+// it pre-migration (patch/get-by-id/delete, i.e. the ":id" ops); create, list and
+// count carried no parse step in routes.go, so none is added here. Called from the
+// unified server's humaMount seam (integration task), NOT from routes.go.
+func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	const (
+		listPath  = "/organizations"
+		idPath    = listPath + "/:id"
+		countPath = listPath + "/metrics/count"
+	)
+
+	parse := pkgHTTP.ParseUUIDPathParameters("organization")
+
+	group.Post(listPath, protectedMidaz(auth, "organizations", "post", routeOptions)...)
+	group.Patch(idPath, protectedMidaz(auth, "organizations", "patch", routeOptions, parse)...)
+	group.Get(listPath, protectedMidaz(auth, "organizations", "get", routeOptions)...)
+	group.Get(idPath, protectedMidaz(auth, "organizations", "get", routeOptions, parse)...)
+	group.Delete(idPath, protectedMidaz(auth, "organizations", "delete", routeOptions, parse)...)
+	group.Head(countPath, protectedMidaz(auth, "organizations", "head", routeOptions)...)
+
+	RegisterOrganizationRoutes(api, h)
 }

@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -478,4 +480,39 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // free-form map; allowlist enforced imperatively in the core.
 	}, h.UpdateLedgerSettingsHuma)
+}
+
+// RegisterLedgerRoutesToApp wires the Huma-migrated ledger resource, mirroring
+// RegisterAssetRoutesToApp. For each of the eight ops it attaches the Fiber auth
+// chain — protectedMidaz(auth,"ledgers",verb) (= auth.Authorize("midaz","ledgers",
+// verb) + tenant PostAuthMiddlewares) + ParseUUIDPathParameters("ledger") — as
+// MIDDLEWARE ONLY (no terminal) on the /v1 GROUP with GROUP-RELATIVE paths, then
+// registers the Huma terminals via RegisterLedgerRoutes on the SAME group's Huma
+// API. This preserves the pre-Huma ("ledgers", verb) authz tuples and tenant
+// resolution BYTE-FOR-BYTE — no ledger route becomes public. All eight ops carried
+// ParseUUIDPathParameters("ledger") in the pre-migration routes.go, so it is
+// attached on every op here. The settings PATCH's Fiber WithBodyLimit is not
+// reproduced: body handling is now owned by the Huma terminal, and the body limit
+// was never an authz concern. Called from the unified server's humaMount seam
+// (integration task), NOT from routes.go.
+func RegisterLedgerRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *LedgerHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	const (
+		listPath     = "/organizations/:organization_id/ledgers"
+		idPath       = listPath + "/:ledger_id"
+		countPath    = listPath + "/metrics/count"
+		settingsPath = idPath + "/settings"
+	)
+
+	parse := pkgHTTP.ParseUUIDPathParameters("ledger")
+
+	group.Post(listPath, protectedMidaz(auth, "ledgers", "post", routeOptions, parse)...)
+	group.Patch(idPath, protectedMidaz(auth, "ledgers", "patch", routeOptions, parse)...)
+	group.Get(listPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse)...)
+	group.Get(idPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse)...)
+	group.Get(settingsPath, protectedMidaz(auth, "ledgers", "get", routeOptions, parse)...)
+	group.Patch(settingsPath, protectedMidaz(auth, "ledgers", "patch", routeOptions, parse)...)
+	group.Delete(idPath, protectedMidaz(auth, "ledgers", "delete", routeOptions, parse)...)
+	group.Head(countPath, protectedMidaz(auth, "ledgers", "head", routeOptions, parse)...)
+
+	RegisterLedgerRoutes(api, h)
 }

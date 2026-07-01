@@ -92,13 +92,23 @@ func buildUnifiedRouteSurface() *fiber.App {
 		&AccountHandler{}, &PortfolioHandler{}, &LedgerHandler{},
 		&OrganizationHandler{}, &SegmentHandler{}, &AccountTypeHandler{}, nil)
 
-	// Assets are Huma-migrated: mount them via the same /v1 group + Huma API the
-	// unified server uses (RegisterAssetRoutesToApp), so the mounted surface still
-	// carries the six asset routes to match the (unchanged, additive) swagger.json.
+	// Wave-1 Huma-migrated resources (organization, ledger, portfolio, segment,
+	// account, account-type, metadata-index, asset, asset-rate) are mounted via the
+	// same /v1 group + shared Huma API the unified server's humaMount uses, so the
+	// mounted surface still carries their routes to match the (unchanged, additive)
+	// swagger.json. This block mirrors the production humaMount closure in config.go.
 	libProblem.Install()
 	apiV1 := app.Group("/v1")
 	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "contract-spec", Version: "test", Servers: []string{"/v1"}})
+	RegisterOrganizationRoutesToApp(apiV1, humaAPI, auth, &OrganizationHandler{}, nil)
+	RegisterLedgerRoutesToApp(apiV1, humaAPI, auth, &LedgerHandler{}, nil)
+	RegisterPortfolioRoutesToApp(apiV1, humaAPI, auth, &PortfolioHandler{}, nil)
+	RegisterSegmentRoutesToApp(apiV1, humaAPI, auth, &SegmentHandler{}, nil)
+	RegisterAccountRoutesToApp(apiV1, humaAPI, auth, &AccountHandler{}, nil)
+	RegisterAccountTypeRoutesToApp(apiV1, humaAPI, auth, &AccountTypeHandler{}, nil)
+	RegisterMetadataIndexRoutesToApp(apiV1, humaAPI, auth, &MetadataIndexHandler{}, nil)
 	RegisterAssetRoutesToApp(apiV1, humaAPI, auth, &AssetHandler{}, nil)
+	RegisterAssetRateRoutesToApp(apiV1, humaAPI, auth, &AssetRateHandler{}, nil)
 	RegisterTransactionRoutesToApp(app, auth,
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)

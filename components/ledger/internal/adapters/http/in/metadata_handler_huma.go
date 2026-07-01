@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -205,4 +207,33 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteMetadataIndexHuma)
+}
+
+// RegisterMetadataIndexRoutesToApp wires the Huma-migrated metadata-index resource,
+// mirroring RegisterAssetRoutesToApp. For each of the three ops it attaches the Fiber
+// auth chain — protectedMidaz(auth,"settings",verb) (= auth.Authorize("midaz",
+// "settings",verb) + tenant PostAuthMiddlewares) — as MIDDLEWARE ONLY (no terminal)
+// on the /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
+// RegisterMetadataIndexRoutes on the SAME group's Huma API. This preserves the
+// pre-Huma ("settings", verb) authz tuples — the resource is "settings", NOT
+// "metadata-indexes" — and tenant resolution BYTE-FOR-BYTE; no metadata-index route
+// becomes public.
+//
+// No ParseUUIDPathParameters is attached: the pre-migration routes.go metadata-index
+// ops carried none (their path params — entity_name, index_key — are not UUIDs). The
+// terminal auth/tenant middleware calls c.Next(), advancing into the Huma terminal.
+// The op order (post, get, delete) matches routes.go. Called from the unified
+// server's humaMount seam (integration task), NOT from routes.go.
+func RegisterMetadataIndexRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *MetadataIndexHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	const (
+		listPath   = "/settings/metadata-indexes"
+		entityPath = listPath + "/entities/:entity_name"
+		keyPath    = entityPath + "/key/:index_key"
+	)
+
+	group.Post(entityPath, protectedMidaz(auth, "settings", "post", routeOptions)...)
+	group.Get(listPath, protectedMidaz(auth, "settings", "get", routeOptions)...)
+	group.Delete(keyPath, protectedMidaz(auth, "settings", "delete", routeOptions)...)
+
+	RegisterMetadataIndexRoutes(api, h)
 }

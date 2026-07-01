@@ -14,8 +14,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 
-	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
-
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -352,14 +350,14 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 // BYTE-FOR-BYTE — no portfolio route becomes public.
 //
 // Called from the unified server's humaMount (integration task), NOT from routes.go.
-func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *midazhttp.ProtectedRouteOptions) {
+func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ph *PortfolioHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	const (
 		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/portfolios"
 		idPath    = listPath + "/:id"
 		countPath = listPath + "/metrics/count"
 	)
 
-	parse := midazhttp.ParseUUIDPathParameters("portfolio")
+	parse := pkgHTTP.ParseUUIDPathParameters("portfolio")
 
 	group.Post(listPath, protectedMidaz(auth, "portfolios", "post", routeOptions, parse)...)
 	group.Patch(idPath, protectedMidaz(auth, "portfolios", "patch", routeOptions, parse)...)

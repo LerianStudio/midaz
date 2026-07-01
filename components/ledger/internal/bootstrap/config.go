@@ -1012,13 +1012,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
 	}
 
-	// Asset routes are migrated to Huma: their terminal handlers + Fiber auth chain
-	// are wired on the shared /v1 Huma API/group via this mount seam, run by
-	// NewUnifiedServer after it builds the humaAPI. The (resource, verb) authz tuples
-	// and tenant PostAuthMiddlewares (routeSetup.onboardingRouteOptions) are the SAME
-	// the pre-Huma inline asset routes used.
+	// Wave-1 resources are migrated to Huma: their terminal handlers + Fiber auth
+	// chain are wired on the shared /v1 Huma API/group via this mount seam, run by
+	// NewUnifiedServer after it builds the humaAPI. Each RegisterXxxRoutesToApp
+	// reproduces the SAME (resource, verb) authz tuple and the SAME routeOptions
+	// (tenant PostAuthMiddlewares) the pre-Huma inline route used, byte-for-byte:
+	//   - organization/ledger/portfolio/segment/account/asset use onboardingRouteOptions
+	//     ([authAssertion, WithTenantDB]) — as RegisterOnboardingRoutesToApp did.
+	//   - account-type uses onboardingRouteOptions too, but authorizes against the
+	//     "routing" appName (protectedRouting), exactly as the inline route did.
+	//   - asset-rate uses transactionRouteOptions ([authAssertion, WithTenantDB]) — it
+	//     lived in RegisterTransactionRoutesToApp; it is MONEY-adjacent (exchange rates).
+	//   - metadata-index uses ledgerRouteOptions ([authAssertion] ONLY, no WithTenantDB)
+	//     — as RegisterMetadataRoutesToApp did via CreateRouteRegistrar. Passing the
+	//     onboarding options here would inject tenant-DB middleware the inline route
+	//     never had, so ledgerRouteOptions is load-bearing.
 	humaMount := func(group fiber.Router, api huma.API) {
+		httpin.RegisterOrganizationRoutesToApp(group, api, auth, organizationHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterLedgerRoutesToApp(group, api, auth, ledgerHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterPortfolioRoutesToApp(group, api, auth, portfolioHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterSegmentRoutesToApp(group, api, auth, segmentHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterAccountRoutesToApp(group, api, auth, accountHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterAccountTypeRoutesToApp(group, api, auth, accountTypeHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterMetadataIndexRoutesToApp(group, api, auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 		httpin.RegisterAssetRoutesToApp(group, api, auth, assetHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterAssetRateRoutesToApp(group, api, auth, assetRateHandler, routeSetup.transactionRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {

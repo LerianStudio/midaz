@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -314,4 +316,34 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler) {
 		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteAccountTypeByIDHuma)
+}
+
+// RegisterAccountTypeRoutesToApp wires the Huma-migrated account-type resource,
+// mirroring RegisterAssetRoutesToApp. For each of the five ops it attaches the Fiber
+// auth chain — protectedRouting(auth,"account-types",verb) (= auth.Authorize(
+// "routing","account-types",verb) + tenant PostAuthMiddlewares) +
+// ParseUUIDPathParameters("account_type") — as MIDDLEWARE ONLY (no terminal) on the
+// /v1 GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
+// RegisterAccountTypeRoutes on the SAME group's Huma API. Unlike the other Wave-1
+// resources, account-type authorizes against the "routing" appName (protectedRouting,
+// NOT protectedMidaz), exactly as the pre-migration routes.go did — this preserves
+// the ("routing","account-types",verb) authz tuples and tenant resolution
+// BYTE-FOR-BYTE, no account-type route becomes public. The op order (post, patch,
+// get-by-id, list, delete) matches routes.go. Called from the unified server's
+// humaMount seam (integration task), NOT from routes.go.
+func RegisterAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	const (
+		listPath = "/organizations/:organization_id/ledgers/:ledger_id/account-types"
+		idPath   = listPath + "/:id"
+	)
+
+	parse := pkgHTTP.ParseUUIDPathParameters("account_type")
+
+	group.Post(listPath, protectedRouting(auth, "account-types", "post", routeOptions, parse)...)
+	group.Patch(idPath, protectedRouting(auth, "account-types", "patch", routeOptions, parse)...)
+	group.Get(idPath, protectedRouting(auth, "account-types", "get", routeOptions, parse)...)
+	group.Get(listPath, protectedRouting(auth, "account-types", "get", routeOptions, parse)...)
+	group.Delete(idPath, protectedRouting(auth, "account-types", "delete", routeOptions, parse)...)
+
+	RegisterAccountTypeRoutes(api, h)
 }
