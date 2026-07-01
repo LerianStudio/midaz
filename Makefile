@@ -360,13 +360,14 @@ check-telemetry:
 # report first. For the heavier integration/property/chaos matrix run `make ci-tests`.
 .PHONY: ci
 ci:
-	$(call print_title,Running CI gate (lint + telemetry + proto + unit tests + docs))
+	$(call print_title,Running CI gate (lint + telemetry + proto + unit tests + docs + spec locks))
 	@set -e; \
 	$(MAKE) lint; \
 	$(MAKE) check-telemetry; \
 	$(MAKE) proto-check; \
 	$(MAKE) test-unit; \
-	CHECK_DOCS_REGEN=1 $(MAKE) check-docs
+	CHECK_DOCS_REGEN=1 $(MAKE) check-docs; \
+	$(MAKE) test-openapi-locks
 	@echo "[ok] CI gate completed successfully"
 
 #-------------------------------------------------------

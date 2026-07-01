@@ -153,6 +153,22 @@ test-unit:
 	fi
 
 #-------------------------------------------------------
+# Cross-plane OpenAPI spec locks (offline)
+#-------------------------------------------------------
+# The ./tests/openapi package holds offline cross-plane locks over the committed
+# native Huma OAS 3.1 dumps — chiefly the byte-identical RFC 9457 Error closure
+# across the ledger and tracer planes that the SDK depends on. They read the yaml
+# dumps only (no server, DB, or Docker), but live under ./tests, which test-unit
+# deliberately excludes because that path is otherwise integration-only. Run them
+# explicitly so the parity lock is actually enforced by the gate; ci invokes this
+# after check-docs, so the dumps the locks read are the freshly-verified ones.
+.PHONY: test-openapi-locks
+test-openapi-locks:
+	$(call print_title,Running cross-plane OpenAPI spec locks)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@go test -v -count=1 $(GO_TEST_LDFLAGS) ./tests/openapi/...
+
+#-------------------------------------------------------
 # Benchmark tests
 #-------------------------------------------------------
 
