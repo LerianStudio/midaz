@@ -132,10 +132,13 @@ wait-for-services:
 test-unit:
 	$(call print_title,Running Go unit tests)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; export ALLOW_INSECURE_TLS=true; mkdir -p $(TEST_REPORTS_DIR); \
+	@set -e; export ALLOW_INSECURE_TLS=true; export GOFLAGS="-buildvcs=false $${GOFLAGS:-}"; mkdir -p $(TEST_REPORTS_DIR); \
 	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
 	if [ -z "$$pkgs" ]; then \
-	  echo "No unit test packages found (outside ./tests)**"; \
+	  echo "[error] go list discovered no unit test packages outside ./tests." >&2; \
+	  echo "[error] The repo root always has unit packages; empty discovery means 'go list ./...' failed" >&2; \
+	  echo "[error] (e.g. a VCS-stamp error in a git worktree). Refusing to report a vacuous pass." >&2; \
+	  exit 1; \
 	else \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running unit tests with gotestsum"; \
@@ -166,7 +169,7 @@ test-unit:
 test-openapi-locks:
 	$(call print_title,Running cross-plane OpenAPI spec locks)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@go test -v -count=1 $(GO_TEST_LDFLAGS) ./tests/openapi/...
+	@go test -buildvcs=false -v -count=1 $(GO_TEST_LDFLAGS) ./tests/openapi/...
 
 #-------------------------------------------------------
 # Benchmark tests
