@@ -295,6 +295,16 @@ down:
 	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
 
+# test-streaming-integration runs the build-tagged streaming smoke test against
+# a LIVE broker. With no STREAMING_BROKERS it starts a self-contained Redpanda
+# testcontainer (needs Docker); set STREAMING_BROKERS to an already-running
+# broker to reuse it instead. Excluded from the default unit suite by the
+# //go:build integration tag.
+.PHONY: test-streaming-integration
+test-streaming-integration:
+	$(call title1,"Running streaming integration smoke test (requires a live broker)")
+	@go test -tags=integration -run Streaming ./internal/bootstrap/... -v
+
 .PHONY: stop
 stop:
 	$(call title1,"Stopping running containers")
