@@ -166,7 +166,7 @@ Huma montado no `/v1` do tracer; `problem.Install()` no path de runtime (spec-ge
 - **2b-2 (epic-level, detalhada após o gate da 2b-1):** fan-out paralelo dos outros 5 arquivos, cada um copiando a sub-shape provada; + task serial de integração (Epic 2.3).
 
 #### Task 2.2.1: Completar `rule_handler.go` em Huma — UpdateRule, ListRules, Activate/Deactivate/Draft, DeleteRule
-- [ ] Done
+- [x] Done — commits `28ddb4ee5` (6 ops) + `312847d60` (present-but-empty self-heal) + `c9f89b2a5` (repeated-key last-wins). Gate PASS.
 
 **Context:** A 2a migrou CreateRule (`rule_handler.go:70`) e GetRule (`:193`) e criou `rule_handler_huma.go` (padrão + `RegisterRuleRoutes`) + `rule_handler_huma_test.go` (harness `buildHumaRuleApp`, NÃO-paralelo). As 6 ops restantes ainda estão inline fiber em `NewRoutes` (`routes.go`). Como é UM arquivo (não fan-out), o wiring em `routes.go` pode ser feito direto aqui — isso prova o padrão de wiring (list/action/delete + guard.With) antes do fan-out 2b-2.
 
@@ -193,8 +193,8 @@ Workflow `wf_37e2511c-823` rodou o harness completo (implement→5 reviewers→4
 - **Contrarian LENS 3 REFUTOU** o claim de paridade de query → defeito money-path REAL: query param **present-but-empty** (`?status=`, `?limit=`) colapsava pra `nil` → Huma devolvia 200 onde Fiber devolve 400 canônico (0082/0331). Mesma classe do `format:"uuid"` da 2a. **Self-heal `312847d60`** corrigiu na raiz: `ListRulesInputHuma` implementa `huma.Resolver` (captura `ctx.URL().Query()`, retorna nil→sem 422) + `bindListRulesInput` usa `url.Values.Has` pra reproduzir present-vs-absent do Fiber.
 - **High remanescente (re:nil-reviewer) → fix wave `a…`:** `bindListRulesInput` lê `url.Values.Get` (**first**-wins) mas o gorilla-schema do Fiber é **last**-wins → chaves repetidas (`?status=ACTIVE&status=garbage`) FLIPAM status/code (400↔200). Terceiro-trilho (identidade byte-a-byte Fiber→Huma) + este arquivo é o **exemplar copiado 5× no 2b-2** → fechar aqui. Fix = helper `last(key)` lendo `q[key][len-1]` em todos os call sites; `q.Has` fica pro gating de presença. Irmão direto do bug present-but-empty; last-wins subsume o fix anterior.
 
-##### Fix wave 2b-1 — repeated-key last-wins parity
-- [ ] Done
+##### Fix wave 2b-1 — repeated-key last-wins parity ✅ PASS (`c9f89b2a5`)
+- [x] Done — helper `last(key)` (`vs[len-1]`, nil-safe) em todos os call sites; `q.Has` mantido pro gating. Teste `TestHuma_ListRules_RepeatedKeyParity` prova o flip nos 2 sentidos (status/limit/sort_by→400 canônico; `?limit=101&limit=25`→200 limit=25). Suites verdes (http/in 4.751s, golden 0.471s) verificados pelo supervisor independentemente. **Gate 2b-1 = PASS. Task 2.2.1 completa (8 ops rule em Huma). Exemplar limpo pro fan-out.**
 
 **Context:** `bindListRulesInput` (`rule_handler_huma.go:188-250`) usa `q.Get`/`optStr` (first value) pra `status`(221)/`action`(226)/`limit`(231)/`sort_by`(217)/`sort_order`(218)/`cursor`(216) + scope fields (209-215 via optStr:204). Fiber v2.52.13 QueryParser (gorilla-schema) é last-wins. Divergência confirmada empiricamente por 3+ agentes contra o fiber real.
 
