@@ -47,7 +47,7 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
-	deletedAt := time.Now()
+	deletedAt := time.Now().UTC()
 
 	uc.emitAliasRelatedPartyDeletedEvent(ctx, span, logger, aliasID.String(), holderID.String(), organizationID, relatedPartyID.String(), deletedAt)
 

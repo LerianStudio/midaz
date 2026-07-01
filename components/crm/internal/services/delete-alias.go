@@ -45,7 +45,7 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		return err
 	}
 
-	deletedAt := time.Now()
+	deletedAt := time.Now().UTC()
 
 	uc.emitAliasDeletedEvent(ctx, span, logger, id.String(), holderID.String(), organizationID, hardDelete, deletedAt)
 

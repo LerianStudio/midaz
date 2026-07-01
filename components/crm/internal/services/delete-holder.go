@@ -61,7 +61,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return err
 	}
 
-	deletedAt := time.Now()
+	deletedAt := time.Now().UTC()
 
 	uc.emitHolderDeletedEvent(ctx, span, logger, id.String(), organizationID, hardDelete, deletedAt)
 
