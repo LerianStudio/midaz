@@ -255,13 +255,13 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByIDHuma(ctx context.C
 	return &DeleteOperationRouteOutputHuma{}, nil
 }
 
-// RegisterOperationRouteRoutesToApp registers the five migrated operation-route
+// RegisterOperationRouteRoutes registers the five migrated operation-route
 // operations on the shared Huma API. It is the per-file seam the unified server
 // calls; the auth ("routing","operation-routes",verb) + tenant +
 // ParseUUIDPathParameters("operation_route") middleware chain is attached on the /v1
 // group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterOperationRouteRoutesToApp(api huma.API, h *OperationRouteHandler) {
+func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes"
 		idPath   = listPath + "/{operation_route_id}"

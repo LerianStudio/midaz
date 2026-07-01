@@ -30,7 +30,7 @@ import (
 // buildHumaOperationApp mirrors buildHumaBalanceApp: problem.Install before any
 // huma.Register, the Huma API over a /v1 group, an auth shim standing in for
 // auth.Authorize("midaz","operations","get") + tenant PostAuthMiddlewares, and
-// http.ParseUUIDPathParameters("operation") + RegisterOperationRoutesToApp.
+// http.ParseUUIDPathParameters("operation") + RegisterOperationRoutes.
 //
 // MUST-NOT-PARALLELIZE (same rationale as the asset/balance harness):
 // libProblem.Install() swaps the process-global huma.NewError hook and Huma
@@ -62,7 +62,7 @@ func buildHumaOperationApp(t *testing.T, handler *OperationHandler, authOK bool)
 	apiV1.Get(base, parse)
 	apiV1.Get(base+"/:operation_id", parse)
 
-	RegisterOperationRoutesToApp(hAPI, handler)
+	RegisterOperationRoutes(hAPI, handler)
 
 	return f
 }

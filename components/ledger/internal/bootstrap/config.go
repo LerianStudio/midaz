@@ -1037,6 +1037,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterMetadataIndexRoutesToApp(group, api, auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 		httpin.RegisterAssetRoutesToApp(group, api, auth, assetHandler, routeSetup.onboardingRouteOptions)
 		httpin.RegisterAssetRateRoutesToApp(group, api, auth, assetRateHandler, routeSetup.transactionRouteOptions)
+
+		// Wave-2 (money-read + routing) resources: balance, operation-read, transaction-
+		// count, operation-route, transaction-route. All lived in RegisterTransactionRoutesToApp
+		// before migration, so all carry transactionRouteOptions ([authAssertion, WithTenantDB]) —
+		// byte-for-byte the same tenant chain the inline routes used. balance/operation/count
+		// authorize against the "midaz" appName (protectedMidaz); operation-route/transaction-route
+		// authorize against the "routing" appName (protectedRouting), exactly as the inline routes did.
+		httpin.RegisterBalanceRoutesToApp(group, api, auth, balanceHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterOperationRoutesToApp(group, api, auth, operationHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterCountTransactionRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, operationRouteHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, transactionRouteHandler, routeSetup.transactionRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {

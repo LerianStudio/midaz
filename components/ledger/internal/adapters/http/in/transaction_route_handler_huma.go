@@ -251,14 +251,14 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByIDHuma(ctx conte
 	return &DeleteTransactionRouteOutputHuma{}, nil
 }
 
-// RegisterTransactionRouteRoutesToApp registers the five migrated transaction-route
+// RegisterTransactionRouteRoutes registers the five migrated transaction-route
 // operations on the shared Huma API. It is the per-file seam the unified server
 // calls; the auth ("routing","transaction-routes",verb) + tenant +
 // ParseUUIDPathParameters("transaction_route") middleware chain is attached on the
 // /v1 group (Fiber-level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (see asset_handler_huma.go's RegisterAssetRoutes header for the
 // /v1 rationale).
-func RegisterTransactionRouteRoutesToApp(api huma.API, h *TransactionRouteHandler) {
+func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes"
 		idPath   = listPath + "/{transaction_route_id}"

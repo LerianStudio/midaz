@@ -155,13 +155,13 @@ func (handler *OperationHandler) GetOperationByAccountHuma(ctx context.Context, 
 	return &GetOperationOutputHuma{Status: http.StatusOK, Body: op}, nil
 }
 
-// RegisterOperationRoutesToApp registers the two migrated operation read ops on the
+// RegisterOperationRoutes registers the two migrated operation read ops on the
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","operations","get")) + tenant + ParseUUIDPathParameters
 // ("operation") chain for these routes is attached in the unified server (Fiber
 // level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the /v1
 // prefix rides the OpenAPI servers entry).
-func RegisterOperationRoutesToApp(api huma.API, h *OperationHandler) {
+func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations"
 		idPath   = listPath + "/{operation_id}"

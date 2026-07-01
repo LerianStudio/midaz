@@ -29,7 +29,7 @@ import (
 // runs before huma.Register, the Huma API is built with openapi.New over a /v1
 // group, an auth-shim middleware stands in for auth.Authorize("midaz","transactions",
 // "head") + tenant PostAuthMiddlewares, and http.ParseUUIDPathParameters
-// ("transaction") + RegisterCountTransactionRoutesToApp attach the chain.
+// ("transaction") + RegisterCountTransactionRoutes attach the chain.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaAssetApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -64,7 +64,7 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 	apiV1.Head("/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count", parse)
 
-	RegisterCountTransactionRoutesToApp(hAPI, handler)
+	RegisterCountTransactionRoutes(hAPI, handler)
 
 	return f
 }

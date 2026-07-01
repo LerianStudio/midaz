@@ -422,13 +422,13 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestampHuma(ctx context.Con
 	return &GetAccountBalanceHistoryOutputHuma{Status: http.StatusOK, Body: history}, nil
 }
 
-// RegisterBalanceRoutesToApp registers the ten migrated balance operations on the
+// RegisterBalanceRoutes registers the ten migrated balance operations on the
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","balances",verb)) + tenant + ParseUUIDPathParameters
 // ("balance") chain for these routes is attached in the unified server (Fiber
 // level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the /v1
 // prefix rides the OpenAPI servers entry).
-func RegisterBalanceRoutesToApp(api huma.API, h *BalanceHandler) {
+func RegisterBalanceRoutes(api huma.API, h *BalanceHandler) {
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"
 		balancesPath   = orgLedger + "/balances"

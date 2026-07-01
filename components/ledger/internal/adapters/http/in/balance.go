@@ -338,7 +338,7 @@ func parseBalanceHistoryDate(ctx context.Context, span trace.Span, logger libLog
 // delegates to the shared core. The swaggo doc-comments are preserved verbatim
 // (the migration is ADDITIVE; swaggo is unchanged, and the security-coverage CI is
 // ledger-only always-on). NOTE: the LIVE balance routes are Huma now (see
-// balance_handler_huma.go + RegisterBalanceRoutesToApp); these Fiber wrappers are
+// balance_handler_huma.go + RegisterBalanceRoutes); these Fiber wrappers are
 // not mounted by the unified server.
 
 // GetAllBalances retrieves all balances.

@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -100,6 +101,7 @@ func buildUnifiedRouteSurface() *fiber.App {
 	libProblem.Install()
 	apiV1 := app.Group("/v1")
 	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "contract-spec", Version: "test", Servers: []string{"/v1"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 	RegisterOrganizationRoutesToApp(apiV1, humaAPI, auth, &OrganizationHandler{}, nil)
 	RegisterLedgerRoutesToApp(apiV1, humaAPI, auth, &LedgerHandler{}, nil)
 	RegisterPortfolioRoutesToApp(apiV1, humaAPI, auth, &PortfolioHandler{}, nil)
@@ -109,6 +111,17 @@ func buildUnifiedRouteSurface() *fiber.App {
 	RegisterMetadataIndexRoutesToApp(apiV1, humaAPI, auth, &MetadataIndexHandler{}, nil)
 	RegisterAssetRoutesToApp(apiV1, humaAPI, auth, &AssetHandler{}, nil)
 	RegisterAssetRateRoutesToApp(apiV1, humaAPI, auth, &AssetRateHandler{}, nil)
+
+	// Wave-2 Huma-migrated resources (balance, operation-read, transaction-count,
+	// operation-route, transaction-route) are mounted via the same /v1 group + shared
+	// Huma API the unified server's humaMount uses, so the mounted surface carries their
+	// routes to match the (unchanged, additive) swagger.json. RegisterTransactionRoutesToApp
+	// below still mounts the non-migrated transaction write/DSL + operation-PATCH routes.
+	RegisterBalanceRoutesToApp(apiV1, humaAPI, auth, &BalanceHandler{}, nil)
+	RegisterOperationRoutesToApp(apiV1, humaAPI, auth, &OperationHandler{}, nil)
+	RegisterCountTransactionRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, nil)
+	RegisterOperationRouteRoutesToApp(apiV1, humaAPI, auth, &OperationRouteHandler{}, nil)
+	RegisterTransactionRouteRoutesToApp(apiV1, humaAPI, auth, &TransactionRouteHandler{}, nil)
 	RegisterTransactionRoutesToApp(app, auth,
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)

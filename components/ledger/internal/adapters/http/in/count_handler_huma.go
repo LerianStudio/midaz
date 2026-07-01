@@ -98,13 +98,13 @@ func (handler *TransactionHandler) CountTransactionsByFiltersHuma(ctx context.Co
 	}, nil
 }
 
-// RegisterCountTransactionRoutesToApp registers the single migrated transaction-count
+// RegisterCountTransactionRoutes registers the single migrated transaction-count
 // HEAD op on the shared Huma API. It is the per-file seam the unified server calls;
 // the auth (auth.Authorize("midaz","transactions","head")) + tenant +
 // ParseUUIDPathParameters("transaction") chain for this route is attached in the
 // unified server (Fiber level) BEFORE the Huma terminal, not here. Paths are
 // GROUP-RELATIVE (the /v1 prefix rides the OpenAPI servers entry).
-func RegisterCountTransactionRoutesToApp(api huma.API, h *TransactionHandler) {
+func RegisterCountTransactionRoutes(api huma.API, h *TransactionHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "countTransactionsByFilters",
 		Method:      http.MethodHead,

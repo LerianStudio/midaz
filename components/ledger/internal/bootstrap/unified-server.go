@@ -129,6 +129,11 @@ func NewUnifiedServer(
 			Servers: []string{"/v1"},
 		})
 
+		// Disambiguate the one cross-package schema-name clash (mmodel.Balance vs
+		// operation.Balance) before any huma.Register on the shared API; the registry
+		// namer is captured on first registration. See InstallLedgerSchemaNamer.
+		midazhttp.InstallLedgerSchemaNamer(humaAPI)
+
 		// Declare the security schemes referenced by per-op Security metadata so the
 		// generated spec resolves them. SPEC metadata only — runtime auth stays the
 		// Fiber guard chain. BearerAuth via the shared lib-commons helper; ApiKeyAuth
