@@ -159,7 +159,7 @@ Huma montado no `/v1` do tracer; `problem.Install()` no path de runtime (spec-ge
 **Scope:** `rule_handler.go` (6 restantes), `limit_handler.go` (9), `transaction_validation_handler.go` (2), `validation_handler.go` (1), `reservation_handler.go` (5), `audit_event_handler.go` (3).
 **Dependencies:** Epic 2.1 (padrão estabelecido). ✅
 **Done when:** 26 ops via `huma.Register`; landmines endereçados — dual-status Validate 200/201 (`validation_handler.go:149-154`) via responses explícitas; UpdateLimit raw-body probe de campo imutável (`limit_handler.go:272-285`) preservado; 204 no-body deletes (`DeleteRule`/`DeleteLimit`) com Out vazio + `DefaultStatus:204`; list com query-param + validação imperativa sem 422 novo; reservation = 2 helpers `terminate`/`terminateByTransaction` → 4 shells. Testes `app.Test` (harness não-paralelo) verdes; golden net verde; sem 422 novo.
-**Status:** Doing
+**Status:** Doing — 2b-1 ✅ (rule, 8 ops); 2b-2 Detailed (Tasks 2.2.2–2.2.7 abaixo, 20 ops + wiring)
 
 **Fatiamento (de-risk das sub-shapes que a 2a NÃO tocou):** a 2a provou body-POST + path-param + error seam + ctx + auth + harness. Os 26 restantes trazem: **list com query-param + validação imperativa** (risco 422, mesma classe do `format:"uuid"`), **204 no-body**, **dual-status** (Validate 201/200), **POST id-only** (actions), **413 guard** (Validate). Fanning out 26 numa shape de list não-validada = risco de retrabalho. Então divide em duas waves:
 - **2b-1 (wave detalhada, gated — Task 2.2.1 abaixo):** completar `rule_handler.go` (6 ops) — exercita 4 sub-shapes novas (PATCH+body, list+query, POST id-only, 204) num arquivo só, vira o exemplar completo + prova o wiring em `routes.go`.
@@ -207,6 +207,55 @@ Workflow `wf_37e2511c-823` rodou o harness completo (implement→5 reviewers→4
 **Verification:** RED = teste `?status=ACTIVE&status=garbage`→400/0082 e `?limit=101&limit=25`→200 FALHA no first-wins atual; GREEN passa no last-wins. `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde; `go test -buildvcs=false -run TestGolden ./pkg/net/http/` verde. Probe fiber empírico FORA do worktree cobrindo TODOS os campos afetados.
 
 **Done when:** chaves repetidas produzem o mesmo code/status que o Fiber pra todos os campos de query; parity test no harness não-paralelo; golden net verde; exemplar limpo pro fan-out 2b-2.
+
+#### 2b-2 — Fan-out dos 5 arquivos restantes (20 ops) + wiring (elaborado 2026-07-01 do recon-2b2)
+
+**Divergências vs exemplar rule (recon confirmou):** cada arquivo tem SEU handler struct (`LimitHandler`/`TransactionValidationHandler`/`ValidationHandler`/`ReservationHandler`/`AuditEventHandler`), NÃO o `Handler` do rule → shells são métodos desses structs. NENHUM core extraído ainda → cada task EXTRAI o core (span+parse+Validate+service+log inline → core puro), deixa o método Fiber como wrapper fino, cria o shell Huma. `humaProblem` (`rule_handler_huma.go:482`) é package-level → reusar verbatim, não redefinir. Split `handleXxxServiceError` (render via `http.WithError` Fiber-bound) em `classifyXxxError` (sem render) + render no edge, como rule fez. **Binder de list (`last()`/`optStr`) copiado INLINE por arquivo — NÃO extrair helper compartilhado (serializaria as tasks de list).** Teste: `buildHumaXxxApp` copiado de `rule_handler_huma_test.go:102`, NÃO-PARALELO (`problem.Install()`+pools globais Huma), `tenantSpyService` pra ctx-threading.
+
+Execução: **5 tasks de implement SERIAIS no worktree compartilhado** (disjuntas mas serializadas — compile/test/commit no mesmo tree colidiriam em paralelo; worktree-isolation forçaria merge-back frágil no money-path; correctness>tempo) + 1 task serial de integração. Review + contrarian paralelos (read-only).
+
+##### Task 2.2.2: `limit_handler.go` → Huma (9 ops)
+- [ ] Done
+**Ops:** CreateLimit(POST /limits, body+Validate, 201), GetLimit(GET /limits/{id}, 200), ListLimits(GET /limits, 13 query, 200 — **Resolver+last-wins inline**), UpdateLimit(PATCH /limits/{id}, body+Validate+IsEmpty, 200 — **raw-body immutable probe**), Activate/Deactivate/Draft(POST /limits/{id}/{action}, id-only, 200), DeleteLimit(DELETE /limits/{id}, **204 no-body**), GetLimitUsage(GET /limits/{id}/usage, 200).
+**Landmine raw-body (`:270-285`):** UpdateLimit faz `json.Unmarshal(body,&map)` e rejeita se `limitType`/`currency` presentes (`ErrLimitImmutableField`) ANTES de BodyParser. Core `updateLimit(ctx,id,rawBody)` preserva o map-probe verbatim; shell passa `in.RawBody`. **204:** copiar `DeleteRuleOutputHuma struct{}`+`DefaultStatus:204`. **Query** (`ListLimitsInput`,`limit_validation.go:159`): dropar tags `enums:`, só `doc:`; `.Validate()`+`.SetDefaults()` imperativos.
+**Files:** Modify `limit_handler.go`,`limit_validation.go`; Create `limit_handler_huma.go`,`limit_handler_huma_test.go`. NÃO tocar routes.go.
+**Verification:** build+`go test -count=1 ./components/tracer/internal/adapters/http/in/` verde; golden net verde; teste query inválido→400 canônico (não 422), raw-body probe→erro imutável, repeated-key last-wins, 204 sem corpo.
+
+##### Task 2.2.3: `transaction_validation_handler.go` → Huma (2 ops)
+- [ ] Done
+**Ops:** ListTransactionValidations(GET /validations, 12 query, 200 — **Resolver+last-wins**, só `limit` é pointer), GetTransactionValidation(GET /validations/{id}, 200).
+**Files:** Modify `transaction_validation_handler.go`,`transaction_validation_validation.go` (se o binder morar lá); Create `_huma.go`,`_huma_test.go`.
+**Verification:** idem 2.2.2 (list sem 422, repeated-key).
+
+##### Task 2.2.4: `validation_handler.go` → Huma (1 op)
+- [ ] Done
+**Op:** Validate(POST /validations, body `ValidationRequest`+`NormalizeAndValidate(now)`, **dual-status 200/201**).
+**Landmine dual-status (`:149-154`):** `IsDuplicate`→200, senão 201. Out carrega `Status int` que o shell define via `IsDuplicate`; `huma.Register` declara responses 200+201 explícitas, SEM `DefaultStatus` fixo. Core `validate(ctx,rawBody)(*ValidateResult,error)`. **Landmine payload-size (`:90`):** `len(body)>maxPayloadSize`(100KB,`:30`)→`ErrPayloadTooLarge` — checar no core sobre `len(rawBody)`. `handleValidationError`(`:158`) é método → core também método. forceAPIKey (`cfg.APIKeyOnlyValidation`) é do wiring (Task 2.2.7), não do shell.
+**Files:** Modify `validation_handler.go`; Create `_huma.go`,`_huma_test.go`.
+**Verification:** build+suite+golden; teste dual-status (duplicate→200, novo→201), payload >100KB→ErrPayloadTooLarge (não 422 nativo).
+
+##### Task 2.2.5: `reservation_handler.go` → Huma (5 ops)
+- [ ] Done
+**Ops:** Reserve(POST /reservations, body+`NormalizeAndReserveValidate`, 201, payload-size), Confirm(POST /reservations/{id}/confirm, 200), Release(POST /reservations/{id}/release, 200), ConfirmByTransaction(POST /reservations/transaction/{transaction_id}/confirm, 200), ReleaseByTransaction(.../release, 200).
+**Landmine 2 helpers→4 shells:** os 4 lifecycle ops delegam a `h.terminate(...)`(`:279`, param `id`) / `h.terminateByTransaction(...)`(`:234`, param `transaction_id`) com `(operation,terminalStatus,action)`. Refatorar em cores puros `terminate(ctx,id,op,status,action)(*ReservationActionResponse,error)` e `terminateByTransaction(ctx,txID,...)(*TransactionActionResponse,error)`. 4 shells explícitos: Confirm→terminate+StatusConfirmed+service.Confirm; Release→terminate+StatusReleased+service.Release; ConfirmByTransaction→terminateByTx+StatusConfirmed; ReleaseByTransaction→terminateByTx+StatusReleased. Ops 4-5: In com `TransactionID string \`path:"transaction_id"\``.
+**Files:** Modify `reservation_handler.go`,`reservation_validation.go`; Create `_huma.go`,`_huma_test.go`.
+**Verification:** build+suite+golden; teste os 4 lifecycle + Reserve (payload-size), path param transaction_id resolve.
+
+##### Task 2.2.6: `audit_event_handler.go` → Huma (3 ops)
+- [ ] Done
+**Ops:** ListAuditEvents(GET /audit-events, **18 query — o mais pesado, Resolver+last-wins**), GetAuditEvent(GET /audit-events/{id}, 200), VerifyHashChain(GET /audit-events/{id}/verify, 200).
+**Query** (`ListAuditEventsInput`,`audit_event_validation.go:159`): typed pointers (`*AuditEventType`/`*AuditAction`/`*AuditResult`/`*ResourceType`/`*ActorType`) + strings + `limit`(`*int`); dropar `validate:`/`enums:`, só `doc:`; binder converte string→typed pointer via `q.Has`+`last`. `.Validate()`+`.SetDefaults()`+`toAuditEventFilters`(retorna error).
+**Files:** Modify `audit_event_handler.go`,`audit_event_validation.go`; Create `_huma.go`,`_huma_test.go`.
+**Verification:** idem list (sem 422, repeated-key, typed-pointer binding).
+
+##### Task 2.2.7: Integração — wiring routes.go (serial, após 2.2.2–2.2.6)
+- [ ] Done
+**Context:** trocar as 20 rotas inline (`routes.go:371-431`) por middleware-only + 5 `RegisterXxxRoutes`, espelhando o padrão rule (`:359-367`). /v1 group `:261`, huma.API mount `:345` (após `problem.Install():343`), tenant MW `:270-335` roda antes → cobre Huma.
+**Preservar byte-a-byte:** tuplas `guard.With(resource,verb,forceAPIKey)` exatas; **reservation = DOIS middlewares** (`resTenantMW`+`guard.With`, ordem transaction-first `:421-424` antes de `:id`); **validation = `cfg.APIKeyOnlyValidation`** como 3º arg (NÃO literal `true`). Rotas Fiber middleware-only mantêm `:id`/`:transaction_id`; `RegisterXxxRoutes` usa `{id}`/`{transaction_id}`.
+**Flat-401 (`pkgHTTP.Unauthorized`,`pkg/net/http/response.go:16`):** emite envelope FLAT `{code,title,message}`, não problem+json; auth é middleware pré-Huma → 401 nunca passa pelo Huma. **PRESERVAR (paridade) + documentar a divergência.** Unificar 401→problem+json é mudança de contrato em todo o tracer (blast radius alto) → decisão explícita do Fred, FORA desta wave.
+**Files:** Modify `routes.go`.
+**Verification:** build+`go test -count=1 ./components/tracer/internal/adapters/http/in/` verde; golden net verde; grep confirma 0 rotas inline dessas 5 resources restantes; auth tuplas idênticas ao pré-wiring (diff só troca handler terminal por middleware-only+Register).
+**Done when (Epic 2.2):** 26 ops via huma.Register (8 rule+18 aqui... na verdade 20 aqui, 28 protegidas totais), landmines endereçadas, wired em routes.go com auth preservada, suites+golden verdes. Epic 2.3 (per-op Security spec+ServeSpec+Unauthorized decision) é wave seguinte.
 
 ### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec 3.1 nativa + paridade served==spec
 **Goal:** Declarar os 2 security schemes no shape correto (`BearerAuth` `type:http,scheme:bearer` — não o hack apiKey-in-header do swagger atual; `ApiKeyAuth` `type:apiKey,in:header,name:X-API-Key`); requirement por-op nas 28 ops (`POST /validations` reflete o `forceAPIKeyAuth`); spec OAS 3.1 servida por `ServeSpec` (gated em `Swagger.Enabled`); remover `@securityDefinitions` swaggo do `main.go`.
