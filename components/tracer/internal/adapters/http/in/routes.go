@@ -467,7 +467,7 @@ type tracerHumaHandlers struct {
 	AuditEvent            *AuditEventHandler
 }
 
-// registerTracerHumaRoutes mounts all 31 tracer Huma operations on the given
+// registerTracerHumaRoutes mounts all 28 tracer Huma operations on the given
 // Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
 // first. It is the single registration seam shared by production (NewRoutes) and
 // the http/in tests, so the mounted surface is identical without a running
