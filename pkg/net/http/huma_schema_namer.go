@@ -59,6 +59,17 @@ func InstallLedgerSchemaNamer(api huma.API) {
 // layering / cycle through pkg).
 const operationPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 
+// transactionPkgPath is the import path of the transaction postgres adapter package.
+// Its transaction.Transaction (the Wave-4 money-write Huma response body) nests a
+// transaction.Status that collides with the mmodel.Status the Wave-1 onboarding bodies
+// already own on the shared registry. Qualifying the transaction package with a
+// "Transaction" prefix disambiguates Status ("TransactionStatus") while leaving the
+// top-level body name unchanged (qualify() is idempotent, so "Transaction" stays
+// "Transaction"). Matched as a STRING for the same layering reason as operationPkgPath.
+// Only renames the NATIVE Huma OAS 3.1 schemas (openapi.ServeSpec, docs-gated); the
+// swaggo swagger.json contract is generated independently and untouched.
+const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+
 // feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
 // register on the shared ledger Huma registry: feeshared/model (Pagination,
 // BillingPackage, BillingCalculateResponse, and their nested tiers) and
@@ -94,6 +105,10 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 
 	if dt.PkgPath() == operationPkgPath {
 		return qualify(name, "Operation")
+	}
+
+	if dt.PkgPath() == transactionPkgPath {
+		return qualify(name, "Transaction")
 	}
 
 	if feePkgPaths[dt.PkgPath()] {

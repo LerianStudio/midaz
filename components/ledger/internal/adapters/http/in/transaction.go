@@ -5,12 +5,16 @@
 package in
 
 import (
+	"context"
+
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -82,7 +86,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
@@ -123,7 +127,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, constant.NOTED)
+	return handler.createTransactionFiber(c, *transactionInput, constant.NOTED, false)
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
@@ -164,7 +168,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
 }
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
@@ -205,7 +209,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus(), false)
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -292,7 +296,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, transactionInput.Send)
 
-	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus(), false)
 }
 
 // GetTransaction method that get transaction created before
@@ -334,40 +338,61 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID); wbErr == nil {
-		c.Set("X-Cache-Hit", "true")
+	headerParams.Metadata = &bson.M{}
 
-		return http.OK(c, wbTran)
-	} else {
-		logger.Log(ctx, libLog.LevelDebug, "Write-behind cache miss, falling back to database",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(wbErr))
+	tran, cacheHit, err := handler.getTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID, headerParams)
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	c.Set("X-Cache-Hit", "false")
+	if cacheHit {
+		c.Set("X-Cache-Hit", "true")
+	} else {
+		c.Set("X-Cache-Hit", "false")
+	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, params.OrganizationID, params.LedgerID, params.TransactionID)
+	return http.OK(c, tran)
+}
+
+// getTransaction is the transport-neutral read core. It reads write-behind cache first
+// (returning cacheHit=true, operations already materialized in the cached shape), and on
+// a miss falls back to the DB then materializes operations via GetOperationsByTransaction.
+// The caller sets the X-Cache-Hit response header off the returned flag. headerParams is
+// expected to already carry the Metadata reset the Fiber path applied.
+func (handler *TransactionHandler) getTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, headerParams *http.QueryHeader) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_transaction.core")
+	defer span.End()
+
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+		return wbTran, true, nil
+	} else {
+		logger.Log(ctx, libLog.LevelDebug, "Write-behind cache miss, falling back to database",
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(wbErr))
+	}
+
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve transaction",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 	defer spanGetTransaction.End()
 
-	headerParams.Metadata = &bson.M{}
-
-	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, params.OrganizationID, params.LedgerID, tran, *headerParams)
+	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
-	return http.OK(c, tran)
+	return tran, false, nil
 }

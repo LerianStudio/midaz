@@ -1083,6 +1083,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterOperationRouteRoutesToApp(group, api, auth, operationRouteHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterTransactionRouteRoutesToApp(group, api, auth, transactionRouteHandler, routeSetup.transactionRouteOptions)
 
+		// Wave-4 (MONEY-WRITE): the ten transaction ops (json/inflow/outflow/annotation
+		// CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list). They lived
+		// in RegisterTransactionRoutesToApp before migration, so they carry
+		// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorize against the
+		// "midaz" appName (protectedMidaz) — byte-for-byte the same auth + tenant chain and
+		// (resource, verb) tuples the inline routes used. POST /transactions/dsl is NOT here:
+		// it stays a pure inline Fiber terminal in RegisterTransactionRoutesToApp (below).
+		httpin.RegisterTransactionHumaRoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
+
 		// Wave-3 (additive) resources: CRM (holders/instruments/holder-accounts/
 		// encryption/audit) under "midaz", fees/billing under "plugin-fees", and
 		// composition under "midaz". Each carries its OWN route-scoped tenant options

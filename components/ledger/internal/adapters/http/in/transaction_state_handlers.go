@@ -50,8 +50,6 @@ import (
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -67,7 +65,29 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	_, span := tracer.Start(ctx, "handler.commit_transaction")
+	tran, err := handler.commitTransaction(ctx, organizationID, ledgerID, transactionID, constant.APPROVED)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, tran)
+}
+
+// commitTransaction is the transport-neutral commit/cancel core: it opens the same
+// per-action span (commit_transaction / cancel_transaction, derived from the target
+// status so the span names stay byte-identical to the pre-migration Fiber path),
+// fetches the transaction (write-behind cache first, DB fallback), then delegates to the
+// untouched commitOrCancelTransaction state machine. Called by BOTH the Fiber wrappers
+// and the Huma shells.
+func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string) (*transaction.Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	spanName := "handler.commit_transaction"
+	if transactionStatus == constant.CANCELED {
+		spanName = "handler.cancel_transaction"
+	}
+
+	_, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
 	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
@@ -76,11 +96,11 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
-	return handler.commitOrCancelTransaction(c, tran, constant.APPROVED)
+	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus)
 }
 
 // CancelTransaction method that cancel pre transaction created before
@@ -107,8 +127,6 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -124,20 +142,12 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	_, span := tracer.Start(ctx, "handler.cancel_transaction")
-	defer span.End()
-
-	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.commitTransaction(ctx, organizationID, ledgerID, transactionID, constant.CANCELED)
 	if err != nil {
-		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
-		if err != nil {
-			handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
-			return http.WithError(c, err)
-		}
+		return http.WithError(c, err)
 	}
 
-	return handler.commitOrCancelTransaction(c, tran, constant.CANCELED)
+	return http.Created(c, tran)
 }
 
 // RevertTransaction method that revert transaction created before
@@ -164,8 +174,6 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -181,6 +189,24 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	tran, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, tran)
+}
+
+// revertTransaction is the transport-neutral revert core: it runs the full revert
+// eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
+// all bidirectional routes) then delegates to the untouched createRevertTransaction core.
+// The parent transaction id passed to createRevertTransaction is the reverted
+// transaction's id (from the route), so the reversal links back to its origin. Revert
+// carries no idempotency headers (the Fiber wrapper read none), so the key/TTL are empty.
+// Called by BOTH the Fiber wrapper and the Huma shell.
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
@@ -188,7 +214,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if parent != nil {
@@ -196,14 +222,14 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if tran.ParentTransactionID != nil {
@@ -211,7 +237,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if tran.Status.Code != constant.APPROVED {
@@ -219,7 +245,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	transactionReverted := tran.TransactionRevert()
@@ -228,7 +254,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Validate bidirectional routes: operations with a route_id require
@@ -244,14 +270,14 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
 
-			return http.WithError(c, parseValidationErr)
+			return nil, parseValidationErr
 		}
 
 		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			return http.WithError(c, routeErr)
+			return nil, routeErr
 		}
 
 		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
@@ -259,13 +285,15 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
-	response := handler.createRevertTransaction(c, transactionReverted, constant.CREATED)
+	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	return response
+	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", 0)
+
+	return tranReverted, err
 }
 
 // UpdateTransaction method that patch transaction created before
@@ -291,11 +319,6 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_transaction")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -312,30 +335,55 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	}
 
 	payload := p.(*transaction.UpdateTransactionInput)
-	logSafePayload(ctx, logger, "Request to update a transaction", payload)
 
-	recordSafePayloadAttributes(span, payload)
-
-	_, err = handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
+	trans, err := handler.updateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to update transaction on command", err)
-
-		return http.WithError(c, err)
-	}
-
-	trans, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
-	if err != nil {
-		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
 		return http.WithError(c, err)
 	}
 
 	return http.OK(c, trans)
 }
 
+// updateTransaction is the transport-neutral update core: it logs the safe payload,
+// runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
+// (mutable fields only — amounts/accounts/status are immutable). Called by BOTH the Fiber
+// wrapper and the Huma shell.
+func (handler *TransactionHandler) updateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, payload *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_transaction")
+	defer span.End()
+
+	logSafePayload(ctx, logger, "Request to update a transaction", payload)
+
+	recordSafePayloadAttributes(span, payload)
+
+	_, err := handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to update transaction on command", err)
+
+		return nil, err
+	}
+
+	trans, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
+
+		return nil, err
+	}
+
+	return trans, nil
+}
+
+// commitOrCancelTransaction is the transport-neutral state-transition core (the tracer
+// two-phase confirm/release-by-transaction, balance ProcessBalanceOperations, backup
+// seeding, and BuildOperations/WriteTransaction). It is called by BOTH the Fiber
+// wrappers and the Huma shells; the ~275-line body is untouched (no reordered side-
+// effects). It returns the updated transaction so each transport writes its own
+// response.
+//
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
-func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
@@ -354,7 +402,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Log(ctx, libLog.LevelError, "Failed to set pending transaction lock on redis", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if !success {
@@ -364,7 +412,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Log(ctx, libLog.LevelWarn, "Transaction is locked", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	deleteLockOnError := func() {
@@ -398,7 +446,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// No fee seam here (P4-T13). tran.Body was persisted by the create path
@@ -418,7 +466,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
@@ -428,7 +476,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
@@ -455,7 +503,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
@@ -471,7 +519,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 			deleteLockOnError()
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
@@ -482,7 +530,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
@@ -496,7 +544,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction))
+		return nil, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction)
 	}
 
 	spanBackupSeed.End()
@@ -518,7 +566,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Reservation phase two by transaction (F3-T15, PENDING lifecycle). The
@@ -559,7 +607,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
@@ -598,7 +646,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		logger.Log(ctx, libLog.LevelError, "Failed to update BTO", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
@@ -609,5 +657,5 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		go handler.Command.UpdateWriteBehindTransaction(tenantCtx, organizationID, ledgerID, tran)
 	}
 
-	return http.Created(c, tran)
+	return tran, nil
 }

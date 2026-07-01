@@ -946,16 +946,51 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-// createTransaction creates a new transaction with the given status.
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, false)
+// createTransaction is the transport-neutral create core. It is called by BOTH the
+// Fiber wrappers (which read the path params + idempotency headers off *fiber.Ctx and
+// write the response) and the Huma shells (which read them off the request envelope and
+// project onto the typed Out). It returns the built transaction and the idempotency
+// `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
+// orchestration in executeCreateTransaction is untouched: this is the thin transport
+// boundary only.
+func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL)
 }
 
 // createRevertTransaction creates a reversal transaction. The action is forced
 // to "revert" so that accounting route lookups use the revert rubrics instead
-// of the status-derived action.
-func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
+// of the status-derived action. Transport-neutral, mirroring createTransaction.
+func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL)
+}
+
+// createTransactionFiber is the Fiber transport adapter: it reads the path params and
+// idempotency key/TTL off *fiber.Ctx, delegates to the transport-neutral core, projects
+// the replayed flag onto the X-Idempotency-Replayed response header, and writes the
+// created transaction (or the canonical error). It preserves the exact Fiber-path
+// behavior the four create wrappers relied on before the Huma migration.
+func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
+	ctx := c.UserContext()
+
+	params, err := readPathParams(c)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
+
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	tran, replayed, err := handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, isRevert, idempotencyKey, idempotencyTTL)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	if replayed {
+		c.Set(libConstants.IdempotencyReplayed, "true")
+	}
+
+	return http.Created(c, tran)
 }
 
 // resolveTransactionSkips resolves the two per-call control skips (fees, tracer)
@@ -979,31 +1014,25 @@ func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.Led
 }
 
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
-func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
-
-	params, err := readPathParams(c)
-	if err != nil {
-		return http.WithError(c, err)
-	}
 
 	transactionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	transactionDate, err := mtransaction.CheckTransactionDate(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	recordSafePayloadAttributes(span, transactionInput)
@@ -1013,7 +1042,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction value must be greater than zero", err)
 		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.String("value", transactionInput.Send.Value.String()))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
@@ -1034,29 +1063,29 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 	// package and yields a different fee outcome, which is correct because the
 	// hash keys on the raw body, not the package version. Package version is
 	// deliberately NOT part of the key.
-	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
-
+	//
+	// idempotencyKey/idempotencyTTL are resolved by the transport (the Fiber
+	// GetIdempotencyKeyAndTTL or the Huma header read) and passed in; the hash is
+	// still computed here over the SAME built transactionInput so it is byte-
+	// identical across both transports. The X-Idempotency-Replayed header is set by
+	// the transport off the returned replayed flag, not here.
 	ts, err := libCommons.StructToJSONString(transactionInput)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	idempotencyHash := libCommons.HashSHA256(ts)
 
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
 	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
 	if err != nil {
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	if idempotencyResult.Replay != nil {
-		c.Set(libConstants.IdempotencyReplayed, "true")
-
-		return http.Created(c, *idempotencyResult.Replay)
+		return idempotencyResult.Replay, true, nil
 	}
 
 	// First validate: rejects malformed source/distribute on the RAW input
@@ -1075,7 +1104,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Ledger settings (Redis cache-aside) are read once here, above the fee seam.
@@ -1089,7 +1118,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Resolve the two per-call skips (fees, tracer) once, off the settings just
@@ -1104,7 +1133,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Record the resolved skips as system observations (not request inputs): they
@@ -1133,7 +1162,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Normalize the fee-mutated send: applyFees rebuilds Source.From/Distribute.To
@@ -1167,7 +1196,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Build the concat-form fromTo from the FEE-INCLUSIVE, normalized send. This
@@ -1202,7 +1231,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 
-		return http.WithError(c, pkg.ValidateBusinessError(err, constant.EntityTransaction))
+		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
 	}
 
 	balances, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, validate.Aliases)
@@ -1213,7 +1242,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
@@ -1229,7 +1258,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
@@ -1256,7 +1285,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	routeCache, err := handler.Query.ValidateAccountingRules(ctx, params.OrganizationID, params.LedgerID, balanceOps, validate, action)
@@ -1267,7 +1296,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Reserve anchor (F3-T13): hold usage-limit capacity against the
@@ -1285,7 +1314,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())
 
-		return http.WithError(c, reservation.Err)
+		return nil, false, reservation.Err
 	}
 
 	result, err := handler.Command.ProcessBalanceOperations(ctx, command.ProcessBalanceOperationsInput{
@@ -1309,7 +1338,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		// reconciled by the TTL reaper.
 		handler.releaseReservations(ctx, span, logger, reservation.Handle)
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Confirm anchor (F3-T14, success phase): the balance commit succeeded, so
@@ -1374,7 +1403,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		// so the backup queue is the recovery mechanism — the Kiwi consumer will
 		// reconstruct and persist the transaction from the backup entry.
 		// Deleting the idempotency key would allow duplicate balance mutations on retry.
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// The companion overdraft balances participate in the transaction at the
@@ -1417,7 +1446,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 		sanitizedErr := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, constant.EntityTransaction)
 
-		return http.WithError(c, sanitizedErr)
+		return nil, false, sanitizedErr
 	}
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
@@ -1426,7 +1455,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 
 	go handler.Command.SendLogTransactionAuditQueue(bgCtx, operations, params.OrganizationID, params.LedgerID, tran.IDtoUUID())
 
-	return http.Created(c, tran)
+	return tran, false, nil
 }
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
