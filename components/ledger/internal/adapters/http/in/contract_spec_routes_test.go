@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -87,8 +89,16 @@ func buildUnifiedRouteSurface() *fiber.App {
 
 	RegisterMetadataRoutesToApp(app, auth, &MetadataIndexHandler{}, nil)
 	RegisterOnboardingRoutesToApp(app, auth,
-		&AccountHandler{}, &PortfolioHandler{}, &LedgerHandler{}, &AssetHandler{},
+		&AccountHandler{}, &PortfolioHandler{}, &LedgerHandler{},
 		&OrganizationHandler{}, &SegmentHandler{}, &AccountTypeHandler{}, nil)
+
+	// Assets are Huma-migrated: mount them via the same /v1 group + Huma API the
+	// unified server uses (RegisterAssetRoutesToApp), so the mounted surface still
+	// carries the six asset routes to match the (unchanged, additive) swagger.json.
+	libProblem.Install()
+	apiV1 := app.Group("/v1")
+	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "contract-spec", Version: "test", Servers: []string{"/v1"}})
+	RegisterAssetRoutesToApp(apiV1, humaAPI, auth, &AssetHandler{}, nil)
 	RegisterTransactionRoutesToApp(app, auth,
 		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
 		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)

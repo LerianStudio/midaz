@@ -41,6 +41,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -1008,7 +1009,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// === Route registrars ===
 
 	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
+		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
+	}
+
+	// Asset routes are migrated to Huma: their terminal handlers + Fiber auth chain
+	// are wired on the shared /v1 Huma API/group via this mount seam, run by
+	// NewUnifiedServer after it builds the humaAPI. The (resource, verb) authz tuples
+	// and tenant PostAuthMiddlewares (routeSetup.onboardingRouteOptions) are the SAME
+	// the pre-Huma inline asset routes used.
+	humaMount := func(group fiber.Router, api huma.API) {
+		httpin.RegisterAssetRoutesToApp(group, api, auth, assetHandler, routeSetup.onboardingRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {
@@ -1073,6 +1083,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger,
 		telemetry,
 		readyzHandler,
+		humaMount,
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,

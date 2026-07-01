@@ -243,7 +243,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
-		server := NewUnifiedServer(":0", "", logger, telemetry, nil)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
@@ -258,7 +258,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 			})
 		}
 
-		server := NewUnifiedServer(":0", "", logger, telemetry, nil, registrar)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil, registrar)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
@@ -268,7 +268,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 func TestNewUnifiedServer_ServesSwaggerUIAssets(t *testing.T) {
 	t.Parallel()
 
-	server := NewUnifiedServer(":0", "", newTestLogger(), &libOpentelemetry.Telemetry{}, nil)
+	server := NewUnifiedServer(":0", "", newTestLogger(), &libOpentelemetry.Telemetry{}, nil, nil)
 
 	for _, path := range []string{
 		"/swagger/index.html",

@@ -64,45 +64,63 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		s = newOfType(d.structSource)
 	}
 
-	bodyBytes := c.Body() // Get the body bytes
+	originalMap, err := DecodeAndValidate(c.Body(), s)
+	if err != nil {
+		return BadRequest(c, err)
+	}
 
+	c.Locals("fields", map[string]any{})
+	c.Locals("patchRemove", findNilFields(originalMap, ""))
+
+	return d.handler(s, c)
+}
+
+// DecodeAndValidate runs the shared request-body pipeline into s: JSON unmarshal,
+// a marshal round-trip to detect unknown fields, struct validation, metadata
+// parsing and null-field population. It is the SINGLE source of that sequence,
+// shared by the Fiber decoder (FiberHandlerFunc) and Huma handler cores, so the
+// two transports decode+validate identically with no drift. It returns the raw
+// canonical Midaz error (ResponseError for malformed JSON, Validation* for
+// unknown/missing/invalid fields) WITHOUT writing a response — the caller renders
+// it (Fiber: BadRequest flat envelope; Huma: HumaProblem problem+json). On success
+// it returns the parsed originalMap so the Fiber caller can derive patchRemove.
+//
+// NOTE: FindUnknownFields short-circuits to unknown-fields BEFORE ValidateStruct,
+// exactly as the pre-refactor FiberHandlerFunc did — order is contract (an
+// unexpected field wins over a missing required one).
+func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
-
 	if len(diffFields) > 0 {
-		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
-		return BadRequest(c, err)
+		return nil, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
 	}
 
 	if err := ValidateStruct(s); err != nil {
-		return BadRequest(c, err)
+		return nil, err
 	}
-
-	c.Locals("fields", diffFields)
-	c.Locals("patchRemove", findNilFields(originalMap, ""))
 
 	parseMetadata(s, originalMap)
 	populateNullFields(s, originalMap)
 
-	return d.handler(s, c)
+	return originalMap, nil
 }
 
 // WithDecode wraps a handler function, providing it with a struct instance created using the provided constructor function.

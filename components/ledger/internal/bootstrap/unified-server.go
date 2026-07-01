@@ -6,10 +6,13 @@ package bootstrap
 
 import (
 	"context"
+	"os"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
@@ -17,6 +20,7 @@ import (
 	_ "github.com/LerianStudio/midaz/v4/components/ledger/api"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -25,6 +29,19 @@ import (
 // RouteRegistrar is a function that registers routes to an existing Fiber router.
 // Each module (onboarding, transaction) implements this to register its routes.
 type RouteRegistrar func(router fiber.Router)
+
+// HumaRouteRegistrar registers Huma-migrated routes on the shared /v1 Huma API and
+// its backing Fiber group (for the Fiber-level auth/tenant middleware chain that
+// runs before each Huma terminal). Nil means no Huma routes are mounted.
+type HumaRouteRegistrar func(group fiber.Router, api huma.API)
+
+// swaggerEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
+// surface should be served (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs).
+// Independent of the legacy swaggo /swagger/* mount, which is always on. Off by
+// default; opt in with LEDGER_HUMA_DOCS_ENABLED=true.
+func swaggerEnabled() bool {
+	return os.Getenv("LEDGER_HUMA_DOCS_ENABLED") == "true"
+}
 
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
 // This enables the unified ledger mode where all routes are accessible on a single port.
@@ -44,6 +61,7 @@ func NewUnifiedServer(
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
 	readyzHandler *ReadyzHandler,
+	humaMount HumaRouteRegistrar,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -89,6 +107,53 @@ func NewUnifiedServer(
 	for _, registrar := range routeRegistrars {
 		if registrar != nil {
 			registrar(app)
+		}
+	}
+
+	// Huma bootstrap (asset migration DE-RISK). problem.Install() overrides the
+	// process-global huma.NewError to the org-wide RFC 9457 model; it MUST run
+	// before any huma.Register and is idempotent (sync.Once). The Huma API binds to
+	// a /v1 Fiber GROUP with Servers ["/v1"] and GROUP-RELATIVE op paths, so the
+	// humafiber v2 adapter registers on that group (Fiber prepends /v1) and the
+	// adapter's ctx (built from c.UserContext()) reaches the migrated handlers with
+	// the per-route tenant/DB intact — the auth+tenant middleware chain is attached
+	// on the SAME group inside humaMount, before each Huma terminal.
+	if humaMount != nil {
+		problem.Install()
+
+		apiV1 := app.Group("/v1")
+
+		humaAPI := openapi.New(app, apiV1, openapi.Config{
+			Title:   "Midaz Ledger API",
+			Version: version,
+			Servers: []string{"/v1"},
+		})
+
+		// Declare the security schemes referenced by per-op Security metadata so the
+		// generated spec resolves them. SPEC metadata only — runtime auth stays the
+		// Fiber guard chain. BearerAuth via the shared lib-commons helper; ApiKeyAuth
+		// declared locally (no helper), mirroring the helper's nil-guard.
+		openapi.DeclareBearerAuth(humaAPI)
+
+		components := humaAPI.OpenAPI().Components
+		if components.SecuritySchemes == nil {
+			components.SecuritySchemes = map[string]*huma.SecurityScheme{}
+		}
+
+		components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
+			Type:        "apiKey",
+			In:          "header",
+			Name:        "X-API-Key",
+			Description: "Static API key presented in the X-API-Key header.",
+		}
+
+		humaMount(apiV1, humaAPI)
+
+		// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on swaggerEnabled().
+		// Mounted AFTER humaMount so the snapshotted spec is complete. Independent of
+		// the legacy swaggo /swagger/* mount.
+		if swaggerEnabled() {
+			openapi.ServeSpec(app, humaAPI, logger, "/v1", "Midaz Ledger API")
 		}
 	}
 

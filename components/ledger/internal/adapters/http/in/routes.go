@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -60,7 +61,7 @@ func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler
 // RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
 // The app should already have middleware configured (telemetry, cors, logging).
-func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
+func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Organizations
 	f.Post("/v1/organizations", protectedMidaz(auth, "organizations", "post", routeOptions, http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))...)
 	f.Patch("/v1/organizations/:id", protectedMidaz(auth, "organizations", "patch", routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))...)
@@ -79,13 +80,10 @@ func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, 
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
 	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", protectedMidaz(auth, "ledgers", "head", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)...)
 
-	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "post", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "patch", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAllAssets)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAssetByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "delete", routeOptions, http.ParseUUIDPathParameters("asset"), ih.DeleteAssetByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count", protectedMidaz(auth, "assets", "head", routeOptions, http.ParseUUIDPathParameters("asset"), ih.CountAssets)...)
+	// Assets — MIGRATED TO HUMA (see RegisterAssetRoutesToApp). They are no longer
+	// wired here: their terminal handlers live on the shared Huma API and their auth
+	// + tenant + ParseUUIDPathParameters middleware chain is attached on the /v1
+	// group by RegisterAssetRoutesToApp, called from the unified server's humaMount.
 
 	// Portfolios
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "post", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))...)
@@ -119,6 +117,39 @@ func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, 
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedRouting(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAccountTypeByID)...)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedRouting(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAllAccountTypes)...)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedRouting(auth, "account-types", "delete", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.DeleteAccountTypeByID)...)
+}
+
+// RegisterAssetRoutesToApp wires the Huma-migrated asset resource. For each of the
+// six ops it attaches the Fiber auth chain — auth.Authorize("midaz","assets",verb)
+// + the tenant PostAuthMiddlewares + ParseUUIDPathParameters("asset") — as
+// MIDDLEWARE ONLY (no terminal handler) on the /v1 GROUP with GROUP-RELATIVE paths,
+// then registers the Huma terminals via RegisterAssetRoutes on the SAME group's
+// Huma API. Fiber runs the middleware chain first; its final ParseUUIDPathParameters
+// calls c.Next(), advancing into the Huma terminal. This preserves the pre-Huma
+// (resource, verb) authz tuples and tenant resolution BYTE-FOR-BYTE — no asset
+// route becomes public — while the Huma terminal owns request/response shaping.
+//
+// The group-relative middleware paths (e.g. "/organizations/:organization_id/.../assets")
+// resolve to the same absolute "/v1/organizations/.../assets" the Huma op paths do
+// (Huma advertises the "/v1" server prefix and registers relative). Param names
+// (:organization_id/:ledger_id/:id) match the Huma path tags exactly.
+func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ih *AssetHandler, routeOptions *http.ProtectedRouteOptions) {
+	const (
+		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/assets"
+		idPath    = listPath + "/:id"
+		countPath = listPath + "/metrics/count"
+	)
+
+	parse := http.ParseUUIDPathParameters("asset")
+
+	group.Post(listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse)...)
+	group.Patch(idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse)...)
+	group.Get(listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse)...)
+	group.Get(idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse)...)
+	group.Delete(idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse)...)
+	group.Head(countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse)...)
+
+	RegisterAssetRoutes(api, ih)
 }
 
 // RegisterTransactionRoutesToApp registers transaction routes to an existing Fiber app.
