@@ -90,7 +90,7 @@ echo "Converting OpenAPI specs to Postman collections..."
 # Process all components in parallel from their published specs
 declare -a CONVERT_PIDS=()
 for component in "${COMPONENTS[@]}"; do
-    convert_component "${component}" "${SPECS_DIR}/${component}/swagger.json"
+    convert_component "${component}" "${SPECS_DIR}/${component}/openapi.huma.yaml"
     CONVERT_PIDS+=("$!")
 done
 
