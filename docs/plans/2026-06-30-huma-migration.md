@@ -125,7 +125,7 @@ Executada em duas ondas `ring:dispatching-workflows`. **PASS** verificado pelo s
 **Scope:** `components/tracer/cmd/app/main.go`, `components/tracer/internal/adapters/http/in/routes.go`, `rule_handler.go` (parcial), bootstrap.
 **Dependencies:** Fase 1 completa. ✅
 **Done when:** app tracer sobe com Huma montado no `/v1`; `Install()` provado nos 2 paths; CreateRule+GetRule respondem via Huma com body idêntico ao atual (`problem+json` no erro), auth middleware inalterado, tenant/DB lido do ctx OK; teste `app.Test` verde; padrão de registro por-arquivo documentado no PR pros demais handlers seguirem.
-**Status:** Pending
+**Status:** Complete
 
 #### Task 2.1.1: Montar Huma no `/v1` + `problem.Install()` + migrar CreateRule/GetRule como referência
 - [ ] Done
@@ -142,14 +142,49 @@ Executada em duas ondas `ring:dispatching-workflows`. **PASS** verificado pelo s
 
 **Done when:** Huma montado, `Install()` nos 2 paths, CreateRule+GetRule via Huma verdes, ctx threading confirmado, padrão de `RegisterXxxRoutes` documentado.
 
-### Epic 2.2: Re-tipar os 28 handlers protegidos restantes (fan-out por arquivo)
-**Goal:** Cada handler protegido `func(c *fiber.Ctx) error` vira `func(ctx, *In)(*Out, error)` com I/O tipada + `huma.Operation`, seguindo o padrão da Epic 2.1, agrupado por arquivo (`RegisterXxxRoutes`).
-**Scope:** `rule_handler.go` (7 restantes), `limit_handler.go` (9), `transaction_validation_handler.go` (2), `validation_handler.go` (1), `reservation_handler.go` (5), `audit_event_handler.go` (3).
-**Dependencies:** Epic 2.1 (padrão estabelecido).
-**Done when:** 28 ops via `huma.Register`; landmines endereçados — dual-status Validate 200/201 (`validation_handler.go:149-154`) via responses explícitas; UpdateLimit raw-body probe de campo imutável (`limit_handler.go:272-285`) preservado (Huma não expressa "campo presente" → mantém o probe imperativo antes do decode ou resolver); 204 no-body deletes (`DeleteRule`/`DeleteLimit`) com Out vazio + `DefaultStatus:204`; validação imperativa fica no service (decisão #3); reservation = 2 helpers `terminate`/`terminateByTransaction` → 4 shells. Testes `app.Test` verdes; sem 422 novo.
-**Status:** Pending
+### ✅ Fase 2a CONCLUÍDA (2026-07-01) — PASS (Epic 2.1)
 
-*(Tasks por-arquivo detalhadas na entrada em execução da Epic 2.2, cada uma seguindo o padrão da 2.1; fan-out paralelo com worktree isolation viável porque o registro é por-arquivo.)*
+Huma montado no `/v1` do tracer; `problem.Install()` no path de runtime (spec-gen ainda não existe — ver obrigação diferida); CreateRule+GetRule migrados ponta-a-ponta como referência. Commits: `5d3a4307e` (bootstrap + 2 handlers + `RegisterRuleRoutes`), `edccf8d65` (drop `format:"uuid"` do path param → preserva 400/0065 canônico, não o 422 nativo da Huma), `f5119b6a7` (deflake do harness + guard de `$schema` ausente + claim de byte-identidade honesta).
+
+**Gate do supervisor (PASS):** golden net money-path verde (`pkg/net/http` ok), pacote `http/in` verde em `-count=3` single-process, tree limpa, escopo confirmado. **Padrão de referência** no header de `rule_handler_huma.go`: In/Out com `RawBody []byte`+`contentType` + `SkipValidateBody:true` (malformed/validação de campo caem no `json.Unmarshal`+`Validate()` imperativo → code canônico, sem 422 novo); core transport-agnóstico compartilhado com o método Fiber legado; erro via `humaProblem(err)` → `*pkgHTTP.Detail` (satisfaz `huma.StatusError`+`ContentTypeFilter` → `problem+json`); `RegisterXxxRoutes` por-arquivo; auth `guard.With` como middleware fiber; ctx via `c.UserContext()` do adapter humafiber, sem ponte.
+
+**Correção de claim (relevante pro fan-out):** o body de sucesso NÃO é byte-idêntico ao Fiber — diverge por um `\n` final (Huma usa `json.Encoder.Encode`) e HTML-escaping (`SetEscapeHTML(false)` vs default Fiber). Invisível pra qualquer parser JSON (ambos decodificam idêntico, incl. o SDK gerado); só consumidor de byte-cru/hash/ETag observaria — esta API não tem nenhum. Garantia real = **field/status/code/type/entityType-identical**, guardada pelo golden net. NÃO alinhar encoders.
+
+**Lição de harness (custou um falso High):** a "flakiness" reportada (422 fantasma intermitente) é quase certamente **artefato de worktree compartilhado** — `re:test-reviewer` perturbava a fonte (re-adicionava `format:"uuid"` pra verificar RED) DENTRO da janela em que `re:security-reviewer` rodava a suíte em laço no MESMO worktree → o 422 induzido foi mis-atribuído como flakiness. Não-reproduzível em 165+ runs, incluindo binário single-process com concorrência máxima (a condição real de corrida de estado global). `t.Parallel()` removido mesmo assim (zero benefício em testes <1s; fecha janela latente antes de copiar 28×). **Regra nova pro 2b:** READ-ONLY vale pra REVIEWERS também, não só contrarians — verificação de RED não pode perturbar o worktree compartilhado (cópia fora do worktree, ou confiar no RED do implementador + spot-check determinístico do supervisor).
+
+**Obrigação diferida:** `problem.Install()` antes do path de spec-gen só morde quando `ServeSpec`/emissão OAS 3.1 existir — Epic 2.3. Hoje o tracer serve swagger 2.0 (swaggo, `/swagger/*`), independente da Huma.
+
+### Epic 2.2: Re-tipar os 26 handlers protegidos restantes (fan-out por arquivo)
+**Goal:** Cada handler protegido `func(c *fiber.Ctx) error` vira `func(ctx, *In)(*Out, error)` com I/O tipada + `huma.Operation`, seguindo o padrão da Epic 2.1, agrupado por arquivo (`RegisterXxxRoutes`).
+**Scope:** `rule_handler.go` (6 restantes), `limit_handler.go` (9), `transaction_validation_handler.go` (2), `validation_handler.go` (1), `reservation_handler.go` (5), `audit_event_handler.go` (3).
+**Dependencies:** Epic 2.1 (padrão estabelecido). ✅
+**Done when:** 26 ops via `huma.Register`; landmines endereçados — dual-status Validate 200/201 (`validation_handler.go:149-154`) via responses explícitas; UpdateLimit raw-body probe de campo imutável (`limit_handler.go:272-285`) preservado; 204 no-body deletes (`DeleteRule`/`DeleteLimit`) com Out vazio + `DefaultStatus:204`; list com query-param + validação imperativa sem 422 novo; reservation = 2 helpers `terminate`/`terminateByTransaction` → 4 shells. Testes `app.Test` (harness não-paralelo) verdes; golden net verde; sem 422 novo.
+**Status:** Doing
+
+**Fatiamento (de-risk das sub-shapes que a 2a NÃO tocou):** a 2a provou body-POST + path-param + error seam + ctx + auth + harness. Os 26 restantes trazem: **list com query-param + validação imperativa** (risco 422, mesma classe do `format:"uuid"`), **204 no-body**, **dual-status** (Validate 201/200), **POST id-only** (actions), **413 guard** (Validate). Fanning out 26 numa shape de list não-validada = risco de retrabalho. Então divide em duas waves:
+- **2b-1 (wave detalhada, gated — Task 2.2.1 abaixo):** completar `rule_handler.go` (6 ops) — exercita 4 sub-shapes novas (PATCH+body, list+query, POST id-only, 204) num arquivo só, vira o exemplar completo + prova o wiring em `routes.go`.
+- **2b-2 (epic-level, detalhada após o gate da 2b-1):** fan-out paralelo dos outros 5 arquivos, cada um copiando a sub-shape provada; + task serial de integração (Epic 2.3).
+
+#### Task 2.2.1: Completar `rule_handler.go` em Huma — UpdateRule, ListRules, Activate/Deactivate/Draft, DeleteRule
+- [ ] Done
+
+**Context:** A 2a migrou CreateRule (`rule_handler.go:70`) e GetRule (`:193`) e criou `rule_handler_huma.go` (padrão + `RegisterRuleRoutes`) + `rule_handler_huma_test.go` (harness `buildHumaRuleApp`, NÃO-paralelo). As 6 ops restantes ainda estão inline fiber em `NewRoutes` (`routes.go`). Como é UM arquivo (não fan-out), o wiring em `routes.go` pode ser feito direto aqui — isso prova o padrão de wiring (list/action/delete + guard.With) antes do fan-out 2b-2.
+
+**Implementation vision:**
+- **UpdateRule** (PATCH `/rules/{id}`, body `UpdateRuleInput`+`Validate()`/`IsEmpty()`, 200 `model.Rule`): igual CreateRule mas PATCH + path param `ID`. `RawBody []byte`+`SkipValidateBody:true`; core `updateRule(ctx, id, rawBody)` compartilhado com o método Fiber legado.
+- **ListRules** (GET `/rules`, query `ListRulesInput`+`Validate()`/`SetDefaults()`, 200 `ListRulesResponse`): **sub-shape nova (query-param).** In struct com os campos de query taggeados `query:"..."` MAS **sem tags de validação** (min/max/enum/required) — senão Huma emite 422 nativo antes do handler. Preferir tipos que Huma coage sem 422 (string; se `int`/`bool` forçar tipo, aceitar e validar imperativamente no core). O core `listRules` roda o equivalente ao `QueryParser` + `input.Validate()`/`SetDefaults()` imperativo → 400 canônico em erro. Out = `ListRulesResponse` (cursor DTO próprio) serializado verbatim. **Teste obrigatório:** query param inválido (ex. cursor malformado / limit fora de range) → 400 canônico, NÃO 422 nativo.
+- **ActivateRule/DeactivateRule/DraftRule** (POST `/rules/{id}/activate|deactivate|draft`, id-only, sem body, 200 `model.Rule`): In só com path param `ID` (SEM `RawBody`, não há body → sem `SkipValidateBody`); Out `model.Rule` 200. Core compartilhado por ação.
+- **DeleteRule** (DELETE `/rules/{id}`, 204 no-body): Out **sem campo `Body`** + `huma.Operation{DefaultStatus:204}`; core `deleteRule(ctx, id)`. Confirmar que Huma emite 204 sem corpo (não um 200 com `null`).
+- Cada op: core transport-agnóstico em `rule_handler.go` (extrair do método Fiber atual, mantendo o Fiber como wrapper fino pros testes diretos existentes) + método `XxxHuma` em `rule_handler_huma.go` + entrada no `RegisterRuleRoutes`. Em `routes.go`, trocar as 6 rotas inline por `api.<Verb>(path, guard.With("rules",verb,false))` (middleware-only) — o `RegisterRuleRoutes` já registra o handler Huma no mesmo path/verb. Preservar a tupla `(resource="rules", verb, forceAPIKey=false)` byte-a-byte.
+- Testes no `buildHumaRuleApp` (NÃO-paralelo — ver lição 2a): por op, sucesso (status + campos via `json.Unmarshal` + tenant capturado + `$schema` ausente), erro canônico (code+400/status+`problem+json`, service não alcançado onde aplicável, **sem 422 novo**), e pro Delete o 204 sem corpo.
+
+**Files:**
+- Modify: `components/tracer/internal/adapters/http/in/rule_handler.go` (extrair cores), `rule_handler_huma.go` (In/Out + methods + `RegisterRuleRoutes` expandido), `routes.go` (6 rotas inline → guard.With middleware + registro Huma)
+- Test: `components/tracer/internal/adapters/http/in/rule_handler_huma_test.go`
+
+**Verification:** `go -C <wt> build -buildvcs=false ./...`; `go -C <wt> test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` (verde); `go -C <wt> test -buildvcs=false -run TestGolden ./pkg/net/http/` (money path verde); teste de query-param inválido em ListRules → 400 canônico (prova zero-422 da sub-shape de list).
+
+**Done when:** as 8 ops de `rule_handler.go` estão em Huma (2 da 2a + 6 aqui), wired em `routes.go` com auth preservada; 4 sub-shapes novas (PATCH+body, list+query sem 422, POST id-only, 204 no-body) provadas por teste; harness não-paralelo; golden net verde.
 
 ### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec 3.1 nativa + paridade served==spec
 **Goal:** Declarar os 2 security schemes no shape correto (`BearerAuth` `type:http,scheme:bearer` — não o hack apiKey-in-header do swagger atual; `ApiKeyAuth` `type:apiKey,in:header,name:X-API-Key`); requirement por-op nas 28 ops (`POST /validations` reflete o `forceAPIKeyAuth`); spec OAS 3.1 servida por `ServeSpec` (gated em `Swagger.Enabled`); remover `@securityDefinitions` swaggo do `main.go`.
