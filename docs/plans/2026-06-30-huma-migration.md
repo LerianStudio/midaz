@@ -313,31 +313,57 @@ Verificado independentemente: build EXIT0, vet limpo, spec-lock + http/in (4.76s
 
 ## Fase 3 — Ledger → Huma
 
-**Milestone:** O plano ledger (115 ops, 27 arquivos) está 100% em Huma, com o redesign de auth preservando a granularidade `resource/verb`, e o `pkg.HTTPError` fundido no envelope canônico. Padrão idêntico ao da Fase 2, em escala maior + a complexidade de auth do ledger.
+**Milestone:** O plano ledger está 100% em Huma (spec OAS 3.1 aditiva), auth `ProtectedRouteChain`→Security por-op preservando os 3 appName namespaces, `pkg.HTTPError` morto removido. Padrão da Fase 2 em escala maior + a auth `lib-auth/v2` do ledger.
 
-### Epic 3.1: Bootstrap Huma do ledger + re-tipar 115 handlers
-**Goal:** `New`+`Install` no ledger; 115 handlers re-tipados (39 usam hoje o form `DecodeHandlerFunc` via `http.WithBody` — perdem o wrapper de decode; 73 são fiber-plain). A maquinaria `WithBody`/`ParseUUIDPathParameters`/`WithBodyLimit`/`ProtectedRouteChain` de `pkg/net/http/` é substituída por input structs Huma + middleware.
-**Scope:** `components/ledger/internal/adapters/http/in/` (27 arquivos), `components/ledger/internal/bootstrap/unified-server.go`, `pkg/net/http/` (aposentar decorators).
-**Dependencies:** Fase 2 (padrão validado).
-**Done when:** 115 ops via `huma.Register`; decorators aposentados sem regressão; build + `-race` verdes.
-**Status:** Pending
+**REVISÃO do recon-f3 (3 correções ao briefing):**
+- **113 ops / 23 handlers, não 115/27.** **Core clássico = 86 ops / ~17 arquivos** (money-path = 34 ops/8 arquivos). **27 ops aditivas** (CRM: holder/instrument/encryption/audit; fees/billing; composition) wired em `crm_routes.go`/`fees_routes.go`/`composition_routes.go`.
+- **Auth = `lib-auth/v2` `auth.Authorize(appName,resource,action)`** via `ProtectedRouteChain` (`pkg/net/http/protected_routes.go:24`: authHandler→PostAuthMiddlewares(tenant scoped)→ParseUUIDPathParameters→WithBody→handler). NÃO é `guard.With`. **3 appName namespaces a preservar: `midaz` / `routing` (account-types/operation-routes/transaction-routes) / `plugin-fees`.** Wrappers `protectedMidaz`/`protectedRouting` (routes.go:183-189). Sem `/v1` group (rotas inline `/v1/...`). App em `bootstrap/unified-server.go:49`.
+- **`pkg.HTTPError` é CÓDIGO MORTO** (`pkg/errors.go:140-148`): zero construtores runtime, só 20 annotations swaggo stale + 4 dead asserts em testes de fees. **Epic 3.3 = DELETAR struct + repontar 20 annotations → problem.Detail + limpar 4 testes.** Não é fusão.
 
-#### ⚠️ Decisão de design a resolver na elaboração (não é port mecânico)
-Auth do ledger hoje é `protectedMidaz(auth, resource, verb, ...)` por rota (`pkg/net/http/protected_routes.go:24`), com granularidade `auth.Authorize(midazName, resource, verb)`. Migrar para Huma exige `Security` por-operação **+ um middleware Huma que lê resource/verb e chama `auth.Authorize`**, preservando a granularidade. Perder essa granularidade seria **regressão de segurança** — o plano preserva explicitamente. A modelagem concreta (middleware único parametrizado vs metadata por-op) é decidida na entrada em execução da Epic 3.2.
+**Fatos-chave:** huma.API **NÃO montada no ledger** (Fase 1 mexeu runtime mas não montou huma — de-risk CRIA o mount no unified-server, análogo tracer routes.go:349). **401 do ledger JÁ é problem+json** (`fiber_error_handler.go:39`, `CanonicalFiberErrorHandler` em unified-server.go:52) — sem issue flat-401 do tracer. `http.BadRequest` (`pkg/net/http/response.go:34`, NÃO `response.BadRequest`): 9 call sites (withBody.go decode/unknown-fields/ValidateStruct + WithBodyLimit + ledger.go:456 settings allowlist); 6 evaporam sob Huma (decode+strict-schema), 3 portam explícito (validator tags de negócio withBody.go:96 + allowlist settings ledger.go:456). **check-docs security-coverage é LEDGER-ONLY e sempre-on** → toda op do swagger.json ledger DEVE ter `.security` → **manter os `@Security` swaggo intactos na migração aditiva** (não strippar), senão CI quebra.
 
-### Epic 3.2: Redesign de auth do ledger (route-chain → Security por-op)
-**Goal:** Substituir a cadeia `ProtectedRouteChain` por Security Huma por-op + middleware que preserva `auth.Authorize(resource, verb)`.
-**Scope:** `pkg/net/http/protected_routes.go`, routes do ledger, middleware Huma.
-**Dependencies:** Epic 3.1.
-**Done when:** toda rota protegida mantém a mesma decisão de autorização resource/verb de hoje; nenhuma rota fica acidentalmente pública (verificado contra o mapa de rotas atual).
-**Status:** Pending
+**LANDMINES money-path (concentradas nas waves 3-4):** (1) **Idempotência** transaction_create.go:1037-1059 (`X-Idempotency`+`X-TTL` headers, hash sobre payload decodificado, resp `X-Idempotency-Replayed`; NOTA: transaction usa `X-Idempotency`, CRM doc `X-Idempotency-Key` — confirmar). (2) **createTransaction 480 linhas, 9 cleanup points intercalados** → migrar como **corpo OPACO, nunca decompor em hooks Huma.** (3) **201 sempre** (commit/cancel/revert + replay = 201, não 200). (4) **id-only c/ side-effect distribuído** (commit/cancel/revert chamam tracer two-phase). (5) **HEAD+204 header-only** (count → 204, dado em `X-Total-Count`, Content-Length:0 manual). (6) **[ALTO] raw-body re-read p/ JSON Merge Patch** operation_route.go:92,231 (RFC 7396 campo-ausente vs null; Huma colapsa → quebra silenciosa do PATCH). (7) **DSL multipart** transaction.go:234-296 (.casl, **sunset 2026-08-01 → NÃO PORTAR**, deixar Fiber-puro, fora do spec Huma). (8) 3 padrões de paginação + validador de data do audit.
 
-### Epic 3.3: Fold do `pkg.HTTPError` no envelope canônico
-**Goal:** Os 10 refs `@Failure {object} pkg.HTTPError` (`audit.go:86,87`; `encryption.go:36-40,129-131`) repontam para o schema unificado; o campo vazado `err:{}` some do contrato. O tipo Go `pkg.HTTPError` permanece (é erro tipado usado por clientes); só seu papel de DTO documentado acaba.
-**Scope:** `components/ledger/internal/adapters/http/in/{audit,encryption}.go`.
-**Dependencies:** Epic 3.1.
-**Done when:** spec regenerada não tem mais `definitions."pkg.HTTPError"`; os 10 endpoints referenciam o único schema de erro; `err` não aparece no contrato.
-**Status:** Pending
+**DECISÕES do supervisor (2026-07-01):**
+- **(a) Aditivas (27 ops) DEFERIDAS p/ decisão na wave 2** — `plugin-fees` cheira closed-source (third rail open/closed). NÃO migro superfície possivelmente-plugin no SDK open-source sem confirmar com Fred. Wired em registrars separados → não bloqueia o core. Core 86 migra agora; aditivas = ponto de decisão quando a wave 2 chegar.
+- **(b) DSL multipart: NÃO portar** (sunset ~1 mês), Fiber-puro, fora do spec Huma (SDK não gera cliente pra endpoint em sunset).
+- **(c) De-risk = `asset.go`** (não transaction) — cria o mount, prova ProtectedRouteChain/auth.Authorize, fecha http.BadRequest, exercita DELETE-204+HEAD-count, tudo NON-money.
+
+**FATIAMENTO:** de-risk `asset.go` → gate (check-docs parity+security-coverage + golden + build) → **wave 1** CRUD core no-money (org/ledger/portfolio/segment/account/accounttype/metadata/assetrate, ~45 ops) → **[wave 2 aditivas — DECISÃO Fred]** → **wave 3** money read-only (balance/operation/operation-route/transaction-route/query/count, ~24 ops, HEAD/204+merge-patch, escrutínio alto) → **wave 4** money write (transaction+state+suporte, ~10 ops, **SEQUENCIAL, 1 agente, golden a cada op, revisão adversária**, createTransaction opaco). Auth (Epic 3.2) e HTTPError-delete (Epic 3.3) entram como tasks dentro das waves apropriadas.
+
+### Epic 3.1: Bootstrap Huma do ledger + re-tipar o core (86 ops)
+**Goal:** huma.API montada no unified-server (New+Install+ServeSpec gated); os handlers do core re-tipados `func(ctx,*In)(*Out,error)` com Security por-op; `http.BadRequest` residual fechado; swaggo intacto (aditivo).
+**Scope:** `components/ledger/internal/adapters/http/in/` (core ~17 arquivos), `components/ledger/internal/bootstrap/unified-server.go`, `routes.go`.
+**Dependencies:** Fase 2 (padrão validado). ✅
+**Done when:** core 86 ops via `huma.Register` com auth resource/verb preservada; mount criado; build+`-race`+golden+check-docs verdes.
+**Status:** Detailed (de-risk); resto Epic-level
+
+#### Task 3.1.0 (DE-RISK): `asset.go` → Huma + criar o mount huma.API no ledger
+- [ ] Done
+**Context:** huma.API NÃO existe no ledger. `AssetHandler` (`asset.go`, 6 ops: POST/PATCH/GET-list/GET-id/DELETE-204/HEAD-count) é wired via `protectedMidaz(auth,"asset",verb,...)` no registrar de `routes.go` sob appName `midaz`. Cadeia atual: `ProtectedRouteChain` (protected_routes.go:24). Exemplar Huma provado: tracer `rule_handler_huma.go`. 401 do ledger já é problem+json.
+**Implementation vision:**
+- **Criar o mount** em `unified-server.go` (~:49-52): `problem.Install()` + `humaAPI := openapi.New(app, <group-ou-app>, cfg)` + `openapi.DeclareBearerAuth` + ServeSpec gated (análogo tracer). Como o ledger não tem `/v1` group Fiber, decidir na execução: montar a huma.API no `app` com Servers `["/v1"]` e paths group-relative, ou criar o group. Ler o tracer e o unified-server real antes.
+- **Extrair cores** transport-agnósticos de cada método `AssetHandler` (o método Fiber vira wrapper fino); shell Huma `func(ctx,*In)(*Out,error)` delega ao core; erro via `humaProblem` (reusar o package-level do pkg/net/http, NÃO redefinir). Body via `RawBody`+`SkipValidateBody`; path params sem `format`; DELETE 204 = Out sem Body + `DefaultStatus:204`; **HEAD-count**: replicar `X-Total-Count`+Content-Length:0 (landmine #5 provada aqui, non-money).
+- **Auth preservada:** MW pré-Register que chama `auth.Authorize("midaz","asset",verb)` — emular `ProtectedRouteChain` (auth + PostAuthMiddlewares tenant) como MW Fiber antes do handler Huma. Security por-op no huma.Operation (`[{BearerAuth}]` ou o shape que o ledger usa) — **manter `@Security` swaggo intacto** (security-coverage CI).
+- **Fechar `http.BadRequest`** onde asset.go o dispara (se dispara) → problem.Detail canônico via o core.
+- Paginação: `ValidateParameters(c.Queries())` cursor → binder imperativo no core (padrão tracer list, inline).
+**Files:** Create `asset_handler_huma.go`, `asset_handler_huma_test.go`; Modify `asset.go`, `unified-server.go`, `routes.go` (wiring da asset).
+**Verification:** `go build -buildvcs=false ./components/ledger/...` EXIT0; `go test -buildvcs=false -count=1 ./components/ledger/internal/adapters/http/in/` verde; golden net verde; **`swag init` do ledger → zero drift** OU regen+commit consciente; asset com HEAD-204 e DELETE-204 corpo vazio; auth.Authorize("midaz","asset",verb) preservado byte-a-byte; sem 422 novo.
+**Done when:** 6 ops de asset em Huma, mount criado e reutilizável pelas waves seguintes, auth+security-coverage preservados, padrão ledger provado.
+
+### Epic 3.2: Auth `ProtectedRouteChain` → Security por-op (3 appName namespaces)
+**Goal:** MW Huma que preserva `auth.Authorize(appName,resource,action)` + Security por-op no spec, para os 3 namespaces (`midaz`/`routing`/`plugin-fees`). Modelado no de-risk (asset=midaz) e replicado nas waves.
+**Scope:** o MW de auth compartilhado + os huma.Operation de cada handler.
+**Dependencies:** Epic 3.1 (de-risk estabelece o padrão).
+**Done when:** toda rota protegida mantém a MESMA decisão `auth.Authorize(appName,resource,action)` de hoje; nenhuma rota vira pública (verificado contra o mapa); security-coverage CI verde.
+**Status:** Epic-level
+
+### Epic 3.3: DELETAR o `pkg.HTTPError` morto
+**Goal:** Remover o struct morto `pkg.HTTPError` (`pkg/errors.go:140-148`) e repontar as 20 annotations `@Failure {object} pkg.HTTPError` (audit.go:86-87; encryption.go:36-40,129-131 + api/docs.go gerado) → o schema problem.Detail; limpar as 4 dead asserts em testes de fees.
+**Scope:** `pkg/errors.go`, `components/ledger/internal/adapters/http/in/{audit,encryption}.go`, testes de fees.
+**Dependencies:** Epic 3.1 (idealmente na wave que toca audit/encryption — aditivas, wave 2).
+**Done when:** `pkg.HTTPError` não existe; spec não tem `definitions."pkg.HTTPError"`; build+testes verdes; `err:{}` fora do contrato.
+**Status:** Epic-level
 
 ---
 
