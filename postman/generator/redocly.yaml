@@ -9,54 +9,40 @@
 # problem introduced by the `redocly join` merge (a broken $ref, a dropped
 # security scheme, a structurally invalid document) still fails the gate.
 #
-# The rules relaxed below are NOT silenced blanket-style. Each is relaxed because
-# the finding is either (a) inherited unchanged from the per-component source
-# specs (which swag generates and we do not hand-edit), or (b) a structural
-# artifact of the join itself that is intentional by design. None of them are
-# caused by, or maskable at, the merge step.
+# The per-component sources are now native Huma OAS 3.1 dumps
+# (components/{ledger,tracer}/api/openapi.huma.yaml), regenerated from struct
+# tags by TestOpenAPISpecDump; swaggo/openapi-generator have been fully retired.
+# Every rule below has been re-verified against those Huma dumps. Only three
+# remain relaxed, each because it still fires on the current Huma output — the
+# reason is documented per rule. The rest (no-server-trailing-slash,
+# no-server-example.com, security-defined, no-unused-components,
+# no-invalid-schema-examples) produced zero findings on the Huma dumps and were
+# re-enabled here.
 
 extends:
   - recommended
 
 rules:
-  # (b) JOIN ARTIFACT — intentional. `redocly join` relocates the three components'
-  # differing servers (ledger :3002, tracer :4020, reporter :4005) into per-path
-  # `servers` blocks and leaves the root `servers` empty. That per-path relocation
-  # is the whole reason we use join; an empty root `servers` is the expected shape.
+  # JOIN ARTIFACT — intentional. `redocly join` relocates each component's
+  # server into a per-path `servers` block and leaves the root `servers` empty.
+  # That per-path relocation is the whole reason we use join; an empty root
+  # `servers` is the expected shape of the joined document.
   no-empty-servers: off
 
-  # (a) INHERITED — the component source servers carry a trailing slash
-  # (http://localhost:PORT/). swag/openapi-generator emit it; we do not hand-edit
-  # the per-component specs. The join multiplies the 6 source occurrences across
-  # every path's relocated `servers` block, but the root cause lives upstream.
-  no-server-trailing-slash: off
-
-  # (a) INHERITED — list-endpoint example payloads in the component specs do not
-  # always validate against their declared schema (swag-generated examples).
-  # 391 occurrences, all present 1:1 in the per-component specs.
-  no-invalid-schema-examples: off
-
-  # (a) INHERITED — tracer's /health, /readyz and /version are intentionally
-  # public (documented in check-docs.sh security_coverage_check). They legitimately
-  # carry no `security` block, which this rule flags. Ledger operation security is
-  # still enforced separately by security_coverage_check against the source spec.
-  security-defined: off
-
-  # (a) INHERITED — a handful of tracer operations declare no 4xx response.
-  # Present in the tracer source spec; the merge adds none.
+  # HUMA OUTPUT — the ledger and tracer Huma handlers declare their error
+  # responses via the shared RFC 9457 problem model, but the generated OAS does
+  # not always emit an explicit 4xx entry per operation (71 operations across
+  # both components, e.g. countOrganizations and the ledger accounts/assets/
+  # balances CRUD). This is a characteristic of the native Huma dumps, not the
+  # join. Kept off until the Huma response registration adds explicit 4xx
+  # entries; re-enabling would flood the gate with 71 known-benign warnings and
+  # mask a real future regression of the same rule.
   operation-4xx-response: off
 
-  # (a) INHERITED — ledger declares balances/operations sub-paths that the rule
-  # considers ambiguous against their parent collection paths. Present in the
-  # ledger source spec.
+  # HUMA OUTPUT — the ledger declares
+  # /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances
+  # and .../accounts/{account_id}/operations, which redocly considers ambiguous
+  # against their sibling collection paths. Both are legitimate ledger routes
+  # present in the ledger Huma dump. Kept off; the ambiguity is structural to the
+  # ledger API surface, not introduced by the join.
   no-ambiguous-paths: off
-
-  # (a) INHERITED — the ledger source spec carries a component schema that no
-  # operation references. Present pre-merge.
-  no-unused-components: off
-
-  # (a) INHERITED — the component source servers point at localhost:PORT (the
-  # local dev hosts). swag/openapi-generator emit them; we do not hand-edit the
-  # per-component specs. Same source-server data the trailing-slash rule flags;
-  # the join relocates it per-path, multiplying the occurrences.
-  no-server-example.com: off
