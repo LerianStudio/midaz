@@ -8,6 +8,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -79,7 +80,25 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 //	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations [post]
 func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	response, err := h.reserve(c.UserContext(), c.Body())
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.Created(c, response)
+}
+
+// reserve is the transport-agnostic core of the reserve operation shared by the
+// Fiber method (Reserve) and the Huma func (ReserveHuma). It owns the span, the
+// payload-size guard, the imperative json.Unmarshal + NormalizeAndReserveValidate,
+// the service call, and the success log — and CANONICALIZES every error before
+// returning it (parse/validation errors are already canonical; the service error
+// runs through classifyReservationServiceError here). So both callers render the
+// returned error the same way — Fiber via pkgHTTP.WithError, Huma via humaProblem —
+// and the two transports emit field/status/code/type-identical envelopes. The
+// payload-size guard is preserved from the Fiber path: Huma has no Fiber-style body
+// limit, so the check must live in the core.
+func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*ReserveResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.reservations.reserve")
@@ -87,20 +106,20 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	if len(c.Body()) > maxPayloadSize {
+	if len(rawBody) > maxPayloadSize {
 		logger.With(
 			libLog.String("operation", "handler.reservations.reserve"),
-			libLog.Int("payload_size", len(c.Body())),
+			libLog.Int("payload_size", len(rawBody)),
 			libLog.Int("max_size", maxPayloadSize),
 		).Log(ctx, libLog.LevelWarn, "Payload too large")
 
 		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityReservation))
+		return nil, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityReservation)
 	}
 
 	var request ReserveRequest
-	if err := c.BodyParser(&request); err != nil {
+	if err := json.Unmarshal(rawBody, &request); err != nil {
 		logger.With(
 			libLog.String("operation", "handler.reservations.reserve"),
 			libLog.String("error.message", err.Error()),
@@ -108,7 +127,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
-		return pkgHTTP.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
 	now := h.clock.Now()
@@ -120,7 +139,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(err, constant.EntityReservation))
+		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
 	}
 
 	span.SetAttributes(
@@ -131,7 +150,7 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 
 	result, err := h.service.Reserve(ctx, request.TransactionID, request.ToReserveInput(), request.LongLived)
 	if err != nil {
-		return h.handleReservationServiceError(c, span, err)
+		return nil, classifyReservationServiceError(span, err)
 	}
 
 	logger.With(
@@ -141,11 +160,11 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 		libLog.Int("reservations", len(result.ReservationIDs)),
 	).Log(ctx, libLog.LevelDebug, "Reservation processed")
 
-	return pkgHTTP.Created(c, ReserveResponse{
+	return &ReserveResponse{
 		TransactionID:  request.TransactionID,
 		Denied:         result.Denied,
 		ReservationIDs: reservationIDsOrEmpty(result.ReservationIDs),
-	})
+	}, nil
 }
 
 // Confirm godoc
@@ -165,7 +184,12 @@ func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 //	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/{id}/confirm [post]
 func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
-	return h.terminate(c, "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
+	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
 }
 
 // Release godoc
@@ -185,7 +209,12 @@ func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 //	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/{id}/release [post]
 func (h *ReservationHandler) Release(c *fiber.Ctx) error {
-	return h.terminate(c, "handler.reservations.release", string(model.StatusReleased), h.service.Release)
+	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.release", string(model.StatusReleased), h.service.Release)
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
 }
 
 // ConfirmByTransaction godoc
@@ -204,7 +233,12 @@ func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 //	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/transaction/{transaction_id}/confirm [post]
 func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
-	return h.terminateByTransaction(c, "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
+	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
 }
 
 // ReleaseByTransaction godoc
@@ -223,7 +257,12 @@ func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 //	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
 //	@Router			/v1/reservations/transaction/{transaction_id}/release [post]
 func (h *ReservationHandler) ReleaseByTransaction(c *fiber.Ctx) error {
-	return h.terminateByTransaction(c, "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)
+	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)
+	if err != nil {
+		return pkgHTTP.WithError(c, err)
+	}
+
+	return pkgHTTP.OK(c, response)
 }
 
 // terminateByTransaction is the shared by-transaction confirm/release handler body:
@@ -232,12 +271,12 @@ func (h *ReservationHandler) ReleaseByTransaction(c *fiber.Ctx) error {
 // already-terminal transaction as an idempotent no-op (flipped=0), so a 200 here
 // covers a fresh transition and a retried no-op alike.
 func (h *ReservationHandler) terminateByTransaction(
-	c *fiber.Ctx,
+	ctx context.Context,
+	txIDParam string,
 	operation string,
 	terminalStatus string,
 	action func(ctx context.Context, transactionID uuid.UUID) (int, error),
-) error {
-	ctx := c.UserContext()
+) (*TransactionActionResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, operation)
@@ -245,17 +284,17 @@ func (h *ReservationHandler) terminateByTransaction(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	transactionID, err := uuid.Parse(c.Params("transaction_id"))
+	transactionID, err := uuid.Parse(txIDParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction ID", err)
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "transaction_id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "transaction_id")
 	}
 
 	span.SetAttributes(attribute.String("app.request.transaction_id", transactionID.String()))
 
 	flipped, err := action(ctx, transactionID)
 	if err != nil {
-		return h.handleReservationServiceError(c, span, err)
+		return nil, classifyReservationServiceError(span, err)
 	}
 
 	logger.With(
@@ -265,11 +304,11 @@ func (h *ReservationHandler) terminateByTransaction(
 		libLog.Int("flipped", flipped),
 	).Log(ctx, libLog.LevelDebug, "Reservations transitioned by transaction")
 
-	return pkgHTTP.OK(c, TransactionActionResponse{
+	return &TransactionActionResponse{
 		TransactionID: transactionID,
 		Status:        terminalStatus,
 		Flipped:       flipped,
-	})
+	}, nil
 }
 
 // terminate is the shared confirm/release handler body: parse the reservation id
@@ -277,12 +316,12 @@ func (h *ReservationHandler) terminateByTransaction(
 // The service maps an already-terminal reservation to a nil error (idempotent
 // retry), so a 200 here covers both a fresh transition and a retried no-op.
 func (h *ReservationHandler) terminate(
-	c *fiber.Ctx,
+	ctx context.Context,
+	idParam string,
 	operation string,
 	terminalStatus string,
 	action func(ctx context.Context, reservationID uuid.UUID) error,
-) error {
-	ctx := c.UserContext()
+) (*ReservationActionResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, operation)
@@ -290,16 +329,16 @@ func (h *ReservationHandler) terminate(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	reservationID, err := uuid.Parse(c.Params("id"))
+	reservationID, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid reservation ID", err)
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityReservation, "id")
 	}
 
 	span.SetAttributes(attribute.String("app.request.reservation_id", reservationID.String()))
 
 	if err := action(ctx, reservationID); err != nil {
-		return h.handleReservationServiceError(c, span, err)
+		return nil, classifyReservationServiceError(span, err)
 	}
 
 	logger.With(
@@ -308,29 +347,33 @@ func (h *ReservationHandler) terminate(
 		libLog.String("status", terminalStatus),
 	).Log(ctx, libLog.LevelDebug, "Reservation transition processed")
 
-	return pkgHTTP.OK(c, ReservationActionResponse{
+	return &ReservationActionResponse{
 		ReservationID: reservationID,
 		Status:        terminalStatus,
-	})
+	}, nil
 }
 
-// handleReservationServiceError converts reservation service errors to HTTP
-// responses. ErrReservationNotFound (a confirm/release against a missing id) maps
-// to 404; everything else is a technical failure mapped to 500.
-func (h *ReservationHandler) handleReservationServiceError(c *fiber.Ctx, span trace.Span, err error) error {
+// classifyReservationServiceError maps a raw reservation service error to its
+// canonical Midaz error, attributing the span, WITHOUT rendering. It is the single
+// classification the Fiber wrappers (which render via pkgHTTP.WithError) and the
+// Huma funcs (humaProblem -> *pkgHTTP.Detail) both consume, so both transports emit
+// field/status/code/type-identical envelopes. ErrReservationNotFound (a
+// confirm/release against a missing id) maps to 404; everything else is a technical
+// failure mapped to 500.
+func classifyReservationServiceError(span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
 
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityReservation))
+		return pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityReservation)
 	case errors.Is(err, constant.ErrReservationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reservation not found", err)
 
-		return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation))
+		return pkg.ValidateBusinessError(constant.ErrReservationNotFound, constant.EntityReservation)
 	default:
 		libOpentelemetry.HandleSpanError(span, "Reservation processing failed", err)
 
-		return pkgHTTP.WithError(c, pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."})
+		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
 }
 
