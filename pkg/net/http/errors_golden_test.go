@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/gofiber/fiber/v2"
@@ -656,6 +658,40 @@ func TestGolden_HelperPathCodeStatus(t *testing.T) {
 			err:        errors.New("some unmapped raw error"),
 			wantStatus: fiber.StatusInternalServerError,
 			wantCode:   constant.ErrInternalServer.Error(), // 0046
+		},
+		// libCommons.Response arm (classifyForProblem/problem.go:94-105): the
+		// hottest money-path branch. lib-commons emits commons.Response for
+		// balance/transaction rejections; these four codes must keep their status
+		// when they arrive wrapped as a Response, NOT their table default (400).
+		// Pinned explicitly because classifyStatusOf has no libCommons arm, so the
+		// self-generating sweep never reaches this branch.
+		{
+			// Insufficient funds -> 422 (money-path rejection). NOT 400.
+			name:       "libcommons_insufficient_funds_0018_422",
+			err:        libCommons.Response{Code: libConstants.ErrInsufficientFunds.Error(), Message: "insufficient funds"},
+			wantStatus: fiber.StatusUnprocessableEntity,
+			wantCode:   libConstants.ErrInsufficientFunds.Error(), // 0018
+		},
+		{
+			// Account ineligibility -> 422 (money-path rejection). NOT 400.
+			name:       "libcommons_account_ineligibility_0019_422",
+			err:        libCommons.Response{Code: libConstants.ErrAccountIneligibility.Error(), Message: "account ineligible"},
+			wantStatus: fiber.StatusUnprocessableEntity,
+			wantCode:   libConstants.ErrAccountIneligibility.Error(), // 0019
+		},
+		{
+			// Asset code not found -> 404. NOT 400.
+			name:       "libcommons_asset_code_not_found_0034_404",
+			err:        libCommons.Response{Code: libConstants.ErrAssetCodeNotFound.Error(), Message: "asset code not found"},
+			wantStatus: fiber.StatusNotFound,
+			wantCode:   libConstants.ErrAssetCodeNotFound.Error(), // 0034
+		},
+		{
+			// Int64 overflow -> 500. NOT 400.
+			name:       "libcommons_overflow_int64_0097_500",
+			err:        libCommons.Response{Code: libConstants.ErrOverFlowInt64.Error(), Message: "overflow"},
+			wantStatus: fiber.StatusInternalServerError,
+			wantCode:   libConstants.ErrOverFlowInt64.Error(), // 0097
 		},
 	}
 
