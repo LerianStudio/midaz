@@ -231,42 +231,12 @@ func TestBuildStreamingEmitter_EmptyBrokersFailsClosed(t *testing.T) {
 	assert.NoError(t, closer())
 }
 
-// TestBuildStreamingEmitter_EnabledEmptyCatalogReturnsNoop locks the
-// empty-catalog footgun fix: STREAMING_ENABLED=true with valid brokers but no
-// registered events must fall back to a NoopEmitter rather than crashing
-// bootstrap on the Builder's empty-routes/empty-catalog rejection. The guard
-// runs AFTER LoadConfig + broker validation, so this only fires once brokers
-// are present. It returns immediately because the emitter is a no-op — no
-// broker dial is attempted. Guarded on the empty catalog so it auto-disables
-// once Epic 1.2 registers the first event.
-func TestBuildStreamingEmitter_EnabledEmptyCatalogReturnsNoop(t *testing.T) {
-	if len(crmEventDefinitions()) != 0 {
-		t.Skip("crmEventDefinitions() is no longer empty; empty-catalog fallback is unreachable")
-	}
-
-	t.Setenv("STREAMING_ENABLED", "true")
-	t.Setenv("STREAMING_BROKERS", "127.0.0.1:9092")
-	// LoadConfig validates ce-source; set it so LoadConfig does NOT error and the
-	// empty-catalog guard is the path under test.
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.crm.test")
-
-	cfg := &Config{StreamingEnabled: true}
-
-	emitter, closer, err := BuildStreamingEmitter(context.Background(), cfg, nil, nil)
-	require.NoError(t, err)
-	require.NotNil(t, emitter)
-	require.NotNil(t, closer)
-	assert.NoError(t, closer())
-}
-
 // TestCRMCatalogRoutesAssembly locks the catalog/routes assembly path: it must
-// build without error from whatever crmEventDefinitions() currently returns.
-// Epic 1.1 ships an empty definition slice (holder/alias events land in a later
-// epic), so the assembled catalog/routes are empty but well-formed. buildCatalog
-// is exercised directly because the full Builder.Build path legitimately rejects
-// empty input — NewRouteTable rejects the empty ROUTES first (no-routes-configured)
-// before the catalog check is reached — and that path is reached only once events
-// are registered.
+// build without error from whatever crmEventDefinitions() currently returns,
+// with the assembled catalog and route table both sized to the definition
+// count. buildCatalog is exercised directly because the full Builder.Build path
+// legitimately rejects empty input — NewRouteTable rejects an empty ROUTES table
+// first (no-routes-configured) before the catalog check is reached.
 func TestCRMCatalogRoutesAssembly(t *testing.T) {
 	t.Parallel()
 
@@ -384,18 +354,7 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 // lib-streaming must reject construction with ErrPlaintextSASLNotAllowed. This
 // locks the contract that CRM never silently downgrades a SASL config to
 // plaintext without explicit opt-in.
-//
-// NOTE: this path is only reachable once crmEventDefinitions() registers at
-// least one event. With no events the empty-catalog guard short-circuits to a
-// NoopEmitter before Build, and even reaching Build the Builder rejects the
-// empty ROUTES first (NewRouteTable: no-routes-configured) ahead of the SASL/TLS
-// check. It is skipped while the catalog is empty so Epic 1.1 stays green; it
-// activates automatically when Epic 1.2 lands the first holder event.
 func TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed(t *testing.T) {
-	if len(crmEventDefinitions()) == 0 {
-		t.Skip("crmEventDefinitions() is empty; SASL/TLS validation is unreachable until events are registered")
-	}
-
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", "127.0.0.1:0")
 	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.crm.test")

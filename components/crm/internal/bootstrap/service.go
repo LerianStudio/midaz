@@ -102,7 +102,7 @@ func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
 		r.logger.Log(
 			context.Background(), libLog.LevelWarn,
 			"streaming producer Close returned error",
-			libLog.String("error", err.Error()),
+			libLog.Err(err),
 		)
 	}
 

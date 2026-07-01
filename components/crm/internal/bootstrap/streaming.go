@@ -52,10 +52,6 @@ func noopStreamingCloser() error { return nil }
 //   - When STREAMING_BROKERS is empty (LoadConfig surfaces this as an empty
 //     Brokers slice) the function ALSO returns a NoopEmitter — the Builder
 //     would otherwise reject construction with a missing-target error.
-//   - When no events are registered (crmEventDefinitions() is empty) the
-//     function ALSO returns a NoopEmitter. The Builder validates empty ROUTES
-//     first (NewRouteTable rejects a no-routes-configured table before the
-//     catalog check is reached), so an empty catalog would crash bootstrap.
 //   - Otherwise the function builds a single-target catalog-first Producer via
 //     libStreaming.NewBuilder(), wiring the configured CloudEvents source onto
 //     the Builder and registering all CRM event definitions in the Catalog
@@ -98,18 +94,6 @@ func BuildStreamingEmitter(
 		if logger != nil {
 			logger.Log(ctx, libLog.LevelWarn,
 				"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
-	}
-
-	// With no events registered the Builder has nothing to route. lib-streaming
-	// rejects an empty route table (and an empty catalog) at Build, which would
-	// crash bootstrap. Fall back to a NoopEmitter so the service still starts
-	// while the event catalog is being filled in by later epics.
-	if len(crmEventDefinitions()) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn, "streaming enabled but no events registered; using NoopEmitter")
 		}
 
 		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
