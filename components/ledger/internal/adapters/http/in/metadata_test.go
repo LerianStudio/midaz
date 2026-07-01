@@ -40,7 +40,7 @@ func assertJSONErrorResponse(t *testing.T, resp *stdhttp.Response) {
 	require.NoError(t, json.Unmarshal(respBody, &errBody), "expected JSON error body, got: %s", string(respBody))
 	assert.NotEmpty(t, errBody["code"])
 	assert.NotEmpty(t, errBody["title"])
-	assert.NotEmpty(t, errBody["message"])
+	assert.NotEmpty(t, errBody["detail"])
 }
 
 func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {

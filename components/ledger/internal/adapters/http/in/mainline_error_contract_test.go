@@ -245,21 +245,24 @@ func TestMainlineErrorContract_DependencyFaultCodes(t *testing.T) {
 			err:            pkg.ValidateBusinessError(constant.ErrMidazQueryFailed, constant.EntityTransaction),
 			expectedStatus: fiber.StatusServiceUnavailable,
 			expectedCode:   "0228",
-			expectedTitle:  "Service dependency unavailable",
+			// >=500 scrub: MapError sets Title to http.StatusText(503). code+status frozen.
+			expectedTitle: "Service Unavailable",
 		},
 		{
 			name:           "0231 missing segment context is 500 (server config fault)",
 			err:            pkg.ValidateBusinessError(constant.ErrMissingSegmentContext, ""),
 			expectedStatus: fiber.StatusInternalServerError,
 			expectedCode:   "0231",
-			expectedTitle:  "Segment context unavailable",
+			// >=500 scrub: MapError sets Title to http.StatusText(500). code+status frozen.
+			expectedTitle: "Internal Server Error",
 		},
 		{
 			name:           "0178 transaction reservation unavailable is 503 (retryable outage)",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionReservationUnavailable, constant.EntityTransaction),
 			expectedStatus: fiber.StatusServiceUnavailable,
 			expectedCode:   "0178",
-			expectedTitle:  "Transaction Reservation Unavailable Error",
+			// >=500 scrub: MapError sets Title to http.StatusText(503). code+status frozen.
+			expectedTitle: "Service Unavailable",
 		},
 	}
 

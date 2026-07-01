@@ -91,14 +91,16 @@ func TestFeeErrorContract_CanonicalCodes(t *testing.T) {
 			err:            pkg.ValidateBusinessError(constant.ErrCalculateFee, constant.EntityFeeCalculation),
 			expectedStatus: fiber.StatusInternalServerError,
 			expectedCode:   "0186",
-			expectedTitle:  "Failed to calculate fee",
+			// >=500 scrub: MapError sets Title to http.StatusText(500). code+status frozen.
+			expectedTitle: "Internal Server Error",
 		},
 		{
 			name:           "billing calculation failed emits canonical 0221 (500) not FEE-0060",
 			err:            pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, constant.EntityBillingPackage, "boom"),
 			expectedStatus: fiber.StatusInternalServerError,
 			expectedCode:   "0221",
-			expectedTitle:  "Billing calculation failed",
+			// >=500 scrub: MapError sets Title to http.StatusText(500). code+status frozen.
+			expectedTitle: "Internal Server Error",
 		},
 		{
 			name:           "calculation field type emits canonical 0179 (400) not FEE-0005",
