@@ -113,7 +113,7 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	// swagger.json. This block mirrors the production humaMount closure in config.go.
 	libProblem.Install()
 	apiV1 := app.Group("/v1")
-	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "contract-spec", Version: "4.0.0", Servers: []string{"/v1"}})
+	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "Midaz Ledger API", Version: "4.0.0", Servers: []string{"/v1"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 	RegisterOrganizationRoutesToApp(apiV1, humaAPI, auth, &OrganizationHandler{}, nil)
 	RegisterLedgerRoutesToApp(apiV1, humaAPI, auth, &LedgerHandler{}, nil)

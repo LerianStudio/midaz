@@ -142,14 +142,14 @@ parity_check() {
     assert_field_parity "info.version" '.info.version'
     assert_field_matches "info.version" '.info.version' '^4\.0\.0$'
 
-    # ponytail: dropped contact/license/termsOfService/schemes (swaggo-era) and
-    # the ^Midaz title assertion. Huma emits only .info.title + .info.version;
-    # contact/license/tos are absent and OAS 3.1 has no .schemes. Title is NOT
-    # shared metadata — each plane names itself ("Midaz Ledger API" vs "Midaz
-    # Tracer API") — and the ledger dump currently carries the golden-test
-    # placeholder "contract-spec" (contract_spec_routes_test.go), so ^Midaz would
-    # be a false assertion here. Re-add ^Midaz once the ledger dump's title is the
-    # runtime "Midaz Ledger API" rather than the contract-spec fixture title.
+    # Title is NOT byte-parity metadata — each plane names itself ("Midaz Ledger
+    # API" vs "Midaz Tracer API") — but both MUST carry the runtime "Midaz" brand,
+    # never a golden-test placeholder. ^Midaz catches a fixture title (e.g.
+    # "contract-spec") leaking into the published dump via the ledger-first join.
+    assert_field_matches "info.title" '.info.title' '^Midaz'
+
+    # ponytail: contact/license/termsOfService/schemes (swaggo-era) are honestly
+    # dropped — Huma emits only .info.{title,version}, and OAS 3.1 has no .schemes.
 }
 
 # Component whose every operation must declare a .security requirement.

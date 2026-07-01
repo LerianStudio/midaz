@@ -1,55 +1,55 @@
 openapi: 3.1.0
 info:
-  title: contract-spec
+  title: Midaz Ledger API
   version: 4.0.0
 servers:
   - url: /v1
 tags:
-  - name: contract-spec_Organizations
+  - name: Midaz_Ledger_API_Organizations
     x-displayName: Organizations
-  - name: contract-spec_Billing Packages
+  - name: Midaz_Ledger_API_Billing Packages
     x-displayName: Billing Packages
-  - name: contract-spec_Billing Calculate
+  - name: Midaz_Ledger_API_Billing Calculate
     x-displayName: Billing Calculate
-  - name: contract-spec_Encryption
+  - name: Midaz_Ledger_API_Encryption
     x-displayName: Encryption
-  - name: contract-spec_Fees
+  - name: Midaz_Ledger_API_Fees
     x-displayName: Fees
-  - name: contract-spec_Holders
+  - name: Midaz_Ledger_API_Holders
     x-displayName: Holders
-  - name: contract-spec_Instruments
+  - name: Midaz_Ledger_API_Instruments
     x-displayName: Instruments
-  - name: contract-spec_Ledgers
+  - name: Midaz_Ledger_API_Ledgers
     x-displayName: Ledgers
-  - name: contract-spec_Account Types
+  - name: Midaz_Ledger_API_Account Types
     x-displayName: Account Types
-  - name: contract-spec_Accounts
+  - name: Midaz_Ledger_API_Accounts
     x-displayName: Accounts
-  - name: contract-spec_Balances
+  - name: Midaz_Ledger_API_Balances
     x-displayName: Balances
-  - name: contract-spec_Operations
+  - name: Midaz_Ledger_API_Operations
     x-displayName: Operations
-  - name: contract-spec_Asset Rates
+  - name: Midaz_Ledger_API_Asset Rates
     x-displayName: Asset Rates
-  - name: contract-spec_Assets
+  - name: Midaz_Ledger_API_Assets
     x-displayName: Assets
-  - name: contract-spec_Composition
+  - name: Midaz_Ledger_API_Composition
     x-displayName: Composition
-  - name: contract-spec_Operation Routes
+  - name: Midaz_Ledger_API_Operation Routes
     x-displayName: Operation Routes
-  - name: contract-spec_Portfolios
+  - name: Midaz_Ledger_API_Portfolios
     x-displayName: Portfolios
-  - name: contract-spec_Segments
+  - name: Midaz_Ledger_API_Segments
     x-displayName: Segments
-  - name: contract-spec_Transaction Routes
+  - name: Midaz_Ledger_API_Transaction Routes
     x-displayName: Transaction Routes
-  - name: contract-spec_Transactions
+  - name: Midaz_Ledger_API_Transactions
     x-displayName: Transactions
-  - name: contract-spec_Packages
+  - name: Midaz_Ledger_API_Packages
     x-displayName: Packages
-  - name: contract-spec_Protection
+  - name: Midaz_Ledger_API_Protection
     x-displayName: Protection
-  - name: contract-spec_Metadata Indexes
+  - name: Midaz_Ledger_API_Metadata Indexes
     x-displayName: Metadata Indexes
   - name: Midaz_Tracer_API_Audit
     x-displayName: Audit
@@ -154,7 +154,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all organizations
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
     post:
       operationId: createOrganization
       parameters:
@@ -190,7 +190,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new organization
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
   /organizations/metrics/count:
     head:
       operationId: countOrganizations
@@ -215,7 +215,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total organizations
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
   /organizations/{id}:
     delete:
       operationId: deleteOrganization
@@ -241,7 +241,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an organization
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
     get:
       operationId: getOrganizationByID
       parameters:
@@ -270,7 +270,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific organization
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
     patch:
       operationId: updateOrganization
       parameters:
@@ -307,7 +307,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing organization
       tags:
-        - contract-spec_Organizations
+        - Midaz_Ledger_API_Organizations
   /organizations/{organization_id}/billing-packages:
     get:
       operationId: getAllBillingPackages
@@ -368,7 +368,7 @@ paths:
         - BearerAuth: []
       summary: Get all billing packages
       tags:
-        - contract-spec_Billing Packages
+        - Midaz_Ledger_API_Billing Packages
     post:
       operationId: createBillingPackage
       parameters:
@@ -404,7 +404,7 @@ paths:
         - BearerAuth: []
       summary: Create a BillingPackage
       tags:
-        - contract-spec_Billing Packages
+        - Midaz_Ledger_API_Billing Packages
   /organizations/{organization_id}/billing-packages/{id}:
     delete:
       operationId: deleteBillingPackage
@@ -436,7 +436,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a BillingPackage by ID
       tags:
-        - contract-spec_Billing Packages
+        - Midaz_Ledger_API_Billing Packages
     get:
       operationId: getBillingPackageByID
       parameters:
@@ -471,7 +471,7 @@ paths:
         - BearerAuth: []
       summary: Get billing package
       tags:
-        - contract-spec_Billing Packages
+        - Midaz_Ledger_API_Billing Packages
     patch:
       operationId: updateBillingPackage
       parameters:
@@ -514,7 +514,7 @@ paths:
         - BearerAuth: []
       summary: Update a billing package
       tags:
-        - contract-spec_Billing Packages
+        - Midaz_Ledger_API_Billing Packages
   /organizations/{organization_id}/billing/calculate:
     post:
       operationId: calculateBilling
@@ -551,7 +551,7 @@ paths:
         - BearerAuth: []
       summary: Calculate billing
       tags:
-        - contract-spec_Billing Calculate
+        - Midaz_Ledger_API_Billing Calculate
   /organizations/{organization_id}/encryption/provision:
     post:
       operationId: provisionEncryption
@@ -594,7 +594,7 @@ paths:
         - BearerAuth: []
       summary: Provision an Organization for Envelope Encryption
       tags:
-        - contract-spec_Encryption
+        - Midaz_Ledger_API_Encryption
   /organizations/{organization_id}/encryption/status:
     get:
       operationId: getProvisioningStatus
@@ -629,7 +629,7 @@ paths:
         - BearerAuth: []
       summary: Get Provisioning Status
       tags:
-        - contract-spec_Encryption
+        - Midaz_Ledger_API_Encryption
   /organizations/{organization_id}/estimates:
     post:
       operationId: estimateFeeCalculation
@@ -667,7 +667,7 @@ paths:
         - BearerAuth: []
       summary: Create a fee estimate calculation
       tags:
-        - contract-spec_Fees
+        - Midaz_Ledger_API_Fees
   /organizations/{organization_id}/holders:
     get:
       operationId: listHolders
@@ -745,7 +745,7 @@ paths:
         - BearerAuth: []
       summary: List Holders
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
     post:
       operationId: createHolder
       parameters:
@@ -801,7 +801,7 @@ paths:
         - BearerAuth: []
       summary: Create a Holder
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
   /organizations/{organization_id}/holders/{holder_id}/instruments:
     post:
       operationId: createInstrument
@@ -865,7 +865,7 @@ paths:
         - BearerAuth: []
       summary: Create an Instrument Account
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
   /organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
     delete:
       operationId: deleteInstrument
@@ -915,7 +915,7 @@ paths:
         - BearerAuth: []
       summary: Delete an Instrument
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
     get:
       operationId: getInstrumentByID
       parameters:
@@ -966,7 +966,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Instrument details
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
     patch:
       operationId: updateInstrument
       parameters:
@@ -1016,7 +1016,7 @@ paths:
         - BearerAuth: []
       summary: Update an Instrument
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
   /organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
     delete:
       operationId: deleteRelatedParty
@@ -1062,7 +1062,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Related Party
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
   /organizations/{organization_id}/holders/{id}:
     delete:
       operationId: deleteHolder
@@ -1105,7 +1105,7 @@ paths:
         - BearerAuth: []
       summary: Delete a Holder
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
     get:
       operationId: getHolderByID
       parameters:
@@ -1147,7 +1147,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve Holder details
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
     patch:
       operationId: updateHolder
       parameters:
@@ -1190,7 +1190,7 @@ paths:
         - BearerAuth: []
       summary: Update a Holder
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
   /organizations/{organization_id}/holders/{id}/accounts:
     get:
       operationId: listAccountsByHolder
@@ -1247,7 +1247,7 @@ paths:
         - BearerAuth: []
       summary: List Accounts by Holder
       tags:
-        - contract-spec_Holders
+        - Midaz_Ledger_API_Holders
   /organizations/{organization_id}/instruments:
     get:
       operationId: listInstruments
@@ -1339,7 +1339,7 @@ paths:
         - BearerAuth: []
       summary: List Instruments
       tags:
-        - contract-spec_Instruments
+        - Midaz_Ledger_API_Instruments
   /organizations/{organization_id}/ledgers:
     get:
       operationId: listLedgers
@@ -1425,7 +1425,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all ledgers
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
     post:
       operationId: createLedger
       parameters:
@@ -1462,7 +1462,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new ledger
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
   /organizations/{organization_id}/ledgers/metrics/count:
     head:
       operationId: countLedgers
@@ -1495,7 +1495,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total ledgers
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
   /organizations/{organization_id}/ledgers/{ledger_id}:
     delete:
       operationId: deleteLedger
@@ -1528,7 +1528,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a ledger
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
     get:
       operationId: getLedgerByID
       parameters:
@@ -1564,7 +1564,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific ledger
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
     patch:
       operationId: updateLedger
       parameters:
@@ -1608,7 +1608,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an existing ledger
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
   /organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       operationId: listAccountTypes
@@ -1701,7 +1701,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all account types
       tags:
-        - contract-spec_Account Types
+        - Midaz_Ledger_API_Account Types
     post:
       operationId: createAccountType
       parameters:
@@ -1745,7 +1745,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account type
       tags:
-        - contract-spec_Account Types
+        - Midaz_Ledger_API_Account Types
   /organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
     delete:
       operationId: deleteAccountType
@@ -1785,7 +1785,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account type
       tags:
-        - contract-spec_Account Types
+        - Midaz_Ledger_API_Account Types
     get:
       operationId: getAccountTypeByID
       parameters:
@@ -1828,7 +1828,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account type
       tags:
-        - contract-spec_Account Types
+        - Midaz_Ledger_API_Account Types
     patch:
       operationId: updateAccountType
       parameters:
@@ -1879,7 +1879,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account type
       tags:
-        - contract-spec_Account Types
+        - Midaz_Ledger_API_Account Types
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       operationId: listAccounts
@@ -2028,7 +2028,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all accounts
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
     post:
       operationId: createAccount
       parameters:
@@ -2078,7 +2078,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new account
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
       operationId: getAccountByAlias
@@ -2122,7 +2122,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by alias
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       operationId: getBalancesByAlias
@@ -2166,7 +2166,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balances using Alias
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCode
@@ -2210,7 +2210,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve an account by external code
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       operationId: getBalancesExternalByCode
@@ -2254,7 +2254,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get External balances using code
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       operationId: countAccounts
@@ -2294,7 +2294,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count accounts
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       operationId: getAllBalancesByAccountID
@@ -2373,7 +2373,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances by account id
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
     post:
       operationId: createAdditionalBalance
       parameters:
@@ -2424,7 +2424,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Additional Balance
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
     get:
       operationId: getAccountBalancesAtTimestamp
@@ -2479,7 +2479,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Account Balances history at date
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccount
@@ -2593,7 +2593,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Operations by account
       tags:
-        - contract-spec_Operations
+        - Midaz_Ledger_API_Operations
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       operationId: getOperationByAccount
@@ -2644,7 +2644,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Operation
       tags:
-        - contract-spec_Operations
+        - Midaz_Ledger_API_Operations
   /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       operationId: deleteAccount
@@ -2690,7 +2690,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an account
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
     get:
       operationId: getAccountByID
       parameters:
@@ -2733,7 +2733,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific account
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
     patch:
       operationId: updateAccount
       parameters:
@@ -2784,7 +2784,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an account
       tags:
-        - contract-spec_Accounts
+        - Midaz_Ledger_API_Accounts
   /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       operationId: createOrUpdateAssetRate
@@ -2829,7 +2829,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create or Update an AssetRate
       tags:
-        - contract-spec_Asset Rates
+        - Midaz_Ledger_API_Asset Rates
   /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       operationId: getAllAssetRatesByAssetCode
@@ -2919,7 +2919,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by the Asset Code
       tags:
-        - contract-spec_Asset Rates
+        - Midaz_Ledger_API_Asset Rates
   /organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       operationId: getAssetRateByExternalID
@@ -2963,7 +2963,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get an AssetRate by External ID
       tags:
-        - contract-spec_Asset Rates
+        - Midaz_Ledger_API_Asset Rates
   /organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       operationId: listAssets
@@ -3042,7 +3042,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all assets
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
     post:
       operationId: createAsset
       parameters:
@@ -3092,7 +3092,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new asset
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
   /organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
     head:
       operationId: countAssets
@@ -3132,7 +3132,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total assets
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
   /organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       operationId: deleteAsset
@@ -3172,7 +3172,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete an asset
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
     get:
       operationId: getAssetByID
       parameters:
@@ -3215,7 +3215,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific asset
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
     patch:
       operationId: updateAsset
       parameters:
@@ -3266,7 +3266,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update an asset
       tags:
-        - contract-spec_Assets
+        - Midaz_Ledger_API_Assets
   /organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       operationId: getAllBalances
@@ -3338,7 +3338,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all balances
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
     delete:
       operationId: deleteBalance
@@ -3378,7 +3378,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Balance by account
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
     get:
       operationId: getBalanceByID
       parameters:
@@ -3421,7 +3421,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance by id
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
     patch:
       operationId: updateBalance
       parameters:
@@ -3472,7 +3472,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update Balance
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
     get:
       operationId: getBalanceAtTimestamp
@@ -3523,7 +3523,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get Balance history at date
       tags:
-        - contract-spec_Balances
+        - Midaz_Ledger_API_Balances
   /organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts:
     post:
       operationId: createHolderAccount
@@ -3580,7 +3580,7 @@ paths:
         - BearerAuth: []
       summary: Open a holder-owned account (with optional instrument)
       tags:
-        - contract-spec_Composition
+        - Midaz_Ledger_API_Composition
   /organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       operationId: listOperationRoutes
@@ -3651,7 +3651,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve all operation routes
       tags:
-        - contract-spec_Operation Routes
+        - Midaz_Ledger_API_Operation Routes
     post:
       operationId: createOperationRoute
       parameters:
@@ -3694,7 +3694,7 @@ paths:
         - BearerAuth: []
       summary: Create Operation Route
       tags:
-        - contract-spec_Operation Routes
+        - Midaz_Ledger_API_Operation Routes
   /organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
     delete:
       operationId: deleteOperationRoute
@@ -3733,7 +3733,7 @@ paths:
         - BearerAuth: []
       summary: Delete an operation route
       tags:
-        - contract-spec_Operation Routes
+        - Midaz_Ledger_API_Operation Routes
     get:
       operationId: getOperationRouteByID
       parameters:
@@ -3775,7 +3775,7 @@ paths:
         - BearerAuth: []
       summary: Retrieve a specific operation route
       tags:
-        - contract-spec_Operation Routes
+        - Midaz_Ledger_API_Operation Routes
     patch:
       operationId: updateOperationRoute
       parameters:
@@ -3825,7 +3825,7 @@ paths:
         - BearerAuth: []
       summary: Update an operation route
       tags:
-        - contract-spec_Operation Routes
+        - Midaz_Ledger_API_Operation Routes
   /organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       operationId: listPortfolios
@@ -3918,7 +3918,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all portfolios
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
     post:
       operationId: createPortfolio
       parameters:
@@ -3962,7 +3962,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new portfolio
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
   /organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
     head:
       operationId: countPortfolios
@@ -4002,7 +4002,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total portfolios
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
   /organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       operationId: deletePortfolio
@@ -4042,7 +4042,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a portfolio
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
     get:
       operationId: getPortfolioByID
       parameters:
@@ -4085,7 +4085,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific portfolio
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
     patch:
       operationId: updatePortfolio
       parameters:
@@ -4136,7 +4136,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a portfolio
       tags:
-        - contract-spec_Portfolios
+        - Midaz_Ledger_API_Portfolios
   /organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       operationId: listSegments
@@ -4215,7 +4215,7 @@ paths:
         - ApiKeyAuth: []
       summary: List all segments
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
     post:
       operationId: createSegment
       parameters:
@@ -4259,7 +4259,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create a new segment
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
   /organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
     head:
       operationId: countSegments
@@ -4299,7 +4299,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count total segments
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
   /organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       operationId: deleteSegment
@@ -4339,7 +4339,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete a segment
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
     get:
       operationId: getSegmentByID
       parameters:
@@ -4382,7 +4382,7 @@ paths:
         - ApiKeyAuth: []
       summary: Retrieve a specific segment
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
     patch:
       operationId: updateSegment
       parameters:
@@ -4433,7 +4433,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update a segment
       tags:
-        - contract-spec_Segments
+        - Midaz_Ledger_API_Segments
   /organizations/{organization_id}/ledgers/{ledger_id}/settings:
     get:
       operationId: getLedgerSettings
@@ -4470,7 +4470,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get ledger settings
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
     patch:
       operationId: updateLedgerSettings
       parameters:
@@ -4514,7 +4514,7 @@ paths:
         - ApiKeyAuth: []
       summary: Update ledger settings
       tags:
-        - contract-spec_Ledgers
+        - Midaz_Ledger_API_Ledgers
   /organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       operationId: listTransactionRoutes
@@ -4585,7 +4585,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transaction Routes
       tags:
-        - contract-spec_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes
     post:
       operationId: createTransactionRoute
       parameters:
@@ -4628,7 +4628,7 @@ paths:
         - BearerAuth: []
       summary: Create Transaction Route
       tags:
-        - contract-spec_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes
   /organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
     delete:
       operationId: deleteTransactionRoute
@@ -4667,7 +4667,7 @@ paths:
         - BearerAuth: []
       summary: Delete Transaction Route by ID
       tags:
-        - contract-spec_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes
     get:
       operationId: getTransactionRouteByID
       parameters:
@@ -4709,7 +4709,7 @@ paths:
         - BearerAuth: []
       summary: Get Transaction Route by ID
       tags:
-        - contract-spec_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes
     patch:
       operationId: updateTransactionRoute
       parameters:
@@ -4759,7 +4759,7 @@ paths:
         - BearerAuth: []
       summary: Update Transaction Route
       tags:
-        - contract-spec_Transaction Routes
+        - Midaz_Ledger_API_Transaction Routes
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       operationId: getAllTransactions
@@ -4837,7 +4837,7 @@ paths:
         - BearerAuth: []
       summary: Get all Transactions
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
     post:
       operationId: createTransactionAnnotation
@@ -4901,7 +4901,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction Annotation using JSON
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       operationId: createTransactionInflow
@@ -4965,7 +4965,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing from source
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       operationId: createTransactionJSON
@@ -5029,7 +5029,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction using JSON
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
     head:
       operationId: countTransactionsByFilters
@@ -5101,7 +5101,7 @@ paths:
         - ApiKeyAuth: []
       summary: Count Transactions by Filters
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       operationId: createTransactionOutflow
@@ -5165,7 +5165,7 @@ paths:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       operationId: getTransaction
@@ -5212,7 +5212,7 @@ paths:
         - BearerAuth: []
       summary: Get a Transaction by ID
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
     patch:
       operationId: updateTransaction
       parameters:
@@ -5262,7 +5262,7 @@ paths:
         - BearerAuth: []
       summary: Update a Transaction
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       operationId: cancelTransaction
@@ -5305,7 +5305,7 @@ paths:
         - BearerAuth: []
       summary: Cancel a pre transaction
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       operationId: commitTransaction
@@ -5348,7 +5348,7 @@ paths:
         - BearerAuth: []
       summary: Commit a Transaction
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       operationId: updateOperation
@@ -5406,7 +5406,7 @@ paths:
         - BearerAuth: []
       summary: Update an Operation
       tags:
-        - contract-spec_Operations
+        - Midaz_Ledger_API_Operations
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       operationId: revertTransaction
@@ -5449,7 +5449,7 @@ paths:
         - BearerAuth: []
       summary: Revert a Transaction
       tags:
-        - contract-spec_Transactions
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/packages:
     get:
       operationId: getAllPackages
@@ -5520,7 +5520,7 @@ paths:
         - BearerAuth: []
       summary: Get all packages
       tags:
-        - contract-spec_Packages
+        - Midaz_Ledger_API_Packages
     post:
       operationId: createPackage
       parameters:
@@ -5556,7 +5556,7 @@ paths:
         - BearerAuth: []
       summary: Create a Package
       tags:
-        - contract-spec_Packages
+        - Midaz_Ledger_API_Packages
   /organizations/{organization_id}/packages/{id}:
     delete:
       operationId: deletePackage
@@ -5588,7 +5588,7 @@ paths:
         - BearerAuth: []
       summary: SoftDelete a Package by ID
       tags:
-        - contract-spec_Packages
+        - Midaz_Ledger_API_Packages
     get:
       operationId: getPackageByID
       parameters:
@@ -5623,7 +5623,7 @@ paths:
         - BearerAuth: []
       summary: Get package
       tags:
-        - contract-spec_Packages
+        - Midaz_Ledger_API_Packages
     patch:
       operationId: updatePackage
       parameters:
@@ -5666,7 +5666,7 @@ paths:
         - BearerAuth: []
       summary: Update a package
       tags:
-        - contract-spec_Packages
+        - Midaz_Ledger_API_Packages
   /organizations/{organization_id}/protection/audit:
     get:
       operationId: getAuditEvents
@@ -5757,7 +5757,7 @@ paths:
         - BearerAuth: []
       summary: List Protection Audit Events
       tags:
-        - contract-spec_Protection
+        - Midaz_Ledger_API_Protection
   /settings/metadata-indexes:
     get:
       operationId: getAllMetadataIndexes
@@ -5791,7 +5791,7 @@ paths:
         - ApiKeyAuth: []
       summary: Get all Metadata Indexes
       tags:
-        - contract-spec_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes
   /settings/metadata-indexes/entities/{entity_name}:
     post:
       operationId: createMetadataIndex
@@ -5835,7 +5835,7 @@ paths:
         - ApiKeyAuth: []
       summary: Create Metadata Index
       tags:
-        - contract-spec_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes
   /settings/metadata-indexes/entities/{entity_name}/key/{index_key}:
     delete:
       operationId: deleteMetadataIndex
@@ -5874,7 +5874,7 @@ paths:
         - ApiKeyAuth: []
       summary: Delete Metadata Index
       tags:
-        - contract-spec_Metadata Indexes
+        - Midaz_Ledger_API_Metadata Indexes
   /audit-events:
     get:
       operationId: listAuditEvents
@@ -10566,31 +10566,31 @@ components:
       scheme: bearer
       type: http
 x-tagGroups:
-  - name: contract-spec
+  - name: Midaz Ledger API
     tags:
-      - contract-spec_Organizations
-      - contract-spec_Billing Packages
-      - contract-spec_Billing Calculate
-      - contract-spec_Encryption
-      - contract-spec_Fees
-      - contract-spec_Holders
-      - contract-spec_Instruments
-      - contract-spec_Ledgers
-      - contract-spec_Account Types
-      - contract-spec_Accounts
-      - contract-spec_Balances
-      - contract-spec_Operations
-      - contract-spec_Asset Rates
-      - contract-spec_Assets
-      - contract-spec_Composition
-      - contract-spec_Operation Routes
-      - contract-spec_Portfolios
-      - contract-spec_Segments
-      - contract-spec_Transaction Routes
-      - contract-spec_Transactions
-      - contract-spec_Packages
-      - contract-spec_Protection
-      - contract-spec_Metadata Indexes
+      - Midaz_Ledger_API_Organizations
+      - Midaz_Ledger_API_Billing Packages
+      - Midaz_Ledger_API_Billing Calculate
+      - Midaz_Ledger_API_Encryption
+      - Midaz_Ledger_API_Fees
+      - Midaz_Ledger_API_Holders
+      - Midaz_Ledger_API_Instruments
+      - Midaz_Ledger_API_Ledgers
+      - Midaz_Ledger_API_Account Types
+      - Midaz_Ledger_API_Accounts
+      - Midaz_Ledger_API_Balances
+      - Midaz_Ledger_API_Operations
+      - Midaz_Ledger_API_Asset Rates
+      - Midaz_Ledger_API_Assets
+      - Midaz_Ledger_API_Composition
+      - Midaz_Ledger_API_Operation Routes
+      - Midaz_Ledger_API_Portfolios
+      - Midaz_Ledger_API_Segments
+      - Midaz_Ledger_API_Transaction Routes
+      - Midaz_Ledger_API_Transactions
+      - Midaz_Ledger_API_Packages
+      - Midaz_Ledger_API_Protection
+      - Midaz_Ledger_API_Metadata Indexes
   - name: Midaz Tracer API
     tags:
       - Midaz_Tracer_API_Audit
