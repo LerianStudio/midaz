@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -15,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -23,6 +25,173 @@ type PortfolioHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
 }
+
+// --- Transport-agnostic cores -------------------------------------------------
+//
+// The createPortfolio/updatePortfolio/... methods below own the span, imperative
+// query binding, the service call and the success log. They take primitive args
+// (parsed UUIDs, the decoded payload, the query map) so BOTH transports feed them:
+// the Fiber wrappers pull those from *fiber.Ctx (Locals + WithBody payload +
+// c.Queries) and the Huma handlers (portfolio_handler_huma.go) pull them from the
+// request envelope. Every canonical Midaz error the cores return is rendered by the
+// caller — http.WithError on the Fiber path, http.HumaProblem on the Huma path — so
+// the code + HTTP status are identical across both transports.
+
+// createPortfolio owns the span + service call + success log for an already-decoded
+// payload. Body decode+validation happens BEFORE this core (Fiber: WithBody
+// decorator; Huma: http.DecodeAndValidate(RawBody)).
+func (handler *PortfolioHandler) createPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
+	defer span.End()
+
+	logSafePayload(ctx, logger, "Request to create a portfolio", payload)
+	recordSafePayloadAttributes(span, payload)
+
+	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to create Portfolio on command", err)
+
+		return nil, err
+	}
+
+	return portfolio, nil
+}
+
+// getAllPortfolios binds the query map imperatively (http.ValidateParameters — the
+// SAME binder the Fiber path used) so a bad query yields the canonical 400, then
+// returns the assembled pagination envelope.
+func (handler *PortfolioHandler) getAllPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
+	defer span.End()
+
+	headerParams, err := http.ValidateParameters(queries)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
+
+		return http.Pagination{}, err
+	}
+
+	recordSafeQueryAttributes(span, headerParams)
+
+	pagination := http.Pagination{
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
+	}
+
+	if headerParams.Metadata != nil {
+		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
+		if err != nil {
+			handleSpanByErrorClass(span, "Failed to retrieve all Portfolios on query", err)
+
+			return http.Pagination{}, err
+		}
+
+		pagination.SetItems(portfolios)
+
+		return pagination, nil
+	}
+
+	headerParams.Metadata = &bson.M{}
+
+	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve all Portfolios on query", err)
+
+		return http.Pagination{}, err
+	}
+
+	pagination.SetItems(portfolios)
+
+	return pagination, nil
+}
+
+// getPortfolioByID retrieves a single portfolio.
+func (handler *PortfolioHandler) getPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
+	defer span.End()
+
+	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve Portfolio on query", err)
+
+		return nil, err
+	}
+
+	return portfolio, nil
+}
+
+// updatePortfolio owns the span + service call + success log for an already-decoded
+// payload (see createPortfolio for the decode split across transports).
+func (handler *PortfolioHandler) updatePortfolio(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
+	defer span.End()
+
+	logSafePayload(ctx, logger, "Request to update portfolio", payload)
+	recordSafePayloadAttributes(span, payload)
+
+	portfolio, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to update Portfolio on command", err)
+
+		return nil, err
+	}
+
+	return portfolio, nil
+}
+
+// deletePortfolio removes a portfolio.
+func (handler *PortfolioHandler) deletePortfolio(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
+	defer span.End()
+
+	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
+		handleSpanByErrorClass(span, "Failed to remove Portfolio on command", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// countPortfolios returns the total portfolio count for the ledger.
+func (handler *PortfolioHandler) countPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_portfolios")
+	defer span.End()
+
+	count, err := handler.Query.CountPortfolios(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to count portfolios", err)
+
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// --- Fiber wrappers (thin) ----------------------------------------------------
+//
+// These stay so the legacy Fiber unit/integration tests keep exercising the handler
+// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
+// shared core. The swaggo doc-comments below are preserved verbatim (the migration
+// is ADDITIVE; swaggo is unchanged). NOTE: once wired, the LIVE portfolio routes are
+// Huma (see portfolio_handler_huma.go + RegisterPortfolioRoutesToApp); these Fiber
+// wrappers are not mounted by the unified server.
 
 // CreatePortfolio is a method that creates portfolio information.
 //
@@ -47,11 +216,6 @@ type PortfolioHandler struct {
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -62,15 +226,8 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	payload := i.(*mmodel.CreatePortfolioInput)
-
-	logSafePayload(ctx, logger, "Request to create a portfolio", payload)
-	recordSafePayloadAttributes(span, payload)
-
-	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
+	portfolio, err := handler.createPortfolio(ctx, organizationID, ledgerID, i.(*mmodel.CreatePortfolioInput))
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to create Portfolio on command", err)
-
 		return http.WithError(c, err)
 	}
 
@@ -105,11 +262,6 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -120,46 +272,10 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	pagination, err := handler.getAllPortfolios(ctx, organizationID, ledgerID, c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
 		return http.WithError(c, err)
 	}
-
-	recordSafeQueryAttributes(span, headerParams)
-
-	pagination := http.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
-	}
-
-	if headerParams.Metadata != nil {
-		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
-		if err != nil {
-			handleSpanByErrorClass(span, "Failed to retrieve all Portfolios on query", err)
-
-			return http.WithError(c, err)
-		}
-
-		pagination.SetItems(portfolios)
-
-		return http.OK(c, pagination)
-	}
-
-	headerParams.Metadata = &bson.M{}
-
-	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
-	if err != nil {
-		handleSpanByErrorClass(span, "Failed to retrieve all Portfolios on query", err)
-
-		return http.WithError(c, err)
-	}
-
-	pagination.SetItems(portfolios)
 
 	return http.OK(c, pagination)
 }
@@ -184,11 +300,6 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -204,10 +315,8 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
+	portfolio, err := handler.getPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to retrieve Portfolio on query", err)
-
 		return http.WithError(c, err)
 	}
 
@@ -238,11 +347,6 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -258,15 +362,8 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	payload := i.(*mmodel.UpdatePortfolioInput)
-	logSafePayload(ctx, logger, "Request to update portfolio", payload)
-
-	recordSafePayloadAttributes(span, payload)
-
-	portfolio, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
+	portfolio, err := handler.updatePortfolio(ctx, organizationID, ledgerID, id, i.(*mmodel.UpdatePortfolioInput))
 	if err != nil {
-		handleSpanByErrorClass(span, "Failed to update Portfolio on command", err)
-
 		return http.WithError(c, err)
 	}
 
@@ -293,11 +390,6 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -313,9 +405,7 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
-		handleSpanByErrorClass(span, "Failed to remove Portfolio on command", err)
-
+	if err := handler.deletePortfolio(ctx, organizationID, ledgerID, id); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -341,11 +431,6 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.count_portfolios")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -356,10 +441,8 @@ func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	count, err := handler.Query.CountPortfolios(ctx, organizationID, ledgerID)
+	count, err := handler.countPortfolios(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to count portfolios", err)
-
 		return http.WithError(c, err)
 	}
 
