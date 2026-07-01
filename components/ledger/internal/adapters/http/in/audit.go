@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -88,19 +90,30 @@ var allowedAuditOutcomes = map[string]struct{}{
 //	@Security		BearerAuth
 //	@Router			/v1/organizations/{organization_id}/protection/audit [get]
 func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_audit_events")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	queries := c.Queries()
+	envelope, err := handler.getAuditEvents(c.UserContext(), organizationID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, *envelope)
+}
+
+// getAuditEvents is the transport-agnostic core for the protection audit listing.
+// Both the Fiber wrapper (GetAuditEvents) and the Huma shell (GetAuditEventsHuma)
+// delegate here after resolving the org id and the raw query map (c.Queries() /
+// the Huma query binder), so neither touches the other's request/response object.
+// queries is the map[string]string equivalent of Fiber's c.Queries(): last value
+// wins for a repeated key, present-but-empty keys included.
+func (handler *AuditHandler) getAuditEvents(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (*auditEventsEnvelope, error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_audit_events")
+	defer span.End()
 
 	// Filter start_date/end_date out of the map handed to ValidateParameters so
 	// it validates ONLY limit/cursor/sort_order and never touches dates. This
@@ -125,7 +138,7 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// ValidateParameters applies generic defaults (limit 10, sort_order asc) that
@@ -151,7 +164,7 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 
 			logger.Log(ctx, libLog.LevelWarn, "Rejected unsupported audit outcome filter", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
@@ -161,7 +174,7 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Rejected unparseable start_date", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	endTime, err := parseAuditTime(queries["end_date"], true)
@@ -170,7 +183,7 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Rejected unparseable end_date", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// ValidateParameters' date validation is intentionally bypassed for this
@@ -181,7 +194,7 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Rejected inverted audit date range", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Safe attributes only: org id, paging shape, and which filters are set —
@@ -216,12 +229,12 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 		if errors.Is(err, libHTTP.ErrInvalidCursor) {
 			logger.Log(ctx, libLog.LevelWarn, "Rejected invalid pagination cursor", libLog.Err(err))
 
-			return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor"))
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
 		}
 
 		logger.Log(ctx, libLog.LevelError, "Failed to get audit events", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	items := make([]auditEventResponse, 0, len(events))
@@ -229,15 +242,13 @@ func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
 		items = append(items, toAuditEventResponse(event))
 	}
 
-	envelope := auditEventsEnvelope{
+	return &auditEventsEnvelope{
 		OrganizationID: organizationID.String(),
 		Items:          items,
 		Limit:          headerParams.Limit,
 		NextCursor:     pagination.Next,
 		PrevCursor:     pagination.Prev,
-	}
-
-	return http.OK(c, envelope)
+	}, nil
 }
 
 // parseAuditTime is the SOLE date validator for this endpoint. ValidateParameters
