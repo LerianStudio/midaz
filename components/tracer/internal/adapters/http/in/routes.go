@@ -20,6 +20,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
@@ -99,6 +100,11 @@ type RouteConfig struct {
 	// X-Forwarded-For. Empty (nil) means XFF is ignored and the socket peer IP
 	// is recorded. Parsed once at boot in bootstrap; never re-parsed per request.
 	TrustedProxyCIDRs []*net.IPNet
+
+	// SwaggerEnabled gates the native Huma OpenAPI 3.1 spec + Scalar docs surface
+	// (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs). Independent of the
+	// legacy swaggo /swagger/* mount, which is always on. Default false.
+	SwaggerEnabled bool
 }
 
 // reservationPathPrefix is the full mounted prefix of the reservation surface
@@ -348,6 +354,26 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Servers: []string{"/v1"},
 	})
 
+	// Declare the security schemes referenced by per-op Security metadata so the
+	// generated spec resolves them instead of dangling. SPEC metadata only —
+	// runtime auth stays the Fiber guard.With middleware. BearerAuth comes from
+	// the shared lib-commons helper (http bearer/JWT, idempotent, nil-safe).
+	// ApiKeyAuth has no lib-commons helper, so declare it locally, mirroring the
+	// helper's nil-guard on the SecuritySchemes map.
+	openapi.DeclareBearerAuth(humaAPI)
+
+	components := humaAPI.OpenAPI().Components
+	if components.SecuritySchemes == nil {
+		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
+	}
+
+	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
+		Type:        "apiKey",
+		In:          "header",
+		Name:        "X-API-Key",
+		Description: "Static API key presented in the X-API-Key header.",
+	}
+
 	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
 	// Fiber middleware attached to the exact method+path BEFORE the Huma
 	// registration, so guard.With runs first and c.Next() advances into the Huma
@@ -448,6 +474,15 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
 	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
 	RegisterAuditEventRoutes(humaAPI, auditEventHandler)
+
+	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on SwaggerEnabled. Mounted
+	// AFTER every huma.Register above so the snapshotted spec is complete. These
+	// routes are off the auth/tenant chain (public-within-the-gate) and are
+	// independent of the legacy swaggo /swagger/* mount. Never registered when the
+	// flag is false.
+	if cfg.SwaggerEnabled {
+		openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API")
+	}
 
 	// End tracing spans middleware - skipped when telemetry is disabled
 	if !skipTelemetry {
