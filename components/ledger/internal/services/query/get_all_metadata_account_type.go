@@ -8,15 +8,14 @@ import (
 	"context"
 	"errors"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
 
 	// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
@@ -24,12 +23,10 @@ import (
 )
 
 func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_account_type")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types by metadata")
 
 	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, filter)
 	if err != nil {

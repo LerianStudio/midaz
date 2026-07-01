@@ -16,7 +16,7 @@ import (
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 )
 
 var (

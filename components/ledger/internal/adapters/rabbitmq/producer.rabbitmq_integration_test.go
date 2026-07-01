@@ -23,8 +23,8 @@ import (
 
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -10,9 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/redis/go-redis/v9"
@@ -56,7 +55,7 @@ func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) 
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
@@ -79,7 +78,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		ttl = 300 * time.Second
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "value of ttl", libLog.Any("ttl", ttl))
+	logger.Log(ctx, libLog.LevelDebug, "value of ttl", libLog.Any("ttl", ttl))
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
 	if statusCMD.Err() != nil {
@@ -92,7 +91,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
@@ -126,7 +125,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
@@ -156,7 +155,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "deleted keys count", libLog.Any("count", val))
+	logger.Log(ctx, libLog.LevelDebug, "deleted keys count", libLog.Any("count", val))
 
 	return nil
 }

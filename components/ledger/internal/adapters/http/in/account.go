@@ -5,18 +5,19 @@
 package in
 
 import (
+	"context"
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -29,61 +30,38 @@ type AccountHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateAccount is a method that creates account information.
+// --- Transport-agnostic cores -------------------------------------------------
 //
-//	@Summary		Create a new account
-//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.
-//	@Tags			Accounts
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
-//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata"
-//	@Success		201				{object}	mmodel.Account				"Successfully created account"
-//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error				"Organization, ledger, parent account, portfolio, or segment not found"
-//	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same alias already exists"
-//	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
-func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+// The createAccount/updateAccount/... cores below own the span, the imperative
+// query binding, the service call(s) and the success log/metric. They take
+// primitive args (parsed UUIDs, the already-decoded payload, the query map) so
+// BOTH transports feed them: the Fiber wrappers pull those from *fiber.Ctx
+// (Locals + WithBody-decoded payload + c.Queries) and the Huma handlers
+// (account_handler_huma.go) pull them from the request envelope. Every canonical
+// Midaz error the cores return is rendered by the caller — http.WithError on the
+// Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status are
+// identical across both transports.
 
+// createAccount owns the span + service call + success log + created metric for an
+// already-decoded payload. Body decode+validation happens BEFORE this core: the
+// Fiber path decodes via the WithBody decorator (passing the struct as `i`), the
+// Huma path decodes via http.DecodeAndValidate(RawBody). Both feed the SAME
+// validated *CreateAccountInput here. The RecordAccountCreated metric lives here
+// (not in a transport wrapper) so both transports emit it identically.
+func (handler *AccountHandler) createAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := i.(*mmodel.CreateAccountInput)
-	portfolioID := payload.PortfolioID
-	logSafePayload(ctx, logger, "Request to create an account", payload)
-
-	if !libCommons.IsNilOrEmpty(portfolioID) {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Account with Portfolio ID: %s", *portfolioID))
-	}
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
 
+	logSafePayload(ctx, logger, "Request to create an account", payload)
 	recordSafePayloadAttributes(span, payload)
-
-	token := c.Get("Authorization")
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Account on command", err)
+		handleSpanByErrorClass(span, "Failed to create Account on command", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if err := metricFactory.RecordAccountCreated(
@@ -94,73 +72,30 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Failed to record account created metric", err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created Account")
-
-	return http.Created(c, account)
+	return account, nil
 }
 
-// GetAllAccounts is a method that retrieves all Accounts.
-//
-//	@Summary		List all accounts
-//	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
-//	@Tags			Accounts
-//	@Produce		json
-//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
-//	@Param			organization_id	path		string																true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
-//	@Param			metadata		query		string																false	"JSON string to filter accounts by metadata fields"
-//	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			start_date		query		string																false	"Filter accounts created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string																false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Param			portfolio_id	query		string																false	"Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
-//	@Param			segment_id		query		string																false	"Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
-//	@Param			status			query		string																false	"Filter accounts by status"
-//	@Param			type			query		string																false	"Filter accounts by type (e.g., deposit, savings, external)"
-//	@Param			asset_code		query		string																false	"Filter accounts by asset code (e.g., USD, BRL, EUR)"
-//	@Param			entity_id		query		string																false	"Filter accounts by entity ID"
-//	@Param			blocked			query		boolean																false	"Filter accounts by blocked status"				Enums(true,false)
-//	@Param			parent_account_id	query	string																false	"Filter accounts by parent account ID (UUID format)"	format(uuid)
-//	@Param			name				query	string																false	"Filter accounts by name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			alias				query	string																false	"Filter accounts by alias (case-insensitive, prefix match)"	maxLength(256)
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list"
-//	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error														"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error														"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error														"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
-func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
+// getAllAccounts binds the query map imperatively (http.ValidateParameters — the
+// SAME binder the Fiber path used), validates the account-specific status enum,
+// resolves the optional portfolio_id/segment_id UUID filters, then branches on
+// metadata exactly as the pre-Huma handler did. A bad query / status yields the
+// canonical 400.
+func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
 
 	var (
 		portfolioID *uuid.UUID
 		segmentID   *uuid.UUID
 	)
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, accountAllowedStatuses) {
@@ -170,7 +105,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate account status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	recordSafeQueryAttributes(span, headerParams)
@@ -186,395 +121,335 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
 	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
 		parsedID := uuid.MustParse(headerParams.SegmentID)
 		segmentID = &parsedID
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts by metadata")
-
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
-
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts by metadata")
 
 		pagination.SetItems(accounts)
 
-		return http.OK(c, pagination)
+		return pagination, nil
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts ")
 
 	headerParams.Metadata = &bson.M{}
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Accounts, Error: %s", err.Error()))
-
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Accounts")
 
 	pagination.SetItems(accounts)
 
-	return http.OK(c, pagination)
+	return pagination, nil
 }
 
-// GetAccountByID is a method that retrieves Account information by a given account id.
-//
-//	@Summary		Retrieve a specific account
-//	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
-//	@Tags			Accounts
-//	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			account_id				path		string			true	"Account ID in UUID format"
-//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [get]
-func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// getAccountByID retrieves a single account by its UUID.
+func (handler *AccountHandler) getAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Account, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account ID: %s", id.String()))
-
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account ID: %s", id.String()))
-
-	return http.OK(c, account)
+	return account, nil
 }
 
-// GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
-//
-//	@Summary		Retrieve an account by external code
-//	@Description	Returns detailed information about an account identified by its external code within the specified ledger
-//	@Tags			Accounts
-//	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			code			path		string			true	"Account External Code (e.g. BRL)"
-//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account with the specified external code, ledger, or organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code} [get]
-func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+// getAccountByAlias retrieves a single account by its alias. The external-by-code
+// path resolves the alias (DefaultExternalAccountAliasPrefix + code) BEFORE this
+// core, so both the alias and external-code ops share one implementation. The span
+// name carries the caller so the two callers stay distinguishable in traces.
+func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName string, organizationID, ledgerID uuid.UUID, alias string) (*mmodel.Account, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
+	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	code := c.Params("code")
-
-	alias := constant.DefaultExternalAccountAliasPrefix + code
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
-
-	return http.OK(c, account)
+	return account, nil
 }
 
-// GetAccountByAlias is a method that retrieves Account information by a given account alias.
-//
-//	@Summary		Retrieve an account by alias
-//	@Description	Returns detailed information about an account identified by its alias within the specified ledger
-//	@Tags			Accounts
-//	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			alias			path		string			true	"Account alias (e.g. @person1)"
-//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias} [get]
-func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
-	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	alias := c.Params("alias")
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account with Account Alias: %s", alias))
-
-	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account with Account Alias: %s", alias))
-
-	return http.OK(c, account)
-}
-
-// UpdateAccount is a method that updates Account information.
-//
-//	@Summary		Update an account
-//	@Description	Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger
-//	@Tags			Accounts
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
-//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			account_id				path		string						true	"Account ID in UUID format"
-//	@Param			account			body		mmodel.UpdateAccountInput	true	"Account properties to update including name, status, portfolio, segment, and optional metadata"
-//	@Success		200				{object}	mmodel.Account				"Successfully updated account"
-//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error				"Account, ledger, organization, portfolio, or segment not found"
-//	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same name already exists"
-//	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [patch]
-func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
+// updateAccount owns the span + update-then-get flow for an already-decoded
+// payload (see createAccount for the decode split across transports). It updates,
+// then re-reads so the caller receives the freshly persisted account.
+func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Account with ID: %s", id.String()))
-
-	payload := i.(*mmodel.UpdateAccountInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account with ID: %s", id.String()), payload)
-
+	logSafePayload(ctx, logger, "Request to update account", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Account on command", err)
+		handleSpanByErrorClass(span, "Failed to update Account on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Account with ID: %s", id.String()))
-
-	return http.OK(c, account)
+	return account, nil
 }
 
-// DeleteAccountByID is a method that removes Account information by a given account id.
-//
-//	@Summary		Delete an account
-//	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
-//	@Tags			Accounts
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			account_id				path		string			true	"Account ID in UUID format"
-//	@Success		204				"Account successfully deleted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Account cannot be deleted due to existing dependencies"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id} [delete]
-func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// deleteAccount removes an account by its UUID.
+func (handler *AccountHandler) deleteAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, token string) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	token := c.Get("Authorization")
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Account with ID: %s", id.String()))
-
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id, token); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Account on command", err)
+		handleSpanByErrorClass(span, "Failed to remove Account on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Account with ID: %s", id.String()))
-
-	return http.NoContent(c)
+	return nil
 }
 
-// CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
-//
-//	@Summary		Count accounts
-//	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio
-//	@Tags			Accounts
-//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
-//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
-//	@Success		204				"Successfully retrieved accounts count"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count [head]
-func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// countAccounts returns the total account count for the ledger.
+func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting accounts for organization %s and ledger %s", organizationID, ledgerID))
 
 	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting accounts: %v", err))
+		return 0, err
+	}
 
+	return count, nil
+}
+
+// --- Fiber wrappers (thin) ----------------------------------------------------
+//
+// These stay so the legacy Fiber unit/integration tests keep exercising the
+// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and
+// delegates to the shared core. NOTE: the LIVE account routes are Huma now (see
+// account_handler_huma.go + RegisterAccountRoutesToApp); these Fiber wrappers are
+// not mounted by the unified server.
+
+// CreateAccount is a method that creates account information.
+func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count))
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	account, err := handler.createAccount(ctx, organizationID, ledgerID, i.(*mmodel.CreateAccountInput), c.Get("Authorization"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, account)
+}
+
+// GetAllAccounts is a method that retrieves all Accounts.
+func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	pagination, err := handler.getAllAccounts(ctx, organizationID, ledgerID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, pagination)
+}
+
+// GetAccountByID is a method that retrieves Account information by a given account id.
+func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	account, err := handler.getAccountByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, account)
+}
+
+// GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
+func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	alias := constant.DefaultExternalAccountAliasPrefix + c.Params("code")
+
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", organizationID, ledgerID, alias)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, account)
+}
+
+// GetAccountByAlias is a method that retrieves Account information by a given account alias.
+func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", organizationID, ledgerID, c.Params("alias"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, account)
+}
+
+// UpdateAccount is a method that updates Account information.
+func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	account, err := handler.updateAccount(ctx, organizationID, ledgerID, id, i.(*mmodel.UpdateAccountInput))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, account)
+}
+
+// DeleteAccountByID is a method that removes Account information by a given account id.
+func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	if err := handler.deleteAccount(ctx, organizationID, ledgerID, id, c.Get("Authorization")); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
+}
+
+// CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
+func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	count, err := handler.countAccounts(ctx, organizationID, ledgerID)
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

@@ -2,11 +2,15 @@
 
 'area: crm':
   - changed-files:
-      - any-glob-to-any-file: 'components/crm/**/*'
+      - any-glob-to-any-file: 'components/ledger/internal/crm/**/*'
 
 'area: ledger':
   - changed-files:
       - any-glob-to-any-file: 'components/ledger/**/*'
+
+'area: tracer':
+  - changed-files:
+      - any-glob-to-any-file: 'components/tracer/**/*'
 
 'area: infra':
   - changed-files:

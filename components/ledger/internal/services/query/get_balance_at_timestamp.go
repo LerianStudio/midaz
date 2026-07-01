@@ -6,15 +6,13 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
@@ -24,18 +22,16 @@ import (
 )
 
 func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balance_at_timestamp")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving balance %s at timestamp %s", balanceID, timestamp.Format(time.RFC3339)))
 
 	// Validate timestamp is not in the future (use UTC for consistent comparison)
 	if timestamp.After(time.Now().UTC()) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Timestamp is in the future", err)
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Timestamp is in the future: %s", timestamp))
+		logger.Log(ctx, libLog.LevelWarn, "Timestamp is in the future", libLog.String("timestamp", timestamp.Format(time.RFC3339)))
 
 		return nil, err
 	}
@@ -45,7 +41,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	currentBalance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get current balance", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting current balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting current balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -54,7 +50,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	accountID, err := uuid.Parse(currentBalance.AccountID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse account ID from balance", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse account ID from balance: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to parse account ID from balance", libLog.Err(err))
 
 		return nil, err
 	}
@@ -63,7 +59,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	operation, err := uc.OperationRepo.FindLastOperationBeforeTimestamp(ctx, organizationID, ledgerID, accountID, balanceID, timestamp)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get operation before timestamp", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation before timestamp: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting operation before timestamp", libLog.Err(err))
 
 		return nil, err
 	}
@@ -73,12 +69,13 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		if currentBalance.CreatedAt.After(timestamp) {
 			err := pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, timestamp.Format(time.RFC3339))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No balance data available for the specified timestamp", err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance %s was created after timestamp %s (created_at: %s)", balanceID, timestamp, currentBalance.CreatedAt))
+			logger.Log(ctx, libLog.LevelWarn, "Balance was created after the requested timestamp",
+				libLog.String("balance_id", balanceID.String()),
+				libLog.String("timestamp", timestamp.Format(time.RFC3339)),
+				libLog.String("created_at", currentBalance.CreatedAt.Format(time.RFC3339)))
 
 			return nil, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Balance %s at timestamp %s has no operations, returning initial state (zero values)", balanceID, timestamp.Format(time.RFC3339)))
 
 		return &mmodel.Balance{
 			ID:             currentBalance.ID,
@@ -112,8 +109,6 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	if operation.BalanceAfter.Version != nil {
 		version = *operation.BalanceAfter.Version
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Balance %s at timestamp %s retrieved from operation %s (version: %d)", balanceID, timestamp.Format(time.RFC3339), operation.ID, version))
 
 	return &mmodel.Balance{
 		ID:             currentBalance.ID,

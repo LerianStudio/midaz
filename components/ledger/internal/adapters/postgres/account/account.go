@@ -10,30 +10,32 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
 type AccountPostgreSQLModel struct {
-	ID                string
-	Name              string
-	ParentAccountID   *string
-	EntityID          *string
-	AssetCode         string
-	OrganizationID    string
-	LedgerID          string
-	PortfolioID       *string
-	SegmentID         *string
-	Status            string
-	StatusDescription *string
-	Alias             *string
-	Type              string
-	Blocked           bool
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         sql.NullTime
-	Metadata          map[string]any
+	ID                 string
+	Name               string
+	ParentAccountID    *string
+	EntityID           *string
+	HolderID           *string
+	AssetCode          string
+	OrganizationID     string
+	LedgerID           string
+	PortfolioID        *string
+	SegmentID          *string
+	Status             string
+	StatusDescription  *string
+	Alias              *string
+	Type               string
+	Blocked            bool
+	HolderCheckSkipped bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	DeletedAt          sql.NullTime
+	Metadata           map[string]any
 }
 
 // ToEntity converts an AccountPostgreSQLModel to a response entity Account
@@ -44,22 +46,24 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	}
 
 	acc := &mmodel.Account{
-		ID:              t.ID,
-		Name:            t.Name,
-		ParentAccountID: t.ParentAccountID,
-		EntityID:        t.EntityID,
-		AssetCode:       t.AssetCode,
-		OrganizationID:  t.OrganizationID,
-		LedgerID:        t.LedgerID,
-		PortfolioID:     t.PortfolioID,
-		SegmentID:       t.SegmentID,
-		Status:          status,
-		Alias:           t.Alias,
-		Type:            t.Type,
-		Blocked:         &t.Blocked,
-		CreatedAt:       t.CreatedAt,
-		UpdatedAt:       t.UpdatedAt,
-		DeletedAt:       nil,
+		ID:                 t.ID,
+		Name:               t.Name,
+		ParentAccountID:    t.ParentAccountID,
+		EntityID:           t.EntityID,
+		HolderID:           t.HolderID,
+		AssetCode:          t.AssetCode,
+		OrganizationID:     t.OrganizationID,
+		LedgerID:           t.LedgerID,
+		PortfolioID:        t.PortfolioID,
+		SegmentID:          t.SegmentID,
+		Status:             status,
+		Alias:              t.Alias,
+		Type:               t.Type,
+		Blocked:            &t.Blocked,
+		HolderCheckSkipped: t.HolderCheckSkipped,
+		CreatedAt:          t.CreatedAt,
+		UpdatedAt:          t.UpdatedAt,
+		DeletedAt:          nil,
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -78,20 +82,22 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	}
 
 	*t = AccountPostgreSQLModel{
-		ID:                ID,
-		Name:              account.Name,
-		ParentAccountID:   account.ParentAccountID,
-		EntityID:          account.EntityID,
-		AssetCode:         account.AssetCode,
-		OrganizationID:    account.OrganizationID,
-		LedgerID:          account.LedgerID,
-		SegmentID:         account.SegmentID,
-		Status:            account.Status.Code,
-		StatusDescription: account.Status.Description,
-		Alias:             account.Alias,
-		Type:              strings.ToLower(account.Type),
-		CreatedAt:         account.CreatedAt,
-		UpdatedAt:         account.UpdatedAt,
+		ID:                 ID,
+		Name:               account.Name,
+		ParentAccountID:    account.ParentAccountID,
+		EntityID:           account.EntityID,
+		HolderID:           account.HolderID,
+		AssetCode:          account.AssetCode,
+		OrganizationID:     account.OrganizationID,
+		LedgerID:           account.LedgerID,
+		SegmentID:          account.SegmentID,
+		Status:             account.Status.Code,
+		StatusDescription:  account.Status.Description,
+		Alias:              account.Alias,
+		Type:               strings.ToLower(account.Type),
+		HolderCheckSkipped: account.HolderCheckSkipped,
+		CreatedAt:          account.CreatedAt,
+		UpdatedAt:          account.UpdatedAt,
 	}
 
 	if account.Blocked != nil {

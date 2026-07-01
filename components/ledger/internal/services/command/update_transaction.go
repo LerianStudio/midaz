@@ -7,28 +7,32 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// UpdateTransaction update a transaction from the repository by given id.
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (_ *transaction.Transaction, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update transaction: %v", uti))
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction", start, err)
+	}()
 
 	trans := &transaction.Transaction{
 		Description: uti.Description,
@@ -36,14 +40,14 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating transaction on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error updating transaction on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on repo by id", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating transaction on repo by id: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error updating transaction on repo by id", libLog.Err(err))
 
 			return nil, err
 		}
@@ -66,11 +70,17 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
-func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction_status", start, err)
+	}()
 
 	if tran == nil {
 		err := errors.New("transaction cannot be nil")
@@ -83,18 +93,16 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	ledgerID := uuid.MustParse(tran.LedgerID)
 	transactionID := uuid.MustParse(tran.ID)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update transaction using status: : %v", tran.Status.Description))
-
 	updateTran, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, tran)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating status transaction on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error updating status transaction on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update status transaction on repo by id", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating status transaction on repo by id: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error updating status transaction on repo by id", libLog.Err(err))
 
 			return nil, err
 		}

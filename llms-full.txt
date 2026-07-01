@@ -1,12 +1,17 @@
 # Lerian Midaz — Full Reference
 
-> Enterprise-grade open-source double-entry ledger system. Go 1.25 monorepo (v3 module path) with a unified Ledger HTTP API (onboarding + transaction) and a CRM plugin. Uses PostgreSQL (primary/replica), MongoDB (metadata), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via lib-commons v4 tenant-manager. Elastic License 2.0.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.4 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.8.0 + `lib-observability` v1.1.0. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v5 tenant-manager.
 
 ---
 
 ## 1. Product Overview
 
-Midaz is the ledger component of a core banking platform. It implements a financial hierarchy:
+Midaz is a source-available core banking platform in a single Go monorepo: a double-entry
+ledger plus real-time transaction validation/fraud prevention (Tracer), CRM (holders/instruments),
+and a fee engine — all in one repository, building from one
+root `go.mod`. It is no longer "just a ledger"; the consolidation folded the surrounding banking
+capabilities into the same repo. Transactional messaging (PIX, cards, wires) and governance
+integrations remain external/marketplace. It implements a financial hierarchy:
 
 ```
 Organization → Ledger → Asset
@@ -23,18 +28,25 @@ Key capabilities:
 - **Transaction lifecycle**: Create → Commit/Cancel/Revert (pending transactions support)
 - **Async processing**: RabbitMQ-based balance updates with bulk recorder (10x throughput)
 - **Multi-asset**: Currency (ISO-4217), crypto, commodities, custom asset types
-- **Multi-tenant**: Database-per-tenant isolation via lib-commons v4 tenant-manager
+- **Multi-tenant**: Database-per-tenant isolation via the lib-commons v5 tenant-manager
 - **Accounting routes**: Configurable operation routes and transaction routes for validation
+- **Real-time validation / fraud prevention (Tracer)**: CEL rule engine, multi-scope spending limits, two-phase reservations, and a hash-chained audit log, configurable per-ledger
+- **Fees (embedded)**: fee engine + billing packages embedded in the ledger binary; fees applied on transaction create
+- **CRM (folded)**: holder/instrument management folded into the ledger binary (host ledger's `midaz` namespace, path-scoped on `/v1/organizations/{organization_id}/...`)
 
 ## 2. Architecture
 
-### 2.1 Components
+### 2.1 Deploy Units
 
-| Component | Port | Description | Data Stores |
-|-----------|------|-------------|-------------|
-| **Ledger** | 3002 | Unified HTTP API (onboarding + transaction) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata), Redis, RabbitMQ |
-| **CRM** | 4003 | Customer relationship management plugin | MongoDB |
-| **Infra** | — | Docker Compose infrastructure | PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8, Grafana/OTEL-LGTM |
+Three deploy units: two Go services + infra. **CRM and fees are not deploy units** — CRM is a
+package tree (`components/ledger/internal/crm`) imported by the ledger binary, and fees are embedded in the
+ledger binary. Both are served on the ledger port `:3002`.
+
+| Deploy unit | Port | Description | Data Stores |
+|-------------|------|-------------|-------------|
+| **Ledger** | 3002 | Unified HTTP API: onboarding + transaction + **CRM** (holders/instruments) + **fees** (engine + billing) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata + CRM + fees), Redis/Valkey, RabbitMQ |
+| **Tracer** | 4020 | Real-time transaction validation / fraud-prevention API (CEL rule engine, hash-chained audit) | PostgreSQL (own migrations) |
+| **Infra** | — | Docker Compose backing stack (single source) | PostgreSQL 17 (primary/replica), MongoDB, RabbitMQ 4.1, Valkey, Grafana/OTEL-LGTM |
 
 ### 2.2 Pattern: Hexagonal Architecture with CQRS
 
@@ -51,56 +63,65 @@ Dependencies flow inward. Inner layers must not depend on outer layers. Interfac
 ```
 midaz/
 ├── components/
-│   ├── ledger/              # Unified ledger (onboarding + transaction)
+│   ├── ledger/              # DEPLOY UNIT :3002 — onboarding + transaction + CRM + fees
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, crm_routes.go, holder/instrument handlers)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
-│   │   │   │   ├── mongodb/ # MongoDB metadata repositories
-│   │   │   │   ├── redis/   # Redis cache repositories
+│   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories
+│   │   │   │   ├── redis/   # Redis/Valkey cache repositories
 │   │   │   │   └── rabbitmq/# RabbitMQ producer/consumer
-│   │   │   ├── bootstrap/   # Config, DI, server lifecycle, workers
+│   │   │   ├── bootstrap/   # Config, DI, server lifecycle, workers, initCRM, fee wiring
 │   │   │   └── services/
 │   │   │       ├── command/ # Write operations (CQRS)
-│   │   │       └── query/   # Read operations (CQRS)
+│   │   │       ├── query/   # Read operations (CQRS)
+│   │   │       └── fees/    # Embedded fee + billing-package use cases
+│   │   ├── pkg/
+│   │   │   ├── fee/         # Embedded fee engine
+│   │   │   └── feeshared/   # Embedded fee shared types/constants (plugin-fees)
 │   │   ├── migrations/
 │   │   │   ├── onboarding/  # SQL migrations for onboarding DB
 │   │   │   └── transaction/ # SQL migrations for transaction DB
-│   │   └── api/             # Swagger docs
-│   ├── crm/                 # CRM plugin
-│   │   ├── cmd/app/         # main.go entry point
+│   │   └── api/             # OpenAPI 3.1 spec (openapi.huma.yaml, Huma-generated)
+│   ├── crm/                 # PACKAGE TREE (not a deploy unit) — imported by ledger
+│   │   ├── adapters/
+│   │   │   └── mongodb/     # holder/ + instrument/ repositories
+│   │   └── services/        # CRM business logic
+│   │   # HTTP handlers/routes live in ledger http/in/ (midaz namespace); spec folds into ledger api/
+│   ├── tracer/              # DEPLOY UNIT :4020 — real-time validation / fraud-prevention API (CEL, audit log)
+│   │   ├── cmd/app/
 │   │   ├── internal/
-│   │   │   ├── adapters/
-│   │   │   │   ├── http/    # Fiber HTTP handlers
-│   │   │   │   └── mongodb/ # MongoDB repositories
-│   │   │   ├── bootstrap/   # Config, DI
-│   │   │   └── services/    # CRM business logic
-│   │   └── api/             # Swagger docs
-│   └── infra/               # Docker Compose + config
+│   │   └── migrations/      # Tracer's own SQL migrations
+│   └── infra/               # DEPLOY UNIT — Docker Compose backing stack (single source)
 │       ├── docker-compose.yml
 │       ├── postgres/        # Init scripts
 │       ├── mongo/           # Replica set init
 │       ├── rabbitmq/        # Definitions, config
 │       └── grafana/         # OTEL collector config
-├── pkg/                     # Shared packages
-│   ├── mmodel/              # Domain models (32 files)
-│   ├── constant/            # Error codes, action constants, HTTP constants
+├── pkg/                     # Shared packages (root)
+│   ├── mmodel/              # Domain models (incl. Holder, Instrument)
+│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 28 CRM-00xx: CRM-0006..CRM-0041), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── gold/                # ANTLR4 transaction DSL grammar + parser
 │   ├── net/http/            # Middleware, pagination, protected routes
-│   ├── transaction/         # Transaction processing utilities
+│   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
+│   ├── streaming/           # lib-streaming event modeling
+│   ├── crypto/              # CRM crypto primitives: kms/vault/ (Vault Transit KEK), tink/ (DEKs), mode + resolver
 │   ├── mongo/               # MongoDB utilities
 │   ├── repository/          # Repository interfaces
 │   ├── pagination/          # Pagination helpers
 │   └── utils/               # General utilities
-├── tests/                   # Integration + chaos tests
+├── tests/                   # Shared test trees (root)
+│   ├── chaos/, helpers/, utils/
 ├── scripts/                 # Build/CI scripts
-├── mk/                      # Makefile includes (coverage, tests)
-├── docs/PROJECT_RULES.md    # Coding standards (1130 lines)
+├── mk/                      # Makefile includes (coverage, tests, quality)
+├── docs/PROJECT_RULES.md    # Coding standards
+├── docs/auth/RBAC-NAMESPACES.md  # The three authz namespaces (R9)
+├── docs/api/SCOPING.md      # Path-based org scoping on every surface, no exceptions (R22 reversed)
 ├── Makefile                 # Root orchestrator
-├── go.mod                   # Module: github.com/LerianStudio/midaz/v3
+├── go.mod                   # Module: github.com/LerianStudio/midaz/v4 (single root go.mod)
 └── go.sum
 ```
 
@@ -114,10 +135,11 @@ All models live in `pkg/mmodel/`. Key entities:
 
 ### 3.2 Ledger
 - Fields: ID, Name, OrganizationID, Status, Settings, Metadata, CreatedAt, UpdatedAt, DeletedAt
-- Settings support per-ledger configuration (accounting validation, route validation, account type validation)
+- Settings has two branches: `accounting` validation (validateAccountType, validateRoutes, requireHolder — the last gates CRM holder linkage) and `tracer` (per-ledger tracer/fraud-prevention toggles)
 
 ### 3.3 Account
-- Fields: ID, Name, ParentAccountID, EntityID, AssetCode, OrganizationID, LedgerID, PortfolioID, SegmentID, Status, Alias, Type, Blocked, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Fields: ID, Name, ParentAccountID, EntityID, HolderID, AssetCode, OrganizationID, LedgerID, PortfolioID, SegmentID, Status, Alias, Type, Blocked, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- HolderID is the CRM ownership link — the formal owner of the account (distinct from EntityID, which is not the ownership link); this field ties CRM holders to ledger accounts
 - Alias format: `@<identifier>` (unique per ledger)
 - Type: user-defined (e.g., "deposit", "expense", "revenue"); "external" is system-reserved
 - Sub-accounts via ParentAccountID
@@ -128,12 +150,13 @@ All models live in `pkg/mmodel/`. Key entities:
 - Code: uppercase alphanumeric; currency codes follow ISO-4217
 
 ### 3.5 Transaction
-- Fields: ID, ParentTransactionID, Description, Template, Status, Amount, AmountScale, AssetCode, ChartOfAccountsGroupName, Source, Destination, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Persisted fields: ID, ParentTransactionID, Description, Status, Amount (single decimal), AssetCode, ChartOfAccountsGroupName, Source ([]string aliases), Destination ([]string aliases), LedgerID, OrganizationID, Route (deprecated), RouteID, Metadata, CreatedAt, UpdatedAt, DeletedAt
 - Status lifecycle: ACTIVE → (revert) | PENDING → COMMIT/CANCEL
-- Source/Destination contain arrays of operations with amount/share/remaining distribution
+- Source/Destination are arrays of account aliases; per-operation amount/share/remaining distribution is expressed in the transaction INPUT (Send) shape, not the persisted record
 
 ### 3.6 Balance
-- Fields: ID, OrganizationID, LedgerID, AccountID, Alias, AssetCode, Available, OnHold, Scale, Status, AllowSending, AllowReceiving, Version, CreatedAt, UpdatedAt, DeletedAt
+- Fields: ID, OrganizationID, LedgerID, AccountID, Alias, Key, AssetCode, Available, OnHold, AccountType, Direction, OverdraftUsed, AllowSending, AllowReceiving, Version, Settings (*BalanceSettings), Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Key (max 100) identifies the balance within an account; Direction is the accounting direction; OverdraftUsed tracks consumed overdraft; Settings carries per-balance config (overdraft, etc.)
 - Optimistic concurrency via Version field (lock version)
 - Supports additional balances per account (e.g., multi-currency)
 - Balance history queries via timestamp
@@ -148,11 +171,23 @@ All models live in `pkg/mmodel/`. Key entities:
 - KeyValue identifier (alphanumeric + underscore + hyphen)
 
 ### 3.9 Holder (CRM)
-- Customer/entity management with encrypted PII
-- Alias management with account associations
-- Related parties support
+- Fields: ID, ExternalID, Type (NATURAL_PERSON | LEGAL_PERSON), Name, Document, Addresses, Contact, NaturalPerson, LegalPerson, Status, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Customer/entity ownership record; holders are linked to ledger accounts via Account.HolderID
+- PII fields (Name, Document, contact details) are persisted via field-level encryption with searchable hashing (lib-commons crypto) — see CRM adapters
+
+### 3.10 Instrument (CRM)
+- Fields: ID, Document, Type, LedgerID, AccountID, HolderID, BankingDetails, RegulatoryFields, RelatedParties, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- An instrument associates a holder with a ledger account (HolderID + AccountID); carries banking details, regulatory fields, and related parties
 
 ## 4. API Reference
+
+The HTTP layer is **Huma v2 (OAS 3.1) over Fiber v2**: Fiber remains the runtime router, auth
+chain, and middleware stack, while Huma sits on top to generate the OpenAPI contract and validate
+typed request/response structs. API errors serialize as **RFC 9457 `application/problem+json`** — a
+`type`/`title`/`status`/`detail`/`instance` document extended with `code` and `entityType`; the
+`(code, status)` tuple per business error is preserved (HTTP status codes are unchanged). The native
+OpenAPI 3.1 spec and Scalar docs UI are served at `/v1/openapi.{json,yaml}` and `/v1/docs`, gated by
+`LEDGER_HUMA_DOCS_ENABLED=true` (ledger) / `SWAGGER_ENABLED=true` (tracer); they are off by default.
 
 ### 4.1 Ledger API (port 3002)
 
@@ -173,6 +208,7 @@ Base path: `/v1`
 | GET | /organizations/:org_id/ledgers/:id | Get ledger |
 | PATCH | /organizations/:org_id/ledgers/:id | Update ledger |
 | DELETE | /organizations/:org_id/ledgers/:id | Delete ledger |
+| HEAD | /organizations/:org_id/ledgers/metrics/count | Count ledgers |
 | GET | /organizations/:org_id/ledgers/:id/settings | Get ledger settings |
 | PATCH | /organizations/:org_id/ledgers/:id/settings | Update ledger settings |
 | POST | /organizations/:org_id/ledgers/:lid/assets | Create asset |
@@ -180,16 +216,19 @@ Base path: `/v1`
 | GET | /organizations/:org_id/ledgers/:lid/assets/:id | Get asset |
 | PATCH | /organizations/:org_id/ledgers/:lid/assets/:id | Update asset |
 | DELETE | /organizations/:org_id/ledgers/:lid/assets/:id | Delete asset |
+| HEAD | /organizations/:org_id/ledgers/:lid/assets/metrics/count | Count assets |
 | POST | /organizations/:org_id/ledgers/:lid/portfolios | Create portfolio |
 | GET | /organizations/:org_id/ledgers/:lid/portfolios | List portfolios |
 | GET | /organizations/:org_id/ledgers/:lid/portfolios/:id | Get portfolio |
 | PATCH | /organizations/:org_id/ledgers/:lid/portfolios/:id | Update portfolio |
 | DELETE | /organizations/:org_id/ledgers/:lid/portfolios/:id | Delete portfolio |
+| HEAD | /organizations/:org_id/ledgers/:lid/portfolios/metrics/count | Count portfolios |
 | POST | /organizations/:org_id/ledgers/:lid/segments | Create segment |
 | GET | /organizations/:org_id/ledgers/:lid/segments | List segments |
 | GET | /organizations/:org_id/ledgers/:lid/segments/:id | Get segment |
 | PATCH | /organizations/:org_id/ledgers/:lid/segments/:id | Update segment |
 | DELETE | /organizations/:org_id/ledgers/:lid/segments/:id | Delete segment |
+| HEAD | /organizations/:org_id/ledgers/:lid/segments/metrics/count | Count segments |
 | POST | /organizations/:org_id/ledgers/:lid/accounts | Create account |
 | GET | /organizations/:org_id/ledgers/:lid/accounts | List accounts |
 | GET | /organizations/:org_id/ledgers/:lid/accounts/:id | Get account |
@@ -197,6 +236,7 @@ Base path: `/v1`
 | GET | /organizations/:org_id/ledgers/:lid/accounts/external/:code | Get external account |
 | PATCH | /organizations/:org_id/ledgers/:lid/accounts/:id | Update account |
 | DELETE | /organizations/:org_id/ledgers/:lid/accounts/:id | Delete account |
+| HEAD | /organizations/:org_id/ledgers/:lid/accounts/metrics/count | Count accounts |
 | POST | /organizations/:org_id/ledgers/:lid/account-types | Create account type |
 | GET | /organizations/:org_id/ledgers/:lid/account-types | List account types |
 | GET | /organizations/:org_id/ledgers/:lid/account-types/:id | Get account type |
@@ -252,25 +292,177 @@ Base path: `/v1`
 |--------|------|-------------|
 | POST | /v1/settings/metadata-indexes/entities/:entity_name | Create metadata index |
 | GET | /v1/settings/metadata-indexes | List metadata indexes |
-| DELETE | /v1/settings/metadata-indexes/entities/:entity_name/key/:key | Delete metadata index |
+| DELETE | /v1/settings/metadata-indexes/entities/:entity_name/key/:index_key | Delete metadata index |
 
 #### System
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /health | Health check |
+| GET | /readyz | Readiness probe |
 | GET | /version | Version info |
-| GET | /swagger/* | Swagger UI |
+| GET | /v1/openapi.json | OpenAPI 3.1 spec (JSON) — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
+| GET | /v1/openapi.yaml | OpenAPI 3.1 spec (YAML) — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
+| GET | /v1/docs | Scalar API docs UI — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
 
-### 4.2 CRM API (port 4003)
+### 4.2 CRM API (served by the ledger binary on port 3002)
 
-Manages holders, aliases, related parties. Uses MongoDB for persistence. Supports encrypted PII fields.
+CRM (holders, instruments, related parties) is folded into the ledger binary — it is **not** a
+standalone service. The holder/instrument handlers and routes live in the ledger HTTP tree
+(`components/ledger/internal/adapters/http/in/`) so the unified Huma OpenAPI spec discovers them; they are
+served on `:3002` under the host ledger's `midaz` authz namespace (the resources `holders` and
+`instruments`); the standalone CRM plugin namespace was collapsed into `midaz` at v4 (see
+`docs/auth/RBAC-NAMESPACES.md`, X1). Uses MongoDB for persistence; holder/instrument PII is encrypted
+at rest, alongside deterministic HMAC search tokens that enable equality lookups over ciphertext. The
+encryption backend is selected by `KMS_VENDOR`: unset/`none` uses legacy lib-commons symmetric crypto;
+`hashicorp-vault` switches to **envelope mode** — a Vault Transit KEK wrapping per-organization Tink
+DEKs — which also mounts the provision/status/audit routes below. See section 6.2 and
+`docs/architecture/crm-field-encryption.md`.
+
+Scoping is **path-based**: CRM endpoints read the organization from the `:organization_id` path
+segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`). The former
+`X-Organization-Id` header and the `X-Ledger-Id` header were removed; `ledger_id` survives only as
+an instrument create-body field and an optional `GET .../instruments` list filter. See
+`docs/api/SCOPING.md` (R22 reversed).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/organizations/{organization_id}/holders | Create holder |
+| GET | /v1/organizations/{organization_id}/holders | List holders |
+| GET | /v1/organizations/{organization_id}/holders/:id | Get holder |
+| PATCH | /v1/organizations/{organization_id}/holders/:id | Update holder |
+| DELETE | /v1/organizations/{organization_id}/holders/:id | Delete holder |
+| GET | /v1/organizations/{organization_id}/holders/:id/accounts | List a holder's ledger accounts (mounted only when the holder-accounts handler is wired) |
+| POST | /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/:id/accounts | Create a holder ↔ account association (composition; authz `midaz`/`accounts`; always mounted) |
+| GET | /v1/organizations/{organization_id}/instruments | List instruments |
+| POST | /v1/organizations/{organization_id}/holders/:holder_id/instruments | Create instrument |
+| GET | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Get instrument |
+| PATCH | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Update instrument |
+| DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Delete instrument |
+| DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id | Delete related party |
+| POST | /v1/organizations/{organization_id}/encryption/provision | Provision per-org envelope keyset (envelope mode only; authz `midaz`/`encryption`) |
+| GET | /v1/organizations/{organization_id}/encryption/status | Org encryption/protection status (envelope mode only; authz `midaz`/`encryption`) |
+| GET | /v1/organizations/{organization_id}/protection/audit | List provisioning audit events, cursor-paged (envelope mode only; authz `midaz`/`protection`) |
+
+The three encryption/protection routes are registered **only in envelope mode** (`KMS_VENDOR=hashicorp-vault`);
+in legacy mode their handlers are nil and the routes are never mounted.
+
+The holder-account composition (`POST`) carries an extra `:ledger_id` segment because it creates a
+real ledger account; the holder-accounts `GET` (`HolderAccountsHandler.GetAccountsByHolder`, mounted
+only when the ledger account-query backing is non-nil) lists a holder's accounts org-wide and needs
+no ledger. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
+always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
+
+CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
+legacy `CRM-00xx` transform shim was removed. The 28 CRM domain sentinels (section 5.1)
+are still emitted on their own paths.
+
+### 4.3 Fees API (served by the ledger binary on port 3002)
+
+The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
+standalone service. Routes are registered in `components/ledger/internal/adapters/http/in/fees_routes.go`
+under the `plugin-fees` authz namespace and served on `:3002`.
+
+Scoping is **path-based**: fee endpoints read the organization from the `:organization_id` path
+segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
+convention as every other surface in the binary. The former `X-Organization-Id` header was
+removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
+(fee business errors use the canonical numeric error-code registry in `pkg/constant/errors.go` —
+the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body field and an optional
+`?ledgerId=` list filter — never a path scope. See `docs/api/SCOPING.md`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/organizations/{organization_id}/packages | Create fee package |
+| GET | /v1/organizations/{organization_id}/packages | List fee packages |
+| GET | /v1/organizations/{organization_id}/packages/:id | Get fee package |
+| PATCH | /v1/organizations/{organization_id}/packages/:id | Update fee package |
+| DELETE | /v1/organizations/{organization_id}/packages/:id | Delete fee package |
+| POST | /v1/organizations/{organization_id}/estimates | Estimate fee calculation (dry run) |
+| POST | /v1/organizations/{organization_id}/billing-packages | Create billing package |
+| GET | /v1/organizations/{organization_id}/billing-packages | List billing packages |
+| GET | /v1/organizations/{organization_id}/billing-packages/:id | Get billing package |
+| PATCH | /v1/organizations/{organization_id}/billing-packages/:id | Update billing package |
+| DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
+| POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
+
+`POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via
+the transaction-create seam, not over HTTP.
+
+### 4.4 Tracer API (port 4020)
+
+Real-time transaction validation / fraud-prevention API. Hexagonal + CQRS, CEL rule engine,
+hash-chained audit log. Ships its own SQL migrations under `components/tracer/migrations`. This is
+an INDEPENDENT spec/port/deploy unit — it is not folded into `:3002`. Base path: `/v1`.
+
+The ledger reaches Tracer over a separate reservation seam (not the `:4020` REST API). The seam is
+opt-in on both ends: the ledger turns it on by setting `TRACER_BASE_URL` (empty injects a nil
+reserver, leaving the transaction-create path unchanged), and the tracer starts the seam only when
+`TRACER_GRPC_PORT` is set (distinct from the `:4020` REST/health port). Transport is toggled by
+`TRACER_TRANSPORT` — gRPC by default, with REST retained as a selectable fallback. Identity is mutual
+TLS, selected by `TRACER_TLS_MODE`: `mtls` makes the seam mutually authenticated with no shared
+secret (the ledger presents a client cert, the tracer verifies it against its client CA, and the
+ledger verifies the tracer's server cert), while `mesh`/empty runs plaintext and delegates mTLS to a
+service-mesh sidecar. Over the verified connection the ledger forwards a trusted `x-tenant-id` that
+the tracer's gRPC interceptor uses to resolve the per-tenant pool in multi-tenant mode. See
+[docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/rules | Create rule |
+| GET | /v1/rules | List rules |
+| GET | /v1/rules/:id | Get rule |
+| PATCH | /v1/rules/:id | Update rule |
+| DELETE | /v1/rules/:id | Delete rule |
+| POST | /v1/rules/:id/draft | Move rule to draft |
+| POST | /v1/rules/:id/activate | Activate rule |
+| POST | /v1/rules/:id/deactivate | Deactivate rule |
+| POST | /v1/limits | Create limit |
+| GET | /v1/limits | List limits |
+| GET | /v1/limits/:id | Get limit |
+| PATCH | /v1/limits/:id | Update limit |
+| DELETE | /v1/limits/:id | Delete limit |
+| POST | /v1/limits/:id/draft | Move limit to draft |
+| POST | /v1/limits/:id/activate | Activate limit |
+| POST | /v1/limits/:id/deactivate | Deactivate limit |
+| GET | /v1/limits/:id/usage | Get limit usage |
+| POST | /v1/validations | Run validation |
+| GET | /v1/validations | List validations |
+| GET | /v1/validations/:id | Get validation |
+| POST | /v1/reservations | Create reservation (two-phase: reserve) |
+| POST | /v1/reservations/:id/confirm | Confirm a reservation by ID |
+| POST | /v1/reservations/:id/release | Release a reservation by ID |
+| POST | /v1/reservations/transaction/:transaction_id/confirm | Confirm reservations for a transaction |
+| POST | /v1/reservations/transaction/:transaction_id/release | Release reservations for a transaction |
+| GET | /v1/audit-events | List audit events |
+| GET | /v1/audit-events/:id | Get audit event |
+| GET | /v1/audit-events/:id/verify | Verify the audit-event hash chain |
+
+The `/v1/reservations` two-phase surface backs the transaction reserve → confirm/release flow:
+a reservation holds projected limit usage, then is confirmed (commit) or released (rollback),
+either by reservation ID or by the originating transaction ID. The reservation routes are mounted
+only when the reservation service is wired (non-nil); they are live in the default/production wiring.
+
+#### System
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /health | Health check |
+| GET | /readyz | Readiness probe |
+| GET | /metrics | Prometheus metrics |
+| GET | /version | Version info |
+| GET | /v1/openapi.{json,yaml} | OpenAPI 3.1 spec — served when `SWAGGER_ENABLED=true` |
+| GET | /v1/docs | Scalar API docs UI — served when `SWAGGER_ENABLED=true` |
 
 ## 5. Error System
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-175 numeric codes (0001–0175) for ledger errors. 29 CRM errors prefixed with `CRM-`.
+Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
+with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
+`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are
+emitted as RFC 9457 `application/problem+json` (§4), preserving each sentinel's `(code, status)`
+tuple.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -304,36 +496,42 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 
-#### CRM Error Codes (all 29)
-- `CRM-0001` ErrInvalidMetadataNestingCRM — nested metadata not allowed
-- `CRM-0002` ErrMetadataKeyLengthExceededCRM — key too long
-- `CRM-0003` ErrMissingFieldsInRequestCRM — required fields missing
-- `CRM-0004` ErrInvalidFieldTypeInRequest — wrong field type
-- `CRM-0005` ErrInvalidPathParameterCRM — invalid path parameter
+#### Settings / Reservation Error Codes (0176–0178)
+- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation
+- `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
+- `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
+
+#### CRM Error Codes (all 28)
 - `CRM-0006` ErrHolderNotFound — holder not found
-- `CRM-0007` ErrUnexpectedFieldsInTheRequestCRM — unexpected fields
-- `CRM-0008` ErrAliasNotFound — alias not found
-- `CRM-0009` ErrPaginationLimitExceededCRM — pagination limit exceeded
+- `CRM-0008` ErrInstrumentNotFound — instrument not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
-- `CRM-0011` ErrInvalidSortOrderCRM — invalid sort order
-- `CRM-0012` ErrMetadataValueLengthExceededCRM — value too long
 - `CRM-0013` ErrAccountAlreadyAssociated — account already associated
-- `CRM-0014` ErrInternalServerCRM — internal server error
-- `CRM-0015` ErrBadRequestCRM — bad request
-- `CRM-0016` ErrInvalidQueryParameterCRM — invalid query parameter
-- `CRM-0017` ErrHolderHasAliases — holder has aliases (cannot delete)
-- `CRM-0018` ErrMissingHeadersInRequest — required headers missing
+- `CRM-0017` ErrHolderHasInstruments — holder has instruments (cannot delete)
 - `CRM-0019` ErrMetadataQueryInvalidFormat — metadata query format error
 - `CRM-0020` ErrMetadataQueryInvalidKey — metadata query invalid key
 - `CRM-0021` ErrMetadataQueryContainsOperator — metadata query contains operator
 - `CRM-0022` ErrInvalidHeaderValue — invalid header value
-- `CRM-0023` ErrAliasClosingDateBeforeCreation — closing date before creation
+- `CRM-0023` ErrInstrumentClosingDateBeforeCreation — closing date before creation
 - `CRM-0024` ErrRelatedPartyNotFound — related party not found
 - `CRM-0025` ErrInvalidRelatedPartyRole — invalid related party role
 - `CRM-0026` ErrRelatedPartyDocumentRequired — document required
 - `CRM-0027` ErrRelatedPartyNameRequired — name required
 - `CRM-0028` ErrRelatedPartyStartDateRequired — start date required
 - `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
+- `CRM-0030` ErrHolderHasAccounts — holder has accounts (cannot delete)
+
+Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/crm-field-encryption.md`):
+- `CRM-0031` ErrKeysetNotFound — org encryption keyset not found
+- `CRM-0032` ErrKeysetAlreadyExists — org encryption keyset already exists
+- `CRM-0033` ErrKeysetRevisionConflict — keyset optimistic-concurrency conflict
+- `CRM-0034` ErrRegistryNotFound — protection registry record not found
+- `CRM-0035` ErrRegistryAlreadyExists — protection registry record already exists
+- `CRM-0036` ErrRegistryRevisionConflict — registry optimistic-concurrency conflict
+- `CRM-0037` ErrOrganizationEncryptionFailed — org field encrypt/decrypt failed
+- `CRM-0038` ErrProvisioningFailed — key provisioning failed
+- `CRM-0039` ErrAuditEventRequired — protection audit event required
+- `CRM-0040` ErrAuditWriteFailed — protection audit write failed
+- `CRM-0041` ErrReservedTenantID — reserved tenant id (`default`) may not be provisioned externally
 
 ### 5.2 Error Types (pkg/errors.go)
 
@@ -365,8 +563,9 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 
 ## 6. Environment Variables
 
-Source of truth: `components/ledger/internal/bootstrap/config.go` (Ledger Config struct) and
-`components/crm/internal/bootstrap/config.go` (CRM Config struct). Defaults in parentheses
+Source of truth: `components/ledger/internal/bootstrap/config.go` (the unified Ledger Config
+struct — also holds the CRM and fees Mongo config since both are folded into the ledger binary),
+plus `components/tracer/.env.example` for the tracer deploy unit. Defaults in parentheses
 are set programmatically by `applyConfigDefaults()`.
 
 ### 6.1 Ledger Component
@@ -376,9 +575,11 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | APPLICATION_NAME | — | Application identity (tenant-manager service name) |
 | ENV_NAME | development | Environment: development, staging, uat, production, local |
-| VERSION | v3.6.0 | Application version |
+| VERSION | v4.0.0 | Application version |
 | SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
+| DEPLOYMENT_MODE | local | Deployment mode (local toggles relaxed TLS posture; also gates the CRM KMS dev root token to `local` only) |
+| ALLOW_INSECURE_TLS | true | Allow insecure TLS (local development; disable in production) |
 
 #### Auth / Casdoor
 | Variable | Default | Description |
@@ -442,6 +643,7 @@ are set programmatically by `applyConfigDefaults()`.
 | MONGO_ONBOARDING_PORT | 5703 | Port |
 | MONGO_ONBOARDING_PARAMETERS | — | Extra connection params (appended to URI) |
 | MONGO_ONBOARDING_MAX_POOL_SIZE | 1000 | Max pool size |
+| MONGO_ONBOARDING_TLS_CA_CERT | — | TLS CA cert path |
 
 #### MongoDB — Transaction
 | Variable | Default | Description |
@@ -454,6 +656,7 @@ are set programmatically by `applyConfigDefaults()`.
 | MONGO_TRANSACTION_PORT | 5703 | Port |
 | MONGO_TRANSACTION_PARAMETERS | — | Extra connection params |
 | MONGO_TRANSACTION_MAX_POOL_SIZE | 1000 | Max pool size |
+| MONGO_TRANSACTION_TLS_CA_CERT | — | TLS CA cert path |
 
 #### Redis / Valkey
 | Variable | Default | Description |
@@ -501,6 +704,8 @@ are set programmatically by `applyConfigDefaults()`.
 | RABBITMQ_OPERATION_TIMEOUT | — | Operation timeout (e.g., "30s") |
 | RABBITMQ_TRANSACTION_EVENTS_ENABLED | false | Enable transaction event exchange |
 | RABBITMQ_TRANSACTION_EVENTS_EXCHANGE | — | Events exchange name |
+| RABBITMQ_OVERDRAFT_EVENTS_ENABLED | false | Enable overdraft event publishing |
+| RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE | transaction.overdraft_events.exchange | Overdraft events exchange name |
 | AUDIT_LOG_ENABLED | false | Enable audit log publishing |
 | RABBITMQ_AUDIT_EXCHANGE | — | Audit exchange name |
 | RABBITMQ_AUDIT_KEY | — | Audit routing key |
@@ -532,7 +737,7 @@ are set programmatically by `applyConfigDefaults()`.
 | OTEL_LIBRARY_NAME | — | Instrumentation library name |
 | OTEL_RESOURCE_SERVICE_VERSION | — | Service version in traces |
 | OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment in traces |
-| OTEL_EXPORTER_OTLP_ENDPOINT | midaz-otel-lgtm:4317 | OTLP gRPC collector endpoint |
+| OTEL_EXPORTER_OTLP_ENDPOINT | http://midaz-otel-lgtm:4317 | OTLP collector endpoint (includes scheme) |
 | ENABLE_TELEMETRY | false | Enable telemetry export |
 
 #### Multi-Tenant
@@ -556,56 +761,127 @@ are set programmatically by `applyConfigDefaults()`.
 | MAX_PAGINATION_LIMIT | 100 | Max items per page |
 | MAX_PAGINATION_MONTH_DATE_RANGE | 3 | Max date range (months) |
 
-#### Balance Sync / Settings
+#### Balance Sync
 | Variable | Default | Description |
 |----------|---------|-------------|
-| BALANCE_SYNC_MAX_WORKERS | (5) | Balance sync worker count |
-| SETTINGS_CACHE_TTL | (5m) | Settings cache duration (Go duration) |
+| BALANCE_SYNC_BATCH_SIZE | 50 | Keys accumulated before flush (SIZE trigger) |
+| BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
+| BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-### 6.2 CRM Component
-
-Source: `components/crm/internal/bootstrap/config.go`
+#### Streaming (lib-streaming v1.6.2 / Kafka)
+The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
+loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
+mode on Kafka.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| ENV_NAME | development | Environment name |
-| SERVER_ADDRESS | :4003 | HTTP listen address |
-| LOG_LEVEL | debug | Log level |
-| MONGO_URI | mongodb | Connection URI scheme |
-| MONGO_HOST | midaz-mongodb | MongoDB host |
-| MONGO_NAME | crm | Database name |
-| MONGO_USER | midaz | Username |
-| MONGO_PASSWORD | lerian | Password |
-| MONGO_PORT | 5703 | Port |
-| MONGO_PARAMETERS | — | Extra connection parameters |
-| MONGO_MAX_POOL_SIZE | 1000 | Max pool size |
-| LCRYPTO_HASH_SECRET_KEY | — | PII hash key (data security) |
-| LCRYPTO_ENCRYPT_SECRET_KEY | — | PII encryption key (data security) |
-| PLUGIN_AUTH_ADDRESS | — | Auth service address |
-| PLUGIN_AUTH_ENABLED | false | Enable auth middleware |
-| APPLICATION_NAME | ledger | Application identity |
-| OTEL_RESOURCE_SERVICE_NAME | crm | Service name |
-| OTEL_LIBRARY_NAME | — | Instrumentation library name |
-| OTEL_RESOURCE_SERVICE_VERSION | — | Service version |
-| OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment |
-| OTEL_EXPORTER_OTLP_ENDPOINT | — | OTLP endpoint |
-| ENABLE_TELEMETRY | false | Enable telemetry |
-| MULTI_TENANT_ENABLED | false | Enable multi-tenant mode |
-| MULTI_TENANT_URL | — | Tenant Manager API URL |
-| MULTI_TENANT_TIMEOUT | — | HTTP client timeout (seconds) |
-| MULTI_TENANT_IDLE_TIMEOUT_SEC | — | Idle connection eviction (seconds) |
-| MULTI_TENANT_MAX_TENANT_POOLS | — | Max concurrent tenant pools |
-| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | — | CB failures before open |
-| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | — | CB timeout (seconds) |
-| MULTI_TENANT_SERVICE_API_KEY | — | Service API key |
-| MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC | — | Revalidation interval (seconds) |
-| MULTI_TENANT_CACHE_TTL_SEC | (120) | Tenant config cache TTL (seconds) |
-| MULTI_TENANT_REDIS_HOST | — | Redis for Pub/Sub |
-| MULTI_TENANT_REDIS_PORT | 6379 | Redis port |
-| MULTI_TENANT_REDIS_PASSWORD | — | Redis password |
-| MULTI_TENANT_REDIS_TLS | false | TLS for Redis |
+| STREAMING_ENABLED | false | Enable streaming producer |
+| STREAMING_BROKERS | — | Kafka-compatible broker list |
+| STREAMING_CLIENT_ID | — | Producer client ID |
+| STREAMING_CLOUDEVENTS_SOURCE | — | CloudEvents source (set explicitly per component) |
+| STREAMING_COMPRESSION | — | Producer compression codec |
+| STREAMING_REQUIRED_ACKS | — | Producer required acks |
+| STREAMING_BATCH_LINGER_MS | — | Producer batch linger (ms) |
+| STREAMING_SASL_MECHANISM | — | SASL mechanism |
+| STREAMING_SASL_USERNAME | — | SASL username |
+| STREAMING_SASL_PASSWORD | — | SASL password |
+| STREAMING_ALLOW_PLAINTEXT_SASL | — | Allow SASL over plaintext |
+| STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on direct IMPORTANT-event emit latency |
 
-### 6.3 Infrastructure
+#### Tracer Client (ledger → tracer)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| TRACER_BASE_URL | — | Tracer service base URL (enables reservation calls) |
+| TRACER_TIMEOUT_MS | — | Per-reservation-call timeout (ms) |
+| TRACER_TRANSPORT | grpc | Seam transport: `grpc` (default) or `rest` fallback |
+| TRACER_TLS_MODE | — | Seam identity: `mtls` (mutual TLS) or `mesh`/empty (plaintext, sidecar mTLS) |
+| TRACER_TLS_CERT_FILE | — | Ledger client cert presented under `mtls` |
+| TRACER_TLS_KEY_FILE | — | Ledger client key under `mtls` |
+| TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
+
+Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
+
+#### Fee Engine
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DEFAULT_CURRENCY | USD | Default currency for fee calculation |
+
+### 6.2 CRM + Fees (folded into the ledger binary)
+
+Since CRM and fees are served by the ledger binary, their config lives in the unified ledger
+Config struct (`components/ledger/internal/bootstrap/config.go`) and `components/ledger/.env.example`.
+They use **namespaced** Mongo env vars so they do not collide with the ledger's onboarding /
+transaction Mongo. They MAY point at the same Mongo deployment (separate logical DBs).
+
+CRM Mongo (`MONGO_CRM_*`, read by `initCRM` via the `CrmPrefixed*` config fields):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MONGO_CRM_URI | mongodb | Connection URI scheme |
+| MONGO_CRM_HOST | midaz-mongodb | MongoDB host |
+| MONGO_CRM_NAME | crm | Database name |
+| MONGO_CRM_USER | midaz | Username |
+| MONGO_CRM_PASSWORD | lerian | Password |
+| MONGO_CRM_PORT | 5703 | Port |
+| MONGO_CRM_PARAMETERS | — | Extra connection parameters |
+| MONGO_CRM_MAX_POOL_SIZE | 1000 | Max pool size |
+| MONGO_CRM_TLS_CA_CERT | — | TLS CA cert path |
+| LCRYPTO_HASH_SECRET_KEY | — | Legacy CRM PII HMAC secret — live in legacy mode; imported for legacy reads in envelope mode |
+| LCRYPTO_ENCRYPT_SECRET_KEY | — | Legacy CRM PII AES key — live in legacy mode; imported for legacy reads in envelope mode |
+
+##### CRM Field Encryption (KMS / envelope)
+
+`KMS_VENDOR` selects the encryption backend for holder/instrument PII: unset/`none` → **legacy**
+(the `LCRYPTO_*` symmetric keys above, no Vault); `hashicorp-vault` → **envelope** (a shared,
+mode-derived Vault Transit engine — `transit-mt`/`transit-st` — whose KEK wraps per-organization
+Tink DEKs; tenant isolation lives in the key **name** `{tenant}_org-{id}`, not per-tenant mounts).
+The `FieldEncryptor` seam (`components/ledger/internal/crm/services/encryption`) is non-nil in both
+modes; the keyset/registry/audit repos, Vault client, and provision/status/audit routes wire up only
+in envelope mode. Key rotation is scaffolded, not yet active. Full design:
+`docs/architecture/crm-field-encryption.md`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| KMS_VENDOR | none | Mode selector: unset/`none` → legacy; `hashicorp-vault` → envelope; anything else fails boot |
+| KMS_VAULT_ADDR | — | Vault server address (envelope only) |
+| KMS_VAULT_AUTH_METHOD | — | `approle` \| `token`; sole driver of Vault auth; fails closed if unset/invalid in envelope mode |
+| KMS_VAULT_ROLE_ID | — | AppRole role ID (when `KMS_VAULT_AUTH_METHOD=approle`) |
+| KMS_VAULT_SECRET_ID | — | AppRole secret ID (when `KMS_VAULT_AUTH_METHOD=approle`) |
+
+`token` auth uses the hardcoded dev root token and is permitted only when `DEPLOYMENT_MODE=local`;
+`MULTI_TENANT_ENABLED` selects `transit-mt` vs `transit-st` and the MT key-naming / reserved-tenant
+rules. New dependencies for envelope mode: `hashicorp/vault/api`, `tink-crypto/tink-go/v2`.
+
+Fees Mongo (`MONGO_FEES_*`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MONGO_FEES_URI | mongodb | Connection URI scheme |
+| MONGO_FEES_HOST | midaz-mongodb | MongoDB host |
+| MONGO_FEES_NAME | fees | Database name |
+| MONGO_FEES_USER | midaz | Username |
+| MONGO_FEES_PASSWORD | lerian | Password |
+| MONGO_FEES_PORT | 5703 | Port |
+| MONGO_FEES_PARAMETERS | — | Extra connection parameters |
+| MONGO_FEES_MAX_POOL_SIZE | 100 | Max pool size |
+| MONGO_FEES_TLS_CA_CERT | — | TLS CA cert path |
+
+Auth and multi-tenant env vars (`PLUGIN_AUTH_*`, `MULTI_TENANT_*`) are shared across the whole
+ledger binary (one set governs onboarding, transaction, CRM, and fees) — see section 6.1.
+
+### 6.3 Tracer (port 4020)
+
+Source: `components/tracer/.env.example`. Key vars: `SERVER_PORT` (4020), `SERVER_ADDRESS`,
+`DEPLOYMENT_MODE`, `ALLOW_INSECURE_TLS`, `API_KEY` / `API_KEY_ENABLED`, `CORS_ALLOWED_ORIGINS`,
+`DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_PORT` / `DB_SSL_MODE` (its own PostgreSQL),
+plus the standard OTEL exporter vars. The ledger→tracer reservation seam (separate from the `:4020`
+REST API) is governed server-side by `TRACER_GRPC_PORT` (starts the gRPC seam; distinct from
+`SERVER_PORT`) and the `TRACER_TLS_*` certs — `TRACER_TLS_CERT_FILE` / `TRACER_TLS_KEY_FILE` for the
+server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client cert under
+`TRACER_TLS_MODE=mtls`; see
+[docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
+
+### 6.4 Infrastructure
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -618,7 +894,7 @@ Source: `components/crm/internal/bootstrap/config.go`
 | DB_REPLICA_HOST | midaz-postgres-replica | Replica host |
 | DB_REPLICA_PORT | 5702 | Replica port |
 | REPLICATION_USER | replicator | Replication username |
-| REPLICATION_PASSWORD | — | Replication password |
+| REPLICATION_PASSWORD | replicator_password | Replication password |
 | MONGO_HOST | midaz-mongodb | MongoDB host |
 | MONGO_USER | midaz | MongoDB username |
 | MONGO_PASSWORD | lerian | MongoDB password |
@@ -642,9 +918,9 @@ Source: `components/crm/internal/bootstrap/config.go`
 
 ### 7.1 Prerequisites
 
-- Go 1.25+
+- Go 1.26.4 (`go.mod` `go 1.26.4`; component Docker builders use `golang:1.26.3-alpine`)
 - Docker (with `docker compose`)
-- golangci-lint v2.4.0
+- golangci-lint v2.12.2
 
 ### 7.2 Makefile Commands
 
@@ -655,8 +931,8 @@ make dev-setup                # Install tools + git hooks + env files
 make setup-git-hooks          # Configure git hooks
 
 # Build & Run
-make build                    # Build ledger + CRM
-make up                       # Start all services (infra → ledger → CRM)
+make build                    # Build the deploy-unit binaries
+make up                       # Start all services (infra → ledger → tracer)
 make down                     # Stop all services
 make restart                  # Restart all services
 make rebuild-up               # Rebuild and restart
@@ -686,32 +962,39 @@ make migrate-lint             # Lint migrations
 make migrate-create COMPONENT=onboarding NAME=my_migration
 
 # Docs
-make generate-docs            # Generate Swagger docs
+make generate-docs            # Generate OpenAPI 3.1 specs (ledger, tracer)
 ```
 
 ### 7.3 Docker Images
 
-- **Ledger**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 3002
-- **CRM**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 4003
-- Both run as `nonroot:nonroot`
+- **Ledger** (onboarding + transaction + CRM + fees): multi-stage Go build → distroless,
+  exposed port 3002, runs as `nonroot:nonroot`.
+- **Tracer**: multi-stage Go build → distroless, exposed port 4020.
+
+There is no standalone CRM image — CRM ships inside the ledger image.
 
 ## 8. Key Dependencies
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| github.com/LerianStudio/lib-commons/v4 | — | Shared library (logging, telemetry, Redis, tenant-manager, HTTP) |
-| github.com/LerianStudio/lib-auth/v2 | v2.6.0 | Authentication middleware |
-| github.com/gofiber/fiber/v2 | v2.52.12 | HTTP framework |
-| github.com/jackc/pgx/v5 | v5.9.1 | PostgreSQL driver |
-| go.mongodb.org/mongo-driver | v1.17.9 | MongoDB driver |
-| github.com/rabbitmq/amqp091-go | v1.10.0 | RabbitMQ AMQP client |
-| github.com/redis/go-redis/v9 | v9.18.0 | Redis client |
+| github.com/LerianStudio/lib-commons/v5 | v5.8.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
+| github.com/LerianStudio/lib-observability | v1.1.0 | Logging, metrics, tracing, assertions, panic recovery, redaction |
+| github.com/LerianStudio/lib-streaming | v1.6.2 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-auth/v2 | v2.8.1 | Authentication middleware |
+| github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
+| github.com/gofiber/fiber/v2 | v2.52.13 | HTTP framework (runtime router / middleware) |
+| github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
+| github.com/tink-crypto/tink-go/v2 | v2.7.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
+| github.com/jackc/pgx/v5 | v5.10.0 | PostgreSQL driver |
+| go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
+| github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
+| github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
 | github.com/shopspring/decimal | v1.4.0 | Precise decimal arithmetic |
 | github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 for Gold DSL parser |
 | github.com/Masterminds/squirrel | v1.5.4 | SQL query builder |
-| github.com/testcontainers/testcontainers-go | v0.41.0 | Integration test containers |
+| github.com/testcontainers/testcontainers-go | v0.42.0 | Integration test containers |
 | github.com/vmihailenco/msgpack/v5 | v5.4.1 | MessagePack serialization |
-| go.opentelemetry.io/otel | v1.42.0 | OpenTelemetry tracing |
+| go.opentelemetry.io/otel | v1.44.0 | OpenTelemetry tracing |
 | go.uber.org/mock | v0.6.0 | Mock generation |
 
 ## 9. Multi-Tenancy
@@ -725,9 +1008,43 @@ When `MULTI_TENANT_ENABLED=true`:
 5. TenantCache provides process-local caching with configurable TTL
 6. On tenant suspend/delete: all connections (PG, Mongo, RabbitMQ) are closed and cache invalidated
 7. RabbitMQ consumers are started/stopped per tenant dynamically
-8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers
+8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers; CRM
+   (authz namespace `midaz`, `MONGO_CRM_*`) and fees (authz namespace `plugin-fees`,
+   `MONGO_FEES_*`) add their own namespaced Mongo tenant clients within the ledger binary
+   (resolution via the lib-commons v5 tenant-manager)
 
-## 10. Gold DSL
+## 10. Per-Call Control Skips
+
+Callers can opt out of individual processing controls on a single request, but only
+under a two-key gate. A skip is honored **only when both** keys are set:
+
+1. The request asks for it (a `skip` object on the create body), **AND**
+2. The ledger opts into it via `settings.overrides.allow*Skip` (all default `false`).
+
+If the request asks but the per-ledger override is not enabled, the request is rejected
+with **HTTP 422** (`ErrSkipNotPermitted`, error code `0490` → `UnprocessableOperationError`).
+The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
+
+| Control | Surface | Request flag | Ledger opt-in | Audit column |
+|---|---|---|---|---|
+| Fees | transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Holder | account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+
+Honored skips are persisted to audit columns (domain fields
+`mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
+and surface on the `transaction.*` and `account.created` streaming payloads.
+
+**Non-goals / invariants:**
+- A **revert always re-runs the tracer**; the reverse transaction does NOT inherit the
+  parent's tracer skip.
+- **DSL transactions carry no skip** — the Gold grammar has no skip, so fee and tracer
+  controls always run on that path.
+- **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
+- An **honored skip adds zero downstream work** — it short-circuits before the control's
+  package lookup; it never replaces the control with a more expensive code path.
+
+## 11. Gold DSL
 
 The Gold DSL (`pkg/gold/`) is an ANTLR4-based domain-specific language for defining transactions:
 
@@ -741,7 +1058,7 @@ Grammar: `pkg/gold/Transaction.g4`
 Parser: `pkg/gold/parser/`
 Transaction builder: `pkg/gold/transaction/`
 
-## 11. Testing
+## 12. Testing
 
 ### Test Types
 - **Unit tests**: `*_test.go` files alongside source

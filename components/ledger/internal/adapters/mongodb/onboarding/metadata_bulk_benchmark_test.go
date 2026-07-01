@@ -14,7 +14,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	"github.com/google/uuid"
 )
 

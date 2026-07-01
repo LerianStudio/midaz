@@ -5,20 +5,21 @@
 package in
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -29,178 +30,97 @@ type OrganizationHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateOrganization is a method that creates Organization information.
+// --- Transport-agnostic cores -------------------------------------------------
 //
-//	@Summary		Create a new organization
-//	@Description	Creates a new organization with the provided details including legal name, legal document, and optional address information
-//	@Tags			Organizations
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization details including legal name, legal document, and optional address information"
-//	@Success		201				{object}	mmodel.Organization				"Successfully created organization"
-//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations [post]
-func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+// The createOrganization/updateOrganization/... methods below own the span, the
+// service call, the success log and every organization-specific guard (the list
+// status + name-filter checks and the delete production-environment guard). They
+// take primitive args (parsed UUIDs, raw body payload, the query map) so BOTH
+// transports feed them: the Fiber wrappers pull those from *fiber.Ctx (Locals +
+// the WithBody-decoded payload) and the Huma handlers (organization_handler_huma.go)
+// pull them from the request envelope. Every canonical Midaz error the cores return
+// is rendered by the caller — http.WithError on the Fiber path, http.HumaProblem on
+// the Huma path — so the code + HTTP status are identical across both transports.
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// createOrganization owns the span + service call + success log for an already-decoded
+// payload. Body decode+validation happens BEFORE this core (Fiber via WithBody, Huma
+// via http.DecodeAndValidate), so create is identical across transports.
+func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateOrganizationInput)
 	logSafePayload(ctx, logger, "Request to create an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on command", err)
+		handleSpanByErrorClass(span, "Failed to create organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	span.SetAttributes(attribute.String("app.organization.id", organization.ID))
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created organization with ID: ", libLog.String("id", organization.ID))
-
-	return http.Created(c, organization)
+	return organization, nil
 }
 
-// UpdateOrganization is a method that updates Organization information.
-//
-//	@Summary		Update an existing organization
-//	@Description	Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.
-//	@Tags			Organizations
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
-//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
-//	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization fields to update. Only supplied fields will be modified."
-//	@Success		200				{object}	mmodel.Organization				"Successfully updated organization"
-//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error					"Organization not found"
-//	@Failure		500				{object}	mmodel.Error					"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [patch]
-func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// updateOrganization owns the span + service call + success log for an already-decoded
+// payload (see createOrganization for the decode split across transports).
+func (handler *OrganizationHandler) updateOrganization(ctx context.Context, id uuid.UUID, payload *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := p.(*mmodel.UpdateOrganizationInput)
 	logSafePayload(ctx, logger, "Request to update an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	organization, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
+		handleSpanByErrorClass(span, "Failed to update organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	return http.OK(c, organization)
+	return organization, nil
 }
 
-// GetOrganizationByID is a method that retrieves Organization information by a given id.
-//
-//	@Summary		Retrieve a specific organization
-//	@Description	Returns detailed information about an organization identified by its UUID
-//	@Tags			Organizations
-//	@Produce		json
-//	@Param			Authorization	header		string				false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
-//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
-//	@Success		200				{object}	mmodel.Organization	"Successfully retrieved organization"
-//	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error		"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error		"Organization not found"
-//	@Failure		500				{object}	mmodel.Error		"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [get]
-func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// getOrganizationByID retrieves a single organization.
+func (handler *OrganizationHandler) getOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "id")
+	organization, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		return http.WithError(c, err)
+		handleSpanByErrorClass(span, "Failed to retrieve organization on query", err)
+
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Organization with ID: %s", id.String()))
-
-	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Organization with ID: %s", id.String()))
-
-	return http.OK(c, organizations)
+	return organization, nil
 }
 
-// GetAllOrganizations is a method that retrieves all Organizations.
-//
-//	@Summary		List all organizations
-//	@Description	Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria
-//	@Tags			Organizations
-//	@Produce		json
-//	@Param			Authorization	header		string																	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string																	false	"Request ID for tracing"
-//	@Param			metadata		query		string																	false	"JSON string to filter organizations by metadata fields"
-//	@Param			limit			query		int																		false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int																		false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			start_date		query		string																	false	"Filter organizations created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string																	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			status				query		string																	false	"Filter organizations by status"
-//	@Param			legal_document		query		string																	false	"Filter organizations by legal document (exact match)"
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
-//	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
-//	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error															"Forbidden access"
-//	@Failure		500					{object}	mmodel.Error															"Internal server error"
-//	@Router			/v1/organizations [get]
-func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// getAllOrganizations binds the query map imperatively (http.ValidateParameters — the
+// SAME binder the Fiber path used), applies the organization-specific status +
+// name-filter guards, then returns the assembled pagination envelope. A bad query or
+// a rejected guard yields the canonical 400.
+func (handler *OrganizationHandler) getAllOrganizations(ctx context.Context, queries map[string]string) (http.Pagination, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_organizations")
 	defer span.End()
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, organizationAllowedStatuses) {
@@ -210,7 +130,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate organization status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	recordSafeQueryAttributes(span, headerParams)
@@ -229,28 +149,20 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations by metadata")
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations by metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
-
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations by metadata")
 
 		pagination.SetItems(organizations)
 
-		return http.OK(c, pagination)
+		return pagination, nil
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations ")
 
 	headerParams.Metadata = &bson.M{}
 
@@ -258,104 +170,136 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
-
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations")
 
 	pagination.SetItems(organizations)
 
-	return http.OK(c, pagination)
+	return pagination, nil
 }
 
-// DeleteOrganizationByID is a method that removes Organization information by a given id.
-//
-//	@Summary		Delete an organization
-//	@Description	Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.
-//	@Tags			Organizations
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Success		204				"Organization successfully deleted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
-//	@Failure		404				{object}	mmodel.Error	"Organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete organization with dependent resources"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id} [delete]
-func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// deleteOrganization removes an organization. It owns the production-environment
+// guard: DELETE is rejected with the canonical ErrActionNotPermitted (403) when
+// ENV_NAME == "production", identical across transports.
+func (handler *OrganizationHandler) deleteOrganization(ctx context.Context, id uuid.UUID) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
-
-	id, err := http.GetUUIDFromLocals(c, "id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityOrganization)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization in production environment", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Organization with ID: %s in production", id.String()))
-
-		return http.WithError(c, err)
+		return err
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization on command", err)
+		handleSpanByErrorClass(span, "Failed to remove organization on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Organization with ID: %s", id.String()))
-
-	return http.NoContent(c)
+	return nil
 }
 
-// CountOrganizations is a method that returns the total count of organizations.
-//
-//	@Summary		Count total organizations
-//	@Description	Returns the total count of organizations as a header without a response body
-//	@Tags			Organizations
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Success		204				"No content with X-Total-Count header containing the count"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/metrics/count [head]
-func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// countOrganizations returns the total organization count.
+func (handler *OrganizationHandler) countOrganizations(ctx context.Context) (int64, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_organizations")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating count of all organizations")
 
 	count, err := handler.Query.CountOrganizations(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count organizations, Error: %s", err.Error()))
+		return 0, err
+	}
 
+	return count, nil
+}
+
+// --- Fiber wrappers (thin) ----------------------------------------------------
+//
+// These stay so the legacy Fiber unit/integration tests keep exercising the handler
+// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// ParseUUIDPathParameters, the WithBody-decoded payload) and delegates to the shared
+// core. NOTE: the LIVE organization routes are Huma now (see
+// organization_handler_huma.go + RegisterOrganizationRoutesToApp); these Fiber
+// wrappers are not mounted by the unified server.
+
+// CreateOrganization is a method that creates Organization information.
+func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
+	organization, err := handler.createOrganization(c.UserContext(), p.(*mmodel.CreateOrganizationInput))
+	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted organizations: %d", count))
+	return http.Created(c, organization)
+}
+
+// UpdateOrganization is a method that updates Organization information.
+func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	organization, err := handler.updateOrganization(c.UserContext(), id, p.(*mmodel.UpdateOrganizationInput))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, organization)
+}
+
+// GetOrganizationByID is a method that retrieves Organization information by a given id.
+func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	organization, err := handler.getOrganizationByID(c.UserContext(), id)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, organization)
+}
+
+// GetAllOrganizations is a method that retrieves all Organizations.
+func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
+	pagination, err := handler.getAllOrganizations(c.UserContext(), c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, pagination)
+}
+
+// DeleteOrganizationByID is a method that removes Organization information by a given id.
+func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	if err := handler.deleteOrganization(c.UserContext(), id); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
+}
+
+// CountOrganizations is a method that returns the total count of organizations.
+func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
+	count, err := handler.countOrganizations(c.UserContext())
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

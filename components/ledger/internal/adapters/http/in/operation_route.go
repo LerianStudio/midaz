@@ -10,17 +10,17 @@ import (
 	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,30 +32,8 @@ type OperationRouteHandler struct {
 }
 
 // Create an Operation Route.
-//
-//	@Summary		Create Operation Route
-//	@Description	Endpoint to create a new Operation Route.
-//	@Tags			Operation Route
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
-//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Param			operation-route	body		mmodel.CreateOperationRouteInput	true	"Operation Route Input"
-//	@Success		201				{object}	mmodel.OperationRoute				"Successfully created operation route"
-//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error						"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [post]
 func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -69,34 +47,52 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	payload := i.(*mmodel.CreateOperationRouteInput)
 
+	operationRoute, err := handler.createOperationRoute(ctx, organizationID, ledgerID, payload, c.Body())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, operationRoute)
+}
+
+// createOperationRoute is the transport-agnostic core for POST. rawBody is the
+// unparsed request body used only to reproduce the accountingEntries unknown-key
+// probe (Go's json.Unmarshal silently drops unknown keys). Both the Fiber wrapper
+// (c.Body()) and the Huma shell (in.RawBody) feed the same bytes here.
+func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
+	defer span.End()
+
 	recordSafePayloadAttributes(span, payload)
 	logSafePayload(ctx, logger, "Request to create an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if err := handler.validateAccountingRulesMatrix(ctx, payload.OperationType, payload.AccountingEntries); err != nil {
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Reject unknown keys inside accountingEntries (e.g., "foobar") that Go's
 	// json.Unmarshal silently ignores but could confuse clients into thinking
 	// their data was accepted.
 	if payload.AccountingEntries != nil {
-		var rawBody map[string]json.RawMessage
+		var raw map[string]json.RawMessage
 
-		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
-			if raw, ok := rawBody["accountingEntries"]; ok {
-				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
-					return http.WithError(c, pkg.ValidateBadRequestFieldsError(
+		if err := json.Unmarshal(rawBody, &raw); err == nil {
+			if entriesRaw, ok := raw["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(entriesRaw); len(unknowns) > 0 {
+					return nil, pkg.ValidateBadRequestFieldsError(
 						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
 						map[string]any{"accountingEntries": unknowns},
-					))
+					)
 				}
 			}
 		}
@@ -106,7 +102,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if err := metricFactory.RecordOperationRouteCreated(
@@ -117,30 +113,12 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 		libOpentelemetry.HandleSpanError(span, "Failed to record operation route created metric", err)
 	}
 
-	return http.Created(c, operationRoute)
+	return operationRoute, nil
 }
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
-//
-//	@Summary		Retrieve a specific operation route
-//	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
-//	@Tags			Operation Route
-//	@Produce		json
-//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
-//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
-//	@Param			operation_route_id				path		string					true	"Operation Route ID in UUID format"
-//	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation route"
-//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [get]
 func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -157,45 +135,35 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 		return http.WithError(c, err)
 	}
 
-	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	operationRoute, err := handler.getOperationRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve operation route on query", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
-
 		return http.WithError(c, err)
 	}
 
 	return http.OK(c, operationRoute)
 }
 
+// getOperationRouteByID is the transport-agnostic core for GET-by-id.
+func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
+	defer span.End()
+
+	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		handleSpanByErrorClass(span, "Failed to retrieve operation route on query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
+
+		return nil, err
+	}
+
+	return operationRoute, nil
+}
+
 // UpdateOperationRoute is a method that updates Operation Route information.
-//
-//	@Summary		Update an operation route
-//	@Description	Updates an existing operation route's properties such as title, description, and type within the specified ledger
-//	@Tags			Operation Route
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
-//	@Param			organization_id		path		string								true	"Organization ID in UUID format"
-//	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
-//	@Param			operation_route_id	path		string								true	"Operation Route ID in UUID format"
-//	@Param			operation-route		body		mmodel.UpdateOperationRouteInput	true	"Operation Route Input"
-//	@Success		200					{object}	mmodel.OperationRoute				"Successfully updated operation route"
-//	@Failure		400					{object}	mmodel.Error						"Invalid input, validation errors"
-//	@Failure		401					{object}	mmodel.Error						"Unauthorized access"
-//	@Failure		403					{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404					{object}	mmodel.Error						"Operation Route not found"
-//	@Failure		409					{object}	mmodel.Error						"Conflict: Operation Route with the same title already exists"
-//	@Failure		500					{object}	mmodel.Error						"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [patch]
 func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -213,32 +181,54 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	}
 
 	payload := i.(*mmodel.UpdateOperationRouteInput)
-	logSafePayload(ctx, logger, "Request to update an operation route", payload)
 
-	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+	operationRoute, err := handler.updateOperationRoute(ctx, organizationID, ledgerID, id, payload, c.Body())
+	if err != nil {
 		return http.WithError(c, err)
 	}
 
+	return http.OK(c, operationRoute)
+}
+
+// updateOperationRoute is the transport-agnostic core for PATCH. It implements the
+// RFC 7396 JSON Merge Patch landmine: rawBody is the sole source that distinguishes
+// accountingEntries FIELD-ABSENT (keep existing) from accountingEntries:null (clear
+// all). Go's typed decode collapses both to a nil AccountingEntries, so the core
+// re-derives payload.AccountingEntriesRaw from these bytes exactly like the Fiber
+// path did from c.Body() — feed the same bytes from both transports or the PATCH
+// breaks silently. Also reproduces the accountingEntries unknown-key probe.
+func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateOperationRouteInput, rawBody []byte) (*mmodel.OperationRoute, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
+	defer span.End()
+
+	logSafePayload(ctx, logger, "Request to update an operation route", payload)
+
+	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return nil, err
+	}
+
 	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Extract the raw JSON for accountingEntries from the request body to preserve
 	// explicit null values for RFC 7396 JSON Merge Patch semantics. This allows the
 	// repository to distinguish "field absent" (keep existing) from "field: null" (remove).
 	if payload.AccountingEntries != nil {
-		var rawBody map[string]json.RawMessage
+		var raw map[string]json.RawMessage
 
-		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
-			if raw, ok := rawBody["accountingEntries"]; ok {
-				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
-					return http.WithError(c, pkg.ValidateBadRequestFieldsError(
+		if err := json.Unmarshal(rawBody, &raw); err == nil {
+			if entriesRaw, ok := raw["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(entriesRaw); len(unknowns) > 0 {
+					return nil, pkg.ValidateBadRequestFieldsError(
 						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
 						map[string]any{"accountingEntries": unknowns},
-					))
+					)
 				}
 
-				payload.AccountingEntriesRaw = raw
+				payload.AccountingEntriesRaw = entriesRaw
 			}
 		}
 	}
@@ -250,7 +240,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
-			return http.WithError(c, err)
+			return nil, err
 		}
 
 		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
@@ -268,7 +258,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 		// Validate the merged entries against the direction×scenario matrix
 		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
@@ -276,12 +266,10 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
+		handleSpanByErrorClass(span, "Failed to update Operation Route on command", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully updated operation route", libLog.String("operation_route_id", id.String()))
 
 	if payload.Account != nil {
 		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
@@ -290,32 +278,12 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		}
 	}
 
-	return http.OK(c, operationRoute)
+	return operationRoute, nil
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
-//
-//	@Summary		Delete an operation route
-//	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
-//	@Tags			Operation Route
-//	@Produce		json
-//	@Param			Authorization		header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
-//	@Param			organization_id		path	string	true	"Organization ID in UUID format"
-//	@Param			ledger_id			path	string	true	"Ledger ID in UUID format"
-//	@Param			operation_route_id	path	string	true	"Operation Route ID in UUID format"
-//	@Success		204					"Successfully deleted operation route"
-//	@Failure		401					{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		404					{object}	mmodel.Error	"Operation Route not found"
-//	@Failure		500					{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [delete]
 func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -332,47 +300,33 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 		return http.WithError(c, err)
 	}
 
-	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete operation route on command", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
-
+	if err := handler.deleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted operation route", libLog.String("operation_route_id", id.String()))
 
 	return http.NoContent(c)
 }
 
+// deleteOperationRouteByID is the transport-agnostic core for DELETE.
+func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
+	defer span.End()
+
+	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+		handleSpanByErrorClass(span, "Failed to delete operation route on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
+
+		return err
+	}
+
+	return nil
+}
+
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
-//
-//	@Summary		Retrieve all operation routes
-//	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
-//	@Tags			Operation Route
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.OperationRoute}
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [get]
 func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -384,12 +338,29 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 		return http.WithError(c, err)
 	}
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	pagination, err := handler.getAllOperationRoutes(ctx, organizationID, ledgerID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, pagination)
+}
+
+// getAllOperationRoutes is the transport-agnostic core for GET-list. queries is the
+// map[string]string that http.ValidateParameters consumes (Fiber's c.Queries() or
+// the Huma binder's rebuilt map).
+func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
+	defer span.End()
+
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	recordSafeQueryAttributes(span, headerParams)
@@ -407,35 +378,35 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
 
 		pagination.SetItems(operationRoutes)
 		pagination.SetCursor(cur.Next, cur.Prev)
 
-		return http.OK(c, pagination)
+		return pagination, nil
 	}
 
 	headerParams.Metadata = &bson.M{}
 
 	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all operation routes on query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	pagination.SetItems(operationRoutes)
 	pagination.SetCursor(cur.Next, cur.Prev)
 
-	return http.OK(c, pagination)
+	return pagination, nil
 }
 
 // validateAccountRule validates account rule configuration for operation routes.
 // It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
 func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_account_rule")
 	defer span.End()
@@ -451,8 +422,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account rule type provided but validIf is missing, Error: %s", err.Error()))
-
 		return err
 	}
 
@@ -460,8 +429,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.ruleType")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account validIf provided but rule type is missing, Error: %s", err.Error()))
 
 		return err
 	}
@@ -473,8 +440,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf type for alias rule, Error: %s", err.Error()))
 
 				return err
 			}
@@ -488,8 +453,6 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 						libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
 
-						logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf array element type, Error: %s", err.Error()))
-
 						return err
 					}
 				}
@@ -498,16 +461,12 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
 
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid ValidIf type for account_type rule, Error: %s", err.Error()))
-
 				return err
 			}
 		default:
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid account rule type, Error: %s", err.Error()))
 
 			return err
 		}
@@ -521,7 +480,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 // Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
 // based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
 	defer span.End()
@@ -564,21 +523,19 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing both debit and credit, Error: %s", action.name, err.Error()))
-
 			return err
 		}
 
 		// Validate debit rubric if present
 		if action.entry.Debit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "debit", action.entry.Debit, action.errCode); err != nil {
 				return err
 			}
 		}
 
 		// Validate credit rubric if present
 		if action.entry.Credit != nil {
-			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
+			if err := handler.validateRubricStructure(span, entityName, action.name, "credit", action.entry.Credit, action.errCode); err != nil {
 				return err
 			}
 		}
@@ -592,9 +549,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 // can differentiate validation classes (e.g., legacy scenarios use 0009, new overdraft
 // and refund scenarios use 0166).
 func (handler *OperationRouteHandler) validateRubricStructure(
-	ctx context.Context,
 	span trace.Span,
-	logger libLog.Logger,
 	entityName, actionName, side string,
 	rubric *mmodel.AccountingRubric,
 	errCode error,
@@ -606,8 +561,6 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s code is empty, Error: %s", actionName, side, err.Error()))
-
 		return err
 	}
 
@@ -617,8 +570,6 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s description is empty, Error: %s", actionName, side, err.Error()))
 
 		return err
 	}
@@ -740,7 +691,7 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 	operationType string,
 	entries *mmodel.AccountingEntries,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
 	defer span.End()
@@ -784,7 +735,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
 	defer span.End()
@@ -824,7 +775,6 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 				)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("%s not allowed for destination", scenario.name), err)
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("%s scenario not allowed for destination direction", scenario.name))
 
 				return err
 			}
@@ -863,7 +813,7 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
 	defer span.End()
@@ -897,7 +847,6 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete", err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Reserve group incomplete: missing %v", missing))
 
 			return err
 		}
@@ -926,7 +875,7 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
 	defer span.End()
@@ -967,7 +916,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
 	defer span.End()
@@ -998,8 +947,6 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 
 		// Check debit requirement
 		if req.debitRequired && action.entry.Debit == nil {
-			fieldPath := fmt.Sprintf("accountingEntries.%s.debit", action.name)
-
 			err := pkg.ValidateBusinessError(
 				constant.ErrAccountingEntryFieldRequired,
 				entityName,
@@ -1007,15 +954,12 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Debit required for %s/%s", operationType, action.name), err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
 
 			return err
 		}
 
 		// Check credit requirement
 		if req.creditRequired && action.entry.Credit == nil {
-			fieldPath := fmt.Sprintf("accountingEntries.%s.credit", action.name)
-
 			err := pkg.ValidateBusinessError(
 				constant.ErrAccountingEntryFieldRequired,
 				entityName,
@@ -1023,7 +967,6 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 			)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Credit required for %s/%s", operationType, action.name), err)
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
 
 			return err
 		}

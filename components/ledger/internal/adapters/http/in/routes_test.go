@@ -5,106 +5,45 @@
 package in
 
 import (
-	"net/http/httptest"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewRouter_ReturnsAppWithExpectedRoutes(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-	require.NotNil(t, app)
-
-	routes := app.GetRoutes()
-
-	routeSet := make(map[string]bool)
-	for _, r := range routes {
-		routeSet[r.Method+":"+r.Path] = true
-	}
-
-	assert.True(t, routeSet["POST:/v1/settings/metadata-indexes/entities/:entity_name"], "should register POST metadata-indexes create")
-	assert.True(t, routeSet["GET:/v1/settings/metadata-indexes"], "should register GET metadata-indexes list")
-	assert.True(t, routeSet["DELETE:/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key"], "should register DELETE metadata-indexes")
-	assert.True(t, routeSet["GET:/health"], "should register health endpoint")
-	assert.True(t, routeSet["GET:/version"], "should register version endpoint")
+// mountMetadataIndexRoutes wires the Huma-migrated metadata-index resource on a /v1
+// group, mirroring the production humaMount seam: problem.Install() runs before any
+// huma.Register, the Huma API is built with openapi.New over the /v1 group, and
+// RegisterMetadataIndexRoutesToApp attaches the auth+tenant middleware chain (as
+// middleware only) plus the Huma terminals on that group. The registered surface is
+// therefore the same /v1/settings/metadata-indexes/* paths the unified server mounts.
+//
+// MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
+// hook and Huma validation uses process-global sync.Pools — concurrent builds
+// cross-contaminate. (Same rationale as the asset/portfolio huma exemplars.)
+func mountMetadataIndexRoutes(app *fiber.App, auth *middleware.AuthClient, handler *MetadataIndexHandler, opts *pkgHTTP.ProtectedRouteOptions) {
+	libProblem.Install()
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	RegisterMetadataIndexRoutesToApp(apiV1, hAPI, auth, handler, opts)
 }
 
-func TestNewRouter_HealthEndpointReturns200(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-
-	req := httptest.NewRequest(fiber.MethodGet, "/health", nil)
-	resp, err := app.Test(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestNewRouter_ServesSwaggerUIAssets(t *testing.T) {
-	t.Parallel()
-
-	logger := &libLog.GoLogger{}
-	telemetry := &libOpentelemetry.Telemetry{}
-	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
-
-	app := NewRouter(logger, telemetry, auth, handler)
-
-	for _, path := range []string{
-		"/swagger/index.html",
-		"/swagger/doc.json",
-		"/swagger/swagger-ui.css",
-		"/swagger/swagger-ui-bundle.js",
-		"/swagger/swagger-ui-standalone-preset.js",
-	} {
-		path := path
-
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			req := httptest.NewRequest(fiber.MethodGet, path, nil)
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-		})
-	}
-}
-
+// TestRegisterRoutesToApp_RegistersRoutes asserts the metadata-index routes are
+// served on the /v1 group after the Wave-1 Huma migration. The three ops keep their
+// exact paths and methods; only the transport (Fiber inline -> Huma terminal) changed.
 func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
-	t.Parallel()
-
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
 
-	RegisterMetadataRoutesToApp(app, auth, handler, nil)
+	mountMetadataIndexRoutes(app, auth, &MetadataIndexHandler{}, nil)
 
-	routes := app.GetRoutes()
 	routeSet := make(map[string]bool)
-
-	for _, r := range routes {
+	for _, r := range app.GetRoutes() {
 		routeSet[r.Method+":"+r.Path] = true
 	}
 
@@ -113,12 +52,12 @@ func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
 	assert.True(t, routeSet["DELETE:/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key"])
 }
 
+// TestRegisterRoutesToApp_WithRouteOptions asserts the auth chain honors the
+// PostAuthMiddlewares carried by ProtectedRouteOptions when the metadata-index routes
+// are mounted through the Huma wrapper.
 func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
-	t.Parallel()
-
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
-	handler := &MetadataIndexHandler{}
 
 	middlewareCalled := false
 	options := &pkgHTTP.ProtectedRouteOptions{
@@ -130,10 +69,9 @@ func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
 		},
 	}
 
-	RegisterMetadataRoutesToApp(app, auth, handler, options)
+	mountMetadataIndexRoutes(app, auth, &MetadataIndexHandler{}, options)
 
-	routes := app.GetRoutes()
-	assert.NotEmpty(t, routes, "should have registered routes with options")
+	assert.NotEmpty(t, app.GetRoutes(), "should have registered routes with options")
 
 	// The middleware existence is verified by route count including middleware handlers.
 	// Actual middleware invocation requires a full request cycle with auth,
@@ -141,6 +79,10 @@ func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
 	_ = middlewareCalled
 }
 
+// TestCreateRouteRegistrar_ReturnsFunctionThatRegistersRoutes asserts the legacy
+// CreateRouteRegistrar seam is still constructible and callable. Post-migration it no
+// longer registers inline metadata Fiber routes (those moved to the Huma seam), so it
+// registers no /v1 metadata paths — the assertion is on its safe, no-op invocation.
 func TestCreateRouteRegistrar_ReturnsFunctionThatRegistersRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -151,16 +93,9 @@ func TestCreateRouteRegistrar_ReturnsFunctionThatRegistersRoutes(t *testing.T) {
 	require.NotNil(t, registrar)
 
 	app := fiber.New()
-	registrar(app)
+	require.NotPanics(t, func() { registrar(app) })
 
-	routes := app.GetRoutes()
-	routeSet := make(map[string]bool)
-
-	for _, r := range routes {
-		routeSet[r.Method+":"+r.Path] = true
-	}
-
-	assert.True(t, routeSet["POST:/v1/settings/metadata-indexes/entities/:entity_name"])
-	assert.True(t, routeSet["GET:/v1/settings/metadata-indexes"])
-	assert.True(t, routeSet["DELETE:/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key"])
+	// Metadata is now Huma-served (RegisterMetadataIndexRoutesToApp); the legacy
+	// Fiber registrar intentionally registers nothing.
+	assert.Empty(t, app.GetRoutes())
 }

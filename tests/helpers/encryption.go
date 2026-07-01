@@ -7,8 +7,8 @@ package helpers
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/crypto/tink"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/crypto/tink"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TinkKeysetFixture contains real serialized Tink AEAD and PRF keysets plus

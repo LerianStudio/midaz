@@ -7,23 +7,19 @@ package command
 import (
 	"context"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 )
 
 // DeleteTransactionRouteCache deletes the cache for a transaction route.
 func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_cache")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Deleting transaction route cache",
-		libLog.String("transaction_route_id", transactionRouteID.String()))
 
 	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
@@ -37,9 +33,6 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted transaction route cache",
-		libLog.String("transaction_route_id", transactionRouteID.String()))
 
 	return nil
 }

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -759,6 +759,7 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID1 := createTestAccountID()
 	accountID2 := createTestAccountID()
+	accountID3 := createTestAccountID()
 
 	// Create balances with different aliases
 	params1 := pgtestutil.DefaultBalanceParams()
@@ -769,10 +770,12 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	params2.Alias = "@bob"
 	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
 
-	// Create @charlie to verify it's excluded from results
+	// Create @charlie to verify it's excluded from results.
+	// Use a distinct account so it does not collide with @alice on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	params3 := pgtestutil.DefaultBalanceParams()
 	params3.Alias = "@charlie"
-	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params3)
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID3, params3)
 
 	ctx := context.Background()
 
@@ -901,34 +904,38 @@ func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *tes
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	accountID := createTestAccountID()
+	accountID1 := createTestAccountID()
+	accountID2 := createTestAccountID()
 
-	// Create two balances
+	// Create two balances on distinct accounts so they do not collide on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	params1 := pgtestutil.DefaultBalanceParams()
 	params1.Alias = "@batch-1"
 	params1.Available = decimal.NewFromInt(100)
-	balanceID1 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params1)
+	balanceID1 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params1)
 
 	params2 := pgtestutil.DefaultBalanceParams()
 	params2.Alias = "@batch-2"
 	params2.Available = decimal.NewFromInt(200)
-	balanceID2 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params2)
+	balanceID2 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
 
 	ctx := context.Background()
 
 	// Batch of balances to sync
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID1.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10,
+			ID:            balanceID1.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   10,
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -1024,6 +1031,7 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
+	accountID2 := createTestAccountID()
 
 	// Create balance with version 5
 	params := pgtestutil.DefaultBalanceParams()
@@ -1031,13 +1039,15 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	params.Available = decimal.NewFromInt(100)
 	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
 
-	// Create another balance with version 10 (via direct insert)
+	// Create another balance with version 10 (via direct insert) on a distinct
+	// account so it does not collide on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 	_, err := container.DB.Exec(`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`, balanceID2, orgID, ledgerID, accountID, "@partial-high", "default", "USD",
+	`, balanceID2, orgID, ledgerID, accountID2, "@partial-high", "default", "USD",
 		decimal.NewFromInt(200), decimal.Zero, 10, "deposit", true, true, now, now)
 	require.NoError(t, err)
 
@@ -1046,16 +1056,18 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	// Batch: first one newer (should update), second one older (should skip)
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10, // higher than default (1), should update
+			ID:            balanceID.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10, // higher than default (1), should update
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   5, // lower than 10, should skip
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       5, // lower than 10, should skip
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -1169,10 +1181,11 @@ func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
 	balances := make([]mmodel.BalanceRedis, 150)
 	for i := range 150 {
 		balances[i] = mmodel.BalanceRedis{
-			ID:        balanceIDs[i].String(),
-			Available: decimal.NewFromInt(int64(1000 + i)),
-			OnHold:    decimal.NewFromInt(int64(i)),
-			Version:   100, // Higher than initial version (1)
+			ID:            balanceIDs[i].String(),
+			Available:     decimal.NewFromInt(int64(1000 + i)),
+			OnHold:        decimal.NewFromInt(int64(i)),
+			Version:       100, // Higher than initial version (1)
+			OverdraftUsed: "0",
 		}
 	}
 

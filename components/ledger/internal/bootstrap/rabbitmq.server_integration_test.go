@@ -12,22 +12,21 @@ import (
 	"testing"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/shopspring/decimal"
@@ -159,7 +158,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 
 		telemetry := &libOpentelemetry.Telemetry{}
 
-		consumerRoutes := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
+		consumerRoutes, err := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
+		require.NoError(t, err, "failed to create consumer routes")
 
 		// Create MultiQueueConsumer with mocked UseCase
 		consumer := &MultiQueueConsumer{
@@ -260,8 +260,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		require.NoError(t, err, "failed to marshal queue message")
 
 		// Create context with tracing
-		ctx := libObs.ContextWithLogger(context.Background(), logger)
-		ctx = libObs.ContextWithHeaderID(ctx, uuid.New().String())
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+		ctx = libObservability.ContextWithHeaderID(ctx, uuid.New().String())
 
 		// Publish to RabbitMQ (simulating old producer)
 		t.Log("Publishing legacy format message to RabbitMQ...")

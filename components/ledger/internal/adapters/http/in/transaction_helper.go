@@ -9,17 +9,16 @@ import (
 	"sort"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // transactionPathParams holds the IDs extracted from URL path parameters.
@@ -127,7 +126,7 @@ type balanceRef struct {
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
 func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).
 	balanceByAliasKey := make(map[string]balanceRef, len(balances))

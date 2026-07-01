@@ -45,6 +45,7 @@ updates:
           - "aquasecurity/trivy-action"
           - "securego/gosec"
 
+  # Docker - ledger (image-bearing component)
   - package-ecosystem: "docker"
     directory: "/components/ledger"
     schedule:
@@ -59,8 +60,9 @@ updates:
       prefix: "chore"
       include: "scope"
 
+  # Docker - tracer (image-bearing component)
   - package-ecosystem: "docker"
-    directory: "/components/crm"
+    directory: "/components/tracer"
     schedule:
       interval: "weekly"
       day: "monday"

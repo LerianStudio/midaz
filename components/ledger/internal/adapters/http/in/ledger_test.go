@@ -14,15 +14,15 @@ import (
 	"testing"
 	"time"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	redisAdapter "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	redisAdapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -124,7 +124,7 @@ func TestHandler_CreateLedger(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -261,7 +261,7 @@ func TestHandler_UpdateLedger(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -398,7 +398,7 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -694,7 +694,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -783,12 +783,12 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 		},
 		{
-			name:    "production environment returns 400 validation error",
+			name:    "production environment returns 422 unprocessable error",
 			envName: "production",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected in production
 			},
-			expectedStatus: 400,
+			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
 				var errResp map[string]any
 				err := json.Unmarshal(body, &errResp)
@@ -818,7 +818,7 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}

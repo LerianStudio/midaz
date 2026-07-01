@@ -14,9 +14,9 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgMongo "github.com/LerianStudio/midaz/v4/pkg/mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -139,7 +139,7 @@ func ensureOnboardingMongoIndexes(conn *libMongo.Client, logger libLog.Logger) {
 	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
 	for _, collection := range collections {
 		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to ensure indexes for collection %s: %v", collection, err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to ensure indexes for collection", libLog.String("collection", collection), libLog.Err(err))
 		}
 	}
 }

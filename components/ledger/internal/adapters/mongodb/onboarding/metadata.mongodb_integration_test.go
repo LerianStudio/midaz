@@ -16,10 +16,10 @@ import (
 
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -1428,4 +1428,100 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 	tenantResult, err := repo.FindByEntity(tenantCtx, collection, "precedence-entity")
 	require.NoError(t, err)
 	assert.Nil(t, tenantResult, "tenant context should override static connection; data is in default_db, not tenant_isolated_db")
+}
+
+// ============================================================================
+// BSON decode/marshal behavioral regression tests
+// ============================================================================
+
+// TestIntegration_MetadataRepository_Create_ServerAssignsObjectID asserts that a zero
+// bson.ObjectID carrying `bson:"_id,omitempty"` is omitted on marshal (ObjectID
+// implements Zeroer), so MongoDB assigns a non-zero _id rather than persisting the
+// zero ObjectID. This guarantees server-side _id generation for new documents.
+func TestIntegration_MetadataRepository_Create_ServerAssignsObjectID(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	metadata := &Metadata{
+		EntityID:   "acc-oid-assign",
+		EntityName: "Account",
+		Data:       map[string]any{"status": "active"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Act — Create leaves metadata.ID as the zero ObjectID; omitempty must omit it.
+	err := repo.Create(ctx, collection, metadata)
+	require.NoError(t, err, "Create should not return error")
+
+	// Assert — read the raw document and confirm _id is a non-zero ObjectID.
+	var raw bson.M
+	err = container.Database.Collection(strings.ToLower(collection)).
+		FindOne(ctx, bson.M{"entity_id": "acc-oid-assign"}).Decode(&raw)
+	require.NoError(t, err, "should find the inserted document")
+
+	rawID, ok := raw["_id"].(bson.ObjectID)
+	require.True(t, ok, "_id should decode as a bson.ObjectID, got %T", raw["_id"])
+	assert.False(t, rawID.IsZero(), "server must assign a non-zero _id (zero ObjectID must not be persisted)")
+}
+
+// TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips asserts that a full
+// document survives a write/read round-trip with every field type intact: string,
+// 64-bit integer, and a nested document. Numeric and nested values are the types most
+// sensitive to the BSON decoder's representation choices, so they are asserted by
+// concrete type and value.
+func TestIntegration_MetadataRepository_FindByEntity_DecodeRoundTrips(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	created := time.Now().UTC().Truncate(time.Millisecond)
+	metadata := &Metadata{
+		EntityID:   "acc-roundtrip",
+		EntityName: "Account",
+		Data: map[string]any{
+			"status": "active",
+			"limit":  int64(9000),
+			"nested": map[string]any{"k": "v"},
+		},
+		CreatedAt: created,
+		UpdatedAt: created,
+	}
+	require.NoError(t, repo.Create(ctx, collection, metadata), "Create should not return error")
+
+	// Act — read it back through the decoder.
+	found, err := repo.FindByEntity(ctx, collection, "acc-roundtrip")
+
+	// Assert — every field decoded back intact.
+	require.NoError(t, err, "FindByEntity should not return error")
+	require.NotNil(t, found, "document should be found")
+	assert.Equal(t, "acc-roundtrip", found.EntityID)
+	assert.Equal(t, "Account", found.EntityName)
+	assert.Equal(t, "active", found.Data["status"], "string field should round-trip")
+
+	// A BSON 64-bit integer decodes into an int64 when the target is `any`.
+	limit, ok := found.Data["limit"].(int64)
+	require.True(t, ok, "limit should decode as int64, got %T", found.Data["limit"])
+	assert.Equal(t, int64(9000), limit, "int64 field should round-trip")
+
+	// Data is a typed map[string]any at the top level, but a nested document has no
+	// concrete Go target, so the decoder represents it as an ordered bson.D.
+	nested, ok := found.Data["nested"].(bson.D)
+	require.True(t, ok, "nested document should decode as bson.D, got %T", found.Data["nested"])
+
+	var nestedK any
+	for _, e := range nested {
+		if e.Key == "k" {
+			nestedK = e.Value
+		}
+	}
+
+	assert.Equal(t, "v", nestedK, "nested document value should round-trip")
 }

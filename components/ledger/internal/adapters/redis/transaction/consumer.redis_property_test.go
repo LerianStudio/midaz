@@ -42,6 +42,13 @@ func sanitizeQuickString(s string, maxLen int) string {
 	return s
 }
 
+// sanitizeQuickTenantID bounds a generated tenant ID and strips the ':'
+// namespace delimiter, which GetKey/StripTenantPrefix reject by contract —
+// the property domain is valid tenant IDs, not arbitrary strings.
+func sanitizeQuickTenantID(s string, maxLen int) string {
+	return strings.ReplaceAll(sanitizeQuickString(s, maxLen), ":", "")
+}
+
 // TestProperty_KeyNamespacing_Identity verifies the identity property:
 //
 //	When tenantID is empty, GetKey("", key) == key for ALL keys.
@@ -73,7 +80,7 @@ func TestProperty_KeyNamespacing_Identity(t *testing.T) {
 // that the original key is always recoverable from the suffix.
 func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 	property := func(tenantID, key string) bool {
-		tenantID = sanitizeQuickString(tenantID, 256)
+		tenantID = sanitizeQuickTenantID(tenantID, 256)
 		key = sanitizeQuickString(key, 512)
 
 		// This property only applies when tenantID is non-empty.
@@ -107,7 +114,7 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 // original key, which is critical for MGet result mapping and audit tracing.
 func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
 	property := func(tenantID, key string) bool {
-		tenantID = sanitizeQuickString(tenantID, 256)
+		tenantID = sanitizeQuickTenantID(tenantID, 256)
 		key = sanitizeQuickString(key, 512)
 
 		namespaced, err := tmvalkey.GetKey(tenantID, key)
@@ -137,7 +144,7 @@ func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
 // which is essential for cache lookup correctness.
 func TestProperty_KeyNamespacing_Determinism(t *testing.T) {
 	property := func(tenantID, key string) bool {
-		tenantID = sanitizeQuickString(tenantID, 256)
+		tenantID = sanitizeQuickTenantID(tenantID, 256)
 		key = sanitizeQuickString(key, 512)
 
 		first, err := tmvalkey.GetKey(tenantID, key)
@@ -172,7 +179,7 @@ func TestProperty_KeyNamespacing_Determinism(t *testing.T) {
 // (same package), so no additional stubs are needed.
 func TestProperty_MGet_OutputKeysMatchOriginal(t *testing.T) {
 	property := func(tenantID, keyA, keyB string) bool {
-		tenantID = sanitizeQuickString(tenantID, 256)
+		tenantID = sanitizeQuickTenantID(tenantID, 256)
 		keyA = sanitizeQuickString(keyA, 256)
 		keyB = sanitizeQuickString(keyB, 256)
 

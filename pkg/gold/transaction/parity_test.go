@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/shopspring/decimal"
 )
 

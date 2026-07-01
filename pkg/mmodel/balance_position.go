@@ -27,9 +27,6 @@ import (
 //   - omitted/null when overdraft is unlimited (AllowOverdraft = true AND
 //     OverdraftLimitEnabled = false). The field is absent
 //     from the JSON wire (omitempty on a nil pointer).
-//
-// swagger:model Position
-// @Description Calculated balance position. Derived from Available, OnHold, OverdraftUsed, and Settings — never stored. The position object centralises customer-facing arithmetic so consumers don't have to reimplement it client-side.
 type Position struct {
 	// Available is the net spendable amount: Balance.Available minus
 	// Balance.OverdraftUsed. Negative when the balance is overdrafted
@@ -45,7 +42,7 @@ type Position struct {
 	// Omitted from JSON when overdraft is unlimited (nil pointer).
 	// example: 500
 	OverdraftLimitAvailable *decimal.Decimal `json:"overdraftLimitAvailable,omitempty" example:"500"`
-} // @name Position
+}
 
 // ComputePosition derives a Position from the current Balance state.
 // Pure function, no side effects, no I/O.
