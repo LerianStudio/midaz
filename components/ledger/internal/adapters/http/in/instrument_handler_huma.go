@@ -57,8 +57,8 @@ var secInstrumentBearer = []map[string][]string{
 type CreateInstrumentInputHuma struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	HolderID       string `path:"holder_id" doc:"Holder ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency-Key" doc:"Idempotency key to safely retry the create; an identical retry returns the original instrument"`
-	IdempotencyTTL string `header:"X-Idempotency-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original instrument"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 

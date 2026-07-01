@@ -119,8 +119,8 @@ type CreateTransactionOutputHuma struct {
 type CreateTransactionJSONInputHuma struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency-Key" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
-	IdempotencyTTL string `header:"X-Idempotency-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -160,8 +160,8 @@ func (handler *TransactionHandler) CreateTransactionAnnotationHuma(ctx context.C
 type CreateTransactionInflowInputHuma struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency-Key" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
-	IdempotencyTTL string `header:"X-Idempotency-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -184,8 +184,8 @@ func (handler *TransactionHandler) CreateTransactionInflowHuma(ctx context.Conte
 type CreateTransactionOutflowInputHuma struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	IdempotencyKey string `header:"X-Idempotency-Key" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
-	IdempotencyTTL string `header:"X-Idempotency-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 

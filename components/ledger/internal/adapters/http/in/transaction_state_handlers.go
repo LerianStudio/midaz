@@ -202,8 +202,12 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 // all bidirectional routes) then delegates to the untouched createRevertTransaction core.
 // The parent transaction id passed to createRevertTransaction is the reverted
 // transaction's id (from the route), so the reversal links back to its origin. Revert
-// carries no idempotency headers (the Fiber wrapper read none), so the key/TTL are empty.
-// Called by BOTH the Fiber wrapper and the Huma shell.
+// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
+// and the TTL defaults to ParseIdempotencyTTL("") == 300s — byte-identical to the
+// pre-migration Fiber path, which reached executeCreateTransaction and read
+// GetIdempotencyKeyAndTTL(c) (an absent X-TTL defaults to 300, never 0). A hardcoded 0
+// would make the Redis idempotency slot permanent. Called by BOTH the Fiber wrapper and
+// the Huma shell.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -291,7 +295,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", 0)
+	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
 
 	return tranReverted, err
 }
