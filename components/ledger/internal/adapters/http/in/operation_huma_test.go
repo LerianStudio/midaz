@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
@@ -61,6 +62,8 @@ func buildHumaOperationApp(t *testing.T, handler *OperationHandler, authOK bool)
 	base := "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
 	apiV1.Get(base, parse)
 	apiV1.Get(base+"/:operation_id", parse)
+	// PATCH is on the transaction path (money-write leg), not the account path.
+	apiV1.Patch("/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", parse)
 
 	RegisterOperationRoutes(hAPI, handler)
 
@@ -212,6 +215,81 @@ func TestHuma_GetOperationByAccount_Success(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, operationID.String(), got["id"])
+}
+
+func TestHuma_UpdateOperation_BadOperationUUID_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	// Service must never be reached: ParseUUIDPathParameters rejects the bad
+	// operation_id with the canonical 0065 / 400 before Huma.
+	handler := &OperationHandler{}
+
+	app := buildHumaOperationApp(t, handler, true)
+
+	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/operations/not-a-uuid"
+	req := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{"description":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "bad path UUID stays canonical 400 on PATCH — no native Huma 422")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
+}
+
+func TestHuma_UpdateOperation_MalformedBody_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	operationID := uuid.New()
+
+	// Service must never be reached: DecodeAndValidate rejects the malformed body
+	// with the canonical 400 BEFORE the command — no native Huma 422.
+	handler := &OperationHandler{}
+
+	app := buildHumaOperationApp(t, handler, true)
+
+	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/operations/" + operationID.String()
+	req := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{not-json`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed PATCH body stays canonical 400 — no native Huma 422")
+}
+
+func TestHuma_UpdateOperation_AuthPreserved(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	operationID := uuid.New()
+
+	// No repo expectations: a rejected auth must never reach the service.
+	handler := &OperationHandler{}
+
+	app := buildHumaOperationApp(t, handler, false)
+
+	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/operations/" + operationID.String()
+	req := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{"description":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma; no public route")
 }
 
 func TestHuma_GetOperationByAccount_BadOperationUUID_Canonical400(t *testing.T) {

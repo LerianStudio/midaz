@@ -6,7 +6,6 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
@@ -131,21 +130,28 @@ func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 	RegisterBalanceRoutes(api, bh)
 }
 
-// RegisterOperationRoutesToApp wires the two Huma-migrated operation READ ops. Auth
-// is auth.Authorize("midaz","operations","get") + tenant +
+// RegisterOperationRoutesToApp wires the three Huma-migrated operation ops: two READ
+// (GET, on the account path) plus the PATCH (UpdateOperation, on the transaction path —
+// a money-write LEG of the double-entry). Auth is
+// auth.Authorize("midaz","operations",verb) + tenant +
 // ParseUUIDPathParameters("operation"), attached as middleware-only on the /v1 group
-// before the Huma terminals. The operation PATCH (UpdateOperation) is NOT migrated —
-// it stays inline Fiber in RegisterTransactionRoutesToApp.
+// before the Huma terminals — the SAME (appName, resource, verb) tuples the inline Fiber
+// routes carried, preserved byte-for-byte.
 func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, oh *OperationHandler, routeOptions *http.ProtectedRouteOptions) {
 	const (
-		listPath = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
-		idPath   = listPath + "/:operation_id"
+		listPath  = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations"
+		idPath    = listPath + "/:operation_id"
+		patchPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id"
 	)
 
 	parse := http.ParseUUIDPathParameters("operation")
 
+	// Two READ ops — ("operations","get").
 	group.Get(listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse)...)
 	group.Get(idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse)...)
+
+	// PATCH (money-write leg) — ("operations","patch").
+	group.Patch(patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse)...)
 
 	RegisterOperationRoutes(api, oh)
 }
@@ -264,12 +270,12 @@ func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient,
 	// ("transaction") chain is attached on the /v1 group by RegisterCountTransactionRoutesToApp,
 	// called from the unified server's humaMount. The tuple is preserved byte-for-byte there.
 
-	// Operations — the two read (GET) ops are Wave-2 MIGRATED TO HUMA (see
-	// RegisterOperationRoutesToApp): their terminals live on the shared Huma API and their
-	// auth ("operations","get") + tenant + ParseUUIDPathParameters("operation") chain is
-	// attached on the /v1 group by RegisterOperationRoutesToApp, called from humaMount. The
-	// PATCH UpdateOperation op is NOT migrated — it stays inline Fiber below.
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", protectedMidaz(auth, "operations", "patch", routeOptions, http.ParseUUIDPathParameters("operation"), http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))...)
+	// Operations — the two read (GET) ops AND the PATCH (UpdateOperation, money-write leg)
+	// are MIGRATED TO HUMA (see RegisterOperationRoutesToApp): their terminals live on the
+	// shared Huma API and their auth ("operations",{get|patch}) + tenant +
+	// ParseUUIDPathParameters("operation") chains are attached on the /v1 group by
+	// RegisterOperationRoutesToApp, called from the unified server's humaMount. The
+	// (appName, resource, verb) tuples are preserved byte-for-byte there.
 
 	// Asset-rate — Wave-1 MIGRATED TO HUMA (see RegisterAssetRateRoutesToApp). The
 	// three asset-rate ops no longer register inline here; their terminal handlers
@@ -289,11 +295,13 @@ func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient,
 	// RegisterOperationRouteRoutesToApp, RegisterTransactionRouteRoutesToApp), all called
 	// from the unified server's humaMount. The (appName, resource, verb) authz tuples are
 	// preserved byte-for-byte there — balance under "midaz","balances"; the two route
-	// resources under "routing","operation-routes"/"transaction-routes". The bh/orh/trh
+	// resources under "routing","operation-routes"/"transaction-routes". The oh/ah/bh/orh/trh
 	// handler params are retained on this signature (blanked below) because the unified
-	// server and contract-spec test still construct and pass them, and the non-migrated
-	// transaction write/DSL ops above still use th/oh/ah.
+	// server and contract-spec test still construct and pass them; only the non-migrated
+	// POST /transactions/dsl op above still uses th (the operation PATCH that used oh is now
+	// Huma-migrated in RegisterOperationRoutesToApp).
 	_, _, _ = bh, orh, trh
+	_, _ = oh, ah
 }
 
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {

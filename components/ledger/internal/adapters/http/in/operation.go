@@ -233,11 +233,6 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_operation")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -260,23 +255,42 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	payload := p.(*operation.UpdateOperationInput)
 
+	op, err := handler.updateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, op)
+}
+
+// updateOperation is the transport-neutral update core: it logs the safe payload,
+// runs command.UpdateOperation, then re-reads the operation via query.GetOperationByID
+// (mutable metadata/description only — amounts/accounts/direction/type are immutable).
+// Called by BOTH the Fiber wrapper and the Huma shell (operation_handler_huma.go). The
+// command use case is untouched (transport-only extraction).
+func (handler *OperationHandler) updateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, payload *operation.UpdateOperationInput) (*operation.Operation, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_operation")
+	defer span.End()
+
 	recordSafePayloadAttributes(span, payload)
 
 	logSafePayload(ctx, logger, "Request to update an Operation", payload)
 
-	_, err = handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	_, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to update Operation on command", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Operation on query", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	return http.OK(c, op)
+	return op, nil
 }

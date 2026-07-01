@@ -115,8 +115,10 @@ func buildUnifiedRouteSurface() *fiber.App {
 	// Wave-2 Huma-migrated resources (balance, operation-read, transaction-count,
 	// operation-route, transaction-route) are mounted via the same /v1 group + shared
 	// Huma API the unified server's humaMount uses, so the mounted surface carries their
-	// routes to match the (unchanged, additive) swagger.json. RegisterTransactionRoutesToApp
-	// below still mounts the non-migrated transaction write/DSL + operation-PATCH routes.
+	// routes to match the (unchanged, additive) swagger.json. The operation PATCH
+	// (UpdateOperation, Wave-4 money-write leg) is now ALSO mounted by
+	// RegisterOperationRoutesToApp. RegisterTransactionRoutesToApp below mounts only the
+	// non-migrated transaction write/DSL routes.
 	RegisterBalanceRoutesToApp(apiV1, humaAPI, auth, &BalanceHandler{}, nil)
 	RegisterOperationRoutesToApp(apiV1, humaAPI, auth, &OperationHandler{}, nil)
 	RegisterCountTransactionRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, nil)
@@ -128,7 +130,7 @@ func buildUnifiedRouteSurface() *fiber.App {
 	// the same /v1 group + shared Huma API the unified server's humaMount uses. Their
 	// swagger.json entries come from the intact @Router annotations on the Fiber wrappers,
 	// so the mounted surface must carry them here. RegisterTransactionRoutesToApp below
-	// still mounts the non-migrated POST /transactions/dsl + operation-PATCH routes.
+	// mounts only the non-migrated POST /transactions/dsl route.
 	RegisterTransactionHumaRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, nil)
 
 	RegisterTransactionRoutesToApp(app, auth,

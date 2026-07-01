@@ -155,17 +155,77 @@ func (handler *OperationHandler) GetOperationByAccountHuma(ctx context.Context, 
 	return &GetOperationOutputHuma{Status: http.StatusOK, Body: op}, nil
 }
 
-// RegisterOperationRoutes registers the two migrated operation read ops on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
-// (auth.Authorize("midaz","operations","get")) + tenant + ParseUUIDPathParameters
-// ("operation") chain for these routes is attached in the unified server (Fiber
-// level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the /v1
-// prefix rides the OpenAPI servers entry).
+// --- PATCH /transactions/{transaction_id}/operations/{operation_id} -----------
+
+// UpdateOperationInputHuma is the PATCH request envelope. The op is a LEG of the
+// double-entry (money-write) but a plain metadata/description update — the Fiber
+// wrapper is a plain BodyParser decode (NOT merge-patch: the command builds a fresh
+// operation.Operation{Description} and merges Metadata, no null-field derivation via
+// FindNilFields), so the shell decodes the same UpdateOperationInput and passes it
+// straight to the shared updateOperation core. RawBody keeps the body out of Huma's
+// validator (SkipValidateBody); http.DecodeAndValidate runs the SAME decode+Validate
+// the Fiber WithBody decorator ran, so malformed/invalid bodies stay canonical 400 (no
+// native Huma 422). The four path params are UUID-validated by
+// ParseUUIDPathParameters("operation") — plain-string doc-only fields, no format tag.
+type UpdateOperationInputHuma struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
+	OperationID    string `path:"operation_id" doc:"Operation ID (UUID)"`
+	RawBody        []byte `contentType:"application/json"`
+}
+
+// UpdateOperationOutputHuma carries the updated operation verbatim (200, matching
+// http.OK on the Fiber path).
+type UpdateOperationOutputHuma struct {
+	Status int
+	Body   *operation.Operation
+}
+
+// UpdateOperationHuma resolves the path UUIDs, decodes+validates the raw body
+// imperatively, then delegates to the shared updateOperation core (command.UpdateOperation
+// + query.GetOperationByID). Byte-identical to the Fiber wrapper's core path.
+func (handler *OperationHandler) UpdateOperationHuma(ctx context.Context, in *UpdateOperationInputHuma) (*UpdateOperationOutputHuma, error) {
+	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	transactionID, err := parsePathUUID(in.TransactionID, "transaction_id")
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	operationID, err := parsePathUUID(in.OperationID, "operation_id")
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	payload := new(operation.UpdateOperationInput)
+	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	op, err := handler.updateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &UpdateOperationOutputHuma{Status: http.StatusOK, Body: op}, nil
+}
+
+// RegisterOperationRoutes registers the two migrated operation read ops plus the PATCH
+// (Wave-4 money-write leg) on the shared Huma API. It is the per-file seam the unified
+// server calls; the auth (auth.Authorize("midaz","operations",verb)) + tenant +
+// ParseUUIDPathParameters("operation") chain for these routes is attached in the unified
+// server (Fiber level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the
+// /v1 prefix rides the OpenAPI servers entry).
 func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 	const (
-		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations"
-		idPath   = listPath + "/{operation_id}"
-		tag      = "Operations"
+		listPath  = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations"
+		idPath    = listPath + "/{operation_id}"
+		patchPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}"
+		tag       = "Operations"
 	)
 
 	huma.Register(api, huma.Operation{
@@ -185,4 +245,14 @@ func RegisterOperationRoutes(api huma.API, h *OperationHandler) {
 		Tags:        []string{tag},
 		Security:    secAssetBearerOrAPIKey,
 	}, h.GetOperationByAccountHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "updateOperation",
+		Method:           http.MethodPatch,
+		Path:             patchPath,
+		Summary:          "Update an Operation",
+		Tags:             []string{tag},
+		Security:         secTransactionBearer, // @Security BearerAuth (Bearer-only), matching the Fiber swaggo on the transaction-path PATCH.
+		SkipValidateBody: true,                 // body validated imperatively (http.DecodeAndValidate) — plain decode, not merge-patch.
+	}, h.UpdateOperationHuma)
 }
