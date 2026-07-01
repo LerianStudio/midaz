@@ -237,6 +237,78 @@ func TestHuma_CreateRule_ValidationError(t *testing.T) {
 	assert.Empty(t, svc.capturedTenant, "service must not be reached on a validation error")
 }
 
+// TestHuma_GetRule_BadUUID pins the malformed-path-param contract: a non-UUID
+// {id} must reach the handler's imperative uuid.Parse and produce the canonical
+// 400 / code 0065 (ErrInvalidPathParameter) / entityType Rule — NOT a native
+// Huma 422 fired before the handler. Path params can't be SkipValidate'd, so a
+// `format:"uuid"` struct tag would let Huma reject the id first and diverge from
+// the Fiber envelope. Reference pattern for all 28 by-id handlers in the 2b
+// fan-out: NO format/struct-tag validation on path params.
+func TestHuma_GetRule_BadUUID(t *testing.T) {
+	t.Parallel()
+
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-epsilon")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules/not-a-uuid", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"malformed path UUID must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"),
+		"error must carry the RFC 9457 media type")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0065", got["code"], "code must be ErrInvalidPathParameter, byte-identical to the Fiber path")
+	assert.Equal(t, float64(http.StatusBadRequest), got["status"], "RFC 9457 status field")
+	assert.Equal(t, libProblem.BaseURI+"/0065", got["type"], "RFC 9457 type is BaseURI/code")
+	assert.Equal(t, "Rule", got["entityType"], "canonical entityType from ErrInvalidPathParameter")
+
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad path param")
+}
+
+// TestHuma_CreateRule_MalformedJSON pins the SkipValidateBody + RawBody contract:
+// a syntactically broken JSON body must reach the handler's imperative
+// json.Unmarshal and produce the canonical 400 / code 0094 (ErrInvalidRequestBody),
+// NOT a native Huma 400/422 fired by body-schema validation. This is the entire
+// justification for SkipValidateBody:true + RawBody; without a test any tag/config
+// change re-enabling native body validation regresses silently across 28 handlers.
+func TestHuma_CreateRule_MalformedJSON(t *testing.T) {
+	t.Parallel()
+
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-zeta")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules", bytes.NewReader([]byte("{not json")))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"malformed JSON must be the canonical 400 — no native Huma body validation")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"),
+		"error must carry the RFC 9457 media type")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0094", got["code"], "code must be ErrInvalidRequestBody, byte-identical to the Fiber path")
+	assert.Equal(t, float64(http.StatusBadRequest), got["status"], "RFC 9457 status field")
+	assert.Equal(t, libProblem.BaseURI+"/0094", got["type"], "RFC 9457 type is BaseURI/code")
+
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on malformed JSON")
+}
+
 // TestHuma_ErrorBodyMatchesFiberEnvelope pins byte-identity of the error body:
 // the same domain error rendered through the legacy Fiber http.WithError path
 // and through the migrated Huma handler must produce the identical JSON body.

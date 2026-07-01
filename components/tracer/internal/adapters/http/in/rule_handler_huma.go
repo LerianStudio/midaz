@@ -24,9 +24,13 @@ import (
 //     json.Unmarshal + Input.Validate() and produce the byte-identical canonical
 //     error — no new native Huma 400/422. The `contentType:"application/json"`
 //     tag keeps the generated spec advertising JSON rather than octet-stream.
-//     Out carries Body (the model type, serialized verbatim because
-//     openapi.New strips Huma's SchemaLinkTransformer) + Status (the success
-//     code). No `$schema` leaks into the body.
+//     Path/query params carry NO validation struct tag (no `format:"uuid"`,
+//     etc.): unlike the body they can't be SkipValidate'd, so a format tag would
+//     make Huma reject a bad value with a native 422 before the handler, bypassing
+//     the imperative uuid.Parse that yields the canonical 400 / code 0065. Only
+//     `doc:` for the spec. Out carries Body (the model type, serialized verbatim
+//     because openapi.New strips Huma's SchemaLinkTransformer) + Status (the
+//     success code). No `$schema` leaks into the body.
 //
 //  2. Handler funcs: func(ctx, *In) (*Out, error). They delegate to the
 //     transport-agnostic core on *Handler (createRule/getRule), which owns the
@@ -65,9 +69,15 @@ type CreateRuleOutputHuma struct {
 	Body   *model.Rule
 }
 
-// GetRuleInputHuma is the Huma request envelope for GET /v1/rules/{id}.
+// GetRuleInputHuma is the Huma request envelope for GET /v1/rules/{id}. The path
+// param carries NO `format:"uuid"`: path params can't be SkipValidate'd, so a
+// format tag would make Huma reject a malformed id with a native 422 BEFORE the
+// handler — diverging from the canonical 400 / code 0065 (ErrInvalidPathParameter)
+// the shared getRule core produces via uuid.Parse. Leaving uuid.Parse as the sole
+// path validator is the same principle as RawBody+SkipValidateBody for the body.
+// The 2b fan-out must carry NO format/struct-tag validation on path/query params.
 type GetRuleInputHuma struct {
-	ID string `path:"id" doc:"Rule ID (UUID)" format:"uuid"`
+	ID string `path:"id" doc:"Rule ID (UUID)"`
 }
 
 // GetRuleOutputHuma is the Huma response envelope for GET /v1/rules/{id}.
