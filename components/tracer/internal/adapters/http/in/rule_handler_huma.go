@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"net/http"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -98,6 +99,128 @@ type GetRuleOutputHuma struct {
 	Body   *model.Rule
 }
 
+// UpdateRuleInputHuma is the Huma request envelope for PATCH /v1/rules/{id}.
+// Like Create, the body is taken raw + SkipValidateBody so the imperative
+// UpdateRuleInput.Validate()/IsEmpty() in updateRule stay the sole validators;
+// the path param carries NO `format:"uuid"` (uuid.Parse is the sole path
+// validator, yielding the canonical 400/0065 rather than a native Huma 422).
+type UpdateRuleInputHuma struct {
+	ID      string `path:"id" doc:"Rule ID (UUID)"`
+	RawBody []byte `contentType:"application/json"`
+}
+
+// UpdateRuleOutputHuma is the Huma response envelope for PATCH /v1/rules/{id}.
+type UpdateRuleOutputHuma struct {
+	Status int
+	Body   *model.Rule
+}
+
+// ListRulesInputHuma is the Huma request envelope for GET /v1/rules. Every query
+// param is a STRING with NO validation struct tag (no min/max/enum/required):
+// the moment a param is typed (e.g. int) or tagged, Huma coerces/validates it
+// and rejects a bad value with a native 422 BEFORE the handler — the query-param
+// analogue of the Phase-2a format:"uuid" bug. Taking everything as a string means
+// Huma never rejects the value; listRules binds it into ListRulesInput and runs
+// the imperative Validate()/SetDefaults(), producing the canonical 400 (0080 /
+// 0082 / …) identical to the Fiber QueryParser+Validate path. `doc:` only.
+type ListRulesInputHuma struct {
+	Name            string `query:"name" doc:"Filter by name (case-insensitive partial match)"`
+	Status          string `query:"status" doc:"Filter by status (DRAFT, ACTIVE, INACTIVE; DELETED not allowed)"`
+	Action          string `query:"action" doc:"Filter by action (ALLOW, DENY, REVIEW)"`
+	AccountID       string `query:"account_id" doc:"Filter by scope account_id (UUID)"`
+	SegmentID       string `query:"segment_id" doc:"Filter by scope segment_id (UUID)"`
+	PortfolioID     string `query:"portfolio_id" doc:"Filter by scope portfolio_id (UUID)"`
+	MerchantID      string `query:"merchant_id" doc:"Filter by scope merchant_id (UUID)"`
+	TransactionType string `query:"transaction_type" doc:"Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)"`
+	SubType         string `query:"sub_type" doc:"Filter by scope sub_type (case-insensitive; max 50 chars)"`
+	Limit           string `query:"limit" doc:"Max items per page (1-100, default: 10)"`
+	Cursor          string `query:"cursor" doc:"Pagination cursor (empty for first page)"`
+	SortBy          string `query:"sort_by" doc:"Sort field (created_at, updated_at, name, status)"`
+	SortOrder       string `query:"sort_order" doc:"Sort direction (ASC, DESC)"`
+}
+
+// bindListRulesInput copies the string query params into a *ListRulesInput, in
+// the same field shape Fiber's c.QueryParser produces (pointers left nil when
+// the param is absent, so SetDefaults()/optional-filter semantics are identical).
+// The only value that can fail here is limit: a non-numeric limit returns an
+// error, which listRules canonicalizes to ErrInvalidQueryParameter (0082) —
+// the SAME code Fiber's QueryParser-failure arm produced for an unparseable int.
+func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
+	out, ok := target.(*ListRulesInput)
+	if !ok {
+		// Unreachable: listRules always passes a *ListRulesInput.
+		return nil
+	}
+
+	optStr := func(v string) *string {
+		if v == "" {
+			return nil
+		}
+
+		s := v
+
+		return &s
+	}
+
+	out.Name = optStr(in.Name)
+	out.AccountID = optStr(in.AccountID)
+	out.SegmentID = optStr(in.SegmentID)
+	out.PortfolioID = optStr(in.PortfolioID)
+	out.MerchantID = optStr(in.MerchantID)
+	out.TransactionType = optStr(in.TransactionType)
+	out.SubType = optStr(in.SubType)
+	out.Cursor = in.Cursor
+	out.SortBy = in.SortBy
+	out.SortOrder = in.SortOrder
+
+	if in.Status != "" {
+		s := model.RuleStatus(in.Status)
+		out.Status = &s
+	}
+
+	if in.Action != "" {
+		a := model.Decision(in.Action)
+		out.Action = &a
+	}
+
+	if in.Limit != "" {
+		n, err := strconv.Atoi(in.Limit)
+		if err != nil {
+			return err
+		}
+
+		out.Limit = &n
+	}
+
+	return nil
+}
+
+// ListRulesOutputHuma is the Huma response envelope for GET /v1/rules. Body is
+// the ListRulesResponse cursor DTO serialized verbatim.
+type ListRulesOutputHuma struct {
+	Status int
+	Body   *ListRulesResponse
+}
+
+// RuleIDInputHuma is the shared Huma request envelope for the id-only,
+// body-less lifecycle ops (activate/deactivate/draft). No RawBody, no
+// SkipValidateBody. Path param carries no format tag (uuid.Parse is the sole
+// validator — canonical 400/0065, never a native 422).
+type RuleIDInputHuma struct {
+	ID string `path:"id" doc:"Rule ID (UUID)"`
+}
+
+// RuleOutputHuma is the shared 200 response envelope for the lifecycle ops.
+type RuleOutputHuma struct {
+	Status int
+	Body   *model.Rule
+}
+
+// DeleteRuleOutputHuma is the Huma response envelope for DELETE /v1/rules/{id}.
+// It has NO Body field: paired with huma.Operation{DefaultStatus: 204} it makes
+// Huma emit a bodiless 204, matching the Fiber http.NoContent path exactly.
+type DeleteRuleOutputHuma struct{}
+
 // CreateRuleHuma is the Huma handler for POST /v1/rules. It delegates to the
 // shared core and, on success, returns 201 with the created rule.
 func (h *Handler) CreateRuleHuma(ctx context.Context, in *CreateRuleInputHuma) (*CreateRuleOutputHuma, error) {
@@ -120,11 +243,74 @@ func (h *Handler) GetRuleHuma(ctx context.Context, in *GetRuleInputHuma) (*GetRu
 	return &GetRuleOutputHuma{Status: http.StatusOK, Body: result}, nil
 }
 
+// UpdateRuleHuma is the Huma handler for PATCH /v1/rules/{id}. It delegates to
+// the shared core and, on success, returns 200 with the updated rule.
+func (h *Handler) UpdateRuleHuma(ctx context.Context, in *UpdateRuleInputHuma) (*UpdateRuleOutputHuma, error) {
+	result, err := h.updateRule(ctx, in.ID, in.RawBody)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &UpdateRuleOutputHuma{Status: http.StatusOK, Body: result}, nil
+}
+
+// ListRulesHuma is the Huma handler for GET /v1/rules. It hands the shared core
+// its own string->typed query binder (bindListRulesInput); the core owns
+// Validate/SetDefaults/service/response so the result is identical to Fiber.
+func (h *Handler) ListRulesHuma(ctx context.Context, in *ListRulesInputHuma) (*ListRulesOutputHuma, error) {
+	result, err := h.listRules(ctx, in.bindListRulesInput)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &ListRulesOutputHuma{Status: http.StatusOK, Body: result}, nil
+}
+
+// ActivateRuleHuma is the Huma handler for POST /v1/rules/{id}/activate.
+func (h *Handler) ActivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
+	result, err := h.activateRule(ctx, in.ID)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
+}
+
+// DeactivateRuleHuma is the Huma handler for POST /v1/rules/{id}/deactivate.
+func (h *Handler) DeactivateRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
+	result, err := h.deactivateRule(ctx, in.ID)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
+}
+
+// DraftRuleHuma is the Huma handler for POST /v1/rules/{id}/draft.
+func (h *Handler) DraftRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*RuleOutputHuma, error) {
+	result, err := h.draftRule(ctx, in.ID)
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &RuleOutputHuma{Status: http.StatusOK, Body: result}, nil
+}
+
+// DeleteRuleHuma is the Huma handler for DELETE /v1/rules/{id}. On success it
+// returns an empty DeleteRuleOutputHuma; paired with DefaultStatus:204 Huma
+// emits a bodiless 204, matching the Fiber http.NoContent path.
+func (h *Handler) DeleteRuleHuma(ctx context.Context, in *RuleIDInputHuma) (*DeleteRuleOutputHuma, error) {
+	if err := h.deleteRule(ctx, in.ID); err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &DeleteRuleOutputHuma{}, nil
+}
+
 // RegisterRuleRoutes registers the migrated rule operations on the shared Huma
 // API. It is the per-file seam NewRoutes calls; the auth middleware for these
-// routes is attached in routes.go (Fiber-level), not here. Only the two
-// reference operations are Huma-registered in Phase 2a; the remaining rule
-// operations stay inline Fiber in routes.go until the 2b fan-out.
+// routes is attached in routes.go (Fiber-level), not here. As of Phase 2b-1 all
+// eight rule operations are Huma-registered.
 func RegisterRuleRoutes(api huma.API, h *Handler) {
 	// Paths are GROUP-RELATIVE: the Huma API is bound to the /v1 Fiber group, so
 	// the humafiber adapter registers on that group and Fiber prepends /v1. The
@@ -152,6 +338,58 @@ func RegisterRuleRoutes(api huma.API, h *Handler) {
 		Summary:     "Get a fraud rule by ID",
 		Tags:        []string{"Rules"},
 	}, h.GetRuleHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "listRules",
+		Method:      http.MethodGet,
+		Path:        "/rules",
+		Summary:     "List fraud rules",
+		Tags:        []string{"Rules"},
+	}, h.ListRulesHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "updateRule",
+		Method:           http.MethodPatch,
+		Path:             "/rules/{id}",
+		Summary:          "Partially update an existing fraud rule",
+		Tags:             []string{"Rules"},
+		SkipValidateBody: true, // body validated imperatively — see CreateRule.
+	}, h.UpdateRuleHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "activateRule",
+		Method:      http.MethodPost,
+		Path:        "/rules/{id}/activate",
+		Summary:     "Activate a fraud rule",
+		Tags:        []string{"Rules"},
+	}, h.ActivateRuleHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "deactivateRule",
+		Method:      http.MethodPost,
+		Path:        "/rules/{id}/deactivate",
+		Summary:     "Deactivate a fraud rule",
+		Tags:        []string{"Rules"},
+	}, h.DeactivateRuleHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "draftRule",
+		Method:      http.MethodPost,
+		Path:        "/rules/{id}/draft",
+		Summary:     "Transition a rule back to draft",
+		Tags:        []string{"Rules"},
+	}, h.DraftRuleHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteRule",
+		Method:      http.MethodDelete,
+		Path:        "/rules/{id}",
+		Summary:     "Delete a fraud rule",
+		Tags:        []string{"Rules"},
+		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204,
+		// matching the Fiber http.NoContent path.
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteRuleHuma)
 }
 
 // humaProblem converts a canonical Midaz error (already classified + span-

@@ -348,22 +348,23 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Servers: []string{"/v1"},
 	})
 
-	// Rule endpoints
-	ruleHandler := NewHandler(ruleService)
-	// CreateRule + GetRule migrated to Huma (reference for the 2b fan-out). Auth
-	// stays a Fiber middleware attached to the exact method+path BEFORE the Huma
+	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
+	// Fiber middleware attached to the exact method+path BEFORE the Huma
 	// registration, so guard.With runs first and c.Next() advances into the Huma
-	// handler — byte-identical auth behavior, no Huma per-op Security yet.
-	api.Post("/rules", guard.With("rules", "post", false))
-	api.Get("/rules/:id", guard.With("rules", "get", false))
-	RegisterRuleRoutes(humaAPI, ruleHandler)
+	// handler — byte-identical auth behavior, no Huma per-op Security yet. The
+	// (resource, verb, forceAPIKey) tuples are preserved verbatim from the
+	// pre-Huma inline routes.
+	ruleHandler := NewHandler(ruleService)
 
-	api.Get("/rules", guard.With("rules", "get", false), ruleHandler.ListRules)
-	api.Patch("/rules/:id", guard.With("rules", "patch", false), ruleHandler.UpdateRule)
-	api.Delete("/rules/:id", guard.With("rules", "delete", false), ruleHandler.DeleteRule)
-	api.Post("/rules/:id/activate", guard.With("rules", "post", false), ruleHandler.ActivateRule)
-	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false), ruleHandler.DeactivateRule)
-	api.Post("/rules/:id/draft", guard.With("rules", "post", false), ruleHandler.DraftRule)
+	api.Post("/rules", guard.With("rules", "post", false))
+	api.Get("/rules", guard.With("rules", "get", false))
+	api.Get("/rules/:id", guard.With("rules", "get", false))
+	api.Patch("/rules/:id", guard.With("rules", "patch", false))
+	api.Delete("/rules/:id", guard.With("rules", "delete", false))
+	api.Post("/rules/:id/activate", guard.With("rules", "post", false))
+	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false))
+	api.Post("/rules/:id/draft", guard.With("rules", "post", false))
+	RegisterRuleRoutes(humaAPI, ruleHandler)
 
 	// Limit endpoints
 	limitHandler := NewLimitHandler(limitService)

@@ -145,7 +145,20 @@ func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, 
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id} [patch]
 func (h *Handler) UpdateRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	result, err := h.updateRule(c.UserContext(), c.Params("id"), c.Body())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, result)
+}
+
+// updateRule is the transport-agnostic core of the update-rule operation shared
+// by the Fiber method (UpdateRule) and the Huma func (UpdateRuleHuma). See
+// createRule for the split rationale: it owns the span + id parse + imperative
+// parse/Validate/IsEmpty + service call + success log, and canonicalizes every
+// error before returning so both transports render the identical body.
+func (h *Handler) updateRule(ctx context.Context, idParam string, rawBody []byte) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.update")
@@ -153,30 +166,26 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse rule ID from path
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	var input UpdateRuleInput
-	if err := c.BodyParser(&input); err != nil {
+	if err := json.Unmarshal(rawBody, &input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
-		return http.WithError(c, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."})
+		return nil, pkg.ValidationError{Code: constant.ErrInvalidRequestBody.Error(), Title: "Bad Request", Message: "The request body is malformed or contains invalid JSON. Please verify the syntax and try again."}
 	}
 
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if input.IsEmpty() {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No fields to update", nil)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityRule))
+		return nil, pkg.ValidateBusinessError(constant.ErrNothingToUpdate, constant.EntityRule)
 	}
 
 	// Convert HTTP input to service input
@@ -184,7 +193,7 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 
 	result, err := h.service.UpdateRule(ctx, id, serviceInput)
 	if err != nil {
-		return handleServiceError(c, span, err)
+		return nil, classifyServiceError(span, err)
 	}
 
 	logger.With(
@@ -192,7 +201,7 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", result.ID.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule updated")
 
-	return http.OK(c, result)
+	return result, nil
 }
 
 // GetRule godoc
@@ -281,7 +290,27 @@ func (h *Handler) getRule(ctx context.Context, idParam string) (*model.Rule, err
 //	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules [get]
 func (h *Handler) ListRules(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	// Fiber binds the query with QueryParser; the shared core owns the rest.
+	response, err := h.listRules(c.UserContext(), c.QueryParser)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, response)
+}
+
+// listRules is the transport-agnostic core of the list-rules operation shared by
+// the Fiber method (ListRules) and the Huma func (ListRulesHuma). See createRule
+// for the split rationale.
+//
+// Query BINDING is the only transport-specific step and stays at the edge: the
+// caller passes a bind func that populates *ListRulesInput from its own query
+// source (Fiber's c.QueryParser, or the Huma func's imperative string->typed
+// copy). A bind error is canonicalized to ErrInvalidQueryParameter (0082) — the
+// SAME code the Fiber QueryParser-failure path produced. Everything after
+// binding (Validate -> SetDefaults -> service -> response) is shared, so both
+// transports emit field/status/code-identical results.
+func (h *Handler) listRules(ctx context.Context, bind func(any) error) (*ListRulesResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.list")
@@ -289,19 +318,16 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Parse query parameters into input struct
 	var input ListRulesInput
-
-	if err := c.QueryParser(&input); err != nil {
+	if err := bind(&input); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 	}
 
 	// Validate first (before defaults) to catch explicit invalid values like limit=0
 	if err := input.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
-		// Check for typed validation error with specific code
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Apply defaults after validation passes (for non-specified optional fields)
@@ -312,7 +338,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 
 	result, err := h.service.ListRules(ctx, filter)
 	if err != nil {
-		return handleServiceError(c, span, err)
+		return nil, classifyServiceError(span, err)
 	}
 
 	// Convert to response
@@ -324,7 +350,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelDebug, "Rules listed")
 
-	return http.OK(c, response)
+	return response, nil
 }
 
 // ActivateRule godoc
@@ -345,7 +371,19 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/activate [post]
 func (h *Handler) ActivateRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	rule, err := h.activateRule(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, rule)
+}
+
+// activateRule is the transport-agnostic core of the activate-rule operation
+// shared by the Fiber method (ActivateRule) and the Huma func (ActivateRuleHuma).
+// It owns the span + id parse + service call + success log, and canonicalizes
+// every error via classifyLifecycleError before returning.
+func (h *Handler) activateRule(ctx context.Context, idParam string) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.activate")
@@ -353,17 +391,15 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	rule, err := h.service.ActivateRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, span, err)
+		return nil, classifyLifecycleError(span, err)
 	}
 
 	logger.With(
@@ -371,7 +407,7 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule activated")
 
-	return http.OK(c, rule)
+	return rule, nil
 }
 
 // DeactivateRule godoc
@@ -392,7 +428,18 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/deactivate [post]
 func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	rule, err := h.deactivateRule(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, rule)
+}
+
+// deactivateRule is the transport-agnostic core of the deactivate-rule operation
+// shared by the Fiber method (DeactivateRule) and the Huma func
+// (DeactivateRuleHuma). See activateRule for the split rationale.
+func (h *Handler) deactivateRule(ctx context.Context, idParam string) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.deactivate")
@@ -400,17 +447,15 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	rule, err := h.service.DeactivateRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, span, err)
+		return nil, classifyLifecycleError(span, err)
 	}
 
 	logger.With(
@@ -418,7 +463,7 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule deactivated")
 
-	return http.OK(c, rule)
+	return rule, nil
 }
 
 // DraftRule godoc
@@ -439,7 +484,18 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id}/draft [post]
 func (h *Handler) DraftRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	rule, err := h.draftRule(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, rule)
+}
+
+// draftRule is the transport-agnostic core of the draft-rule operation shared by
+// the Fiber method (DraftRule) and the Huma func (DraftRuleHuma). See
+// activateRule for the split rationale.
+func (h *Handler) draftRule(ctx context.Context, idParam string) (*model.Rule, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.draft")
@@ -447,17 +503,15 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	rule, err := h.service.DraftRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, span, err)
+		return nil, classifyLifecycleError(span, err)
 	}
 
 	logger.With(
@@ -465,7 +519,7 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule transitioned to draft")
 
-	return http.OK(c, rule)
+	return rule, nil
 }
 
 // DeleteRule godoc
@@ -486,7 +540,18 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 //	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules/{id} [delete]
 func (h *Handler) DeleteRule(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	if err := h.deleteRule(c.UserContext(), c.Params("id")); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
+}
+
+// deleteRule is the transport-agnostic core of the delete-rule operation shared
+// by the Fiber method (DeleteRule) and the Huma func (DeleteRuleHuma). It owns
+// the span + id parse + service call + success log, and canonicalizes every
+// error via classifyLifecycleError before returning.
+func (h *Handler) deleteRule(ctx context.Context, idParam string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.rule.delete")
@@ -494,16 +559,14 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	idParam := c.Params("id")
-
 	id, err := uuid.Parse(idParam)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
-		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"))
+		return pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id")
 	}
 
 	if err := h.service.DeleteRule(ctx, id); err != nil {
-		return handleLifecycleError(c, span, err)
+		return classifyLifecycleError(span, err)
 	}
 
 	logger.With(
@@ -511,17 +574,14 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 		libLog.String("rule.id", id.String()),
 	).Log(ctx, libLog.LevelDebug, "Rule deleted")
 
-	return http.NoContent(c)
-}
-
-// handleLifecycleError converts lifecycle service errors to appropriate HTTP responses.
-func handleLifecycleError(c *fiber.Ctx, span trace.Span, err error) error {
-	return http.WithError(c, classifyLifecycleError(span, err))
+	return nil
 }
 
 // classifyLifecycleError maps a raw lifecycle error to its canonical Midaz
-// error, attributing the span, WITHOUT rendering. Shared by the Fiber writer
-// (handleLifecycleError) and the Huma StatusError path.
+// error, attributing the span, WITHOUT rendering. Shared by every rule
+// lifecycle core (activate/deactivate/draft/delete) — both the Fiber method and
+// the Huma func route their errors through it, so the two transports emit
+// field/status/code-identical envelopes.
 func classifyLifecycleError(span trace.Span, err error) error {
 	var invalidTransitionErr *model.InvalidTransitionError
 	if errors.As(err, &invalidTransitionErr) {
@@ -532,14 +592,9 @@ func classifyLifecycleError(span trace.Span, err error) error {
 	return classifyServiceError(span, err)
 }
 
-// handleServiceError converts service errors to appropriate HTTP responses.
-func handleServiceError(c *fiber.Ctx, span trace.Span, err error) error {
-	return http.WithError(c, classifyServiceError(span, err))
-}
-
 // classifyServiceError maps a raw service error to its canonical Midaz error,
 // attributing the span, WITHOUT rendering. It is the single classification the
-// Fiber writer (handleServiceError -> http.WithError) and the Huma path
+// Fiber wrappers (which render via http.WithError) and the Huma path
 // (humaProblem -> *http.Detail) both consume, so both transports emit
 // field/status/code/type-identical envelopes (decoded bodies match exactly; raw
 // bytes differ only by Huma's encoder newline + HTML-escaping, invisible to any

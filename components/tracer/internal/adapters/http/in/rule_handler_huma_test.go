@@ -43,6 +43,19 @@ type tenantSpyService struct {
 	createErr      error
 	getResult      *model.Rule
 	getErr         error
+
+	// lifecycle / update / list / delete results shared by the 2b ops.
+	updateResult *model.Rule
+	updateErr    error
+	listResult   *model.ListRulesResult
+	listErr      error
+	lifecycle    *model.Rule // returned by activate/deactivate/draft
+	lifecycleErr error
+	deleteErr    error
+	// listFilter captures the filter the core built from the query, so tests
+	// can assert imperative binding/defaults produced the same filter the Fiber
+	// path would.
+	listFilter *model.ListRulesFilter
 }
 
 func (s *tenantSpyService) CreateRule(ctx context.Context, _ *command.CreateRuleInput) (*model.Rule, error) {
@@ -55,26 +68,36 @@ func (s *tenantSpyService) GetRule(ctx context.Context, _ uuid.UUID) (*model.Rul
 	return s.getResult, s.getErr
 }
 
-func (s *tenantSpyService) UpdateRule(context.Context, uuid.UUID, *command.UpdateRuleInput) (*model.Rule, error) {
-	return nil, nil
+func (s *tenantSpyService) UpdateRule(ctx context.Context, _ uuid.UUID, _ *command.UpdateRuleInput) (*model.Rule, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	return s.updateResult, s.updateErr
 }
 
-func (s *tenantSpyService) ListRules(context.Context, *model.ListRulesFilter) (*model.ListRulesResult, error) {
-	return nil, nil
+func (s *tenantSpyService) ListRules(ctx context.Context, filter *model.ListRulesFilter) (*model.ListRulesResult, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	s.listFilter = filter
+	return s.listResult, s.listErr
 }
 
-func (s *tenantSpyService) ActivateRule(context.Context, uuid.UUID) (*model.Rule, error) {
-	return nil, nil
+func (s *tenantSpyService) ActivateRule(ctx context.Context, _ uuid.UUID) (*model.Rule, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	return s.lifecycle, s.lifecycleErr
 }
 
-func (s *tenantSpyService) DeactivateRule(context.Context, uuid.UUID) (*model.Rule, error) {
-	return nil, nil
+func (s *tenantSpyService) DeactivateRule(ctx context.Context, _ uuid.UUID) (*model.Rule, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	return s.lifecycle, s.lifecycleErr
 }
 
-func (s *tenantSpyService) DraftRule(context.Context, uuid.UUID) (*model.Rule, error) {
-	return nil, nil
+func (s *tenantSpyService) DraftRule(ctx context.Context, _ uuid.UUID) (*model.Rule, error) {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	return s.lifecycle, s.lifecycleErr
 }
-func (s *tenantSpyService) DeleteRule(context.Context, uuid.UUID) error { return nil }
+
+func (s *tenantSpyService) DeleteRule(ctx context.Context, _ uuid.UUID) error {
+	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	return s.deleteErr
+}
 
 // buildHumaRuleApp mounts the CreateRule/GetRule Huma routes on a /v1 group that
 // carries a tenant-injecting middleware, faithfully mirroring the production
@@ -368,10 +391,12 @@ func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
 	humaBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	// Reference: the same error through the frozen Fiber envelope.
+	// Reference: the same error through the frozen Fiber envelope. This mirrors
+	// what every rule Fiber wrapper now does — render classifyServiceError's
+	// canonical error through pkgHTTP.WithError.
 	ref := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 	ref.Get("/probe", func(c *fiber.Ctx) error {
-		return handleServiceError(c, trace.SpanFromContext(c.UserContext()), constant.ErrRuleNotFound)
+		return pkgHTTP.WithError(c, classifyServiceError(trace.SpanFromContext(c.UserContext()), constant.ErrRuleNotFound))
 	})
 	refResp, err := ref.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), -1)
 	require.NoError(t, err)
@@ -439,4 +464,414 @@ func TestHuma_MigratedRoutes_AuthStillEnforced(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode,
 			"authenticated request must clear the guard and reach the migrated Huma handler")
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2b-1: the remaining six rule ops migrated to Huma. Each op mirrors the
+// Create/Get reference tests: a success path (status + field-identical body +
+// tenant threaded + no $schema leak) and a canonical-error path (code/status/
+// type/problem+json, NEVER a native Huma 422, service not reached where the
+// error precedes it). All NON-PARALLEL — see buildHumaRuleApp.
+// ---------------------------------------------------------------------------
+
+func TestHuma_UpdateRule_Success(t *testing.T) {
+	id := testutil.MustDeterministicUUID(11)
+	rule := &model.Rule{
+		ID:         id,
+		Name:       "Updated Rule",
+		Expression: "amount > 2000",
+		Action:     model.DecisionReview,
+		Status:     model.RuleStatusDraft,
+		CreatedAt:  testutil.FixedTime(),
+		UpdatedAt:  testutil.FixedTime(),
+	}
+	svc := &tenantSpyService{updateResult: rule}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	body, err := json.Marshal(map[string]any{"name": "Updated Rule"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "UpdateRule must return 200 through Huma")
+	assert.NotContains(t, string(respBody), "$schema")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "Updated Rule", got["name"])
+	assert.Equal(t, id.String(), got["ruleId"])
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+}
+
+func TestHuma_UpdateRule_BadUUID(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	body, _ := json.Marshal(map[string]any{"name": "x"})
+	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/not-a-uuid", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed path UUID must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0065", got["code"])
+	assert.Equal(t, libProblem.BaseURI+"/0065", got["type"])
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad path param")
+}
+
+func TestHuma_UpdateRule_EmptyBody(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	id := testutil.MustDeterministicUUID(12)
+	// A well-formed but empty patch body -> IsEmpty() -> ErrNothingToUpdate.
+	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader([]byte("{}")))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "empty update must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	// ErrNothingToUpdate canonical code, identical to the Fiber path.
+	assert.Equal(t, constant.ErrNothingToUpdate.Error(), got["code"])
+	assert.Empty(t, svc.capturedTenant, "service must not be reached when there is nothing to update")
+}
+
+func TestHuma_UpdateRule_MalformedJSON(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-zeta")
+
+	id := testutil.MustDeterministicUUID(13)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader([]byte("{not json")))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed JSON must be the canonical 400 — no native Huma body validation")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0094", got["code"], "code must be ErrInvalidRequestBody, identical to the Fiber path")
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on malformed JSON")
+}
+
+func TestHuma_ListRules_Success(t *testing.T) {
+	rule := &model.Rule{
+		ID:        testutil.MustDeterministicUUID(20),
+		Name:      "Listed Rule",
+		Action:    model.DecisionAllow,
+		Status:    model.RuleStatusActive,
+		CreatedAt: testutil.FixedTime(),
+		UpdatedAt: testutil.FixedTime(),
+	}
+	svc := &tenantSpyService{listResult: &model.ListRulesResult{
+		Rules:      []model.Rule{*rule},
+		NextCursor: "next123",
+		HasMore:    true,
+	}}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=25&status=ACTIVE&sort_by=name&sort_order=asc", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "ListRules must return 200 through Huma")
+	assert.NotContains(t, string(respBody), "$schema")
+
+	var got ListRulesResponse
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be ListRulesResponse: %s", string(respBody))
+	require.Len(t, got.Rules, 1)
+	assert.Equal(t, "Listed Rule", got.Rules[0].Name)
+	assert.Equal(t, "next123", got.NextCursor)
+	assert.True(t, got.HasMore)
+
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+	// Imperative binding produced the same typed filter the Fiber QueryParser path would.
+	require.NotNil(t, svc.listFilter)
+	assert.Equal(t, 25, svc.listFilter.Limit)
+	require.NotNil(t, svc.listFilter.Status)
+	assert.Equal(t, model.RuleStatusActive, *svc.listFilter.Status)
+	assert.Equal(t, "name", svc.listFilter.SortBy)
+	assert.Equal(t, "ASC", svc.listFilter.SortOrder, "sort_order normalized to uppercase by SetDefaults")
+}
+
+func TestHuma_ListRules_Defaults(t *testing.T) {
+	svc := &tenantSpyService{listResult: &model.ListRulesResult{Rules: nil}}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	// No query params at all -> SetDefaults() must fill limit + sort.
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Rules must serialize as [] not null.
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.NotNil(t, got["rules"], "rules must be [] not null")
+
+	require.NotNil(t, svc.listFilter)
+	assert.Equal(t, "created_at", svc.listFilter.SortBy, "default sort field applied by SetDefaults")
+	assert.Equal(t, "DESC", svc.listFilter.SortOrder, "default sort order applied by SetDefaults")
+}
+
+// TestHuma_ListRules_InvalidLimit pins the query-param contract: an out-of-range
+// limit must reach the core's imperative Validate() and produce the canonical
+// 400 / code 0080 (ErrPaginationLimitExceeded) — NOT a native Huma 422 fired by
+// a min/max struct tag. This is the query-param analogue of the format:"uuid"
+// bug from Phase 2a: query fields carry NO validation tags; validation is
+// imperative in the core.
+func TestHuma_ListRules_InvalidLimit(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=101", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "out-of-range limit must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0080", got["code"], "code must be ErrPaginationLimitExceeded, identical to the Fiber path")
+	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+	assert.Equal(t, libProblem.BaseURI+"/0080", got["type"])
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad query param")
+}
+
+// TestHuma_ListRules_NonNumericLimit pins the harder half of the query contract:
+// limit=abc cannot coerce to an int. Because the Huma In struct takes limit as a
+// STRING (no typed coercion, no min/max tag), Huma never fires a native 422; the
+// core parses it imperatively and returns the canonical 400 / code 0082
+// (ErrInvalidQueryParameter) — the same code the Fiber QueryParser-failure path
+// produces.
+func TestHuma_ListRules_NonNumericLimit(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=abc", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "non-numeric limit must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
+	assert.Equal(t, "0082", got["code"], "code must be ErrInvalidQueryParameter, identical to the Fiber QueryParser-failure path")
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on an unparseable query param")
+}
+
+func TestHuma_ActivateRule_Success(t *testing.T) {
+	id := testutil.MustDeterministicUUID(30)
+	svc := &tenantSpyService{lifecycle: &model.Rule{ID: id, Name: "Active", Action: model.DecisionDeny, Status: model.RuleStatusActive}}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/activate", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "ActivateRule must return 200 through Huma")
+	assert.NotContains(t, string(respBody), "$schema")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.Equal(t, id.String(), got["ruleId"])
+	assert.Equal(t, "ACTIVE", got["status"])
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+}
+
+func TestHuma_DeactivateRule_Success(t *testing.T) {
+	id := testutil.MustDeterministicUUID(31)
+	svc := &tenantSpyService{lifecycle: &model.Rule{ID: id, Name: "Inactive", Action: model.DecisionDeny, Status: model.RuleStatusInactive}}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/deactivate", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "DeactivateRule must return 200 through Huma")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.Equal(t, id.String(), got["ruleId"])
+	assert.Equal(t, "INACTIVE", got["status"])
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+}
+
+func TestHuma_DraftRule_Success(t *testing.T) {
+	id := testutil.MustDeterministicUUID(32)
+	svc := &tenantSpyService{lifecycle: &model.Rule{ID: id, Name: "Draft", Action: model.DecisionDeny, Status: model.RuleStatusDraft}}
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/draft", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "DraftRule must return 200 through Huma")
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.Equal(t, id.String(), got["ruleId"])
+	assert.Equal(t, "DRAFT", got["status"])
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+}
+
+func TestHuma_ActivateRule_BadUUID(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/not-a-uuid/activate", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed path UUID must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.Equal(t, "0065", got["code"])
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad path param")
+}
+
+func TestHuma_DeleteRule_Success204NoBody(t *testing.T) {
+	id := testutil.MustDeterministicUUID(40)
+	svc := &tenantSpyService{} // deleteErr nil -> success
+	app := buildHumaRuleApp(t, svc, "tenant-alpha")
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+id.String(), nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode, "DeleteRule must return 204 through Huma")
+	// The body must be EMPTY — not "null", not "{}". Huma DefaultStatus:204 + an
+	// Out struct with no Body field must emit a bodiless response.
+	assert.Empty(t, respBody, "204 must carry no body; got %q", string(respBody))
+	assert.Equal(t, "tenant-alpha", svc.capturedTenant)
+}
+
+func TestHuma_DeleteRule_BadUUID(t *testing.T) {
+	svc := &tenantSpyService{}
+	app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/not-a-uuid", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed path UUID must be the canonical 400 — no native Huma 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+	assert.Equal(t, "0065", got["code"])
+	assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad path param")
+}
+
+// TestHuma_ListRules_InvalidEnumParams pins the enum-shaped query params
+// (status/sort_by/sort_order): a bad value must reach the imperative Validate()
+// and produce the canonical 400 — NOT a native Huma 422 from an `enum` struct
+// tag. These are the params most likely to be mis-tagged in a future edit, so
+// each gets its own canonical-code assertion.
+func TestHuma_ListRules_InvalidEnumParams(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, code string
+	}{
+		{"invalid status", "status=INVALID", "0082"},        // ErrInvalidQueryParameter
+		{"invalid sort_by", "sort_by=priority", "0332"},     // ErrInvalidSortColumn
+		{"invalid sort_order", "sort_order=RANDOM", "0081"}, // ErrInvalidSortOrder
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &tenantSpyService{}
+			app := buildHumaRuleApp(t, svc, "tenant-gamma")
+
+			req := httptest.NewRequest(http.MethodGet, "/v1/rules?"+tc.query, nil)
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "invalid enum query must be the canonical 400 — no native Huma 422")
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body JSON: %s", string(respBody))
+			assert.Equal(t, tc.code, got["code"], "canonical code identical to the Fiber path")
+			assert.Empty(t, svc.capturedTenant, "service must not be reached on a bad query param")
+		})
+	}
 }
