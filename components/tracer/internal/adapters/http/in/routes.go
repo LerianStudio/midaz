@@ -380,106 +380,50 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Description: "Static API key presented in the X-API-Key header.",
 	}
 
-	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
-	// Fiber middleware attached to the exact method+path BEFORE the Huma
-	// registration, so guard.With runs first and c.Next() advances into the Huma
-	// handler — byte-identical auth behavior, no Huma per-op Security yet. The
-	// (resource, verb, forceAPIKey) tuples are preserved verbatim from the
-	// pre-Huma inline routes.
-	//
-	// INTENTIONAL DIVERGENCE (auth 401): guard.With is a pre-Huma Fiber
-	// middleware, so a rejected request never reaches Huma. Its 401 is emitted by
-	// pkgHTTP.Unauthorized as the legacy FLAT envelope {code,title,message}, NOT
-	// the RFC 9457 problem+json that problem.Install() applies to Huma responses.
-	// This is preserved for byte-for-byte parity; migrating 401 → problem+json is
-	// a contract change out of scope for this migration wave.
-	ruleHandler := NewHandler(ruleService)
-
-	api.Post("/rules", guard.With("rules", "post", false))
-	api.Get("/rules", guard.With("rules", "get", false))
-	api.Get("/rules/:id", guard.With("rules", "get", false))
-	api.Patch("/rules/:id", guard.With("rules", "patch", false))
-	api.Delete("/rules/:id", guard.With("rules", "delete", false))
-	api.Post("/rules/:id/activate", guard.With("rules", "post", false))
-	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false))
-	api.Post("/rules/:id/draft", guard.With("rules", "post", false))
-	RegisterRuleRoutes(humaAPI, ruleHandler)
-
-	// Limit endpoints — migrated to Huma (Phase 2b). Same pattern as rules above:
-	// guard.With stays a Fiber middleware on the exact method+path (no terminal
-	// handler) so it runs first, then c.Next() advances into the Huma-registered
-	// handler. Fiber routes keep :id; Huma registers the same paths as {id}.
-	// (resource, verb, forceAPIKey) tuples preserved verbatim.
-	limitHandler := NewLimitHandler(limitService)
-	api.Post("/limits", guard.With("limits", "post", false))
-	api.Get("/limits", guard.With("limits", "get", false))
-	api.Get("/limits/:id", guard.With("limits", "get", false))
-	api.Get("/limits/:id/usage", guard.With("limits", "get", false))
-	api.Patch("/limits/:id", guard.With("limits", "patch", false))
-	api.Delete("/limits/:id", guard.With("limits", "delete", false))
-	api.Post("/limits/:id/activate", guard.With("limits", "post", false))
-	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false))
-	api.Post("/limits/:id/draft", guard.With("limits", "post", false))
-	RegisterLimitRoutes(humaAPI, limitHandler)
-
-	// Transaction Validation endpoints (read-only per SOX/GLBA requirements) — Huma.
-	transactionValidationHandler := NewTransactionValidationHandler(transactionValidationService)
-	api.Get("/validations", guard.With("validations", "get", false))
-	api.Get("/validations/:id", guard.With("validations", "get", false))
-	RegisterTransactionValidationRoutes(humaAPI, transactionValidationHandler)
-
-	// Validation endpoint POST — Huma.
-	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth).
-	// The 3rd guard arg is cfg.APIKeyOnlyValidation (config-driven), NOT a literal.
+	// Handlers whose constructors can fail are built here, in NewRoutes, so a bad
+	// clock / wiring fails boot loudly rather than inside the route seam. The
+	// error-free handlers are built inside registerTracerHumaRoutes from the
+	// services carried on tracerHumaHandlers.
 	validationHandler, err := NewValidationHandler(validationService, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create validation handler: %w", err)
 	}
 
-	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation))
-	RegisterValidationRoutes(humaAPI, validationHandler)
+	// Reservation handler + its dedicated tenant middleware are wired ONLY when the
+	// reservation service is present — the API is additive, so a build without it
+	// simply does not expose /v1/reservations. resTenantMW needs pgManager +
+	// multiTenantEnabled (production-only inputs), so it is built here and handed to
+	// the seam; in single-tenant mode the resolver is a no-op. A nil reservation
+	// handler tells the seam to skip the reservation routes entirely.
+	var (
+		reservationHandler *ReservationHandler
+		resTenantMW        fiber.Handler
+	)
 
-	// Reservation endpoints (two-phase capacity hold) — Huma. Mounted only when the
-	// reservation service is wired — the API is additive, so a build without it
-	// simply does not expose /v1/reservations. The "reservations" resource is the
-	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
-	// ledger plugin namespace.
 	if reservationService != nil {
-		reservationHandler, err := NewReservationHandler(reservationService, clk)
+		reservationHandler, err = NewReservationHandler(reservationService, clk)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create reservation handler: %w", err)
 		}
 
-		// Reservation-scoped tenant resolution: on the mTLS/mesh-verified seam
-		// the ledger forwards a TRUSTED X-Tenant-Id header. Resolve the
-		// per-tenant PG pool from it here, on the reservation routes ONLY — the
-		// shared JWT-claim tenant middleware on the other /v1 user routes is left
-		// intact, and no header-trust path is opened elsewhere. In single-tenant
-		// mode the resolver is a no-op.
-		//
-		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
-		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
-		// authenticates, then c.Next() advances into the Huma handler. The
-		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
-		// param routes so Fiber matches the static "transaction" segment first
-		// (otherwise it binds the literal "transaction" to :id). Ordering and both
-		// middlewares are preserved exactly from the pre-Huma inline routes.
-		resTenantMW := reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
-
-		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
-		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
-		RegisterReservationRoutes(humaAPI, reservationHandler)
+		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
 	}
 
-	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
-	auditEventHandler := NewAuditEventHandler(auditEventService)
-	api.Get("/audit-events", guard.With("audit-events", "get", false))
-	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
-	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
-	RegisterAuditEventRoutes(humaAPI, auditEventHandler)
+	// Single seam that mounts every Huma route (and its pre-Huma Fiber auth chain)
+	// on the shared /v1 group + Huma API. Production (here) and the http/in tests
+	// call the SAME function, so the registered surface is byte-for-byte identical
+	// without a running server or DB. See registerTracerHumaRoutes.
+	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
+		Guard:                 guard,
+		APIKeyOnlyValidation:  cfg.APIKeyOnlyValidation,
+		Rule:                  NewHandler(ruleService),
+		Limit:                 NewLimitHandler(limitService),
+		TransactionValidation: NewTransactionValidationHandler(transactionValidationService),
+		Validation:            validationHandler,
+		Reservation:           reservationHandler,
+		ResTenantMW:           resTenantMW,
+		AuditEvent:            NewAuditEventHandler(auditEventService),
+	})
 
 	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on SwaggerEnabled. Mounted
 	// AFTER every huma.Register above so the snapshotted spec is complete. These
@@ -496,4 +440,130 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	}
 
 	return f, nil
+}
+
+// tracerHumaHandlers bundles everything registerTracerHumaRoutes needs to mount
+// the tracer's Huma surface: the auth guard, the per-op config flag, and the
+// already-constructed resource handlers. It is the tracer analogue of the
+// ledger's humaMount closure inputs — a struct instead of captured locals so the
+// http/in tests can hand in zero-value handlers (e.g. &Handler{}) and exercise
+// the exact production registration path without a running server or DB.
+//
+// Zero-value semantics:
+//   - Reservation: if nil, the /v1/reservations routes are not mounted (the API
+//     is additive). ResTenantMW is only consulted when Reservation is non-nil.
+//   - ResTenantMW: the reservation-scoped tenant Fiber middleware, built in
+//     NewRoutes from pgManager+multiTenantEnabled. Tests may pass nil (the
+//     reservation routes are skipped when Reservation is nil anyway).
+type tracerHumaHandlers struct {
+	Guard                 *middleware.AuthGuard
+	APIKeyOnlyValidation  bool
+	Rule                  *Handler
+	Limit                 *LimitHandler
+	TransactionValidation *TransactionValidationHandler
+	Validation            *ValidationHandler
+	Reservation           *ReservationHandler
+	ResTenantMW           fiber.Handler
+	AuditEvent            *AuditEventHandler
+}
+
+// registerTracerHumaRoutes mounts all 31 tracer Huma operations on the given
+// Huma API, attaching each op's pre-Huma Fiber auth chain to the SAME /v1 group
+// first. It is the single registration seam shared by production (NewRoutes) and
+// the http/in tests, so the mounted surface is identical without a running
+// server or DB — the tracer analogue of the ledger's humaMount closure in
+// components/ledger/internal/bootstrap/config.go.
+//
+// Route/middleware ordering and every (resource, verb, forceAPIKey) tuple are
+// preserved byte-for-byte from the pre-Huma inline routes; this func only moves
+// the registration into a testable seam, it changes no auth, handler, or spec
+// behavior.
+func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
+	guard := h.Guard
+
+	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
+	// Fiber middleware attached to the exact method+path BEFORE the Huma
+	// registration, so guard.With runs first and c.Next() advances into the Huma
+	// handler — byte-identical auth behavior, no Huma per-op Security yet. The
+	// (resource, verb, forceAPIKey) tuples are preserved verbatim from the
+	// pre-Huma inline routes.
+	//
+	// INTENTIONAL DIVERGENCE (auth 401): guard.With is a pre-Huma Fiber
+	// middleware, so a rejected request never reaches Huma. Its 401 is emitted by
+	// pkgHTTP.Unauthorized as the legacy FLAT envelope {code,title,message}, NOT
+	// the RFC 9457 problem+json that problem.Install() applies to Huma responses.
+	// This is preserved for byte-for-byte parity; migrating 401 → problem+json is
+	// a contract change out of scope for this migration wave.
+	api.Post("/rules", guard.With("rules", "post", false))
+	api.Get("/rules", guard.With("rules", "get", false))
+	api.Get("/rules/:id", guard.With("rules", "get", false))
+	api.Patch("/rules/:id", guard.With("rules", "patch", false))
+	api.Delete("/rules/:id", guard.With("rules", "delete", false))
+	api.Post("/rules/:id/activate", guard.With("rules", "post", false))
+	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false))
+	api.Post("/rules/:id/draft", guard.With("rules", "post", false))
+	RegisterRuleRoutes(humaAPI, h.Rule)
+
+	// Limit endpoints — migrated to Huma (Phase 2b). Same pattern as rules above:
+	// guard.With stays a Fiber middleware on the exact method+path (no terminal
+	// handler) so it runs first, then c.Next() advances into the Huma-registered
+	// handler. Fiber routes keep :id; Huma registers the same paths as {id}.
+	// (resource, verb, forceAPIKey) tuples preserved verbatim.
+	api.Post("/limits", guard.With("limits", "post", false))
+	api.Get("/limits", guard.With("limits", "get", false))
+	api.Get("/limits/:id", guard.With("limits", "get", false))
+	api.Get("/limits/:id/usage", guard.With("limits", "get", false))
+	api.Patch("/limits/:id", guard.With("limits", "patch", false))
+	api.Delete("/limits/:id", guard.With("limits", "delete", false))
+	api.Post("/limits/:id/activate", guard.With("limits", "post", false))
+	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false))
+	api.Post("/limits/:id/draft", guard.With("limits", "post", false))
+	RegisterLimitRoutes(humaAPI, h.Limit)
+
+	// Transaction Validation endpoints (read-only per SOX/GLBA requirements) — Huma.
+	api.Get("/validations", guard.With("validations", "get", false))
+	api.Get("/validations/:id", guard.With("validations", "get", false))
+	RegisterTransactionValidationRoutes(humaAPI, h.TransactionValidation)
+
+	// Validation endpoint POST — Huma.
+	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth).
+	// The 3rd guard arg is APIKeyOnlyValidation (config-driven), NOT a literal.
+	api.Post("/validations", guard.With("validations", "post", h.APIKeyOnlyValidation))
+	RegisterValidationRoutes(humaAPI, h.Validation)
+
+	// Reservation endpoints (two-phase capacity hold) — Huma. Mounted only when the
+	// reservation handler is wired — the API is additive, so a build without it
+	// simply does not expose /v1/reservations. The "reservations" resource is the
+	// tracer's OWN authz resource string (API-key / Access-Manager guard), not a
+	// ledger plugin namespace.
+	if h.Reservation != nil {
+		// Reservation-scoped tenant resolution: on the mTLS/mesh-verified seam
+		// the ledger forwards a TRUSTED X-Tenant-Id header. resTenantMW (built in
+		// NewRoutes) resolves the per-tenant PG pool from it here, on the
+		// reservation routes ONLY — the shared JWT-claim tenant middleware on the
+		// other /v1 user routes is left intact, and no header-trust path is opened
+		// elsewhere. In single-tenant mode the resolver is a no-op.
+		//
+		// TWO Fiber middlewares per route (resTenantMW THEN guard.With), both
+		// middleware-only: resTenantMW resolves the per-tenant DB, guard.With
+		// authenticates, then c.Next() advances into the Huma handler. The
+		// by-transaction routes are declared BEFORE the "/reservations/:id/..."
+		// param routes so Fiber matches the static "transaction" segment first
+		// (otherwise it binds the literal "transaction" to :id). Ordering and both
+		// middlewares are preserved exactly from the pre-Huma inline routes.
+		resTenantMW := h.ResTenantMW
+
+		api.Post("/reservations", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/transaction/:transaction_id/confirm", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/transaction/:transaction_id/release", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/:id/confirm", resTenantMW, guard.With("reservations", "post", false))
+		api.Post("/reservations/:id/release", resTenantMW, guard.With("reservations", "post", false))
+		RegisterReservationRoutes(humaAPI, h.Reservation)
+	}
+
+	// Audit Event endpoints (read-only per SOX/GLBA requirements) — Huma.
+	api.Get("/audit-events", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:id", guard.With("audit-events", "get", false))
+	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false))
+	RegisterAuditEventRoutes(humaAPI, h.AuditEvent)
 }
