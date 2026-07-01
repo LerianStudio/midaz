@@ -339,8 +339,10 @@ func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 	saved, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
 
-	// Act - Try to update with wrong revision
-	saved.LegacyReadable = true
+	// Act - Try to update with wrong revision. Flip LegacyReadable to the opposite
+	// of the stored value (the constructor defaults it to true) so a leaked write
+	// would be observable.
+	saved.LegacyReadable = false
 	wrongRevision := int64(999)
 	err = repo.Update(ctx, saved, wrongRevision)
 
@@ -348,10 +350,10 @@ func TestIntegration_RegistryRepo_Update_RevisionConflict(t *testing.T) {
 	require.Error(t, err, "should return error for revision conflict")
 	assert.ErrorIs(t, err, mmodel.ErrRegistryRevisionConflict, "should return ErrRegistryRevisionConflict")
 
-	// Verify original data unchanged
+	// Verify original data unchanged: the rejected update must not persist the flip.
 	result, err := repo.Get(ctx, organizationID)
 	require.NoError(t, err)
-	assert.False(t, result.LegacyReadable, "LegacyReadable should not be updated")
+	assert.True(t, result.LegacyReadable, "LegacyReadable should not be updated")
 }
 
 func TestIntegration_RegistryRepo_Update_DoesNotMutateInputOnFailure(t *testing.T) {

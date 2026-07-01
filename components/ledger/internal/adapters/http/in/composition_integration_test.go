@@ -29,6 +29,7 @@ import (
 	crmholder "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	crminstrument "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -137,12 +138,17 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	}
 
 	// CRM-Mongo holder/instrument repos with a static single-tenant connection.
-	cipher := testutils.SetupCrypto(t)
+	// FieldEncryptorAdapter over EncryptionService with lib-commons crypto mirrors
+	// production behavior when the KMS vendor is none.
+	crypto := testutils.SetupCrypto(t)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
 
-	holderRepo, err := crmholder.NewMongoDBRepository(infra.mongoConn, cipher)
+	holderRepo, err := crmholder.NewMongoDBRepository(infra.mongoConn, fe)
 	require.NoError(t, err)
 
-	infra.instrumentRepo, err = crminstrument.NewMongoDBRepository(infra.mongoConn, cipher)
+	infra.instrumentRepo, err = crminstrument.NewMongoDBRepository(infra.mongoConn, fe)
 	require.NoError(t, err)
 
 	infra.crmUC = &crmservices.UseCase{

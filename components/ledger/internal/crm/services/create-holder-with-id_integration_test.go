@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -27,8 +28,11 @@ func createServiceWithRealRepo(t *testing.T, container *mongotestutil.ContainerR
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 	crypto := testutils.SetupCrypto(t)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
 
-	repo, err := holder.NewMongoDBRepository(conn, crypto)
+	repo, err := holder.NewMongoDBRepository(conn, fe)
 	require.NoError(t, err)
 
 	return &UseCase{HolderRepo: repo}

@@ -37,6 +37,7 @@ import (
 	crmholder "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	crminstrument "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -177,10 +178,13 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 		BalanceRepo:            stubs.NewBalanceRepoStub(),
 	}
 
-	cipher := testutils.SetupCrypto(t)
-	holderRepo, err := crmholder.NewMongoDBRepository(nil, cipher)
+	crypto := testutils.SetupCrypto(t)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
+	holderRepo, err := crmholder.NewMongoDBRepository(nil, fe)
 	require.NoError(t, err)
-	instrumentRepo, err := crminstrument.NewMongoDBRepository(nil, cipher)
+	instrumentRepo, err := crminstrument.NewMongoDBRepository(nil, fe)
 	require.NoError(t, err)
 	crmUC := &crmservices.UseCase{
 		HolderRepo:     holderRepo,
@@ -300,10 +304,13 @@ func newCompositionTenant(t *testing.T, pgContainer *postgrestestutil.ContainerR
 	tenantMongoDB, err := mongoConn.Database(context.Background())
 	require.NoError(t, err, "failed to resolve tenant CRM Mongo database")
 
-	cipher := testutils.SetupCrypto(t)
-	holderRepo, err := crmholder.NewMongoDBRepository(nil, cipher)
+	crypto := testutils.SetupCrypto(t)
+	resolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(resolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
+	holderRepo, err := crmholder.NewMongoDBRepository(nil, fe)
 	require.NoError(t, err)
-	instrumentRepo, err := crminstrument.NewMongoDBRepository(nil, cipher)
+	instrumentRepo, err := crminstrument.NewMongoDBRepository(nil, fe)
 	require.NoError(t, err)
 	seedUC := &crmservices.UseCase{HolderRepo: holderRepo, InstrumentRepo: instrumentRepo}
 

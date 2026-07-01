@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -57,7 +58,10 @@ func newTenantEnv(t *testing.T) *tenantEnv {
 
 	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
 	crypto := testutils.SetupCrypto(t)
-	holderRepo, err := holder.NewMongoDBRepository(mongoConn, crypto)
+	encResolver := encryption.NewProtectionStateResolver(nil, encryption.NewProtectionMetrics(nil))
+	svc := encryption.NewEncryptionService(encResolver, nil, nil, crypto, encryption.NewProtectionMetrics(nil))
+	fe := encryption.NewFieldEncryptorAdapter(svc)
+	holderRepo, err := holder.NewMongoDBRepository(mongoConn, fe)
 	require.NoError(t, err)
 
 	crmService := &crmservices.UseCase{HolderRepo: holderRepo}

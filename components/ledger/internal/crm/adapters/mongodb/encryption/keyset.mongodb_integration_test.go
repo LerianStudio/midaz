@@ -46,6 +46,7 @@ func createValidKeyset(organizationID string) *mmodel.OrganizationKeyset {
 
 	return &mmodel.OrganizationKeyset{
 		OrganizationID: organizationID,
+		Version:        1,
 		KEKPath:        "transit/keys/crm-" + organizationID,
 		KEKMountPath:   "transit",
 		WrappedKeyset:  "vault:v1:encrypted-dek-" + uuid.New().String()[:8],
@@ -481,17 +482,21 @@ func TestIntegration_KeysetRepo_UniqueIndex_OrganizationID(t *testing.T) {
 
 	organizationID := "org-unique-" + uuid.New().String()[:8]
 
-	// Save first keyset
+	// Save first keyset. Save stamps tenant_id from context (single-tenant: "default").
 	keyset1 := createValidKeyset(organizationID)
 	err := repo.Save(ctx, keyset1)
 	require.NoError(t, err)
 
-	// Act - Try to insert directly via MongoDB (bypassing Save logic)
-	keyset2Model := KeysetFromEntity(createValidKeyset(organizationID))
+	// Act - Try to insert directly via MongoDB (bypassing Save logic). The unique index
+	// is compound over (tenant_id, organization_id, version), so the direct insert must
+	// carry the same tenant_id Save stamped to collide.
+	keyset2 := createValidKeyset(organizationID)
+	keyset2.TenantID = keyset1.TenantID
+	keyset2Model := KeysetFromEntity(keyset2)
 	_, err = container.Database.Collection(keysetCollection).InsertOne(ctx, keyset2Model)
 
 	// Assert - Should fail due to unique index
-	require.Error(t, err, "direct insert with duplicate organization_id should fail")
+	require.Error(t, err, "direct insert with duplicate (tenant_id, organization_id, version) should fail")
 	assert.Contains(t, err.Error(), "duplicate key", "should be a duplicate key error")
 }
 
