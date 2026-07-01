@@ -137,6 +137,71 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 	}
 }
 
+// TestSpecLock_AllOpsSecurity asserts EVERY one of the 28 Huma operations
+// advertises its expected per-op Security requirement in the served spec. This
+// is the CI backstop the tracer lacks otherwise: postman/generator/check-docs.sh
+// security-coverage gate is ledger-only (SECURITY_COVERAGE_COMPONENT="ledger"),
+// so it never inspects the tracer spec. Without this table, a future edit could
+// drop or wrong-map Security on any limits/reservations/audit op — silently
+// downgrading the advertised auth — with no test failing. SPEC metadata only:
+// runtime auth is unchanged (Fiber guard.With).
+func TestSpecLock_AllOpsSecurity(t *testing.T) {
+	spec := fetchTracerSpec(t)
+
+	bearerOrAPIKey := []map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}}
+	apiKeyOnly := []map[string][]string{{"ApiKeyAuth": {}}}
+
+	cases := []struct {
+		path, method string
+		want         []map[string][]string
+	}{
+		// rules (8)
+		{"/rules", http.MethodPost, bearerOrAPIKey},
+		{"/rules/{id}", http.MethodGet, bearerOrAPIKey},
+		{"/rules", http.MethodGet, bearerOrAPIKey},
+		{"/rules/{id}", http.MethodPatch, bearerOrAPIKey},
+		{"/rules/{id}/activate", http.MethodPost, bearerOrAPIKey},
+		{"/rules/{id}/deactivate", http.MethodPost, bearerOrAPIKey},
+		{"/rules/{id}/draft", http.MethodPost, bearerOrAPIKey},
+		{"/rules/{id}", http.MethodDelete, bearerOrAPIKey},
+		// limits (9)
+		{"/limits", http.MethodPost, bearerOrAPIKey},
+		{"/limits/{id}", http.MethodGet, bearerOrAPIKey},
+		{"/limits", http.MethodGet, bearerOrAPIKey},
+		{"/limits/{id}", http.MethodPatch, bearerOrAPIKey},
+		{"/limits/{id}/activate", http.MethodPost, bearerOrAPIKey},
+		{"/limits/{id}/deactivate", http.MethodPost, bearerOrAPIKey},
+		{"/limits/{id}/draft", http.MethodPost, bearerOrAPIKey},
+		{"/limits/{id}", http.MethodDelete, bearerOrAPIKey},
+		{"/limits/{id}/usage", http.MethodGet, bearerOrAPIKey},
+		// reservations (5)
+		{"/reservations", http.MethodPost, bearerOrAPIKey},
+		{"/reservations/{id}/confirm", http.MethodPost, bearerOrAPIKey},
+		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
+		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
+		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
+		// validations (3): POST is the API-key-only hot path; the two reads are bearer|apikey
+		{"/validations", http.MethodPost, apiKeyOnly},
+		{"/validations/{id}", http.MethodGet, bearerOrAPIKey},
+		{"/validations", http.MethodGet, bearerOrAPIKey},
+		// audit-events (3)
+		{"/audit-events", http.MethodGet, bearerOrAPIKey},
+		{"/audit-events/{id}", http.MethodGet, bearerOrAPIKey},
+		{"/audit-events/{id}/verify", http.MethodGet, bearerOrAPIKey},
+	}
+
+	require.Lenf(t, cases, 28, "the tracer has 28 protected Huma ops; keep this table complete")
+
+	for _, tc := range cases {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			o, ok := op(spec, tc.path, tc.method)
+			require.Truef(t, ok, "%s %s must be a registered Huma op in the served spec", tc.method, tc.path)
+			assert.ElementsMatchf(t, tc.want, o.Security,
+				"%s %s must advertise its expected per-op Security", tc.method, tc.path)
+		})
+	}
+}
+
 // TestSpecLock_ErrorSchemaIsProblemDetail asserts every operation's error
 // response references the RFC 9457 problem model (#/components/schemas/Detail)
 // under application/problem+json, and that the Detail schema carries the RFC 9457

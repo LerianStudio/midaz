@@ -1062,9 +1062,10 @@ func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
 // TestHuma_RuleRoutes_SecurityMetadata asserts every rule op advertises the
 // bearer-OR-apikey security requirement in the generated OAS 3.1 spec. This is
 // SPEC metadata only — runtime auth is unchanged (Fiber guard.With). It guards
-// the reference handler's Security fields; the 2b fan-out reuses the identical
-// secBearerOrAPIKey helper, and the shared check-docs.sh security-coverage gate
-// asserts the per-op coverage across all 28 ops.
+// the 8 rule ops specifically; TestSpecLock_AllOpsSecurity
+// (routes_openapi_security_test.go) is the exhaustive backstop asserting per-op
+// Security across all 28 ops from the served spec. (The shared check-docs.sh
+// security-coverage gate is ledger-only and never inspects the tracer spec.)
 func TestHuma_RuleRoutes_SecurityMetadata(t *testing.T) {
 	// NOT parallel: openapi.New over a shared Fiber app mutates process-global
 	// Huma state (libProblem is installed by sibling tests). See buildHumaRuleApp.
