@@ -207,42 +207,56 @@ func isValidEntity(entityName string) bool {
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/settings/metadata-indexes/entities/{entity_name} [post]
 func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
+	if !ok {
+		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityMetadataIndex))
+	}
 
+	metadataIndex, err := handler.createMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Queries(), payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, metadataIndex)
+}
+
+// createMetadataIndex is the transport-agnostic core for CreateMetadataIndex,
+// shared by the Fiber wrapper above and the Huma handler (metadata_handler_huma.go).
+// ctx must already carry the tenant id (the auth+tenant middleware chain populated
+// it); this core resolves the tenant db, validates the entity name and query
+// params, and creates the index — every error is the SAME canonical Midaz error
+// the pre-Huma Fiber path returned, so WithError and HumaProblem project identical
+// code/status envelopes.
+func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, entityName string, queries map[string]string, payload *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_metadata_index")
 	defer span.End()
 
-	// Extract entity_name from path parameter
-	entityName := c.Params("entity_name")
 	if entityName == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityMetadataIndex, "entity_name")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get entity name", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get entity name", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if !isValidEntity(entityName) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, constant.EntityMetadataIndex)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid entity name", err)
-
 		logger.Log(ctx, libLog.LevelError, "Invalid entity name", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	span.SetAttributes(
@@ -250,48 +264,35 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 		attribute.Bool("app.request.query_params.has_metadata", headerParams.Metadata != nil),
 	)
 
-	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
-	if !ok {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityMetadataIndex)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to assert payload type", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to assert payload type", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
 	repo, collection := handler.getRepoAndCollection(entityName)
 	if repo == nil {
 		err := fmt.Errorf("metadata index repository not configured for entity %s", entityName)
 		libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
 		logger.Log(ctx, libLog.LevelError, "Metadata repository not configured", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	repoCtx, err := handler.contextForEntity(ctx, entityName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to resolve tenant metadata context", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	metadataIndex, err := repo.CreateIndex(repoCtx, collection, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata index", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to create metadata index", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Set the entity name in the response (repo returns collection name)
 	metadataIndex.EntityName = entityName
 
-	return http.Created(c, metadataIndex)
+	return metadataIndex, nil
 }
 
 // GetAllMetadataIndexes retrieves all metadata indexes.
@@ -310,20 +311,30 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/settings/metadata-indexes [get]
 func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	indexes, err := handler.getAllMetadataIndexes(c.UserContext(), c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
+	return http.OK(c, indexes)
+}
+
+// getAllMetadataIndexes is the transport-agnostic core for GetAllMetadataIndexes.
+// It validates the query params, optionally filters by entity_name, and returns
+// the flat index slice verbatim (matching the Fiber http.OK body). Every error is
+// the SAME canonical Midaz error the pre-Huma Fiber path returned.
+func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, queries map[string]string) ([]*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_metadata_indexes")
 	defer span.End()
 
-	headerParams, err := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	span.SetAttributes(
@@ -340,7 +351,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 			logger.Log(ctx, libLog.LevelError, "Invalid entity name", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 
 		// Return indexes for specific entity
@@ -350,7 +361,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 			libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
 			logger.Log(ctx, libLog.LevelError, "Metadata repository not configured", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 
 		repoCtx, err := handler.contextForEntity(ctx, *headerParams.EntityName)
@@ -359,7 +370,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 			logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 
 		indexes, err := repo.FindAllIndexes(repoCtx, collection)
@@ -368,7 +379,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 			logger.Log(ctx, libLog.LevelError, "Failed to get metadata indexes", libLog.Err(err))
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 
 		// Set entity name in response
@@ -376,7 +387,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 			idx.EntityName = *headerParams.EntityName
 		}
 
-		return http.OK(c, indexes)
+		return indexes, nil
 	}
 
 	// Return indexes from all entities
@@ -388,7 +399,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelError, "Failed to resolve onboarding tenant metadata context", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	transactionCtx, err := handler.contextForRepoGroup(ctx, false)
@@ -397,7 +408,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelError, "Failed to resolve transaction tenant metadata context", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	// Fetch from onboarding entities
@@ -430,7 +441,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		}
 	}
 
-	return http.OK(c, allIndexes)
+	return allIndexes, nil
 }
 
 // DeleteMetadataIndex deletes a metadata index.
@@ -451,43 +462,48 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/settings/metadata-indexes/entities/{entity_name}/key/{index_key} [delete]
 func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+	if err := handler.deleteMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Params("index_key")); err != nil {
+		return http.WithError(c, err)
+	}
 
+	return http.NoContent(c)
+}
+
+// deleteMetadataIndex is the transport-agnostic core for DeleteMetadataIndex.
+// ctx must already carry the tenant id. Every error is the SAME canonical Midaz
+// error the pre-Huma Fiber path returned, so WithError and HumaProblem project
+// identical code/status envelopes.
+func (handler *MetadataIndexHandler) deleteMetadataIndex(ctx context.Context, entityName, indexKey string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_metadata_index")
 	defer span.End()
 
-	entityName := c.Params("entity_name")
 	if entityName == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityMetadataIndex, "entity_name")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get entity name", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get entity name", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
 	if !isValidEntity(entityName) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidEntityName, constant.EntityMetadataIndex)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid entity name", err)
-
 		logger.Log(ctx, libLog.LevelError, "Invalid entity name", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
-	indexKey := c.Params("index_key")
 	if indexKey == "" {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityMetadataIndex, "index_key")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get index key", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get index key", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
 	// Build full MongoDB index name from the metadata key
@@ -499,26 +515,23 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
 		logger.Log(ctx, libLog.LevelError, "Metadata repository not configured", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
 	repoCtx, err := handler.contextForEntity(ctx, entityName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to resolve tenant metadata context", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
-	err = repo.DeleteIndex(repoCtx, collection, indexName)
-	if err != nil {
+	if err := repo.DeleteIndex(repoCtx, collection, indexName); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete metadata index", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to delete metadata index", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return err
 	}
 
-	return http.NoContent(c)
+	return nil
 }
