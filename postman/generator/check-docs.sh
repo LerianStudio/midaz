@@ -216,6 +216,55 @@ consolidated_lint_check() {
     fi
 }
 
+# Assert the JOINED spec carries exactly one canonical `Error` schema.
+#
+# The PRIMARY lock on the Error closure is the Go test tests/openapi
+# (error_schema_parity_test.go): it proves the `Error` closure is byte-identical
+# across the two per-plane Huma dumps. But that test reads the per-plane dumps,
+# NOT the joined artifact. The joined spec (postman/specs/midaz.openapi.json,
+# consumed by the Plan B SDK) is the output of `redocly join`. If the join ever
+# collides two non-identical `Error` schemas, redocly de-dups by suffixing the
+# second (`Error`, `Error2` / `Error-2` / `Error_2`). The Go test would not see
+# that. This guard protects the published artifact against exactly that.
+error_schema_singleton_check() {
+    print_header "Error schema singleton check (joined spec)"
+
+    local joined_json="${ROOT_DIR}/postman/specs/midaz.openapi.json"
+
+    # Mirror consolidated_lint_check: standalone runs without a prior
+    # `make generate-docs` may lack the joined artifact; skip-with-warning.
+    if [ ! -f "${joined_json}" ]; then
+        echo -e "    ${BLUE}ℹ️  Joined spec not found at ${joined_json}; skipping (run 'make generate-docs' first).${NC}"
+        return 0
+    fi
+
+    # (1) canonical Error must exist.
+    if [ "$(jq '.components.schemas | has("Error")' "${joined_json}")" != "true" ]; then
+        fail "Joined spec is missing components.schemas.Error."
+    fi
+
+    # (2) no redocly dedup-suffixed siblings (Error2, Error-2, Error_2, ...).
+    #     `Error` itself and unrelated names like `ErrorDetail` do not match.
+    local dupes
+    dupes="$(jq -r '.components.schemas | keys[] | select(test("^Error[-_]?[0-9]+$"))' "${joined_json}")"
+    if [ -n "${dupes}" ]; then
+        fail "Joined spec has dedup-suffixed Error schema(s) — redocly join collided a non-identical Error: ${dupes//$'\n'/, }"
+    fi
+
+    # (3) shape sanity: the RFC 9457 problem fields the SDK relies on.
+    local missing
+    missing="$(jq -r '
+        ["type","title","status","detail","instance","code"]
+        - (.components.schemas.Error.properties | keys)
+        | join(", ")
+    ' "${joined_json}")"
+    if [ -n "${missing}" ]; then
+        fail "Joined spec components.schemas.Error is missing expected RFC 9457 field(s): ${missing}."
+    fi
+
+    ok "Joined spec has exactly one canonical RFC 9457 Error schema (no join-induced duplication)."
+}
+
 drift_check() {
     print_header "Drift check (regenerate and diff)"
 
@@ -239,6 +288,7 @@ main() {
     require_jq
     parity_check
     security_coverage_check
+    error_schema_singleton_check
     consolidated_lint_check
 
     if [ "${CHECK_DOCS_REGEN:-}" = "1" ]; then
