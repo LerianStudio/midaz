@@ -54,24 +54,37 @@ type FeeHandler struct {
 func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.fee_estimate_calculation")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
+	payload := p.(*model.FeeEstimate)
+
+	response, err := handler.estimateFeeCalculation(ctx, organizationID, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	// 200 OK is intentional: this is a compute/RPC-style endpoint that performs
+	// a calculation without creating a persistent resource.
+	return commonsHttp.Respond(c, fiber.StatusOK, response)
+}
+
+// estimateFeeCalculation is the transport-agnostic core of the fee-estimate op,
+// shared by the Fiber wrapper (EstimateFeeCalculation) and the Huma shell. It owns
+// the span, service call, nil-result guard, and the applied-vs-no-rules envelope
+// selection; the caller (Fiber/Huma) resolves the org id, decodes the payload, and
+// renders the returned envelope/error.
+func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizationID uuid.UUID, payload *model.FeeEstimate) (model.FeeEstimateResponse, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.fee_estimate_calculation")
+	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
-	)
-
-	payload := p.(*model.FeeEstimate)
-
-	span.SetAttributes(
 		attribute.String("app.request.package_id", payload.PackageID.String()),
 		attribute.String("app.request.ledger_id", payload.LedgerID.String()),
 	)
@@ -80,24 +93,22 @@ func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
 	if errCreateFee != nil {
 		handleSpanByErrorClass(span, "Failed to estimate fee calculation", errCreateFee)
 
-		return http.WithError(c, errCreateFee)
+		return model.FeeEstimateResponse{}, errCreateFee
 	}
 
 	if feeCalculate == nil {
-		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee"))
+		return model.FeeEstimateResponse{}, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "Fee")
 	}
 
 	if feeCalculate.Transaction.Metadata["packageAppliedID"] == nil {
-		return commonsHttp.Respond(c, fiber.StatusOK, model.FeeEstimateResponse{
+		return model.FeeEstimateResponse{
 			Message:     "No fee or gratuity rules were found for the given parameters.",
 			FeesApplied: nil,
-		})
+		}, nil
 	}
 
-	// 200 OK is intentional: this is a compute/RPC-style endpoint that performs
-	// a calculation without creating a persistent resource.
-	return commonsHttp.Respond(c, fiber.StatusOK, model.FeeEstimateResponse{
+	return model.FeeEstimateResponse{
 		Message:     "Successfully estimated fee.",
 		FeesApplied: feeCalculate,
-	})
+	}, nil
 }

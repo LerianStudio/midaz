@@ -62,60 +62,74 @@ type PackageHandler struct {
 //	@Failure		500					{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/packages [post]
 func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
-	var (
-		segmentID    uuid.UUID
-		ledgerID     uuid.UUID
-		errParseUUID error
-	)
-
 	ctx := c.UserContext()
-
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.create_package")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
+	payload := p.(*model.CreatePackageInput)
+
+	packOut, err := handler.createPackage(ctx, organizationID, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusCreated, packOut)
+}
+
+// createPackage is the transport-agnostic core of the create-package op, shared by
+// the Fiber wrapper (CreatePackage) and the Huma shell. It owns the span, the
+// segment/ledger id parsing, the min/max + fee + duplicate-priority validation, and
+// the service call; the caller resolves the org id, decodes the payload, and renders
+// the returned package/error.
+func (handler *PackageHandler) createPackage(ctx context.Context, organizationID uuid.UUID, payload *model.CreatePackageInput) (*pack.Package, error) {
+	var (
+		segmentID    uuid.UUID
+		ledgerID     uuid.UUID
+		errParseUUID error
+	)
+
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_package")
+	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	payload := p.(*model.CreatePackageInput)
-
 	if !commons.IsNilOrEmpty(payload.SegmentID) {
 		segmentID, errParseUUID = uuid.Parse(*payload.SegmentID)
 		if errParseUUID != nil {
-			return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidSegmentID, ""))
+			return nil, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidSegmentID, "")
 		}
 	}
 
 	ledgerID, errParseUUID = uuid.Parse(payload.LedgerID)
 	if errParseUUID != nil {
-		return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, ""))
+		return nil, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "")
 	}
 
 	if errAmount := payload.ValidateMinAndMaxAmount(); errAmount != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid min/max amount validation", errAmount)
 
-		return http.WithError(c, errAmount)
+		return nil, errAmount
 	}
 
 	errValidateInput := payload.ValidateFees()
 	if errValidateInput != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error on validation of input payload: Err ", errValidateInput)
 
-		return http.WithError(c, errValidateInput)
+		return nil, errValidateInput
 	}
 
 	seenPriorities := make(map[int]bool)
 	for _, fee := range payload.Fee {
 		if seenPriorities[fee.Priority] {
-			return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage))
+			return nil, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage)
 		}
 
 		seenPriorities[fee.Priority] = true
@@ -125,10 +139,10 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to create pack on command", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusCreated, packOut)
+	return packOut, nil
 }
 
 // GetAllPackages is a method that retrieves all Package information.
@@ -156,28 +170,44 @@ func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
 func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_all_package")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	pagination, err := handler.getAllPackages(ctx, organizationID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
+}
+
+// getAllPackages is the transport-agnostic core of the list-packages op, shared by
+// the Fiber wrapper (GetAllPackages) and the Huma shell. It owns the span, the
+// fee-package query validation (feehttp.ValidateParameters — NOT pkg/net/http's),
+// the service call, and the pagination envelope assembly. The caller resolves the
+// org id (Fiber: locals; Huma: path param) and passes the raw query map
+// (c.Queries() on Fiber, queriesFromValues(rawQuery) on Huma) so the binder is
+// byte-identical, then renders the envelope/error.
+func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_package")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	headerParams, err := feehttp.ValidateParameters(c.Queries())
+	headerParams, err := feehttp.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters")
 
-		return http.WithError(c, err)
+		return model.Pagination{}, err
 	}
 
 	span.SetAttributes(
@@ -198,13 +228,13 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all Packages on query", err)
 
-		return http.WithError(c, err)
+		return model.Pagination{}, err
 	}
 
 	pagination.SetItems(packs)
 	pagination.SetTotal(len(packs))
 
-	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
+	return pagination, nil
 }
 
 // GetPackageByID is a method that retrieves a Package information by a given id.
@@ -227,11 +257,6 @@ func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
 func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_package_by_id")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -241,6 +266,23 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	packModel, err := handler.getPackageByID(ctx, organizationID, id)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, packModel)
+}
+
+// getPackageByID is the transport-agnostic core of the get-package op, shared by the
+// Fiber wrapper (GetPackageByID) and the Huma shell. It owns the span and the service
+// call; the caller resolves the org+package ids and renders the returned package/error.
+func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationID, id uuid.UUID) (*pack.Package, error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_package_by_id")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -254,10 +296,10 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to retrieve Package", libLog.String("package_id", id.String()))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, packModel)
+	return packModel, nil
 }
 
 // UpdatePackageByID is a method that updates a Package information by a given id.
@@ -284,11 +326,6 @@ func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
 func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_package")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -299,20 +336,39 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	payload := p.(*model.UpdatePackageInput)
+
+	packUpdated, err := handler.updatePackageByID(ctx, organizationID, id, payload)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.Respond(c, fiber.StatusOK, packUpdated)
+}
+
+// updatePackageByID is the transport-agnostic core of the update-package op, shared
+// by the Fiber wrapper (UpdatePackageByID) and the Huma shell. It owns the span, the
+// fee + duplicate-priority + min/max validation, the update, and the re-read; the
+// caller resolves the org+package ids, decodes the payload, and renders the returned
+// package/error.
+func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizationID, id uuid.UUID, payload *model.UpdatePackageInput) (*pack.Package, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_package")
+	defer span.End()
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	payload := p.(*model.UpdatePackageInput)
-
 	if payload.Fee != nil {
 		errValidateInput := payload.ValidateFees()
 		if errValidateInput != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error on validation of input payload: Err ", errValidateInput)
 
-			return http.WithError(c, errValidateInput)
+			return nil, errValidateInput
 		}
 
 		seenPriorities := make(map[int]bool)
@@ -320,7 +376,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 		for _, fee := range payload.Fee {
 			if !fee.ValidateIfFeeIsNil() {
 				if seenPriorities[fee.Priority] && fee.Priority != 0 {
-					return http.WithError(c, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage))
+					return nil, feeerrors.ValidateBusinessError(feeconstant.ErrPriorityInvalid, feeconstant.EntityPackage)
 				}
 
 				seenPriorities[fee.Priority] = true
@@ -331,23 +387,23 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 	if errValidateAmount := payload.ValidateMinAndMaxAmount(); errValidateAmount != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid values for maxAmount and minAmount", errValidateAmount)
 
-		return http.WithError(c, errValidateAmount)
+		return nil, errValidateAmount
 	}
 
 	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, payload); errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update package", errUpdate)
 
-		return http.WithError(c, errUpdate)
+		return nil, errUpdate
 	}
 
 	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, packUpdated)
+	return packUpdated, nil
 }
 
 // DeletePackageByID is a method that removes a package information by a given id.
@@ -369,11 +425,6 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
 func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.delete_package_by_id")
-	defer span.End()
-
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
@@ -383,6 +434,22 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 	if err != nil {
 		return http.WithError(c, err)
 	}
+
+	if err := handler.deletePackageByID(ctx, organizationID, id); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
+}
+
+// deletePackageByID is the transport-agnostic core of the delete-package op, shared
+// by the Fiber wrapper (DeletePackageByID) and the Huma shell. It owns the span and
+// the service call; the caller resolves the org+package ids and renders the 204/error.
+func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizationID, id uuid.UUID) error {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_package_by_id")
+	defer span.End()
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
@@ -395,8 +462,8 @@ func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove Package", libLog.String("package_id", id.String()))
 
-		return http.WithError(c, err)
+		return err
 	}
 
-	return commonsHttp.RespondStatus(c, fiber.StatusNoContent)
+	return nil
 }

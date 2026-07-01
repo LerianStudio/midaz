@@ -19,63 +19,74 @@ type bodyParsingHandler struct {
 	structSource any
 }
 
-// parseBody decodes, validates and sanitizes the request body, returning the parsed struct.
-func (b *bodyParsingHandler) parseBody(c *fiber.Ctx) (any, error) {
-	s := newOfType(b.structSource)
-
-	bodyBytes := c.Body()
-
+// DecodeValidateBody is the transport-agnostic decode + unknown-field +
+// sanitize + validate + metadata sequence for a fee-package body. It is the SINGLE
+// source of that sequence, shared by the Fiber body-parsing handler (parseBody) and
+// the Huma handler cores, so both transports decode+validate identically with no
+// drift. It decodes into the caller-provided struct pointer and returns the parsed
+// originalMap plus the raw canonical Midaz error (ResponseError for malformed JSON,
+// Validation* for unknown/missing/invalid fields) WITHOUT writing a response — the
+// caller renders it (Fiber: BadRequest flat envelope; Huma: HumaProblem problem+json).
+//
+// The fee package keeps its OWN validator (this package's ValidateStruct, registered
+// separately from pkg/net/http's) and its OWN unknown-field/sanitize/metadata
+// helpers, so this must NOT be swapped for pkgHTTP.DecodeAndValidate — the two are
+// distinct validator instances with different registered rules.
+//
+// NOTE: findUnknownFields short-circuits BEFORE ValidateStruct, exactly as the
+// pre-refactor parseBody did — an unexpected field wins over a missing required one.
+func DecodeValidateBody(bodyBytes []byte, s any) (map[string]any, error) {
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		validationErr := pkg.ValidateUnmarshallingError(err)
-		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, validationErr)
-
-		return nil, validationErr
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		validationErr := pkg.ValidateUnmarshallingError(err)
-		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, validationErr)
-
-		return nil, validationErr
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		validationErr := pkg.ValidateUnmarshallingError(err)
-		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, validationErr)
-
-		return nil, validationErr
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		validationErr := pkg.ValidateUnmarshallingError(err)
-		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, validationErr)
-
-		return nil, validationErr
+		return nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	diffFields := findUnknownFields(originalMap, marshaledMap)
-
 	if len(diffFields) > 0 {
-		validationErr := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
-		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, validationErr)
-
-		return nil, validationErr
+		return nil, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
 	}
 
 	sanitizeStruct(s)
 
 	if err := ValidateStruct(s); err != nil {
+		return nil, err
+	}
+
+	parseMetadata(s, originalMap)
+
+	return originalMap, nil
+}
+
+// parseBody decodes, validates and sanitizes the request body, returning the parsed
+// struct. It delegates the decode+validate sequence to DecodeValidateBody (the shared
+// transport-agnostic core) and, on error, renders the canonical BadRequest envelope,
+// keeping the Fiber and Huma paths byte-identical.
+func (b *bodyParsingHandler) parseBody(c *fiber.Ctx) (any, error) {
+	s := newOfType(b.structSource)
+
+	if _, err := DecodeValidateBody(c.Body(), s); err != nil {
 		_ = commonsHttp.Respond(c, fiber.StatusBadRequest, err)
 
 		return nil, err
 	}
 
-	c.Locals("fields", diffFields)
-
-	parseMetadata(s, originalMap)
+	// parseBody only reaches here with zero unknown fields, so the stored diff is
+	// always empty; kept for the existing c.Locals("fields") contract.
+	c.Locals("fields", make(map[string]any))
 
 	return s, nil
 }
