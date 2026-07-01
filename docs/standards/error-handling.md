@@ -115,7 +115,7 @@ The decision memo (D1–D7) outcomes are baked into the rules below and recorded
 
 **Rationale.** Raw error strings leak internal structure (table names, file paths, driver internals, tenant identifiers) to clients and downstream metadata readers. A classified code is stable, safe to expose, and machine-branchable.
 
-**Canonical example.** `pkg/net/http/withRecover.go:42` — the panic recovery renders a fixed generic envelope (`code/title/message` at `:69-73`) with no raw error text, the target shape for all unmapped errors. Writing raw error text into a client-readable field is the rejected shape.
+**Canonical example.** `pkg/net/http/withRecover.go` — the panic recovery routes the recovered panic through `WithError` (via `pkg.ValidateInternalError`), rendering the scrubbed generic 500 problem+json envelope with no raw error text, panic message, or stack frames. Writing raw error text into a client-readable field is the rejected shape.
 
 **Enforcement.** `custom-lint` (flag `err.Error()` flowing into JSON response fields or persisted client-readable metadata); `contract-test` (assert 500 envelopes carry no raw error text).
 
@@ -170,7 +170,7 @@ The former class-(a) violations are converted to returned errors: the `consumer.
 
 **Canonical example.** `pkg/net/http/problem.go` — `withProblem` (`:152`) writes the body as `application/problem+json` (`problemContentType`, `:23`), and `ProblemDetail` (`:177`) is the single source of the `Detail` envelope (`:30`, embedding `libProblem.Detail` and adding `EntityType`). Both the Fiber path and the Huma handlers serialize the identical `Detail`. A single-field `{"error": text}` envelope or a raw `fiber.Map` error carrier is the rejected shape.
 
-**KNOWN GAP (code inconsistency, not fixed here).** The panic-recovery path `pkg/net/http/withRecover.go:69-73` still emits the legacy `fiber.Map{code, title, message}` shape rather than problem+json, so the panic path and the `WithError` path currently emit different envelopes. This is a known divergence between the two error-response producers; it is flagged here, not remediated in this doc.
+**Single producer.** The panic-recovery middleware (`pkg/net/http/withRecover.go`) does not build its own envelope — it routes the recovered panic through `WithError` as an internal-server error (`pkg.ValidateInternalError`), so the panic path and the normal error path emit the identical problem+json shape. `WithError` is the one envelope producer; there is no second error-response shape.
 
 **Enforcement.** `custom-lint` (forbid `fiber.Map{"error": ...}` and any error response not matching the problem+json envelope); `contract-test` (lock the problem+json envelope key set and the `code`/`status` tuple).
 
