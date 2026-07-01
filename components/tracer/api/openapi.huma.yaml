@@ -937,7 +937,7 @@ components:
       type: http
 info:
   title: Midaz Tracer API
-  version: ""
+  version: test
 openapi: 3.1.0
 paths:
   /audit-events:
