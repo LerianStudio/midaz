@@ -50,16 +50,6 @@ func SetSelfProbeGate(gate SelfProbeGate) {
 // dependencies were reachable AT BOOT, /health does NOT re-probe them.
 // Re-probing is /readyz's job; mixing the two creates the /health/live +
 // /health/ready split anti-pattern (#3).
-//
-//	@Summary		Health check (liveness probe)
-//	@Description	Returns 503 until startup self-probe completes; 200 "healthy" thereafter.
-//	@ID				getHealth
-//	@Tags			Health
-//	@Accept			plain
-//	@Produce		plain
-//	@Success		200	{string}	string	"healthy"
-//	@Failure		503	{object}	map[string]string	"self-probe has not completed"
-//	@Router			/health [get]
 func (h *HealthChecker) LivenessHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		gate := defaultSelfProbeGate
@@ -81,16 +71,6 @@ func (h *HealthChecker) LivenessHandler() fiber.Handler {
 // the buildinfo provenance fields (commit/buildTime/dirty) to the wire shape.
 var versionHandler = buildinfo.VersionHandler(os.Getenv("VERSION"))
 
-// Version godoc
-//
-//	@Summary		Get service version
-//	@Description	Returns the current version of the service plus build provenance
-//	@ID				getVersion
-//	@Tags			Info
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	api.VersionResponse	"Version information"
-//	@Router			/version [get]
 func Version(c *fiber.Ctx) error {
 	return versionHandler(c)
 }

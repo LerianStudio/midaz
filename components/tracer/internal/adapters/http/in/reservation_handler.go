@@ -62,23 +62,6 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 	}, nil
 }
 
-// Reserve godoc
-//
-//	@Summary		Reserve transaction capacity (phase one)
-//	@Description	Holds limit capacity for a ledger transaction without committing it. Returns one reservation id per counter-backed limit, or denied=true when a limit would be exceeded.
-//	@ID				createReservation
-//	@Tags			Reservations
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			request		body		ReserveRequest	true	"Reservation request"
-//	@Success		201			{object}	ReserveResponse	"Capacity reserved"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		413			{object}	api.ErrorResponse	"Payload too large (exceeds 100KB)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
-//	@Router			/v1/reservations [post]
 func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
 	response, err := h.reserve(c.UserContext(), c.Body())
 	if err != nil {
@@ -167,22 +150,6 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 	}, nil
 }
 
-// Confirm godoc
-//
-//	@Summary		Confirm a reservation (phase two — commit)
-//	@Description	Commits a held reservation: the amount moves from reserved to current usage. Idempotent — a retry against an already-terminal reservation returns 200.
-//	@ID				confirmReservation
-//	@Tags			Reservations
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Reservation ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	ReservationActionResponse	"Reservation confirmed"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid path parameter"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Reservation not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
-//	@Router			/v1/reservations/{id}/confirm [post]
 func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
 	if err != nil {
@@ -192,22 +159,6 @@ func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-// Release godoc
-//
-//	@Summary		Release a reservation (phase two — abort)
-//	@Description	Returns a held reservation's capacity on an aborted ledger transaction. Idempotent — a retry against an already-terminal reservation returns 200.
-//	@ID				releaseReservation
-//	@Tags			Reservations
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Reservation ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	ReservationActionResponse	"Reservation released"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid path parameter"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Reservation not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
-//	@Router			/v1/reservations/{id}/release [post]
 func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.release", string(model.StatusReleased), h.service.Release)
 	if err != nil {
@@ -217,21 +168,6 @@ func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-// ConfirmByTransaction godoc
-//
-//	@Summary		Confirm a transaction's reservations (phase two — commit by transaction)
-//	@Description	Confirms EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /commit drives this with only the transaction id. Idempotent — flipped=0 (no reservations, or all already terminal) returns 200.
-//	@ID				confirmReservationByTransaction
-//	@Tags			Reservations
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			transaction_id	path		string	true	"Transaction ID (UUID)"	Format(uuid)
-//	@Success		200				{object}	TransactionActionResponse	"Reservations confirmed"
-//	@Failure		400				{object}	api.ErrorResponse	"Invalid path parameter"
-//	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
-//	@Router			/v1/reservations/transaction/{transaction_id}/confirm [post]
 func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
 	if err != nil {
@@ -241,21 +177,6 @@ func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-// ReleaseByTransaction godoc
-//
-//	@Summary		Release a transaction's reservations (phase two — abort by transaction)
-//	@Description	Releases EVERY held reservation a transaction holds, addressed by the ledger transaction id. The ledger /cancel drives this with only the transaction id. Idempotent — flipped=0 returns 200.
-//	@ID				releaseReservationByTransaction
-//	@Tags			Reservations
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			transaction_id	path		string	true	"Transaction ID (UUID)"	Format(uuid)
-//	@Success		200				{object}	TransactionActionResponse	"Reservations released"
-//	@Failure		400				{object}	api.ErrorResponse	"Invalid path parameter"
-//	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503				{object}	api.ErrorResponse	"Service unavailable (context cancelled)"
-//	@Router			/v1/reservations/transaction/{transaction_id}/release [post]
 func (h *ReservationHandler) ReleaseByTransaction(c *fiber.Ctx) error {
 	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)
 	if err != nil {

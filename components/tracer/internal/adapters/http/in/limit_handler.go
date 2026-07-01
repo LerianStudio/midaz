@@ -52,22 +52,6 @@ func NewLimitHandler(service LimitService) *LimitHandler {
 	}
 }
 
-// CreateLimit godoc
-//
-//	@Summary		Create a new spending limit
-//	@Description	Creates a limit with scopes array. Limits are created in DRAFT status.
-//	@ID				createLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			limit		body		CreateLimitInput	true	"Limit details"
-//	@Success		201			{object}	model.Limit				"Limit created successfully"
-//	@Failure		400			{object}	api.ErrorResponse		"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
-//	@Failure		409			{object}	api.ErrorResponse		"Limit name already exists"
-//	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
-//	@Router			/v1/limits [post]
 func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 	result, err := h.createLimit(c.UserContext(), c.Body())
 	if err != nil {
@@ -118,22 +102,6 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 	return result, nil
 }
 
-// GetLimit godoc
-//
-//	@Summary		Get a spending limit by ID
-//	@Description	Retrieves a limit by its unique identifier.
-//	@ID				getLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Limit			"Limit retrieved successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/limits/{id} [get]
 func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 	result, err := h.getLimit(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -174,33 +142,6 @@ func (h *LimitHandler) getLimit(ctx context.Context, idParam string) (*model.Lim
 	return result, nil
 }
 
-// ListLimits godoc
-//
-//	@Summary		List spending limits
-//	@Description	Lists limits with cursor-based pagination and optional filters.
-//	@ID				listLimits
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			limit			query		int						false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
-//	@Param			cursor			query		string					false	"Pagination cursor (empty for first page)"
-//	@Param			name			query		string					false	"Filter by name (case-insensitive partial match)"	maxLength(255)
-//	@Param			status			query		string					false	"Filter by status"			Enums(DRAFT, ACTIVE, INACTIVE)
-//	@Param			limit_type		query		string					false	"Filter by limit type"		Enums(DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION)
-//	@Param			account_id		query		string					false	"Filter by scope account_id (UUID)"	Format(uuid)
-//	@Param			segment_id		query		string					false	"Filter by scope segment_id (UUID)"	Format(uuid)
-//	@Param			portfolio_id	query		string					false	"Filter by scope portfolio_id (UUID)"	Format(uuid)
-//	@Param			merchant_id		query		string					false	"Filter by scope merchant_id (UUID)"	Format(uuid)
-//	@Param			transaction_type	query		string					false	"Filter by scope transaction_type"	Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Param			sub_type		query		string					false	"Filter by scope sub_type (case-insensitive, normalized to lowercase; max 50 chars)"	maxLength(50)
-//	@Param			sort_by			query		string					false	"Sort field"				Enums(created_at, updated_at, name, max_amount)
-//	@Param			sort_order		query		string					false	"Sort direction"			Enums(ASC, DESC)
-//	@Success		200			{object}	ListLimitsResponse	"Limits listed successfully"
-//	@Failure		400			{object}	api.ErrorResponse		"Invalid parameters"
-//	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
-//	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
-//	@Router			/v1/limits [get]
 func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	// Fiber binds the query with QueryParser; the shared core owns the rest.
 	response, err := h.listLimits(c.UserContext(), c.QueryParser)
@@ -263,24 +204,6 @@ func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*L
 	return response, nil
 }
 
-// UpdateLimit godoc
-//
-//	@Summary		Partially update an existing spending limit
-//	@Description	Partially updates a limit. Only provided fields are updated, omitted fields remain unchanged.
-//	@ID				updateLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string					true	"Limit ID (UUID)"	Format(uuid)
-//	@Param			limit		body		UpdateLimitInput	true	"Fields to update"
-//	@Success		200			{object}	model.Limit				"Limit updated successfully"
-//	@Failure		400			{object}	api.ErrorResponse		"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse		"Limit not found"
-//	@Failure		409			{object}	api.ErrorResponse		"Limit name already exists"
-//	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
-//	@Router			/v1/limits/{id} [patch]
 func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	result, err := h.updateLimit(c.UserContext(), c.Params("id"), c.Body())
 	if err != nil {
@@ -357,22 +280,6 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	return result, nil
 }
 
-// ActivateLimit godoc
-//
-//	@Summary		Activate a spending limit
-//	@Description	Activates an inactive limit (INACTIVE → ACTIVE).
-//	@ID				activateLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Limit			"Limit activated successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/limits/{id}/activate [post]
 func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 	limit, err := h.activateLimit(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -412,22 +319,6 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 	return limit, nil
 }
 
-// DeactivateLimit godoc
-//
-//	@Summary		Deactivate a spending limit
-//	@Description	Deactivates an active limit (ACTIVE → INACTIVE).
-//	@ID				deactivateLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Limit			"Limit deactivated successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/limits/{id}/deactivate [post]
 func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 	limit, err := h.deactivateLimit(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -467,22 +358,6 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 	return limit, nil
 }
 
-// DraftLimit godoc
-//
-//	@Summary		Transition a limit back to draft
-//	@Description	Transitions a limit from INACTIVE to DRAFT status. Allows re-editing a previously deactivated limit.
-//	@ID				draftLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Limit			"Limit transitioned to draft successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/limits/{id}/draft [post]
 func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 	limit, err := h.draftLimit(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -522,22 +397,6 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 	return limit, nil
 }
 
-// DeleteLimit godoc
-//
-//	@Summary		Delete a spending limit
-//	@Description	Soft-deletes a limit (transitions to DELETED status). Only DRAFT and INACTIVE limits can be deleted. ACTIVE limits must be deactivated first.
-//	@ID				deleteLimit
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		204			"Limit deleted successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/limits/{id} [delete]
 func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 	if err := h.deleteLimit(c.UserContext(), c.Params("id")); err != nil {
 		return http.WithError(c, err)
@@ -575,22 +434,6 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 	return nil
 }
 
-// GetLimitUsage godoc
-//
-//	@Summary		Get usage snapshot for a limit
-//	@Description	Retrieves current usage snapshot for a limit, showing aggregated usage, utilization percentage, and reset time.
-//	@ID				getLimitUsage
-//	@Tags			Limits
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string			true	"Limit ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.UsageSnapshot	"Usage snapshot retrieved successfully"
-//	@Failure		400			{object}	api.ErrorResponse		"Invalid limit ID"
-//	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse		"Limit not found"
-//	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
-//	@Router			/v1/limits/{id}/usage [get]
 func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 	snapshot, err := h.getLimitUsage(c.UserContext(), c.Params("id"))
 	if err != nil {

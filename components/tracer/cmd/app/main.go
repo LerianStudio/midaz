@@ -22,35 +22,6 @@ import (
 	_ "go.uber.org/automaxprocs"
 )
 
-// @title						Midaz Tracer API
-// @version						4.0.0
-// @description					Midaz Tracer API — pre-flight transaction validation. Provides CEL-based rule evaluation, spending limits, two-phase reservations (hold / confirm / release), validation decisions, and a hash-chained audit trail.
-// @tag.name					Rules
-// @tag.description				CEL-based validation rules.
-// @tag.name					Limits
-// @tag.description				Spending limits and usage windows.
-// @tag.name					Validations
-// @tag.description				Pre-flight transaction validation decisions.
-// @tag.name					Reservations
-// @tag.description				Two-phase balance reservations: hold, then confirm or release.
-// @tag.name					Audit
-// @tag.description				Hash-chained audit event trail.
-// @tag.name					Health
-// @tag.description				Liveness and readiness probes.
-// @tag.name					Info
-// @tag.description				Service build and version metadata.
-// @termsOfService				https://www.elastic.co/licensing/elastic-license
-// @contact.name				Discord community
-// @contact.url					https://discord.gg/DnhqKwkGv3
-// @license.name				Elastic License 2.0
-// @license.url					https://www.elastic.co/licensing/elastic-license
-// @host						localhost:4020
-// @schemes						http https
-// @BasePath					/
-// @securityDefinitions.apikey	ApiKeyAuth
-// @in							header
-// @name						X-API-Key
-// @description					API Key for authentication
 func main() {
 	if err := run(); err != nil {
 		// Print to stderr — logger may not be wired yet at this point.

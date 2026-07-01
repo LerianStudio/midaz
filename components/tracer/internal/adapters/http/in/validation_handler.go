@@ -59,25 +59,6 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 	}, nil
 }
 
-// Validate godoc
-//
-//	@Summary		Validate a transaction
-//	@Description	Validates a transaction against configured rules and limits.
-//	@ID				validateTransaction
-//	@Tags			Validations
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			request		body		model.ValidationRequest	true	"Validation request"
-//	@Success		200			{object}	model.ValidationResponse	"Duplicate request (idempotent)"
-//	@Success		201			{object}	model.ValidationResponse	"New validation created"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		413			{object}	api.ErrorResponse	"Payload too large (exceeds 100KB)"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. amount exceeds safe precision)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Failure		503			{object}	api.ErrorResponse	"Service unavailable"
-//	@Router			/v1/validations [post]
 func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	result, err := h.validate(c.UserContext(), c.Body())
 	if err != nil {

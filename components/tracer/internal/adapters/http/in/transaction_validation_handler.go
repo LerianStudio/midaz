@@ -48,22 +48,6 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 	}
 }
 
-// GetTransactionValidation godoc
-//
-//	@Summary		Get a transaction validation record by ID
-//	@Description	Retrieves a transaction validation record by its unique identifier.
-//	@ID				getValidation
-//	@Tags			Validations
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string					true	"Transaction Validation ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.TransactionValidation	"Transaction validation retrieved successfully"
-//	@Failure		400			{object}	api.ErrorResponse		"Invalid transaction validation ID"
-//	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse		"Transaction validation not found"
-//	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
-//	@Router			/v1/validations/{id} [get]
 func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) error {
 	result, err := h.getTransactionValidation(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -109,33 +93,6 @@ func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Cont
 	return result, nil
 }
 
-// ListTransactionValidations godoc
-//
-//	@Summary		List transaction validation records
-//	@Description	Lists transaction validation records with cursor-based pagination and filters.
-//	@ID				listValidations
-//	@Tags			Validations
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			limit			query		int								false	"Max items per page (1-1000, default: 100)"		minimum(1)	maximum(1000)
-//	@Param			cursor			query		string							false	"Pagination cursor from previous response"
-//	@Param			sort_by			query		string							false	"Field to sort by (default: created_at)"		Enums(created_at, processing_time_ms)
-//	@Param			sort_order		query		string							false	"Sort direction (default: DESC)"				Enums(ASC, DESC)
-//	@Param			start_date		query		string							false	"Filter from this date (RFC3339)"				Format(date-time)
-//	@Param			end_date		query		string							false	"Filter to this date (RFC3339)"					Format(date-time)
-//	@Param			decision		query		string							false	"Filter by decision"							Enums(ALLOW, DENY, REVIEW)
-//	@Param			account_id		query		string							false	"Filter by account ID (UUID)"					Format(uuid)
-//	@Param			matched_rule_id	query		string							false	"Filter by matched rule ID (UUID)"				Format(uuid)
-//	@Param			exceeded_limit_id	query		string							false	"Filter by exceeded limit ID (UUID)"			Format(uuid)
-//	@Param			segment_id		query		string							false	"Filter by segment ID (UUID)"					Format(uuid)
-//	@Param			portfolio_id	query		string							false	"Filter by portfolio ID (UUID)"					Format(uuid)
-//	@Param			transaction_type	query		string							false	"Filter by transaction type"					Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Success		200				{object}	ListTransactionValidationsResponse	"Transaction validations listed successfully"
-//	@Failure		400				{object}	api.ErrorResponse				"Invalid parameters"
-//	@Failure		401				{object}	api.ErrorResponse				"Unauthorized"
-//	@Failure		500				{object}	api.ErrorResponse				"Internal server error"
-//	@Router			/v1/validations [get]
 func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) error {
 	// Fiber binds the query with QueryParser; the shared core owns the rest.
 	response, err := h.listTransactionValidations(c.UserContext(), c.QueryParser)
@@ -495,7 +452,7 @@ type ValidationSummary struct {
 	ExceededLimitIDs []uuid.UUID           `json:"exceededLimitIds" swaggertype:"array,string" format:"uuid"`
 	ProcessingTimeMs float64               `json:"processingTimeMs" example:"12.5"`
 	CreatedAt        string                `json:"createdAt" format:"date-time"`
-} //	@name	ValidationSummary
+}
 
 // ToValidationSummary converts a TransactionValidation to a ValidationSummary.
 func ToValidationSummary(tv *model.TransactionValidation) *ValidationSummary {
@@ -546,7 +503,7 @@ type ListTransactionValidationsResponse struct {
 	TransactionValidations []*ValidationSummary `json:"transactionValidations"`
 	NextCursor             string               `json:"nextCursor,omitempty" example:"eyJpZCI6IjAxOTI4In0="`
 	HasMore                bool                 `json:"hasMore" example:"true"`
-} //	@name	ListTransactionValidationsResponse
+}
 
 // ToListTransactionValidationsResponse converts the service result to HTTP response.
 func ToListTransactionValidationsResponse(result *query.ListTransactionValidationsResult) *ListTransactionValidationsResponse {

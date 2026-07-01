@@ -51,23 +51,6 @@ func NewHandler(service RuleService) *Handler {
 	}
 }
 
-// CreateRule godoc
-//
-//	@Summary		Create a new fraud rule
-//	@Description	Creates a rule with CEL expression and scopes array. Rules are created in DRAFT status.
-//	@ID				createRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			rule		body		CreateRuleInput	true	"Rule details"
-//	@Success		201			{object}	model.Rule		"Rule created successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		409			{object}	api.ErrorResponse	"Rule name already exists"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. expression cost limit exceeded)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules [post]
 func (h *Handler) CreateRule(c *fiber.Ctx) error {
 	result, err := h.createRule(c.UserContext(), c.Body())
 	if err != nil {
@@ -125,25 +108,6 @@ func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, 
 	return result, nil
 }
 
-// UpdateRule godoc
-//
-//	@Summary		Partially update an existing fraud rule
-//	@Description	Partially updates a rule. Only provided fields are updated, omitted fields remain unchanged.
-//	@ID				updateRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Param			rule		body		UpdateRuleInput	true	"Fields to update"
-//	@Success		200			{object}	model.Rule		"Rule updated successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		409			{object}	api.ErrorResponse	"Rule name already exists"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. expression cost limit exceeded or expression not modifiable)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id} [patch]
 func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 	result, err := h.updateRule(c.UserContext(), c.Params("id"), c.Body())
 	if err != nil {
@@ -204,22 +168,6 @@ func (h *Handler) updateRule(ctx context.Context, idParam string, rawBody []byte
 	return result, nil
 }
 
-// GetRule godoc
-//
-//	@Summary		Get a fraud rule by ID
-//	@Description	Retrieves a rule by its unique identifier.
-//	@ID				getRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Rule		"Rule retrieved successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id} [get]
 func (h *Handler) GetRule(c *fiber.Ctx) error {
 	result, err := h.getRule(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -262,33 +210,6 @@ func (h *Handler) getRule(ctx context.Context, idParam string) (*model.Rule, err
 	return result, nil
 }
 
-// ListRules godoc
-//
-//	@Summary		List fraud rules
-//	@Description	Lists rules with cursor-based pagination and optional filters. Supports filtering by scope fields to find rules applicable to specific contexts. Global rules (empty scopes) are always included in scope-filtered results.
-//	@ID				listRules
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			limit			query		int		false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
-//	@Param			cursor			query		string	false	"Pagination cursor (empty for first page)"
-//	@Param			name			query		string	false	"Filter by name (case-insensitive partial match)"
-//	@Param			status			query		string	false	"Filter by status (DELETED not allowed)"	Enums(DRAFT, ACTIVE, INACTIVE)
-//	@Param			action			query		string	false	"Filter by action"	Enums(ALLOW, DENY, REVIEW)
-//	@Param			account_id		query		string	false	"Filter by scope account_id (UUID)"	Format(uuid)
-//	@Param			segment_id		query		string	false	"Filter by scope segment_id (UUID)"	Format(uuid)
-//	@Param			portfolio_id	query		string	false	"Filter by scope portfolio_id (UUID)"	Format(uuid)
-//	@Param			merchant_id		query		string	false	"Filter by scope merchant_id (UUID)"	Format(uuid)
-//	@Param			transaction_type	query		string	false	"Filter by scope transaction_type"	Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Param			sub_type		query		string	false	"Filter by scope sub_type (case-insensitive, normalized to lowercase; max 50 chars)"	maxLength(50)
-//	@Param			sort_by			query		string	false	"Sort field"	Enums(created_at, updated_at, name, status)
-//	@Param			sort_order		query		string	false	"Sort direction"	Enums(ASC, DESC)
-//	@Success		200				{object}	ListRulesResponse	"Rules listed successfully"
-//	@Failure		400				{object}	api.ErrorResponse	"Invalid parameters"
-//	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules [get]
 func (h *Handler) ListRules(c *fiber.Ctx) error {
 	// Fiber binds the query with QueryParser; the shared core owns the rest.
 	response, err := h.listRules(c.UserContext(), c.QueryParser)
@@ -353,23 +274,6 @@ func (h *Handler) listRules(ctx context.Context, bind func(any) error) (*ListRul
 	return response, nil
 }
 
-// ActivateRule godoc
-//
-//	@Summary		Activate a fraud rule
-//	@Description	Activates a rule (DRAFT/INACTIVE → ACTIVE). Validates CEL expression before activation.
-//	@ID				activateRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Rule		"Rule activated successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition or expression cost exceeded)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id}/activate [post]
 func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 	rule, err := h.activateRule(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -410,23 +314,6 @@ func (h *Handler) activateRule(ctx context.Context, idParam string) (*model.Rule
 	return rule, nil
 }
 
-// DeactivateRule godoc
-//
-//	@Summary		Deactivate a fraud rule
-//	@Description	Deactivates a rule (ACTIVE/DRAFT → INACTIVE).
-//	@ID				deactivateRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Rule		"Rule deactivated successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id}/deactivate [post]
 func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 	rule, err := h.deactivateRule(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -466,23 +353,6 @@ func (h *Handler) deactivateRule(ctx context.Context, idParam string) (*model.Ru
 	return rule, nil
 }
 
-// DraftRule godoc
-//
-//	@Summary		Transition a rule back to draft
-//	@Description	Transitions a rule from INACTIVE to DRAFT status. Allows re-editing a previously deactivated rule.
-//	@ID				draftRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.Rule		"Rule transitioned to draft successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id}/draft [post]
 func (h *Handler) DraftRule(c *fiber.Ctx) error {
 	rule, err := h.draftRule(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -522,23 +392,6 @@ func (h *Handler) draftRule(ctx context.Context, idParam string) (*model.Rule, e
 	return rule, nil
 }
 
-// DeleteRule godoc
-//
-//	@Summary		Delete a fraud rule
-//	@Description	Soft-deletes a rule (transitions to DELETED status). Only DRAFT and INACTIVE rules can be deleted. ACTIVE rules must be deactivated first.
-//	@ID				deleteRule
-//	@Tags			Rules
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
-//	@Success		204			"Rule deleted successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
-//	@Failure		422			{object}	api.ErrorResponse	"Business rule violation (e.g. invalid status transition — active rules must be deactivated first)"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/rules/{id} [delete]
 func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 	if err := h.deleteRule(c.UserContext(), c.Params("id")); err != nil {
 		return http.WithError(c, err)

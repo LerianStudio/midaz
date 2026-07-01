@@ -80,16 +80,6 @@ const (
 // MUST be registered on the public path tree, BEFORE any auth middleware —
 // K8s probes are unauthenticated and a 401 here would be interpreted by
 // the kubelet as "not ready" and kill the pod.
-//
-//	@Summary		Readiness check (Lerian canonical contract)
-//	@Description	Live dependency probes — never cached. Returns 200 only when every check is up/skipped/n/a; any down or degraded forces 503.
-//	@ID				getReadyz
-//	@Tags			Health
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	api.ReadyzResponse	"Service is ready"
-//	@Failure		503	{object}	api.ReadyzResponse	"Service is not ready"
-//	@Router			/readyz [get]
 func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx := c.UserContext()

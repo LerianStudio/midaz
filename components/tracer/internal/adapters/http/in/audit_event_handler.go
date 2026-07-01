@@ -44,38 +44,6 @@ func NewAuditEventHandler(service AuditEventService) *AuditEventHandler {
 	}
 }
 
-// ListAuditEvents godoc
-//
-//	@Summary		List audit events
-//	@Description	Lists audit events with filters and cursor-based pagination. SOX/GLBA compliance endpoint.
-//	@ID				listAuditEvents
-//	@Tags			Audit
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			start_date		query		string	false	"Start date (RFC3339 format)"	Format(date-time)
-//	@Param			end_date		query		string	false	"End date (RFC3339 format)"		Format(date-time)
-//	@Param			event_type		query		string	false	"Filter by event type"	Enums(TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DRAFTED, LIMIT_DELETED)
-//	@Param			action			query		string	false	"Filter by action"	Enums(VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
-//	@Param			result			query		string	false	"Filter by result"	Enums(SUCCESS, FAILED, ALLOW, DENY, REVIEW)
-//	@Param			resource_type	query		string	false	"Filter by resource type"	Enums(transaction, rule, limit)
-//	@Param			resource_id		query		string	false	"Filter by resource ID"
-//	@Param			actor_type		query		string	false	"Filter by actor type"	Enums(user, system)
-//	@Param			actor_id		query		string	false	"Filter by actor ID"
-//	@Param			account_id		query		string	false	"Filter by account ID (UUID)"	Format(uuid)
-//	@Param			segment_id		query		string	false	"Filter by segment ID (UUID)"	Format(uuid)
-//	@Param			portfolio_id	query		string	false	"Filter by portfolio ID (UUID)"	Format(uuid)
-//	@Param			transaction_type	query		string	false	"Filter by transaction type"	Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Param			matched_rule_id	query		string	false	"Filter by matched rule ID (UUID)"	Format(uuid)
-//	@Param			limit		    query		int		false	"Max items per page (1-1000, default: 100)"	minimum(1)	maximum(1000)
-//	@Param			cursor  		query		string	false	"Pagination token (empty for first page)"
-//	@Param			sort_by			query		string	false	"Sort field"	Enums(created_at, event_type)
-//	@Param			sort_order		query		string	false	"Sort direction"	Enums(ASC, DESC)
-//	@Success		200				{object}	ListAuditEventsResponse	"Audit events listed successfully"
-//	@Failure		400				{object}	api.ErrorResponse	"Invalid parameters"
-//	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/audit-events [get]
 func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	// Fiber binds the query with QueryParser; the shared core owns the rest.
 	response, err := h.listAuditEvents(c.UserContext(), c.QueryParser)
@@ -155,22 +123,6 @@ func (h *AuditEventHandler) listAuditEvents(ctx context.Context, bind func(any) 
 	return response, nil
 }
 
-// GetAuditEvent godoc
-//
-//	@Summary		Get an audit event by ID
-//	@Description	Retrieves a single audit event by its unique identifier. SOX/GLBA compliance endpoint.
-//	@ID				getAuditEvent
-//	@Tags			Audit
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Event ID (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.AuditEvent		"Audit event retrieved successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid event ID"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Audit event not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/audit-events/{id} [get]
 func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 	result, err := h.getAuditEvent(c.UserContext(), c.Params("id"))
 	if err != nil {
@@ -212,22 +164,6 @@ func (h *AuditEventHandler) getAuditEvent(ctx context.Context, idParam string) (
 	return result, nil
 }
 
-// VerifyHashChain godoc
-//
-//	@Summary		Verify audit event hash chain integrity
-//	@Description	Verifies the integrity of the audit event hash chain up to a specific event. Detects tampering attempts. SOX/GLBA compliance endpoint.
-//	@ID				verifyAuditEvent
-//	@Tags			Audit
-//	@Accept			json
-//	@Produce		json
-//	@Security		ApiKeyAuth
-//	@Param			id			path		string	true	"Event ID to verify up to (UUID)"	Format(uuid)
-//	@Success		200			{object}	model.HashChainVerificationResult	"Hash chain verification completed"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid event ID"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		404			{object}	api.ErrorResponse	"Event not found"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
-//	@Router			/v1/audit-events/{id}/verify [get]
 func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 	result, err := h.verifyHashChain(c.UserContext(), c.Params("id"))
 	if err != nil {
