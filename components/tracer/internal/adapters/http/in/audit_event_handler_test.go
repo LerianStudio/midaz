@@ -183,7 +183,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				err := json.Unmarshal(body, &errorResp)
 				require.NoError(t, err, "response should be valid JSON object")
 				assert.Equal(t, "0077", errorResp["code"], "error code should be TRC-0020 (Invalid Date Format)")
-				assert.NotEmpty(t, errorResp["message"], "error message should not be empty")
+				assert.NotEmpty(t, errorResp["detail"], "error detail should not be empty")
 			},
 		},
 		{
@@ -260,7 +260,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 				require.NoError(t, err, "response should be valid JSON")
 
 				assert.Equal(t, "0046", errorResp["code"], "error code should be TRC-0004 (internal server error)")
-				assert.NotEmpty(t, errorResp["message"], "error message should be present")
+				assert.NotEmpty(t, errorResp["detail"], "error detail should be present")
 			},
 		},
 	}
@@ -351,7 +351,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 	require.NoError(t, err, "Expected valid JSON error response")
 
 	require.Equal(t, "0009", errResp["code"], "Expected canonical missing-fields code for invalid transaction_type")
-	require.NotEmpty(t, errResp["message"], "Expected non-empty error message")
+	require.NotEmpty(t, errResp["detail"], "Expected non-empty error detail")
 }
 
 func TestListAuditEventsInput_ValidTransactionTypes(t *testing.T) {
@@ -794,7 +794,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 				require.NoError(t, err, "response should be valid JSON")
 
 				assert.Equal(t, "0046", errorResp["code"], "error code should be TRC-0004 (internal server error)")
-				assert.NotEmpty(t, errorResp["message"], "error message should be present")
+				assert.NotEmpty(t, errorResp["detail"], "error detail should be present")
 			},
 		},
 	}

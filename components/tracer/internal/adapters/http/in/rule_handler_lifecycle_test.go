@@ -73,7 +73,7 @@ func TestActivateRuleHandler_InvalidUUID(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0065", body["code"])
@@ -101,7 +101,7 @@ func TestActivateRuleHandler_ServiceError(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0349", body["code"])
@@ -129,7 +129,7 @@ func TestActivateRuleHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0347", body["code"])
@@ -157,7 +157,7 @@ func TestActivateRuleHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0046", body["code"])
@@ -215,7 +215,7 @@ func TestDeactivateRuleHandler_InvalidUUID(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0065", body["code"])
@@ -243,7 +243,7 @@ func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0349", body["code"])
@@ -271,7 +271,7 @@ func TestDeactivateRuleHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0347", body["code"])
@@ -299,7 +299,7 @@ func TestDeactivateRuleHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0046", body["code"])
@@ -345,7 +345,7 @@ func TestDeleteRuleHandler_InvalidUUID(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0065", body["code"])
@@ -373,7 +373,7 @@ func TestDeleteRuleHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0347", body["code"])
@@ -401,7 +401,7 @@ func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0349", body["code"])
@@ -429,7 +429,7 @@ func TestDeleteRuleHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0046", body["code"])
@@ -487,7 +487,7 @@ func TestDraftRuleHandler_InvalidUUID(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0065", body["code"])
@@ -515,7 +515,7 @@ func TestDraftRuleHandler_ServiceError(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0349", body["code"])
@@ -543,7 +543,7 @@ func TestDraftRuleHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0347", body["code"])
@@ -571,7 +571,7 @@ func TestDraftRuleHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
-	var body map[string]string
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	require.NoError(t, err)
 	assert.Equal(t, "0046", body["code"])

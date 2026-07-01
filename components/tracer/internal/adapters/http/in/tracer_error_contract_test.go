@@ -176,21 +176,21 @@ func TestTracerErrorContract(t *testing.T) {
 			err:            pkg.ValidateBusinessError(constant.ErrValidationTimeout, constant.EntityValidationRequest),
 			expectedStatus: 503,
 			expectedCode:   "0422",
-			expectedTitle:  "Validation Timeout",
+			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
 		},
 		{
 			name:           "list validations timeout -> 0433 / 503",
 			err:            pkg.ValidateBusinessError(constant.ErrListValidationsTimeout, constant.EntityTransactionValidation),
 			expectedStatus: 503,
 			expectedCode:   "0433",
-			expectedTitle:  "List Validations Timeout",
+			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
 		},
 		{
 			name:           "context cancelled -> 0330 / 503",
 			err:            pkg.ValidateBusinessError(constant.ErrContextCancelled, constant.EntityRule),
 			expectedStatus: 503,
 			expectedCode:   "0330",
-			expectedTitle:  "Context Cancelled",
+			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
 		},
 		// --- readyz probe codes (503) ---
 		{
@@ -198,14 +198,14 @@ func TestTracerErrorContract(t *testing.T) {
 			err:            pkg.ValidateBusinessError(constant.ErrReadyzDependenciesUnhealthy, constant.EntityRule),
 			expectedStatus: 503,
 			expectedCode:   "0462",
-			expectedTitle:  "Readyz Dependencies Unhealthy",
+			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
 		},
 		{
 			name:           "rule cache not ready -> 0437 / 503",
 			err:            pkg.ValidateBusinessError(constant.ErrRuleCacheNotReady, constant.EntityRule),
 			expectedStatus: 503,
 			expectedCode:   "0437",
-			expectedTitle:  "Rule Cache Not Ready",
+			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
 		},
 		// --- auth (401) ---
 		{
@@ -238,15 +238,15 @@ func TestTracerErrorContract(t *testing.T) {
 
 			var envelope map[string]any
 
-			require.NoError(t, json.Unmarshal(body, &envelope), "response must be the canonical {code,title,message} envelope: %s", string(body))
+			require.NoError(t, json.Unmarshal(body, &envelope), "response must be the RFC 9457 {code,status,title,detail} envelope: %s", string(body))
 
 			code, ok := envelope["code"].(string)
 			require.True(t, ok, "envelope must carry a string code, got: %s", string(body))
 
 			assert.Equal(t, tt.expectedCode, code, "must emit the exact canonical numeric code")
 			assert.NotRegexp(t, trcCodeRegex, code, "response code must NOT be a retired TRC- fork code")
-			assert.Equal(t, tt.expectedTitle, envelope["title"], "must emit the registry title")
-			assert.NotEmpty(t, envelope["message"], "envelope must carry a non-empty registry message")
+			assert.Equal(t, tt.expectedTitle, envelope["title"], "must emit the registry title (>=500 scrubs to status text)")
+			assert.NotEmpty(t, envelope["detail"], "envelope must carry a non-empty detail (<500 registry message; >=500 \"internal error\")")
 		})
 	}
 }
