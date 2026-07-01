@@ -262,12 +262,40 @@ Workflow `wf_f70f2f3a-4b0`: 6 implement serial → 5 reviewers → 5 contrarian,
 **Nit `time_of_day.go` (meu catch, resolvido):** `dffa59704` appendou `MarshalText`/`UnmarshalText` (+32, 0 del) num arquivo pré-existente — faz o gerador OpenAPI do Huma renderizar `TimeOfDay` (campos unexported) como string `"HH:MM"` no schema de resposta de `model.Limit`; runtime byte-idêntico (encoding/json prefere MarshalJSON). Migration-necessário, não-breaking.
 **Deferidos pra Epic 2.3 (nenhum bloqueia):** (1) `@Failure 413` stale em reserve/validate (mentira swaggo pré-existente — ErrPayloadTooLarge→code canônico, não 413; some quando swaggo aposenta); (2) `enums:` removido só de ListLimitsInput (metadata morto, spec vem de *InputHuma); (3) flat-401 decisão (preservado+documentado; unificar→problem+json é decisão do Fred fora da wave).
 
-### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec 3.1 nativa + paridade served==spec
-**Goal:** Declarar os 2 security schemes no shape correto (`BearerAuth` `type:http,scheme:bearer` — não o hack apiKey-in-header do swagger atual; `ApiKeyAuth` `type:apiKey,in:header,name:X-API-Key`); requirement por-op nas 28 ops (`POST /validations` reflete o `forceAPIKeyAuth`); spec OAS 3.1 servida por `ServeSpec` (gated em `Swagger.Enabled`); remover `@securityDefinitions` swaggo do `main.go`.
-**Scope:** `components/tracer/cmd/app/main.go`, `routes.go`, `ServeSpec` wiring, `components/tracer/api/` (artefatos gerados).
-**Dependencies:** Epic 2.2.
-**Done when:** spec anuncia os 2 schemes corretos (fecha o gap Bearer-faltando do recon §4); requirement por-op bate com o middleware; `POST /v1/validations` mostra ApiKey; served body == spec (ambos `problem+json`); `/openapi.yaml`+`/docs` gated; swagger 2.0 velho aposentado.
-**Status:** Pending
+### Epic 2.3: Auth declarada (Bearer + ApiKey) + spec OAS 3.1 nativa ADITIVA (swaggo intacto)
+**Goal:** Servir a spec OAS 3.1 do Huma EM PARALELO ao swagger 2.0 (não aposentar), com os 2 security schemes corretos + requirement por-op, gated num flag novo.
+**Escopo REVISADO (recon-23, 3 divergências do plano original):**
+- **Div 1:** `Swagger.Enabled` NÃO existe no tracer → CRIAR `SwaggerEnabled bool env:"SWAGGER_ENABLED"` em `bootstrap/config.go` + propagar via `RouteConfig`/`NewRoutes`.
+- **Div 2:** lib-commons v5.8.0 tem `openapi.DeclareBearerAuth(api)` mas NÃO tem `DeclareApiKeyAuth` → declarar `ApiKeyAuth {type:apiKey,in:header,name:X-API-Key}` LOCAL via `humaAPI.OpenAPI().Components.SecuritySchemes[...]` (não é workaround — huma nativo; lib-commons não wrappa isso). **Follow-up p/ Fred: pushar `DeclareApiKeyAuth` pra lib-commons (simetria com DeclareBearerAuth) — troca de 1 linha depois.**
+- **Div 3:** aposentar swaggo do tracer ISOLADO QUEBRA o pipeline compartilhado (`postman/generator/check-docs.sh`: parity ledger+tracer, security-coverage, drift-check `swag init` p/ ambos + `git diff --exit-code`); `components/tracer/api/` tem `types.go` escrito-à-mão (`ReadyzResponse`/`ReadyzCheck`) importado por `readyz.go` → não deletável. **Aposentadoria completa (remover @securityDefinitions, deletar swagger 2.0, flipar check-docs) = Fase 4** (com ledger migrado). Nesta epic: só ADITIVO.
+**Scope:** `bootstrap/config.go`, `http_server.go` (propagação), `routes.go`, os 6 `*_handler_huma.go` (Security por-op). NÃO tocar `main.go` annotations nem `api/`.
+**Dependencies:** Epic 2.2. ✅
+**Done when:** `humaAPI.OpenAPI().Components.SecuritySchemes` tem BearerAuth (type:http,scheme:bearer) + ApiKeyAuth (type:apiKey,in:header,name:X-API-Key); 27 ops declaram `[{BearerAuth},{ApiKeyAuth}]`, `POST /v1/validations` declara `[{ApiKeyAuth}]` (bate com `cfg.APIKeyOnlyValidation`), 3 públicas sem security; `ServeSpec(f,humaAPI,lg,"/v1",...)` gated em SwaggerEnabled serve `/v1/openapi.yaml`+`/v1/docs`; error schema no spec = `problem.Detail`; swaggo 2.0 INTACTO (check-docs verde, api/ buildando); suites+golden verdes.
+**Status:** Detailed
+
+#### Task 2.3.1: Config `SwaggerEnabled` + schemes + ServeSpec + helpers de Security
+- [ ] Done
+**Context:** `openapi.New(f,api,cfg)` (`routes.go:345`) zera `OpenAPIPath`/`DocsPath` → não auto-monta docs. `openapi.ServeSpec(app,api,logger,prefix,title)` (lib-commons openapi.go:150) monta `{prefix}/openapi.json|yaml|docs`, snapshota 1x, fora da auth chain; doc manda gated no flag. `problem.Install()` (`routes.go:343`) já roda antes dos Register → error schema já é problem.Detail.
+**Implementation vision:** (1) `SwaggerEnabled bool` em `bootstrap/config.go` (~:48-221) com env `SWAGGER_ENABLED` + default; propagar até `NewRoutes` via `RouteConfig` (routes.go:84). (2) Após `openapi.New`: `openapi.DeclareBearerAuth(humaAPI)` + `humaAPI.OpenAPI().Components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{Type:"apiKey",In:"header",Name:"X-API-Key"}` (nil-guard nos maps como DeclareBearerAuth faz). (3) Declarar helpers package-level em UM `_huma.go`: `var secBearerOrAPIKey = []map[string][]string{{"BearerAuth":{}},{"ApiKeyAuth":{}}}` e `var secAPIKeyOnly = []map[string][]string{{"ApiKeyAuth":{}}}`. (4) `if cfg.SwaggerEnabled { openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API") }`. NÃO tocar o `/swagger/*` existente (:257) nem main.go.
+**Files:** Modify `components/tracer/bootstrap/config.go`, `components/tracer/bootstrap/http_server.go` (ou onde RouteConfig é montado), `components/tracer/internal/adapters/http/in/routes.go`, um `_huma.go` (helpers).
+**Verification:** build EXIT0; suite http/in + golden verdes; teste que com SwaggerEnabled=true as rotas `/v1/openapi.yaml` e `/v1/docs` respondem 200 e OFF quando false.
+**Done when:** schemes nos Components, helpers disponíveis, ServeSpec gated funcional, swaggo intacto.
+
+#### Task 2.3.2: Security por-op nas 28 protegidas
+- [ ] Done
+**Context:** ZERO ops declaram Security hoje (auth é middleware; spec-only deferido). Campo `huma.Operation.Security []map[string][]string`.
+**Implementation vision:** adicionar `Security: secBearerOrAPIKey` nas 27 ops (rules 8, limits 9, tx-val 2, reservations 5, audit 3) e `Security: secAPIKeyOnly` na op validateTransaction (`validation_handler_huma.go:78`). Só metadata de spec — ZERO mudança de runtime. Referências nos `RegisterXxxRoutes` dos 6 `_huma.go`.
+**Files:** Modify os 6 `*_handler_huma.go` (rule/limit/transaction_validation/validation/reservation/audit_event).
+**Verification:** build+suites+golden verdes; `humaAPI.OpenAPI().Paths[...].<Verb>.Security` bate com o alvo por op.
+**Done when:** as 28 ops têm o requirement certo; POST /validations = ApiKey-only; runtime inalterado.
+
+#### Task 2.3.3: Teste de spec (schemes + Security por-op + problem.Detail)
+- [ ] Done
+**Context:** served É o spec in-memory por construção (ServeSpec serve `api.OpenAPI().YAML()`). lib-commons tem padrão em `openapi_test.go:156,175`.
+**Implementation vision:** teste (estilo routes_test) que constrói as rotas, pega o `huma.API`, e assert: (a) 2 schemes com shape exato; (b) Security por-op nas 28 (spot os casos-chave: um Bearer|ApiKey + o POST /validations ApiKey-only + confirmar públicas ausentes do huma spec); (c) error schema referencia problem.Detail (RFC 9457 fields). NÃO-paralelo se tocar o estado global do Install.
+**Files:** Test em `components/tracer/internal/adapters/http/in/`.
+**Verification:** `go test -buildvcs=false -count=1 ./components/tracer/internal/adapters/http/in/` verde incluindo o novo teste.
+**Done when:** spec trava (schemes+security+problem.Detail) coberta por teste.
 
 ---
 
