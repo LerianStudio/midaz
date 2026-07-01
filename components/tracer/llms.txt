@@ -1,6 +1,6 @@
 # Lerian Tracer
 
-> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`; Go 1.26.3, toolchain go1.26.4) on lib-commons/v5 v5.4.1 + lib-observability v1.0.1. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`; Go 1.26.4, Docker builder golang:1.26.3-alpine) on lib-commons/v5 v5.8.0 + lib-observability v1.1.0. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
 
 Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v2 (API Key + Access Manager plugin). Multi-tenant isolation is wired and gated by `MULTI_TENANT_ENABLED` (default false). Persistence is the shared infra PostgreSQL (postgres:17 from `components/infra/docker-compose.yml`); it also uses an in-memory rule cache with a background sync worker and circuit breaker resilience.
 
@@ -18,9 +18,8 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 
 ## API
 
-- [OpenAPI Spec (JSON)](api/swagger.json): Full API specification (Swagger 2.0)
-- [OpenAPI Spec (YAML)](api/openapi.yaml): OpenAPI 3.0 format
-- [Swagger Types](api/types.go): Custom type definitions for Swagger docs
+- [OpenAPI Spec](api/openapi.huma.yaml): Huma-generated OpenAPI 3.1 specification
+- [Custom Types](api/types.go): Custom type definitions for the OpenAPI spec
 
 ## Architecture
 

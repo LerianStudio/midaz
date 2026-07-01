@@ -47,28 +47,28 @@
 - **File:** `components/ledger/internal/adapters/http/in/crm_routes.go:20`
 - **Constant:** `const ApplicationName = "midaz"` (changed from the removed `plugin-crm`).
 - **Routes affected:** all CRM `holders`, `instruments`, and `related-parties` routes.
-  Each calls `auth.Authorize(ApplicationName, resource, action)` (`crm_routes.go:36-53`).
+  Each is wired via `protectedMidaz(auth, resource, action, ...)` → `auth.Authorize(ApplicationName, resource, action)` (`crm_routes.go:62-79`).
 - **Net effect:** the authz namespace for these routes moves from `plugin-crm` → `midaz`.
 
 Namespace layout in v4 (for context — only the CRM rows are migrating):
 
 | Namespace | Resources | Source |
 |-----------|-----------|--------|
-| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go:19`, `protectedMidaz` `routes.go:183-185` |
-| `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:36-53` |
-| `routing` | account-types, operation-routes, transaction-routes | `routes.go:20`, `protectedRouting` `routes.go:187-189` |
-| `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:19`, `pkg/constant/module.go:24` |
+| `midaz` | organizations, ledgers, assets, asset-rates, portfolios, segments, accounts, balances, transactions, operations, settings | `routes.go:15` (`midazName`), `protectedMidaz` `routes.go:307-309` |
+| `midaz` (flipped in v4) | **holders, instruments, related-parties** | `crm_routes.go:20`, `crm_routes.go:62-79` |
+| `routing` | account-types, operation-routes, transaction-routes | `routes.go:16` (`routingName`), `protectedRouting` `routes.go:311-313` |
+| `plugin-fees` (**UNCHANGED**) | packages, estimates, billing-packages, billing-calculate | `fees_routes.go:18` (`feesApplicationName`), `pkg/constant/module.go:24` |
 
 > **Fees do NOT migrate.** `plugin-fees:*` is intentionally preserved with no migration
 > (`RBAC-NAMESPACES.md:7-8, 15, 84-86`). Do not touch fees grants during X1.
 >
 > **Routing does NOT migrate either (this build).** `account-types`, `operation-routes`, and
 > `transaction-routes` stay under the `routing` namespace — `protectedRouting` still calls
-> `auth.Authorize(routingName, ...)` (`routes.go:188`; `routingName = "routing"` at `routes.go:20`).
+> `auth.Authorize(routingName, ...)` (`routes.go:312`; `routingName = "routing"` at `routes.go:16`).
 > X1 touches CRM holders/instruments only. `RBAC-NAMESPACES.md` Epic 3.3 *proposes* folding
 > `routing:* → midaz:*` into a later release; if a future build flips `protectedRouting` to `midazName`,
 > routing grants must migrate too and the matrix + smoke tests below must add the routing routes.
-> **Re-verify `routes.go:188` before each release** to confirm routing has not been folded into X1.
+> **Re-verify `routes.go:312` before each release** to confirm routing has not been folded into X1.
 
 ---
 
@@ -129,6 +129,12 @@ Confirm ALL of the following. If any is unchecked, do not start the forward proc
 - [ ] Rollback plan reviewed: you know how to revert grants `midaz:*` → `plugin-crm:*` if you roll back code.
 - [ ] Fees grants left **untouched** (no `plugin-fees` changes in this release).
 - [ ] Local/dev with auth disabled confirmed unaffected (no policy work needed there).
+- [ ] **KMS mode determined.** Check `KMS_VENDOR`: unset/`none` → legacy CRM crypto (no KMS, no
+      rollback data door); `hashicorp-vault` → envelope encryption of CRM PII, which is a **rollback
+      one-way door** (see One-Way Doors). In envelope mode confirm the Vault surface is staged:
+      `KMS_VAULT_ADDR`, `KMS_VAULT_ROLE_ID`, `KMS_VAULT_SECRET_ID`, `KMS_VAULT_AUTH_METHOD`
+      (`approle`|`token`; `token` is accepted **only** when `DEPLOYMENT_MODE=local`), and
+      `DEPLOYMENT_MODE`. (`components/ledger/internal/bootstrap/config.crm.encryption.go`.)
 
 ---
 
@@ -240,11 +246,29 @@ before declaring rollback complete.**
   import path on rollback to `v3` and must migrate imports. (Monorepo-wide bump; ledger and tracer do
   not publish independently.)
 
+### KMS envelope encryption (CRM PII at rest) — applies ONLY when `KMS_VENDOR=hashicorp-vault`
+- **Envelope ciphertext is NOT readable by a pre-encryption binary.** In envelope mode CRM
+  holder/instrument PII is written to the `holders_<orgId>` / `aliases_<orgId>` collections as Tink
+  envelope ciphertext (`tink:v{version}:{base64}`, marker prefix `tink:v`), keyed by per-organization
+  Tink DEKs that are themselves wrapped by a HashiCorp Vault Transit KEK (a single shared, mode-derived
+  engine — `transit-mt`/`transit-st` — with tenant/org scope carried in the KEK **name**, not in
+  separate mounts). Decryption **fails closed**: `decryptEnvelope`
+  (`components/ledger/internal/crm/services/encryption/encryption.go:509-536`) refuses any marker whose
+  version is not in the organization's readable set and never falls back to legacy crypto. A binary that
+  predates the encryption feature has **no code path** to read these values, so a code rollback past the
+  encryption feature leaves every envelope-encrypted CRM field **unreadable**. This is a hard one-way
+  door: **do not roll back a `KMS_VENDOR=hashicorp-vault` deployment past the encryption feature without
+  a decrypt/re-encrypt data plan** (and preserve the Vault Transit keysets — losing them is
+  unrecoverable). Legacy mode (`KMS_VENDOR` unset/`none`) is not subject to this door.
+
 ### Data that is SAFE (no action needed)
-- **`aliases_<orgId>` / `holders_<orgId>` collections.** The org-scoped CRM collection names are a
-  pre-existing ledger pattern, NOT a v4 change; the `aliases_<orgId>` storage name predates the v4
-  instruments rename. Rollback is read-safe — no collection migration is required.
-  (`components/ledger/internal/crm/adapters/mongodb/instrument/instrument.mongodb.go`.)
+- **`aliases_<orgId>` / `holders_<orgId>` collections — SAFE in legacy KMS mode only.** The org-scoped
+  CRM collection NAMES are a pre-existing ledger pattern, NOT a v4 change; the `aliases_<orgId>` storage
+  name predates the v4 instruments rename. Rollback is read-safe **only when `KMS_VENDOR` is unset or
+  `none`** (legacy mode) — then no collection migration is required.
+  (`components/ledger/internal/crm/adapters/mongodb/instrument/instrument.mongodb.go`.) **When
+  `KMS_VENDOR=hashicorp-vault` (envelope mode) the field CONTENTS are encrypted and rollback is NOT
+  read-safe — see the KMS envelope encryption one-way door above.**
 - **Ledger fee collections.** Fee-collection schema is a LEDGER concern — if ledger is rolled back,
   handle its fee schema separately (see Known Gaps). (`components/ledger/pkg/fee/`.)
 - **Postgres migrations.** Ledger and tracer own their own migration dirs independently; roll each
@@ -335,7 +359,7 @@ re-check the migration matrix. The series falling to zero confirms the window cl
 ## References
 
 - `docs/auth/RBAC-NAMESPACES.md` — X1 gate definition, migration matrix, fail-closed model (authoritative).
-- `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:36-53`) — the flip and authz calls.
-- `components/ledger/internal/adapters/http/in/routes.go` (`:19-20`, `:183-189`) — namespace helpers.
-- `components/ledger/internal/adapters/http/in/fees_routes.go` (`:19`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
+- `components/ledger/internal/adapters/http/in/crm_routes.go` (`:20`, `:62-79`) — the flip and authz calls.
+- `components/ledger/internal/adapters/http/in/routes.go` (`:15-16` names, `:307-313` `protectedMidaz`/`protectedRouting`) — namespace helpers.
+- `components/ledger/internal/adapters/http/in/fees_routes.go` (`:18`), `pkg/constant/module.go` (`:24`) — fees namespace (unchanged).
 - `docs/standards/telemetry.md`, `docs/standards/error-handling.md` — logging/error conventions for triage.

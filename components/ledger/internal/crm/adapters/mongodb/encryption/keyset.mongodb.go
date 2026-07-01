@@ -2,6 +2,12 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+// Package encryption provides the MongoDB persistence adapters for CRM field
+// encryption: the per-organization keyset store (version-keyed documents, one
+// per keyset version) and the protection registry (one record per organization).
+// Both isolate tenants via per-tenant databases and guard writes with optimistic
+// concurrency (revision-matched updates). Wrapped keysets are stored as opaque
+// KMS ciphertext; no cleartext key material is persisted.
 package encryption
 
 import (

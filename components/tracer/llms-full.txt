@@ -1,6 +1,6 @@
 # Lerian Tracer — Full Reference
 
-> Real-time transaction validation and fraud prevention API. Go 1.26.3 service (toolchain go1.26.4) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. Go 1.26.4 service (Docker builder golang:1.26.3-alpine) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
 
 Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`). It is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
 
@@ -66,14 +66,15 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - `GET /readyz` — Readiness probe (Lerian-canonical; checks PostgreSQL + rule cache health)
 - `GET /metrics` — Prometheus metrics (mounted before the `/v1` group)
 - `GET /version` — Build version
-- `GET /swagger/*` — Swagger UI
+- `GET /v1/openapi.{json,yaml}` — Huma OpenAPI 3.1 spec (served when `SWAGGER_ENABLED=true`)
+- `GET /v1/docs` — Scalar API docs UI (served when `SWAGGER_ENABLED=true`)
 
 ## Authentication
 - API Key via `X-API-Key` header
 - Constant-time comparison to prevent timing attacks
 - Configurable: API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION
 - Access Manager plugin support: PLUGIN_AUTH_ENABLED, PLUGIN_AUTH_ADDRESS
-- Public endpoints: /health, /readyz, /metrics, /version, /swagger/*
+- Public endpoints: /health, /readyz, /metrics, /version, and the OpenAPI docs surface (/v1/openapi.{json,yaml}, /v1/docs) when enabled
 
 ## Architecture
 
@@ -225,9 +226,9 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 ## Libraries
 
 ### Lerian
-- lib-auth/v2 (v2.8.0): JWT/RBAC middleware, auth client (`lib-auth/v2/auth/middleware`)
-- lib-commons/v5 (v5.4.1): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`)
-- lib-observability (v1.0.1): observability split out of lib-commons — logging (`lib-observability/log`, `lib-observability/zap`), tracing/OpenTelemetry (`lib-observability/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
+- lib-auth/v2 (v2.8.1): JWT/RBAC middleware, auth client (`lib-auth/v2/auth/middleware`)
+- lib-commons/v5 (v5.8.0): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`), Huma/OpenAPI + RFC 9457 problem wrappers (`commons/net/http/{openapi,problem}`)
+- lib-observability (v1.1.0): observability split out of lib-commons — logging (`lib-observability/log`, `lib-observability/zap`), tracing/OpenTelemetry (`lib-observability/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
 
 ### Key Third-Party
 - gofiber/fiber/v2 v2.52.13: HTTP framework
@@ -235,7 +236,7 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 - Masterminds/squirrel v1.5.4: SQL query builder
 - shopspring/decimal v1.4.0: Precise decimal arithmetic
 - google/uuid v1.6.0: UUID generation
-- jackc/pgx/v5 v5.9.2: PostgreSQL driver
+- jackc/pgx/v5 v5.10.0: PostgreSQL driver
 - bxcodec/dbresolver/v2 v2.2.1: Primary/replica DB routing
 - golang-migrate/migrate/v4 v4.19.1: Database migrations
 - sony/gobreaker v1.0.0: Circuit breaker
@@ -247,5 +248,5 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 ---
 
 **Last Updated**: June 2026
-**Go Version**: root `go.mod` `go 1.26.3` (toolchain `go1.26.4`); Docker builder image `golang:1.26.3-alpine`
+**Go Version**: root `go.mod` `go 1.26.4`; Docker builder image `golang:1.26.3-alpine`
 **Migrations**: 17 (000001 through 000017)

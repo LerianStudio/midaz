@@ -1,6 +1,6 @@
 # Telemetry Standard
 
-This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code) and `components/tracer`. It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings are in [`../plans/2026-06-07-telemetry-error-audit.json`](../plans/2026-06-07-telemetry-error-audit.json) and the count/coverage appendix in [`../plans/2026-06-07-telemetry-error-audit-appendix.md`](../plans/2026-06-07-telemetry-error-audit-appendix.md). Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
+This is the single telemetry standard for every Go service in the Midaz monorepo: `components/ledger` (including the folded-in CRM and fees code) and `components/tracer`. It governs traces, logs, and metrics — the three telemetry signals. It does **not** govern the lib-streaming event bus, which is a separate data-plane wire contract (see T9). The rules below are derived from the 2026-06-07 telemetry/error audit and are binding; the machine-readable findings and the count/coverage appendix lived under `docs/plans/2026-06-07-telemetry-error-*` and have since been removed — the audit record survives in git history. Each rule carries a normative statement, a one-paragraph rationale, a verified in-repo canonical example (`file:line`), and the enforcement vehicle that gates it (wired in Phase 6).
 
 Two rules — **T5** (span-error helper by class) and **T8** (single-point logging) — are defined **only here** and referenced by `error-handling.md`. They are not restated there; do not duplicate them.
 
@@ -50,7 +50,7 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 **Rationale:** `SetSpanAttributesFromValue(span, prefix, value, nil)` flattens every struct field onto the span — the mechanism behind the audit's P0 PII leak (76 of 100 call sites passed a nil Redactor, including plaintext CPF/email/phone before encryption). Namespacing inputs vs. outputs keeps span queries unambiguous, and presence-flags preserve observability of optionality without putting the data on the wire.
 
-**Canonical example (presence-flag idiom):** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:133`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 131–136).
+**Canonical example (presence-flag idiom):** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:145`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 143–148).
 
 **Counter-example (banned nil-Redactor flatten):** the shape to reject is `SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)`, which flattens the full holder (PII) onto the span. `SetSpanAttributesFromValue` with a nil Redactor now has **zero call sites** repo-wide — the holder paths were rewritten to the `has_*` presence-flag block above; the `forbidigo` gate keeps the flatten from returning.
 
@@ -152,7 +152,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Canonical example (bounded-label allowlist — the model):** [`components/tracer/internal/observability/recorder.go:38`](../../components/tracer/internal/observability/recorder.go) — `allowedDeps` / `allowedStatuses` bounded sets (lines 37–49) drop any out-of-set label value at the emission point. The allowlist discipline survives tracer's migration to MetricsFactory; the emission mechanism does not.
 
-**Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.0.1/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
+**Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.1.0/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
 
 **Enforcement:** `custom-lint` for `_ =` on a metrics emit return; `review-only` for `MetricsFactory` usage, naming, label cardinality, and the probe-exclusion argument.
 
@@ -235,6 +235,23 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 | `delete_related_party` | `(services.UseCase).DeleteRelatedPartyByID` |
 | `get_holder` | `(services.UseCase).GetHolderByID` |
 | `list_holders` | `(services.UseCase).GetAllHolders` |
+
+#### crm — field-encryption / KMS subsystem
+
+The CRM field-encryption subsystem (`components/ledger/internal/crm/services/encryption`) instruments its own signals — it does **not** ride the `domain_operations_total` / `domain_operation_duration_ms` pair above. Spans and metrics are nil-safe and carry closed-vocabulary labels only (never PII, secrets, ciphertext, or key material — T9). The metric catalog lives in `pkg/utils/metrics.go`.
+
+**Spans** (`service.protection.*`): `service.protection.encrypt_field`, `service.protection.decrypt_field`, `service.protection.resolve_mode`, `service.protection.provision`, `service.protection.get_audit_events`, and `service.protection.keyset_manager.unwrap`. Span attribute `app.protection.path` records the routed path (`legacy` | `envelope`).
+
+| metric | type | labels |
+| --- | --- | --- |
+| `crm_protection_mode_resolution_total` | counter | `mode` (`legacy` \| `envelope`) |
+| `crm_protection_status_total` | counter | `status` |
+| `crm_protection_encrypt_decrypt_total` | counter | `path`, `outcome`, `error_type` |
+| `crm_protection_provider_operation_ms` | histogram (ms) | `operation`, `provider` |
+| `crm_protection_provider_operation_failures_total` | counter | `operation`, `error_code` |
+| `crm_protection_legacy_read_total` | counter | `organization_status` |
+| `crm_protection_cache_total` | counter | `operation`, `result` (`hit` \| `miss`) |
+| `crm_protection_registry_conflict_total` | counter | none — **declared, not yet emitted** (no reachable emit site yet; wire it when the registry Update conflict path lands) |
 
 ### fees
 

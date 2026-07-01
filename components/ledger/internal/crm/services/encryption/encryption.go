@@ -2,6 +2,21 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+// Package encryption provides field-level encryption for CRM holder and
+// instrument PII. Each operation routes between a legacy path (lib-commons
+// symmetric crypto, no KMS) and an envelope path (per-organization Tink data
+// keys wrapped by a Vault Transit key), selected by KMS_VENDOR and the
+// organization's protection state.
+//
+// FieldEncryptor is the repository-facing seam. Encryption binds ciphertext to
+// its tenant/org/record/field through canonical AAD and marks envelope
+// ciphertext with the keyset version it was written under. Decryption fails
+// closed: a marker version outside the organization's readable set, or an
+// unmarked value when legacy reads are not permitted, is refused with no
+// fallback. Search tokens follow a write-one/read-all asymmetry — writes index
+// with the single primary PRF key, reads fan out over every enabled key — so
+// key rotation and legacy-data migration do not break equality lookups over
+// ciphertext.
 package encryption
 
 import (
@@ -185,10 +200,23 @@ type EncryptionService interface {
 // adapter satisfies it structurally without the service importing the adapter for
 // the type.
 type KeysetRepository interface {
+	// Save persists a new keyset version. Storage is version-keyed — each
+	// (organization, version) pair is an independent document — so Save is
+	// insert-only and returns the already-exists sentinel when that version is
+	// already stored.
 	Save(ctx context.Context, keyset *mmodel.OrganizationKeyset) error
+	// Get returns the organization's current (highest-version) keyset, or the
+	// not-found sentinel when the organization has none.
 	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+	// GetByVersion returns the keyset at an exact version, or the not-found
+	// sentinel when that version does not exist. Used by version-routed decrypt.
 	GetByVersion(ctx context.Context, organizationID string, version int) (*mmodel.OrganizationKeyset, error)
+	// GetActive returns the active (highest-version) keyset used for new writes,
+	// or the not-found sentinel when the organization has none.
 	GetActive(ctx context.Context, organizationID string) (*mmodel.OrganizationKeyset, error)
+	// Update replaces a keyset version under optimistic concurrency: it matches on
+	// expectedRevision and returns the revision-conflict sentinel when the stored
+	// revision has moved on.
 	Update(ctx context.Context, keyset *mmodel.OrganizationKeyset, expectedRevision int64) error
 }
 

@@ -11,8 +11,9 @@
 > infra team, explicitly labeled, grounded in the real runtime constraints rather than in any
 > existing manifest. Where a constraint is inferred rather than directly proven, that is called out.
 >
-> Related design record: [`docs/plans/2026-06-11-ledger-tracer-seam-and-crm-consolidation.md`](../plans/2026-06-11-ledger-tracer-seam-and-crm-consolidation.md)
-> — the seam plan that motivates the gRPC+mTLS reservation channel and the CRM consolidation into ledger.
+> Related design record: the seam plan that motivates the gRPC+mTLS reservation channel and the
+> CRM consolidation into ledger lived at `docs/plans/2026-06-11-ledger-tracer-seam-and-crm-consolidation.md`
+> and has since been removed — it survives in git history.
 >
 > **Citation convention.** Unprefixed file citations (`config.go`, `tls_seam.go`, `routes.go`) refer to
 > the component under discussion in that section. Where a filename exists in more than one component, a

@@ -12,9 +12,10 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 | Module | `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`) |
 | License | Elastic License 2.0 |
 | Architecture | Hexagonal + CQRS |
-| HTTP Framework | Fiber v2 |
-| Databases | PostgreSQL 17, MongoDB, RabbitMQ 4.1, Valkey |
-| lib-commons | `github.com/LerianStudio/lib-commons/v5` v5.5.0 (+ `lib-observability` v1.0.1) |
+| HTTP Framework | Huma v2 (OAS 3.1) over Fiber v2 — Fiber is the runtime router/auth chain; Huma generates the API contract and validates requests |
+| Databases | PostgreSQL 17, MongoDB (also holds CRM keysets/registry in envelope mode), RabbitMQ 4.1, Valkey |
+| lib-commons | `github.com/LerianStudio/lib-commons/v5` v5.8.0 (+ `lib-observability` v1.1.0) |
+| KMS / crypto | `danielgtaylor/huma/v2` v2.38.0, `hashicorp/vault/api` (CRM envelope KEK), `tink-crypto/tink-go/v2` (per-org DEKs) |
 | Deploy surfaces | Ledger+CRM+Fees (:3002), Tracer (:4020), Infra (Docker Compose) |
 
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
@@ -45,10 +46,16 @@ components/ledger/internal/
   services/query/     → Read use cases (one file per operation)
 
 components/ledger/internal/crm/         → CRM package tree (holders/instruments), imported by ledger — NOT a deploy unit
-  adapters/mongodb/     → CRM persistence (only adapter; no http/ or api/ tree here)
-  services/             → Holder/instrument use cases
+  adapters/mongodb/               → CRM persistence (only adapter; no http/ or api/ tree here)
+  adapters/mongodb/encryption/    → Keyset + registry + audit-event Mongo repos (envelope mode)
+  services/                       → Holder/instrument use cases
+  services/encryption/            → FieldEncryptor seam + EncryptionService (encrypt/decrypt PII, search tokens)
   (CRM HTTP handlers + routes live in components/ledger/internal/adapters/http/in/:
-   crm_routes.go, composition_routes.go, holder.go, holder_accounts.go, instrument.go — midaz namespace)
+   crm_routes.go, composition_routes.go, holder.go, holder_accounts.go, instrument.go — midaz namespace.
+   Encryption/protection routes (envelope mode only, midaz ns): POST .../encryption/provision,
+   GET .../encryption/status, GET .../protection/audit)
+
+pkg/crypto/            → CRM crypto primitives: kms/vault/ (Vault Transit KEK), tink/ (Tink DEKs), mode + resolver
 
 components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fees types)
   (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
@@ -57,7 +64,7 @@ components/tracer/     → Separate Go service deploy unit
 
 pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
-  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 16 CRM-00xx)
+  constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 28 CRM-00xx (CRM-0006..CRM-0041))
   errors.go           → Typed error structs
   gold/               → Transaction DSL parser (ANTLR4)
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)
@@ -86,6 +93,19 @@ account create. Honored skips persist to audit columns (`transaction.fees_skippe
 `transaction.tracer_skipped`, `account.holder_check_skipped`). Invariant: an honored skip
 adds **zero** downstream work (short-circuits before the control's lookup); reverts always
 re-run the tracer; DSL carries no skip; idempotency replay returns the first outcome.
+
+## CRM Field Encryption (KMS)
+
+CRM encrypts holder/instrument PII at rest. Mode is chosen by `KMS_VENDOR`: unset/`none` → **legacy**
+(lib-commons symmetric crypto, no KMS); `hashicorp-vault` → **envelope** (Vault Transit KEK wraps per-org
+Tink DEKs). The seam is the `FieldEncryptor` interface (`internal/crm/services/encryption`), which the
+holder/instrument Mongo adapters call to encrypt/decrypt fields and mint deterministic HMAC search tokens
+for equality lookups over ciphertext. One **shared, mode-derived** Transit engine (`transit-st`/`transit-mt`)
+holds all KEKs — tenant isolation lives in the key **name** (`{tenant}_org-{id}`), not per-tenant mounts.
+Envelope routes (provision/status/audit) exist only in envelope mode. Key rotation is scaffolded, not yet
+active. New env: `KMS_VENDOR`, `KMS_VAULT_ADDR`, `KMS_VAULT_ROLE_ID`, `KMS_VAULT_SECRET_ID`,
+`KMS_VAULT_AUTH_METHOD` (`approle`|`token`), `DEPLOYMENT_MODE` (gates the dev root token to `local`). Full
+design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-encryption.md).
 
 ## Key Files to Read First
 
@@ -118,3 +138,4 @@ re-run the tracer; DSL carries no skip; idempotency replay returns the first out
 - **[docs/standards/error-handling.md](docs/standards/error-handling.md)** — Binding error-handling standard (E1–E14: one error platform, canonical numeric registry)
 - **[docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)** — The three authz namespaces in the unified binary (R9)
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)
+- **[docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-encryption.md)** — CRM PII field encryption + Vault/Tink KMS subsystem (legacy vs envelope modes, key management, provisioning)

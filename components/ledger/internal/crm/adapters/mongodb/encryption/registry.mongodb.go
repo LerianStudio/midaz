@@ -22,12 +22,22 @@ import (
 
 const registryCollection = "organization_registry"
 
-// RegistryRepository provides an interface for operations related to registry entities.
+// RegistryRepository persists the per-organization protection registry: one
+// record per organization holding its protection status, current and readable
+// keyset versions, and legacy-readable flag. The encryption service reads it to
+// resolve each organization's protection state.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=registry.mongodb_mock.go --package=encryption . RegistryRepository
 type RegistryRepository interface {
+	// Save persists a new registry record. It is insert-only (one record per
+	// organization) and returns the already-exists sentinel on a second create.
 	Save(ctx context.Context, record *mmodel.OrganizationRegistryRecord) error
+	// Get returns the organization's registry record, or the not-found sentinel
+	// when the organization has not been provisioned.
 	Get(ctx context.Context, organizationID string) (*mmodel.OrganizationRegistryRecord, error)
+	// Update replaces the record under optimistic concurrency: it matches on
+	// expectedRevision and returns the revision-conflict sentinel when the stored
+	// revision has moved on.
 	Update(ctx context.Context, record *mmodel.OrganizationRegistryRecord, expectedRevision int64) error
 }
 

@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.3 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.4.1 + `lib-observability` v1.0.1. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v5 tenant-manager.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.4 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v5` v5.8.0 + `lib-observability` v1.1.0. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v5 tenant-manager.
 
 ---
 
@@ -84,7 +84,7 @@ midaz/
 │   │   ├── migrations/
 │   │   │   ├── onboarding/  # SQL migrations for onboarding DB
 │   │   │   └── transaction/ # SQL migrations for transaction DB
-│   │   └── api/             # Swagger docs
+│   │   └── api/             # OpenAPI 3.1 spec (openapi.huma.yaml, Huma-generated)
 │   ├── crm/                 # PACKAGE TREE (not a deploy unit) — imported by ledger
 │   │   ├── adapters/
 │   │   │   └── mongodb/     # holder/ + instrument/ repositories
@@ -102,12 +102,13 @@ midaz/
 │       └── grafana/         # OTEL collector config
 ├── pkg/                     # Shared packages (root)
 │   ├── mmodel/              # Domain models (incl. Holder, Instrument)
-│   ├── constant/            # Error codes (ledger 0001–0178, gap at 0130; 16 CRM-00xx), action/module constants
+│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 28 CRM-00xx: CRM-0006..CRM-0041), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── gold/                # ANTLR4 transaction DSL grammar + parser
 │   ├── net/http/            # Middleware, pagination, protected routes
 │   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
 │   ├── streaming/           # lib-streaming event modeling
+│   ├── crypto/              # CRM crypto primitives: kms/vault/ (Vault Transit KEK), tink/ (DEKs), mode + resolver
 │   ├── mongo/               # MongoDB utilities
 │   ├── repository/          # Repository interfaces
 │   ├── pagination/          # Pagination helpers
@@ -179,6 +180,14 @@ All models live in `pkg/mmodel/`. Key entities:
 - An instrument associates a holder with a ledger account (HolderID + AccountID); carries banking details, regulatory fields, and related parties
 
 ## 4. API Reference
+
+The HTTP layer is **Huma v2 (OAS 3.1) over Fiber v2**: Fiber remains the runtime router, auth
+chain, and middleware stack, while Huma sits on top to generate the OpenAPI contract and validate
+typed request/response structs. API errors serialize as **RFC 9457 `application/problem+json`** — a
+`type`/`title`/`status`/`detail`/`instance` document extended with `code` and `entityType`; the
+`(code, status)` tuple per business error is preserved (HTTP status codes are unchanged). The native
+OpenAPI 3.1 spec and Scalar docs UI are served at `/v1/openapi.{json,yaml}` and `/v1/docs`, gated by
+`LEDGER_HUMA_DOCS_ENABLED=true` (ledger) / `SWAGGER_ENABLED=true` (tracer); they are off by default.
 
 ### 4.1 Ledger API (port 3002)
 
@@ -292,18 +301,23 @@ Base path: `/v1`
 | GET | /health | Health check |
 | GET | /readyz | Readiness probe |
 | GET | /version | Version info |
-| GET | /swagger | Redirect (301) to /swagger/index.html |
-| GET | /swagger/* | Swagger UI |
+| GET | /v1/openapi.json | OpenAPI 3.1 spec (JSON) — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
+| GET | /v1/openapi.yaml | OpenAPI 3.1 spec (YAML) — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
+| GET | /v1/docs | Scalar API docs UI — served when `LEDGER_HUMA_DOCS_ENABLED=true` |
 
 ### 4.2 CRM API (served by the ledger binary on port 3002)
 
 CRM (holders, instruments, related parties) is folded into the ledger binary — it is **not** a
 standalone service. The holder/instrument handlers and routes live in the ledger HTTP tree
-(`components/ledger/internal/adapters/http/in/`) so the swagger fold discovers them; they are
+(`components/ledger/internal/adapters/http/in/`) so the unified Huma OpenAPI spec discovers them; they are
 served on `:3002` under the host ledger's `midaz` authz namespace (the resources `holders` and
 `instruments`); the standalone CRM plugin namespace was collapsed into `midaz` at v4 (see
-`docs/auth/RBAC-NAMESPACES.md`, X1). Uses MongoDB for persistence; PII fields are stored with
-field-level encryption and searchable hashing (lib-commons crypto).
+`docs/auth/RBAC-NAMESPACES.md`, X1). Uses MongoDB for persistence; holder/instrument PII is encrypted
+at rest, alongside deterministic HMAC search tokens that enable equality lookups over ciphertext. The
+encryption backend is selected by `KMS_VENDOR`: unset/`none` uses legacy lib-commons symmetric crypto;
+`hashicorp-vault` switches to **envelope mode** — a Vault Transit KEK wrapping per-organization Tink
+DEKs — which also mounts the provision/status/audit routes below. See section 6.2 and
+`docs/architecture/crm-field-encryption.md`.
 
 Scoping is **path-based**: CRM endpoints read the organization from the `:organization_id` path
 segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`). The former
@@ -326,6 +340,12 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | PATCH | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Update instrument |
 | DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id | Delete instrument |
 | DELETE | /v1/organizations/{organization_id}/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id | Delete related party |
+| POST | /v1/organizations/{organization_id}/encryption/provision | Provision per-org envelope keyset (envelope mode only; authz `midaz`/`encryption`) |
+| GET | /v1/organizations/{organization_id}/encryption/status | Org encryption/protection status (envelope mode only; authz `midaz`/`encryption`) |
+| GET | /v1/organizations/{organization_id}/protection/audit | List provisioning audit events, cursor-paged (envelope mode only; authz `midaz`/`protection`) |
+
+The three encryption/protection routes are registered **only in envelope mode** (`KMS_VENDOR=hashicorp-vault`);
+in legacy mode their handlers are nil and the routes are never mounted.
 
 The holder-account composition (`POST`) carries an extra `:ledger_id` segment because it creates a
 real ledger account; the holder-accounts `GET` (`HolderAccountsHandler.GetAccountsByHolder`, mounted
@@ -334,7 +354,7 @@ no ledger. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition
 always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
-legacy `CRM-00xx` transform shim was removed. The 16 surviving CRM domain sentinels (section 5.1)
+legacy `CRM-00xx` transform shim was removed. The 28 CRM domain sentinels (section 5.1)
 are still emitted on their own paths.
 
 ### 4.3 Fees API (served by the ledger binary on port 3002)
@@ -431,14 +451,18 @@ only when the reservation service is wired (non-nil); they are live in the defau
 | GET | /readyz | Readiness probe |
 | GET | /metrics | Prometheus metrics |
 | GET | /version | Version info |
-| GET | /swagger/* | Swagger UI |
+| GET | /v1/openapi.{json,yaml} | OpenAPI 3.1 spec — served when `SWAGGER_ENABLED=true` |
+| GET | /v1/docs | Scalar API docs UI — served when `SWAGGER_ENABLED=true` |
 
 ## 5. Error System
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-177 numeric codes spanning 0001–0178 (gap at 0130) for ledger errors. 16 CRM domain codes
-prefixed with `CRM-`.
+Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
+with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
+`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are
+emitted as RFC 9457 `application/problem+json` (§4), preserving each sentinel's `(code, status)`
+tuple.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -477,7 +501,7 @@ prefixed with `CRM-`.
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 
-#### CRM Error Codes (all 16)
+#### CRM Error Codes (all 28)
 - `CRM-0006` ErrHolderNotFound — holder not found
 - `CRM-0008` ErrInstrumentNotFound — instrument not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
@@ -494,6 +518,20 @@ prefixed with `CRM-`.
 - `CRM-0027` ErrRelatedPartyNameRequired — name required
 - `CRM-0028` ErrRelatedPartyStartDateRequired — start date required
 - `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
+- `CRM-0030` ErrHolderHasAccounts — holder has accounts (cannot delete)
+
+Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/crm-field-encryption.md`):
+- `CRM-0031` ErrKeysetNotFound — org encryption keyset not found
+- `CRM-0032` ErrKeysetAlreadyExists — org encryption keyset already exists
+- `CRM-0033` ErrKeysetRevisionConflict — keyset optimistic-concurrency conflict
+- `CRM-0034` ErrRegistryNotFound — protection registry record not found
+- `CRM-0035` ErrRegistryAlreadyExists — protection registry record already exists
+- `CRM-0036` ErrRegistryRevisionConflict — registry optimistic-concurrency conflict
+- `CRM-0037` ErrOrganizationEncryptionFailed — org field encrypt/decrypt failed
+- `CRM-0038` ErrProvisioningFailed — key provisioning failed
+- `CRM-0039` ErrAuditEventRequired — protection audit event required
+- `CRM-0040` ErrAuditWriteFailed — protection audit write failed
+- `CRM-0041` ErrReservedTenantID — reserved tenant id (`default`) may not be provisioned externally
 
 ### 5.2 Error Types (pkg/errors.go)
 
@@ -540,7 +578,7 @@ are set programmatically by `applyConfigDefaults()`.
 | VERSION | v4.0.0 | Application version |
 | SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
-| DEPLOYMENT_MODE | local | Deployment mode (local toggles relaxed TLS posture) |
+| DEPLOYMENT_MODE | local | Deployment mode (local toggles relaxed TLS posture; also gates the CRM KMS dev root token to `local` only) |
 | ALLOW_INSECURE_TLS | true | Allow insecure TLS (local development; disable in production) |
 
 #### Auth / Casdoor
@@ -730,9 +768,10 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming / Kafka)
+#### Streaming (lib-streaming v1.6.2 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
-loaded by `libStreaming.LoadConfig()` with franz-go defaults.
+loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
+mode on Kafka.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -787,8 +826,31 @@ CRM Mongo (`MONGO_CRM_*`, read by `initCRM` via the `CrmPrefixed*` config fields
 | MONGO_CRM_PARAMETERS | — | Extra connection parameters |
 | MONGO_CRM_MAX_POOL_SIZE | 1000 | Max pool size |
 | MONGO_CRM_TLS_CA_CERT | — | TLS CA cert path |
-| LCRYPTO_HASH_SECRET_KEY | — | CRM PII hash key |
-| LCRYPTO_ENCRYPT_SECRET_KEY | — | CRM PII encryption key |
+| LCRYPTO_HASH_SECRET_KEY | — | Legacy CRM PII HMAC secret — live in legacy mode; imported for legacy reads in envelope mode |
+| LCRYPTO_ENCRYPT_SECRET_KEY | — | Legacy CRM PII AES key — live in legacy mode; imported for legacy reads in envelope mode |
+
+##### CRM Field Encryption (KMS / envelope)
+
+`KMS_VENDOR` selects the encryption backend for holder/instrument PII: unset/`none` → **legacy**
+(the `LCRYPTO_*` symmetric keys above, no Vault); `hashicorp-vault` → **envelope** (a shared,
+mode-derived Vault Transit engine — `transit-mt`/`transit-st` — whose KEK wraps per-organization
+Tink DEKs; tenant isolation lives in the key **name** `{tenant}_org-{id}`, not per-tenant mounts).
+The `FieldEncryptor` seam (`components/ledger/internal/crm/services/encryption`) is non-nil in both
+modes; the keyset/registry/audit repos, Vault client, and provision/status/audit routes wire up only
+in envelope mode. Key rotation is scaffolded, not yet active. Full design:
+`docs/architecture/crm-field-encryption.md`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| KMS_VENDOR | none | Mode selector: unset/`none` → legacy; `hashicorp-vault` → envelope; anything else fails boot |
+| KMS_VAULT_ADDR | — | Vault server address (envelope only) |
+| KMS_VAULT_AUTH_METHOD | — | `approle` \| `token`; sole driver of Vault auth; fails closed if unset/invalid in envelope mode |
+| KMS_VAULT_ROLE_ID | — | AppRole role ID (when `KMS_VAULT_AUTH_METHOD=approle`) |
+| KMS_VAULT_SECRET_ID | — | AppRole secret ID (when `KMS_VAULT_AUTH_METHOD=approle`) |
+
+`token` auth uses the hardcoded dev root token and is permitted only when `DEPLOYMENT_MODE=local`;
+`MULTI_TENANT_ENABLED` selects `transit-mt` vs `transit-st` and the MT key-naming / reserved-tenant
+rules. New dependencies for envelope mode: `hashicorp/vault/api`, `tink-crypto/tink-go/v2`.
 
 Fees Mongo (`MONGO_FEES_*`):
 
@@ -856,9 +918,9 @@ server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client ce
 
 ### 7.1 Prerequisites
 
-- Go 1.26.3+ (toolchain go1.26.4)
+- Go 1.26.4 (`go.mod` `go 1.26.4`; component Docker builders use `golang:1.26.3-alpine`)
 - Docker (with `docker compose`)
-- golangci-lint v2.4.0
+- golangci-lint v2.12.2
 
 ### 7.2 Makefile Commands
 
@@ -900,7 +962,7 @@ make migrate-lint             # Lint migrations
 make migrate-create COMPONENT=onboarding NAME=my_migration
 
 # Docs
-make generate-docs            # Generate Swagger docs (ledger, tracer)
+make generate-docs            # Generate OpenAPI 3.1 specs (ledger, tracer)
 ```
 
 ### 7.3 Docker Images
@@ -915,11 +977,15 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| github.com/LerianStudio/lib-commons/v5 | v5.4.1 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox) |
-| github.com/LerianStudio/lib-observability | v1.0.1 | Logging, metrics, tracing, assertions, panic recovery, redaction |
-| github.com/LerianStudio/lib-auth/v2 | v2.8.0 | Authentication middleware |
-| github.com/gofiber/fiber/v2 | v2.52.13 | HTTP framework |
-| github.com/jackc/pgx/v5 | v5.9.2 | PostgreSQL driver |
+| github.com/LerianStudio/lib-commons/v5 | v5.8.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
+| github.com/LerianStudio/lib-observability | v1.1.0 | Logging, metrics, tracing, assertions, panic recovery, redaction |
+| github.com/LerianStudio/lib-streaming | v1.6.2 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-auth/v2 | v2.8.1 | Authentication middleware |
+| github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
+| github.com/gofiber/fiber/v2 | v2.52.13 | HTTP framework (runtime router / middleware) |
+| github.com/hashicorp/vault/api | v1.23.0 | Vault Transit client — CRM envelope KEK (envelope mode) |
+| github.com/tink-crypto/tink-go/v2 | v2.7.0 | Tink AEAD/PRF keysets — per-org CRM DEKs (envelope mode) |
+| github.com/jackc/pgx/v5 | v5.10.0 | PostgreSQL driver |
 | go.mongodb.org/mongo-driver/v2 | v2.6.0 | MongoDB driver (v2 line) |
 | github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
 | github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
