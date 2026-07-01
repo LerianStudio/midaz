@@ -206,28 +206,30 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 }
 
 // TestSpecLock_ErrorSchemaIsProblemDetail asserts every operation's error
-// response references the RFC 9457 problem model (#/components/schemas/Detail)
-// under application/problem+json, and that the Detail schema carries the RFC 9457
-// members type/title/status/detail/code. This is the problem.Install() contract
-// surfaced in the spec.
+// response references the RFC 9457 problem model (#/components/schemas/Error)
+// under application/problem+json, and that the Error schema carries the RFC 9457
+// members type/title/status/detail/code. The schema is the lib-commons
+// problem.Detail body, renamed to "Error" by the shared schema namer
+// (pkgHTTP.InstallSchemaNamer) so the served spec's error schema reads as the
+// org-wide error model. This is the problem.Install() contract surfaced in the spec.
 func TestSpecLock_ErrorSchemaIsProblemDetail(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
-	detail, ok := spec.Components.Schemas["Detail"]
-	require.True(t, ok, "problem model schema 'Detail' must be declared")
+	errSchema, ok := spec.Components.Schemas["Error"]
+	require.True(t, ok, "problem model schema 'Error' must be declared")
 	for _, field := range []string{"type", "title", "status", "detail", "code"} {
-		_, present := detail.Properties[field]
-		assert.Truef(t, present, "Detail schema must carry RFC 9457 member %q", field)
+		_, present := errSchema.Properties[field]
+		assert.Truef(t, present, "Error schema must carry RFC 9457 member %q", field)
 	}
 
-	// Every op's error response must $ref the Detail schema via problem+json.
+	// Every op's error response must $ref the Error schema via problem+json.
 	rulesGet, ok := op(spec, "/rules", http.MethodGet)
 	require.True(t, ok)
 	errResp, ok := rulesGet.Responses["default"]
 	require.True(t, ok, "GET /rules must declare a default (error) response")
 	problemJSON, ok := errResp.Content["application/problem+json"]
 	require.True(t, ok, "error response must use application/problem+json")
-	assert.Equal(t, "#/components/schemas/Detail", problemJSON.Schema.Ref,
+	assert.Equal(t, "#/components/schemas/Error", problemJSON.Schema.Ref,
 		"error response must reference the RFC 9457 problem model")
 }
 

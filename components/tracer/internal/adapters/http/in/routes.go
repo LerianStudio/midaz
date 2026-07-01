@@ -354,6 +354,12 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		Servers: []string{"/v1"},
 	})
 
+	// Rename the shared problem.Detail error body to "Error" before any
+	// huma.Register (the registry namer is captured on first registration). Same
+	// shared namer the ledger uses, tracer variant (no plane-specific package
+	// qualifications). See pkgHTTP.InstallSchemaNamer.
+	pkgHTTP.InstallSchemaNamer(humaAPI)
+
 	// Declare the security schemes referenced by per-op Security metadata so the
 	// generated spec resolves them instead of dangling. SPEC metadata only —
 	// runtime auth stays the Fiber guard.With middleware. BearerAuth comes from

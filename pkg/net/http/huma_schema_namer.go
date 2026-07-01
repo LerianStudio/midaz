@@ -26,9 +26,11 @@ import (
 // swagger contract); the operation package's types must be qualified to avoid the
 // panic.
 //
-// InstallLedgerSchemaNamer swaps in a namer that returns DefaultSchemaNamer's name
-// for every type EXCEPT those declared in the operation postgres adapter package,
-// which it prefixes with "Operation" (idempotent — no double prefix). This preserves
+// InstallLedgerSchemaNamer swaps in a namer that returns sharedSchemaNamer's name
+// (DefaultSchemaNamer, plus the org-wide problem.Detail → "Error" rename shared with
+// the tracer plane) for every type EXCEPT those declared in the operation postgres
+// adapter package, which it prefixes with "Operation" (idempotent — no double
+// prefix). This preserves
 // every already-shipped schema name (all mmodel.* bodies plus the wave-1 non-mmodel
 // AssetRate/Pagination names) while making the newly-registered operation.* types
 // unique. It MUST run after openapi.New and BEFORE any huma.Register on that API,
@@ -40,6 +42,21 @@ import (
 // clash from another package, that huma.Register panics loudly at startup — extend
 // the package check here then.
 func InstallLedgerSchemaNamer(api huma.API) {
+	installSchemaNamer(api, ledgerSchemaNamer)
+}
+
+// InstallSchemaNamer swaps in the tracer plane's namer. The tracer registers no
+// mmodel-shadowing types (no operation/transaction/fee packages), so it needs
+// only the shared problem.Detail → "Error" rename; every other type keeps its
+// DefaultSchemaNamer name. Same lazy-capture ordering rule as
+// InstallLedgerSchemaNamer: call after openapi.New and BEFORE any huma.Register.
+func InstallSchemaNamer(api huma.API) {
+	installSchemaNamer(api, sharedSchemaNamer)
+}
+
+// installSchemaNamer replaces the API's schema registry with one keyed by namer.
+// Nil-guards the API and its components so a spec-disabled build is a no-op.
+func installSchemaNamer(api huma.API, namer func(reflect.Type, string) string) {
 	if api == nil {
 		return
 	}
@@ -49,7 +66,33 @@ func InstallLedgerSchemaNamer(api huma.API) {
 		return
 	}
 
-	oapi.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", ledgerSchemaNamer)
+	oapi.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", namer)
+}
+
+// problemDetailPkgPath is the import path of the lib-commons RFC 9457 problem
+// package. Its problem.Detail is the error body Huma emits on EVERY plane once
+// problem.Install() overrides huma.NewError; without a rename it schemas as
+// "Detail" (the bare Go type name). Both planes name it "Error" so the served
+// spec's error schema reads as the org-wide error model, not an incidental type
+// name. Matched as a STRING so this shared pkg never imports lib-commons/problem
+// just to reference the type (no runtime coupling; the dump is offline).
+const problemDetailPkgPath = "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
+
+// sharedSchemaNamer is the base namer both planes route through: it renames the
+// shared problem.Detail error body to "Error" and defers everything else to
+// DefaultSchemaNamer. ledgerSchemaNamer layers its plane-specific package
+// qualifications on top of this.
+func sharedSchemaNamer(t reflect.Type, hint string) string {
+	dt := t
+	for dt.Kind() == reflect.Pointer {
+		dt = dt.Elem()
+	}
+
+	if dt.Name() == "Detail" && dt.PkgPath() == problemDetailPkgPath {
+		return "Error"
+	}
+
+	return huma.DefaultSchemaNamer(t, hint)
 }
 
 // operationPkgPath is the import path of the operation postgres adapter package,
@@ -115,7 +158,9 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 		return qualify(name, "Fee")
 	}
 
-	return huma.DefaultSchemaNamer(t, hint)
+	// Fall through to the shared namer so the ledger also renames problem.Detail
+	// → "Error" (it defers to DefaultSchemaNamer for everything else).
+	return sharedSchemaNamer(t, hint)
 }
 
 // qualify prefixes name with the given package qualifier, idempotently.
