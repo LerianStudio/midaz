@@ -52,26 +52,21 @@ func CanonicalFiberErrorHandler(c *fiber.Ctx, err error) error {
 	return WithError(c, pkg.ValidateInternalError(err, ""))
 }
 
-// renderCanonical emits the canonical {code,title,message} envelope at an explicit
-// status for classes (405, 413) that the WithError status table does not produce.
+// renderCanonical emits the RFC 9457 problem+json envelope at an explicit status
+// for classes (405, 413) that the WithError status table does not produce. The
+// explicit status overrides the code->status table (r3 §0, §1.3); the code is
+// still carried verbatim (money path).
 func renderCanonical(c *fiber.Ctx, status int, err error) error {
-	if validationErr := (pkg.ValidationError{}); errors.As(err, &validationErr) {
-		return c.Status(status).JSON(fiber.Map{
-			"code":    validationErr.Code,
-			"title":   validationErr.Title,
-			"message": validationErr.Message,
-		})
-	}
-
 	if responseErr := (pkg.ResponseError{}); errors.As(err, &responseErr) {
-		return c.Status(status).JSON(fiber.Map{
-			"code":    responseErr.Code,
-			"title":   responseErr.Title,
-			"message": responseErr.Message,
+		return withProblemStatus(c, status, pkg.ValidationError{
+			EntityType: responseErr.EntityType,
+			Code:       responseErr.Code,
+			Title:      responseErr.Title,
+			Message:    responseErr.Message,
 		})
 	}
 
-	return WithError(c, err)
+	return withProblemStatus(c, status, err)
 }
 
 func logError(ctx context.Context, c *fiber.Ctx, err error) {

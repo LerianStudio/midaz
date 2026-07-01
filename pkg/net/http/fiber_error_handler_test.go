@@ -15,11 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// canonicalEnvelope is the only client-facing error shape per E13.
+// canonicalEnvelope is the RFC 9457 problem+json client-facing error shape.
+// The human message rides `detail` (was `message` pre-swap); `code`+`status`
+// are the preserved money-path carriers.
 type canonicalEnvelope struct {
-	Code    string `json:"code"`
-	Title   string `json:"title"`
-	Message string `json:"message"`
+	Code   string `json:"code"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
 }
 
 func newAppWithCanonicalHandler() *fiber.App {
@@ -68,7 +70,7 @@ func TestCanonicalFiberErrorHandler_RouteNotFound(t *testing.T) {
 	require.Equal(t, fiber.StatusNotFound, status)
 	require.Equal(t, constant.ErrRouteNotFound.Error(), env.Code, "code must be the canonical string sentinel, not the integer status")
 	require.NotEmpty(t, env.Title)
-	require.NotEmpty(t, env.Message)
+	require.NotEmpty(t, env.Detail)
 }
 
 func TestCanonicalFiberErrorHandler_MethodNotAllowed(t *testing.T) {
@@ -82,7 +84,7 @@ func TestCanonicalFiberErrorHandler_MethodNotAllowed(t *testing.T) {
 	require.Equal(t, fiber.StatusMethodNotAllowed, status)
 	require.Equal(t, constant.ErrMethodNotAllowed.Error(), env.Code)
 	require.NotEmpty(t, env.Title)
-	require.NotEmpty(t, env.Message)
+	require.NotEmpty(t, env.Detail)
 }
 
 func TestCanonicalFiberErrorHandler_Unauthorized(t *testing.T) {
@@ -95,7 +97,7 @@ func TestCanonicalFiberErrorHandler_Unauthorized(t *testing.T) {
 	require.Equal(t, fiber.StatusUnauthorized, status)
 	require.Equal(t, constant.ErrInvalidToken.Error(), env.Code)
 	require.NotEmpty(t, env.Title)
-	require.NotEmpty(t, env.Message)
+	require.NotEmpty(t, env.Detail)
 	// E9: never leak the raw fiber message verbatim as the code/title.
 	require.NotEqual(t, "Unauthorized", env.Code)
 }
@@ -116,7 +118,7 @@ func TestCanonicalFiberErrorHandler_PayloadTooLarge(t *testing.T) {
 	require.Equal(t, fiber.StatusRequestEntityTooLarge, status)
 	require.Equal(t, constant.ErrPayloadTooLarge.Error(), env.Code)
 	require.NotEmpty(t, env.Title)
-	require.NotEmpty(t, env.Message)
+	require.NotEmpty(t, env.Detail)
 }
 
 func TestCanonicalFiberErrorHandler_GenericInternal(t *testing.T) {
@@ -129,8 +131,8 @@ func TestCanonicalFiberErrorHandler_GenericInternal(t *testing.T) {
 	require.Equal(t, fiber.StatusInternalServerError, status)
 	require.NotEmpty(t, env.Code)
 	require.NotEmpty(t, env.Title)
-	require.NotEmpty(t, env.Message)
+	require.NotEmpty(t, env.Detail)
 	// E9: the raw handler message must not leak into the client envelope.
-	require.NotContains(t, env.Message, "kaboom")
-	require.NotEqual(t, "kaboom", env.Message)
+	require.NotContains(t, env.Detail, "kaboom")
+	require.NotEqual(t, "kaboom", env.Detail)
 }
