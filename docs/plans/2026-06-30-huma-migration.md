@@ -24,7 +24,7 @@
 |-------|-----------|-------|--------|
 | 1 | Envelope RFC 9457 no runtime dos dois planos; golden test code→status verde antes e depois do swap; zero código/status alterado | 1.1, 1.2, 1.3 | **Complete** |
 | 2 | Tracer 100% Huma: 28 ops protegidas re-tipadas, spec OAS 3.1 nativa ADITIVA (swaggo intacto), auth (Bearer+ApiKey) declarada por-op; served == spec | 2.1, 2.2, 2.3 | **Complete** |
-| 3 | Ledger 100% Huma: 115 ops re-tipadas, auth route-chain → Security por-op preservando granularidade resource/verb, `pkg.HTTPError` fundido | 3.1, 3.2, 3.3 | Epic-level |
+| 3 | Ledger 100% Huma: 113 ops re-tipadas, auth route-chain → Security por-op preservando granularidade resource/verb (Epic 3.3 pkg.HTTPError deferido p/ Fase 4) | 3.1, 3.2, 3.3 | Complete |
 | 4 | Pipeline 2-planos migrado para Huma 3.1 nativo, `redocly join` + guard preservados, identidade total de schema, paridade pristine verificada | 4.1, 4.2 | Epic-level |
 
 ---
@@ -337,7 +337,7 @@ Verificado independentemente: build EXIT0, vet limpo, spec-lock + http/in (4.76s
 **Scope:** `components/ledger/internal/adapters/http/in/` (core ~17 arquivos), `components/ledger/internal/bootstrap/unified-server.go`, `routes.go`.
 **Dependencies:** Fase 2 (padrão validado). ✅
 **Done when:** core 86 ops via `huma.Register` com auth resource/verb preservada; mount criado; build+`-race`+golden+check-docs verdes.
-**Status:** Detailed (de-risk); resto Epic-level
+**Status:** Complete — 113 ops em Huma (de-risk+waves 1-4), mount criado, http.BadRequest fechado, swaggo intacto.
 
 #### Task 3.1.0 (DE-RISK): `asset.go` → Huma + criar o mount huma.API no ledger
 - [x] Done — `9a106388c` (mount+asset) + `80513dad5` (regen specs, fecha drift Fase-1) + `9a4c48d45` (Content-Length lock). Gate PASS.
@@ -391,19 +391,32 @@ Workflow `wf_d712684f-3c4`: 6 implement (5 handlers + integração) → 4 review
 **Landmines endereçadas:** (1) **conditional nil-guards** holder-accounts(hah!=nil)/encryption(eh!=nil)/audit(auditHandler!=nil) — o guard envolve TANTO a cadeia auth Fiber QUANTO o `RegisterXxxRoutes` Huma (simetria, crm_routes.go:70-96); (2) **feehttp.WithBodyTracing** span preservado via novo `decodeFeeBodyInSpan` (WithBodyTracing original virou órfão, harmless); (3) **merge-patch RFC 7396** em holder/instrument PATCH via `FindNilFields` (findNilFields renomeado exportado em withBody.go, comportamento inalterado, fonte única Fiber+Huma); (4) **CRM idempotência** (crm_idempotency.go deletado, lógica migrada pra CreateHolderHuma: X-Idempotency-Key/TTL + X-Idempotency-Replayed via `ParseIdempotencyTTL` extraído de GetIdempotencyKeyAndTTL — refactor puro, path transaction inalterado); (5) `huma_schema_namer.go` prefixo `Fee` p/ resolver colisão feeshared/model.Pagination vs pkg/net/http.Pagination (só schema OAS nativo, swaggo intacto).
 **Verificado por mim (gate):** build MÓDULO INTEIRO EXIT0 (pkg/net/http compartilhado tocado → build tudo); ledger http/in 0.721s + bootstrap 2.438s + pkg/net/http 0.576s verdes; **TRACER http/in 4.811s verde (sem regressão Fase-2 dos changes em pkg/net/http compartilhado)**; idempotência = refactor byte-idêntico (TestGetIdempotencyKeyAndTTL_* passam, transaction.go fora do diff); 0 spec-drift + 0 linhas swaggo; auth 28 tuplas via protectedMidaz("midaz")/protectedFees("plugin-fees") com nil-guards simétricos, nenhuma pública (verifiquei crm_routes.go:62-96 + fees_routes.go:55-87 + protectedFees→auth.Authorize(feesApplicationName)). self-heal 0 commits, 0 defectFound (schema `defectFound` funcionou — sem falso-positivo). **2 findings Low não-blocking:** terminais Fiber legados órfãos (dead code) + WithBodyTracing órfão → cleanup no Epic 3.3 / depois.
 
+#### Wave 4 (MONEY-WRITE — crown jewel) — transaction 10 + operation-patch 1 = 11 ops
+- [x] Done — impl `f5d1b79d9`(transaction 10) `fd3aec2c4`(operation-patch) `ade6a69b8`(mount test) + self-heal `2f06a416c` + regressão `4c843f451`. Gate PASS (após reverify de HEALED_NEEDS_REVERIFY). DSL fica Fiber.
+**Escopo:** transaction.go 10 ops Huma (4 create json/inflow/outflow/annotation + 3 state commit/cancel/revert + 1 PATCH + 2 read; **DSL sunset 2026-08-01 fica Fiber-puro `f.`**, routes.go:265) + operation UpdateOperation PATCH (deferido da wave 2). appName `midaz`. SEQUENCIAL, golden/op, 6 reviewers + 8 lenses money-path.
+**⚠️ 2 DEFEITOS MONEY-PATH REAIS encontrados (a scrutiny extra valeu) + healed:**
+- **[CRITICAL] nomes de header de idempotência errados:** os shells Huma de create liam `X-Idempotency-Key`/`X-Idempotency-TTL` (copiado do doc-comment @Param) mas o contrato de runtime (lib-commons/v5 `IdempotencyKey="X-Idempotency"`, `IdempotencyTTL="X-TTL"`, lido pelo Fiber via `GetIdempotencyKeyAndTTL`) é `X-Idempotency`/`X-TTL`. Huma bind por nome literal → chave do caller SILENCIOSAMENTE DROPADA → fallback pra payload-hash → **retry keyed com payload alterado executaria 2ª mutação de balance (violação double-entry).** Mesmo bug latente em holder/instrument (waves 1-3). Fix `2f06a416c`: todas as tags → `X-Idempotency`/`X-TTL`. **Verifiquei o contrato empiricamente:** lib-commons/v5 constants + o `crm_idempotency.go` original (@ee6d786363) ambos usavam `GetIdempotencyKeyAndTTL`→`X-Idempotency` (o doc-comment CRM `X-Idempotency-Key` era mentira; runtime sempre `X-Idempotency`). Resolve a ambiguidade da memória.
+- **[HIGH] revert TTL=0:** `revertTransaction` passava TTL hardcoded 0 → go-redis `SetNX(...,0)` = `SET NX` SEM expiry = chave Redis PERMANENTE (leak + semântica de replay alterada). Pré-migração o Fiber chegava em `executeCreateTransaction`→`GetIdempotencyKeyAndTTL`→default 300. Fix `2f06a416c`: `ParseIdempotencyTTL("")`=300.
+- **Lacuna de teste fechada** `4c843f451`: 3 testes de wiring (header canônico→core, 4 variants + holder + TTL default) + o self-heal já tinha adicionado guards estruturais (tag-check por reflection + revert-TTL por AST). 3 camadas onde antes havia buraco.
+**Verificado por mim (gate reverify — o mais rigoroso do plano):** build MÓDULO INTEIRO EXIT0; ledger http/in 0.663s + bootstrap 2.045s + golden 1.272s + **TRACER 5.716s** verdes; TODAS as tags idempotência canônicas (0 wrong); revert TTL=300; **201-sempre** confirmado (create+commit/cancel/revert=`StatusCreated`; read/update/patch=`StatusOK`); auth 11 tuplas `protectedMidaz` midaz; **DSL fica Fiber `f.` não dupla-registrada** (routes.go:265); side-effects two-phase/FeeApplier intactos (lens 5 afirmativo); os 4 testes idempotência PASS rodados por mim; sem 3º defeito (3 defectFound = os mesmos 2 roots).
+**LIÇÃO:** wave 3 passou meu gate SEM eu verificar o NOME do header de idempotência (só verifiquei o ParseIdempotencyTTL byte-idêntico) — a scrutiny money-path da wave 4 (6 reviewers/8 lenses) pegou o bug latente. Money-path exige verificar o CONTRATO de header, não só o helper de parse.
+
+### ✅ FASE 3 COMPLETA (2026-07-01) — ledger 100% Huma (113 ops)
+de-risk(6) + wave1(45) + wave2(23) + wave3(28) + wave4(11) = **113 ops**. Epic 3.1 (bootstrap+core) DONE; Epic 3.2 (auth ProtectedRouteChain→per-op preservada nos 3 namespaces midaz/routing/plugin-fees) DONE (verificado byte-a-byte em cada wave). **Epic 3.3 (deletar pkg.HTTPError morto + repontar 20 annotations) DEFERIDO pra Fase 4** — junto do rework do pipeline de spec, pra concentrar o único evento de spec-regen. swaggo intacto em todas as waves (0 drift, aditivo). Próximo: Fase 4.
+
 ### Epic 3.2: Auth `ProtectedRouteChain` → Security por-op (3 appName namespaces)
 **Goal:** MW Huma que preserva `auth.Authorize(appName,resource,action)` + Security por-op no spec, para os 3 namespaces (`midaz`/`routing`/`plugin-fees`). Modelado no de-risk (asset=midaz) e replicado nas waves.
 **Scope:** o MW de auth compartilhado + os huma.Operation de cada handler.
 **Dependencies:** Epic 3.1 (de-risk estabelece o padrão).
 **Done when:** toda rota protegida mantém a MESMA decisão `auth.Authorize(appName,resource,action)` de hoje; nenhuma rota vira pública (verificado contra o mapa); security-coverage CI verde.
-**Status:** Epic-level
+**Status:** Done — auth preservada byte-a-byte em todas as waves via `protectedMidaz`("midaz") / `protectedRouting`("routing") / `protectedFees`("plugin-fees"); verificado op-por-op no gate de cada wave; nenhuma rota pública.
 
 ### Epic 3.3: DELETAR o `pkg.HTTPError` morto
 **Goal:** Remover o struct morto `pkg.HTTPError` (`pkg/errors.go:140-148`) e repontar as 20 annotations `@Failure {object} pkg.HTTPError` (audit.go:86-87; encryption.go:36-40,129-131 + api/docs.go gerado) → o schema problem.Detail; limpar as 4 dead asserts em testes de fees.
 **Scope:** `pkg/errors.go`, `components/ledger/internal/adapters/http/in/{audit,encryption}.go`, testes de fees.
 **Dependencies:** Epic 3.1 (idealmente na wave que toca audit/encryption — aditivas, wave 2).
 **Done when:** `pkg.HTTPError` não existe; spec não tem `definitions."pkg.HTTPError"`; build+testes verdes; `err:{}` fora do contrato.
-**Status:** Epic-level
+**Status:** Epic-level — **DEFERIDO p/ Fase 4** (concentrar o único evento de spec-regen com o rework do pipeline; audit.go/encryption.go mantêm as 20 annotations `@Failure pkg.HTTPError` intactas até lá, swaggo 0-drift preservado nas waves).
 
 ---
 
