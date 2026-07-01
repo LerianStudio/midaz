@@ -20,8 +20,3 @@ var secBearerOrAPIKey = []map[string][]string{
 	{"BearerAuth": {}},
 	{"ApiKeyAuth": {}},
 }
-
-// secAPIKeyOnly advertises that an operation accepts ONLY an X-API-Key.
-var secAPIKeyOnly = []map[string][]string{
-	{"ApiKeyAuth": {}},
-}

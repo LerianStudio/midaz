@@ -81,10 +81,14 @@ func RegisterValidationRoutes(api huma.API, h *ValidationHandler) {
 		Path:        "/validations",
 		Summary:     "Validate a transaction",
 		Tags:        []string{"Validations"},
-		// APIKeyOnly: this op reflects cfg.APIKeyOnlyValidation — the Fiber guard
-		// forces X-API-Key (no bearer) for the hot validation path. Spec metadata
-		// only; runtime auth stays the guard.With(..., forceAPIKey=true) middleware.
-		Security: secAPIKeyOnly,
+		// Bearer|ApiKey union: runtime auth is config-driven —
+		// guard.With("validations","post", cfg.APIKeyOnlyValidation). That flag
+		// (API_KEY_ENABLED_ONLY_VALIDATION) defaults false and is forbidden in
+		// multi-tenant, so the default and all MT deployments run Protect() =
+		// Bearer (plugin on) or ApiKey (plugin off). A static spec cannot mirror a
+		// runtime flag, so advertise the union-of-modes superset, identical to the
+		// other 27 ops. Spec metadata only; runtime auth stays the Fiber guard.
+		Security: secBearerOrAPIKey,
 		// SkipValidateBody: the body is taken as RawBody and validated imperatively
 		// by NormalizeAndValidate inside the core, which produces the canonical
 		// Midaz error codes. Without this, Huma validates the JSON body against the

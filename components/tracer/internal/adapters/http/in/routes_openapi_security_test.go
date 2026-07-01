@@ -108,7 +108,8 @@ func TestSpecLock_SecuritySchemes(t *testing.T) {
 
 // TestSpecLock_PerOpSecurity spot-checks the three security shapes that matter:
 //   - a Bearer|ApiKey op (GET /rules): two requirement entries = OR.
-//   - the POST /validations hot path: ApiKeyAuth-only (no bearer).
+//   - the POST /validations hot path: Bearer|ApiKey union (its guard is
+//     config-driven, default not API-key-only), so it matches the other ops.
 //   - the public endpoints (health/readyz/version): NOT present as Huma ops.
 func TestSpecLock_PerOpSecurity(t *testing.T) {
 	spec := fetchTracerSpec(t)
@@ -121,13 +122,15 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 		rulesGet.Security,
 		"GET /rules must advertise BearerAuth OR ApiKeyAuth")
 
-	// (b) POST /validations is the API-key-only hot path — no bearer alternative.
+	// (b) POST /validations advertises the Bearer|ApiKey union like every other op:
+	// its runtime guard is config-driven (cfg.APIKeyOnlyValidation, default false,
+	// forbidden in multi-tenant), so the default + all MT deployments accept Bearer.
 	validationsPost, ok := op(spec, "/validations", http.MethodPost)
 	require.True(t, ok, "POST /validations must be a registered Huma op")
-	assert.Equal(t,
-		[]map[string][]string{{"ApiKeyAuth": {}}},
+	assert.ElementsMatch(t,
+		[]map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}},
 		validationsPost.Security,
-		"POST /validations must be ApiKeyAuth-only")
+		"POST /validations must advertise BearerAuth OR ApiKeyAuth")
 
 	// (c) The three public endpoints are Fiber-only (no Huma op). Their auth is
 	// "none", and they must not surface as protected Huma operations in the spec.
@@ -149,7 +152,6 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 	spec := fetchTracerSpec(t)
 
 	bearerOrAPIKey := []map[string][]string{{"BearerAuth": {}}, {"ApiKeyAuth": {}}}
-	apiKeyOnly := []map[string][]string{{"ApiKeyAuth": {}}}
 
 	cases := []struct {
 		path, method string
@@ -180,8 +182,9 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/reservations/{id}/release", http.MethodPost, bearerOrAPIKey},
 		{"/reservations/transaction/{transaction_id}/confirm", http.MethodPost, bearerOrAPIKey},
 		{"/reservations/transaction/{transaction_id}/release", http.MethodPost, bearerOrAPIKey},
-		// validations (3): POST is the API-key-only hot path; the two reads are bearer|apikey
-		{"/validations", http.MethodPost, apiKeyOnly},
+		// validations (3): all bearer|apikey — POST's runtime guard is config-driven
+		// (cfg.APIKeyOnlyValidation, default false), so the spec advertises the union.
+		{"/validations", http.MethodPost, bearerOrAPIKey},
 		{"/validations/{id}", http.MethodGet, bearerOrAPIKey},
 		{"/validations", http.MethodGet, bearerOrAPIKey},
 		// audit-events (3)
