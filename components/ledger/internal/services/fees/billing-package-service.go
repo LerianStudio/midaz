@@ -10,18 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-
-	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
-	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
 	"github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
@@ -31,6 +21,15 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // BillingPackageService handles business logic for billing package CRUD operations.
@@ -378,7 +377,9 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		return nil, err
 	}
 
-	s.emitBillingPackageUpdatedEvent(ctx, span, logger, result)
+	if result != nil {
+		s.emitBillingPackageUpdatedEvent(ctx, span, logger, result)
+	}
 
 	return result, nil
 }
@@ -409,7 +410,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve billing package for deleted event", libLog.Err(errFind))
 	}
 
-	deletedAt := time.Now()
+	deletedAt := time.Now().UTC()
 
 	if err := s.billingPackageRepo.SoftDelete(ctx, id.String(), organizationID.String()); err != nil {
 		// Remap a repo-layer entity-not-found to the billing-package-not-found business error.
@@ -442,7 +443,11 @@ func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Conte
 				return libStreaming.EmitRequest{}, err
 			}
 
-			return events.NewFeesBillingPackageCreated(bp).ToEmitRequest(tenantID, ts)
+			return events.NewFeesBillingPackageCreated(
+				bp.ID, bp.OrganizationID, bp.LedgerID, bp.Type,
+				bp.PricingModel, bp.CountMode, bp.Enable != nil && *bp.Enable,
+				bp.CreatedAt, bp.UpdatedAt,
+			).ToEmitRequest(tenantID, ts)
 		})
 }
 
@@ -455,7 +460,11 @@ func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Conte
 				return libStreaming.EmitRequest{}, err
 			}
 
-			return events.NewFeesBillingPackageUpdated(bp).ToEmitRequest(tenantID, ts)
+			return events.NewFeesBillingPackageUpdated(
+				bp.ID, bp.OrganizationID, bp.LedgerID, bp.Type,
+				bp.PricingModel, bp.CountMode, bp.Enable != nil && *bp.Enable,
+				bp.CreatedAt, bp.UpdatedAt,
+			).ToEmitRequest(tenantID, ts)
 		})
 }
 

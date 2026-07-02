@@ -10,7 +10,6 @@ import (
 	"time"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 )
 
 // FeesBillingPackageUpdatedDefinition is the routing contract for
@@ -45,20 +44,21 @@ type FeesBillingPackageUpdatedPayload struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
-// NewFeesBillingPackageUpdated maps a persisted billing package into the wire
-// payload. Enable resolves nil to false. Timestamps are already RFC3339 strings
-// on the domain model and pass through unchanged.
-func NewFeesBillingPackageUpdated(bp *model.BillingPackage) FeesBillingPackageUpdatedPayload {
+// NewFeesBillingPackageUpdated maps identifiers and classifications into the
+// wire payload. Params are primitives so this shared package never imports the
+// internal fees domain. Timestamps are already RFC3339 strings on the domain
+// model and pass through unchanged.
+func NewFeesBillingPackageUpdated(id, organizationID, ledgerID, typ string, pricingModel, countMode *string, enable bool, createdAt, updatedAt string) FeesBillingPackageUpdatedPayload {
 	return FeesBillingPackageUpdatedPayload{
-		ID:             bp.ID,
-		OrganizationID: bp.OrganizationID,
-		LedgerID:       bp.LedgerID,
-		Type:           bp.Type,
-		PricingModel:   bp.PricingModel,
-		CountMode:      bp.CountMode,
-		Enable:         bp.Enable != nil && *bp.Enable,
-		CreatedAt:      bp.CreatedAt,
-		UpdatedAt:      bp.UpdatedAt,
+		ID:             id,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Type:           typ,
+		PricingModel:   pricingModel,
+		CountMode:      countMode,
+		Enable:         enable,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
 	}
 }
 

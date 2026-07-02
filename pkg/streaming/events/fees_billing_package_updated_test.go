@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,15 +23,16 @@ func TestFeesBillingPackageUpdatedDefinition_Key(t *testing.T) {
 }
 
 // TestNewFeesBillingPackageUpdated_MapsMinimal verifies the happy-path mapping
-// for the simplest package: nil PricingModel/CountMode, nil Enable -> false.
+// for the simplest package: nil PricingModel/CountMode, enable false.
 func TestNewFeesBillingPackageUpdated_MapsMinimal(t *testing.T) {
-	bp := minimalBillingPackage()
+	payload := events.NewFeesBillingPackageUpdated(
+		billingPkgID, billingPkgOrgID, billingPkgLedgerID, billingPkgType,
+		nil, nil, false, billingPkgFixedRFC3339, billingPkgFixedRFC3339,
+	)
 
-	payload := events.NewFeesBillingPackageUpdated(bp)
-
-	assert.Equal(t, bp.ID, payload.ID)
-	assert.Equal(t, bp.OrganizationID, payload.OrganizationID)
-	assert.Equal(t, bp.LedgerID, payload.LedgerID)
+	assert.Equal(t, billingPkgID, payload.ID)
+	assert.Equal(t, billingPkgOrgID, payload.OrganizationID)
+	assert.Equal(t, billingPkgLedgerID, payload.LedgerID)
 	assert.Equal(t, "volume", payload.Type)
 
 	assert.Nil(t, payload.PricingModel)
@@ -46,16 +46,13 @@ func TestNewFeesBillingPackageUpdated_MapsMinimal(t *testing.T) {
 // TestNewFeesBillingPackageUpdated_MapsAllOptional covers the path where
 // PricingModel and CountMode are set and Enable is true.
 func TestNewFeesBillingPackageUpdated_MapsAllOptional(t *testing.T) {
-	pricingModel := model.PricingModelFixed
-	countMode := model.CountModePerAccount
-	enable := true
+	pricingModel := "fixed"
+	countMode := "perAccount"
 
-	bp := minimalBillingPackage()
-	bp.PricingModel = &pricingModel
-	bp.CountMode = &countMode
-	bp.Enable = &enable
-
-	payload := events.NewFeesBillingPackageUpdated(bp)
+	payload := events.NewFeesBillingPackageUpdated(
+		billingPkgID, billingPkgOrgID, billingPkgLedgerID, billingPkgType,
+		&pricingModel, &countMode, true, billingPkgFixedRFC3339, billingPkgFixedRFC3339,
+	)
 
 	require.NotNil(t, payload.PricingModel)
 	assert.Equal(t, "fixed", *payload.PricingModel)
@@ -69,7 +66,10 @@ func TestNewFeesBillingPackageUpdated_MapsAllOptional(t *testing.T) {
 // TestFeesBillingPackageUpdatedPayload_ToEmitRequest verifies the ToEmitRequest
 // helper composes a fully-populated EmitRequest and round-trips the payload.
 func TestFeesBillingPackageUpdatedPayload_ToEmitRequest(t *testing.T) {
-	payload := events.NewFeesBillingPackageUpdated(minimalBillingPackage())
+	payload := events.NewFeesBillingPackageUpdated(
+		billingPkgID, billingPkgOrgID, billingPkgLedgerID, billingPkgType,
+		nil, nil, false, billingPkgFixedRFC3339, billingPkgFixedRFC3339,
+	)
 	ts := time.Date(2026, 5, 13, 12, 34, 56, 0, time.UTC)
 
 	req, err := payload.ToEmitRequest("tenant-1", ts)
@@ -86,10 +86,12 @@ func TestFeesBillingPackageUpdatedPayload_ToEmitRequest(t *testing.T) {
 }
 
 // TestFeesBillingPackageUpdatedPayload_JSONShape locks the wire JSON layout and
-// asserts that every fee-detail / account / monetary field is ABSENT even
-// though the fixture populates them.
+// asserts that every fee-detail / account / monetary field is ABSENT.
 func TestFeesBillingPackageUpdatedPayload_JSONShape(t *testing.T) {
-	payload := events.NewFeesBillingPackageUpdated(minimalBillingPackage())
+	payload := events.NewFeesBillingPackageUpdated(
+		billingPkgID, billingPkgOrgID, billingPkgLedgerID, billingPkgType,
+		nil, nil, false, billingPkgFixedRFC3339, billingPkgFixedRFC3339,
+	)
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
