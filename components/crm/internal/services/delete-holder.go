@@ -8,15 +8,20 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	// DeleteHolderByID delete a holder by its ID
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -56,5 +61,16 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		return err
 	}
 
+	deletedAt := time.Now().UTC()
+
+	uc.emitHolderDeletedEvent(ctx, span, logger, id.String(), organizationID, hardDelete, deletedAt)
+
 	return nil
+}
+
+func (uc *UseCase) emitHolderDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID string, hardDelete bool, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewHolderDeleted(id, organizationID, hardDelete, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }
