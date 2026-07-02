@@ -17,9 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -152,6 +155,8 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *mo
 
 		return nil, err
 	}
+
+	s.emitBillingPackageCreatedEvent(ctx, span, logger, result)
 
 	return result, nil
 }
@@ -366,19 +371,14 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		"$set": setFields,
 	}
 
-	if err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), &updateFields); err != nil {
+	result, err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), &updateFields)
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update billing package", err)
 
 		return nil, err
 	}
 
-	// Retrieve updated entity.
-	result, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to retrieve billing package after update", err)
-
-		return nil, err
-	}
+	s.emitBillingPackageUpdatedEvent(ctx, span, logger, result)
 
 	return result, nil
 }
@@ -402,6 +402,15 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
+	// Resolve the package BEFORE soft-delete so the deleted event can carry its
+	// ledger. A miss here skips only the emit; the delete proceeds.
+	deleted, errFind := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
+	if errFind != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve billing package for deleted event", libLog.Err(errFind))
+	}
+
+	deletedAt := time.Now()
+
 	if err := s.billingPackageRepo.SoftDelete(ctx, id.String(), organizationID.String()); err != nil {
 		// Remap a repo-layer entity-not-found to the billing-package-not-found business error.
 		var notFoundErr pkg.EntityNotFoundError
@@ -417,5 +426,43 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 		return err
 	}
 
+	if deleted != nil {
+		s.emitBillingPackageDeletedEvent(ctx, span, logger, deleted.ID, deleted.OrganizationID, deleted.LedgerID, deletedAt)
+	}
+
 	return nil
+}
+
+// emitBillingPackageCreatedEvent publishes fees-billing-package.created. IMPORTANT posture.
+func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			ts, err := time.Parse(time.RFC3339, bp.CreatedAt)
+			if err != nil {
+				return libStreaming.EmitRequest{}, err
+			}
+
+			return events.NewFeesBillingPackageCreated(bp).ToEmitRequest(tenantID, ts)
+		})
+}
+
+// emitBillingPackageUpdatedEvent publishes fees-billing-package.updated. IMPORTANT posture.
+func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			ts, err := time.Parse(time.RFC3339, bp.UpdatedAt)
+			if err != nil {
+				return libStreaming.EmitRequest{}, err
+			}
+
+			return events.NewFeesBillingPackageUpdated(bp).ToEmitRequest(tenantID, ts)
+		})
+}
+
+// emitBillingPackageDeletedEvent publishes fees-billing-package.deleted. IMPORTANT posture.
+func (s *BillingPackageService) emitBillingPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesBillingPackageDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

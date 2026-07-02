@@ -414,7 +414,12 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"label": "Updated Label", "enable": false}}
-	require.NoError(t, repo.Update(ctx, bp.ID, orgID, update))
+	updated, err := repo.Update(ctx, bp.ID, orgID, update)
+	require.NoError(t, err)
+	require.NotNil(t, updated, "Update must return the persisted entity")
+	assert.Equal(t, "Updated Label", updated.Label, "returned entity reflects the label change")
+	require.NotNil(t, updated.Enable)
+	assert.False(t, *updated.Enable, "returned entity reflects the enable change")
 
 	got, err := repo.FindByID(ctx, bp.ID, orgID)
 	require.NoError(t, err)
@@ -428,8 +433,9 @@ func TestIntegration_BillingPackageRepo_Update_NotFound(t *testing.T) {
 	repo := newRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"label": "x"}}
-	err := repo.Update(context.Background(), uuid.New().String(), uuid.New().String(), update)
+	got, err := repo.Update(context.Background(), uuid.New().String(), uuid.New().String(), update)
 
+	require.Nil(t, got, "no entity is returned when the document is missing")
 	require.Error(t, err, "updating a missing document must report not found")
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound, "should map to EntityNotFoundError")
