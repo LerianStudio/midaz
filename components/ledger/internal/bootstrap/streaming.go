@@ -274,6 +274,7 @@ func midazEventDefinitions() []events.Definition {
 		events.FeesBillingPackageCreatedDefinition,
 		events.FeesBillingPackageUpdatedDefinition,
 		events.FeesBillingPackageDeletedDefinition,
+		events.FeesAppliedDefinition,
 	}
 }
 

@@ -66,11 +66,9 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 }
 
 // TestFeesEventsRegistered locks the fee events into the assembled catalog: the
-// six fee package / billing-package keys must be a subset of the catalog keys,
-// so a dropped fee registration is caught before it becomes a silent gap.
-//
-// Phase 2 will add "fees.applied" to this set once the fee-application event
-// lands.
+// fee package / billing-package keys plus fees.applied must be a subset of the
+// catalog keys, so a dropped fee registration is caught before it becomes a
+// silent gap.
 func TestFeesEventsRegistered(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +79,7 @@ func TestFeesEventsRegistered(t *testing.T) {
 		"fees-billing-package.created",
 		"fees-billing-package.updated",
 		"fees-billing-package.deleted",
+		"fees.applied",
 	}
 
 	catalog, err := buildCatalog()
@@ -99,4 +98,5 @@ func TestFeesEventsRegistered(t *testing.T) {
 	// Guard against the key strings drifting from the Definition vars.
 	assert.Equal(t, "fees-package.created", events.FeesPackageCreatedDefinition.Key())
 	assert.Equal(t, "fees-billing-package.deleted", events.FeesBillingPackageDeletedDefinition.Key())
+	assert.Equal(t, "fees.applied", events.FeesAppliedDefinition.Key())
 }
