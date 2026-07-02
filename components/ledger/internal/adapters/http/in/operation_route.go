@@ -549,6 +549,8 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		{constant.ActionCancel, entries.Cancel, constant.ErrMissingFieldsInRequest},
 		{constant.ActionRevert, entries.Revert, constant.ErrMissingFieldsInRequest},
 		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionBlock, entries.Block, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionUnblock, entries.Unblock, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -634,6 +636,8 @@ var validAccountingEntryKeys = map[string]struct{}{
 	constant.ActionCancel:    {},
 	constant.ActionRevert:    {},
 	constant.ActionOverdraft: {},
+	constant.ActionBlock:     {},
+	constant.ActionUnblock:   {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
@@ -696,8 +700,9 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// Source direction requirements
 	if operationType == constant.OperationRouteTypeSource {
 		switch scenario {
-		case constant.ActionDirect, constant.ActionCommit:
-			// Unilateral operations at origin - only debit
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at origin - only debit.
+			// block/unblock are direct available↔available movements and mirror direct.
 			return fieldRequirement{debitRequired: true, creditRequired: false}
 		case constant.ActionHold, constant.ActionCancel:
 			// Move between available ↔ on_hold in same account - both required
@@ -708,8 +713,9 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// Destination direction requirements
 	if operationType == constant.OperationRouteTypeDestination {
 		switch scenario {
-		case constant.ActionDirect, constant.ActionCommit:
-			// Unilateral operations at destination - only credit
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at destination - only credit.
+			// block/unblock are direct available↔available movements and mirror direct.
 			return fieldRequirement{debitRequired: false, creditRequired: true}
 		}
 	}
@@ -987,6 +993,8 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionCancel, entries.Cancel},
 		{constant.ActionRevert, entries.Revert},
 		{constant.ActionOverdraft, entries.Overdraft},
+		{constant.ActionBlock, entries.Block},
+		{constant.ActionUnblock, entries.Unblock},
 	}
 
 	for _, action := range actions {

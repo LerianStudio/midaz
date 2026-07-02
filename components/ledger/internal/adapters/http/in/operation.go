@@ -42,7 +42,7 @@ type OperationHandler struct {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Param			type			query		string	false	"DEBIT, CREDIT"
+//	@Param			type			query		string	false	"Filter by operation type"	Enums(DEBIT,CREDIT,ON_HOLD,RELEASE,OVERDRAFT,BLOCK,UNBLOCK)
 //	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
 //	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Param			route_code		query		string	false	"Filter by operation route code"
