@@ -170,8 +170,9 @@ func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 	RegisterCountTransactionRoutes(api, th)
 }
 
-// RegisterTransactionHumaRoutesToApp wires the ten Wave-4 Huma-migrated transaction ops
-// (four CREATE, three id-only STATE, one PATCH, two READ). Auth is
+// RegisterTransactionHumaRoutesToApp wires the twelve Wave-4 Huma-migrated transaction
+// ops (six CREATE — json/inflow/outflow/annotation/block/unblock, three id-only STATE,
+// one PATCH, two READ). Auth is
 // auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
 // ("transaction"), attached as middleware-only on the /v1 group BEFORE the Huma terminals
 // — the SAME (appName, resource, verb) tuples the inline Fiber routes carried, preserved
@@ -186,11 +187,13 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 
 	parse := http.ParseUUIDPathParameters("transaction")
 
-	// Four CREATE ops — ("transactions","post").
+	// Six CREATE ops — ("transactions","post").
 	group.Post(listPath+"/json", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
 	group.Post(listPath+"/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
 	group.Post(listPath+"/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
 	group.Post(listPath+"/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
+	group.Post(listPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
+	group.Post(listPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
 
 	// Three STATE ops (id-only, bodiless) — ("transactions","post").
 	group.Post(idPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
@@ -255,13 +258,13 @@ func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Transactions — POST /transactions/dsl is the ONLY transaction op that stays a pure
 	// inline Fiber terminal (multipart .casl upload, DEPRECATED, SUNSET 2026-08-01, out of
-	// the Huma spec). The other ten transaction ops (json/inflow/outflow/annotation CREATE,
-	// commit/cancel/revert STATE, PATCH update, GET-by-id + list) are Wave-4 MIGRATED TO
-	// HUMA (see RegisterTransactionHumaRoutesToApp): their terminals live on the shared Huma
-	// API and their auth ("transactions",{post|patch|get}) + tenant + ParseUUIDPathParameters
-	// ("transaction") chains are attached on the /v1 group by RegisterTransactionHumaRoutesToApp,
-	// called from the unified server's humaMount. The (appName, resource, verb) tuples are
-	// preserved byte-for-byte there.
+	// the Huma spec). The other twelve transaction ops (json/inflow/outflow/annotation/
+	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list) are
+	// Wave-4 MIGRATED TO HUMA (see RegisterTransactionHumaRoutesToApp): their terminals live
+	// on the shared Huma API and their auth ("transactions",{post|patch|get}) + tenant +
+	// ParseUUIDPathParameters ("transaction") chains are attached on the /v1 group by
+	// RegisterTransactionHumaRoutesToApp, called from the unified server's humaMount. The
+	// (appName, resource, verb) tuples are preserved byte-for-byte there.
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)...)
 
 	// Transaction-count HEAD — Wave-2 MIGRATED TO HUMA (see RegisterCountTransactionRoutesToApp).

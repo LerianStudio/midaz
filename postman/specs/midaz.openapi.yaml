@@ -4902,6 +4902,70 @@ paths:
       summary: Create a Transaction Annotation using JSON
       tags:
         - Midaz_Ledger_API_Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
+    post:
+      operationId: createTransactionBlock
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Block Transaction
+      tags:
+        - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       operationId: createTransactionInflow
@@ -5164,6 +5228,70 @@ paths:
       security:
         - BearerAuth: []
       summary: Create a Transaction without passing to distribution
+      tags:
+        - Midaz_Ledger_API_Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
+    post:
+      operationId: createTransactionUnblock
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an Unblock Transaction
       tags:
         - Midaz_Ledger_API_Transactions
   /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
@@ -7288,6 +7416,8 @@ components:
     AccountingEntries:
       additionalProperties: false
       properties:
+        block:
+          $ref: '#/components/schemas/AccountingEntry'
         cancel:
           $ref: '#/components/schemas/AccountingEntry'
         commit:
@@ -7299,6 +7429,8 @@ components:
         overdraft:
           $ref: '#/components/schemas/AccountingEntry'
         revert:
+          $ref: '#/components/schemas/AccountingEntry'
+        unblock:
           $ref: '#/components/schemas/AccountingEntry'
       type: object
     AccountingEntry:

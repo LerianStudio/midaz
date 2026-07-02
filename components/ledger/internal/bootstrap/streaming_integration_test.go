@@ -247,7 +247,11 @@ func streamingITExpectations() []streamingITExpectation {
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
-				return events.NewFeesBillingPackageCreated(billing).ToEmitRequest(tenantID, streamingITFixedTime)
+				return events.NewFeesBillingPackageCreated(
+					billing.ID, billing.OrganizationID, billing.LedgerID, billing.Type,
+					billing.PricingModel, billing.CountMode, billing.Enable != nil && *billing.Enable,
+					billing.CreatedAt, billing.UpdatedAt,
+				).ToEmitRequest(tenantID, streamingITFixedTime)
 			},
 		},
 		{
@@ -257,7 +261,11 @@ func streamingITExpectations() []streamingITExpectation {
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
 			emitReq: func(tenantID string) (libStreaming.EmitRequest, error) {
-				return events.NewFeesBillingPackageUpdated(billing).ToEmitRequest(tenantID, streamingITFixedTime)
+				return events.NewFeesBillingPackageUpdated(
+					billing.ID, billing.OrganizationID, billing.LedgerID, billing.Type,
+					billing.PricingModel, billing.CountMode, billing.Enable != nil && *billing.Enable,
+					billing.CreatedAt, billing.UpdatedAt,
+				).ToEmitRequest(tenantID, streamingITFixedTime)
 			},
 		},
 		{

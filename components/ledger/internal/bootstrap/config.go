@@ -897,6 +897,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// so setting the factory once covers every CRM entrypoint.
 	crmMgo.holderHandler.Service.MetricsFactory = metricsFactory
 
+	// === CRM streaming events ===
+	// Reuse the same lib-streaming Emitter the ledger command use case uses
+	// (NoopEmitter when STREAMING_ENABLED=false). The holder and instrument
+	// handlers share the SAME CRM use-case instance, so setting it once covers
+	// every CRM emit site (holder.*, instrument.*).
+	crmMgo.holderHandler.Service.Streaming = streamingEmitter
+
 	// === CRM idempotency ===
 	// Reuse the already-constructed transaction Redis repo (it satisfies the
 	// narrow crmservices.IdempotencyRepo port structurally). No second Redis

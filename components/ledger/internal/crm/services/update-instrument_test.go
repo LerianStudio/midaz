@@ -16,17 +16,20 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-func TestUpdateAliasByID(t *testing.T) {
+func TestUpdateInstrumentByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := instrument.NewMockRepository(ctrl)
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -38,7 +41,7 @@ func TestUpdateAliasByID(t *testing.T) {
 
 	uc := &UseCase{
 		HolderRepo:     mockHolderRepo,
-		InstrumentRepo: mockAliasRepo,
+		InstrumentRepo: mockInstrumentRepo,
 	}
 
 	testCases := []struct {
@@ -60,7 +63,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -103,7 +106,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -113,7 +116,7 @@ func TestUpdateAliasByID(t *testing.T) {
 						AccountID: &accountID,
 					}, nil)
 
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -139,7 +142,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			},
 		},
 		{
-			name:     "Error when alias not found by ID",
+			name:     "Error when instrument not found by ID",
 			id:       id,
 			holderID: holderID,
 			input: &mmodel.UpdateInstrumentInput{
@@ -148,7 +151,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, cn.ErrInstrumentNotFound)
 			},
@@ -174,7 +177,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			expectedResult: nil,
 		},
 		{
-			name:     "Error when fetch existing alias for related parties fails",
+			name:     "Error when fetch existing instrument for related parties fails",
 			id:       id,
 			holderID: holderID,
 			input: &mmodel.UpdateInstrumentInput{
@@ -188,7 +191,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(nil, errors.New("database error"))
 			},
@@ -211,7 +214,7 @@ func TestUpdateAliasByID(t *testing.T) {
 			},
 			mockSetup: func() {
 				existingRPID := uuid.Must(libCommons.GenerateUUIDv7())
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -230,7 +233,7 @@ func TestUpdateAliasByID(t *testing.T) {
 						},
 					}, nil)
 
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -260,7 +263,7 @@ func TestUpdateAliasByID(t *testing.T) {
 				},
 			},
 			mockSetup: func() {
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -300,4 +303,94 @@ func TestUpdateAliasByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateInstrumentByID_EmitsInstrumentUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	updatedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		InstrumentRepo: mockInstrumentRepo,
+		Streaming:      emitter,
+	}
+
+	mockInstrumentRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID, UpdatedAt: updatedAt}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateInstrumentByID(ctx, orgID, holderID, instrumentID, &mmodel.UpdateInstrumentInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, events.InstrumentUpdatedDefinition.Key(), emitted[0].DefinitionKey)
+	assert.Equal(t, instrumentID.String(), emitted[0].Subject)
+	assert.Equal(t, updatedAt, emitted[0].Timestamp)
+	pkgStreaming.AssertEventEmitted(t, emitter, "instrument", "updated")
+}
+
+func TestUpdateInstrumentByID_NilEmitterSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	uc := &UseCase{
+		InstrumentRepo: mockInstrumentRepo,
+		Streaming:      nil,
+	}
+
+	mockInstrumentRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateInstrumentByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, instrumentID, &mmodel.UpdateInstrumentInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestUpdateInstrumentByID_EmitFailureDoesNotFailRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	emitter := pkgStreaming.NewMockEmitter()
+	emitter.SetError(errors.New("broker unavailable"))
+
+	uc := &UseCase{
+		InstrumentRepo: mockInstrumentRepo,
+		Streaming:      emitter,
+	}
+
+	mockInstrumentRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.UpdateInstrumentByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, instrumentID, &mmodel.UpdateInstrumentInput{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, emitter.Events())
 }

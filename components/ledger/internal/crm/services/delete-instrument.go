@@ -9,9 +9,14 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteInstrumentByID removes an instrument by its ID and holder ID.
@@ -35,10 +40,21 @@ func (uc *UseCase) DeleteInstrumentByID(ctx context.Context, organizationID stri
 
 	err = uc.InstrumentRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
-		recordSpanError(span, "Failed to delete alias by id", err)
+		recordSpanError(span, "Failed to delete instrument by id", err)
 
 		return err
 	}
 
+	deletedAt := time.Now().UTC()
+
+	uc.emitInstrumentDeletedEvent(ctx, span, logger, id.String(), holderID.String(), organizationID, hardDelete, deletedAt)
+
 	return nil
+}
+
+func (uc *UseCase) emitInstrumentDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, holderID, organizationID string, hardDelete bool, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewInstrumentDeleted(id, holderID, organizationID, hardDelete, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

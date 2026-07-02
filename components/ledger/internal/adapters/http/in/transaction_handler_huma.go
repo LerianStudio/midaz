@@ -202,6 +202,49 @@ func (handler *TransactionHandler) CreateTransactionOutflowHuma(ctx context.Cont
 	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
 }
 
+// --- POST /transactions/block -------------------------------------------------
+
+// CreateTransactionBlockInputHuma is the block-create request envelope (same
+// idempotency + path shape as JSON; the body decodes into CreateTransactionInput,
+// identical to the Fiber block wrapper's http.WithBody type).
+type CreateTransactionBlockInputHuma struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
+	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
+	RawBody        []byte `contentType:"application/json"`
+}
+
+// CreateTransactionBlockHuma decodes CreateTransactionInput, builds the transaction
+// with the BLOCK operation-type override (Pending forced false), and delegates to
+// the shared createTransaction core — mirroring the Fiber CreateTransactionBlock.
+func (handler *TransactionHandler) CreateTransactionBlockHuma(ctx context.Context, in *CreateTransactionBlockInputHuma) (*CreateTransactionOutputHuma, error) {
+	payload := new(mtransaction.CreateTransactionInput)
+	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	transactionInput := handler.buildOverriddenTransaction(payload, constant.BLOCK)
+
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+}
+
+// --- POST /transactions/unblock -----------------------------------------------
+
+// CreateTransactionUnblockHuma decodes CreateTransactionInput, builds the transaction
+// with the UNBLOCK operation-type override (Pending forced false), and delegates to
+// the shared createTransaction core — mirroring the Fiber CreateTransactionUnblock.
+func (handler *TransactionHandler) CreateTransactionUnblockHuma(ctx context.Context, in *CreateTransactionBlockInputHuma) (*CreateTransactionOutputHuma, error) {
+	payload := new(mtransaction.CreateTransactionInput)
+	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	transactionInput := handler.buildOverriddenTransaction(payload, constant.UNBLOCK)
+
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+}
+
 // --- POST /transactions/{transaction_id}/commit|cancel|revert -----------------
 
 // StateTransactionInputHuma is the id-only, bodiless request envelope shared by the
@@ -437,7 +480,7 @@ func (handler *TransactionHandler) GetAllTransactionsHuma(ctx context.Context, i
 
 // --- registration -------------------------------------------------------------
 
-// RegisterTransactionRoutes registers the ten migrated transaction operations on the
+// RegisterTransactionRoutes registers the twelve migrated transaction operations on the
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","transactions",verb)) + tenant + ParseUUIDPathParameters
 // ("transaction") chain for these routes is attached in the unified server (Fiber level)
@@ -490,6 +533,26 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
 	}, h.CreateTransactionAnnotationHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "createTransactionBlock",
+		Method:           http.MethodPost,
+		Path:             listPath + "/block",
+		Summary:          "Create a Block Transaction",
+		Tags:             []string{tag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true,
+	}, h.CreateTransactionBlockHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "createTransactionUnblock",
+		Method:           http.MethodPost,
+		Path:             listPath + "/unblock",
+		Summary:          "Create an Unblock Transaction",
+		Tags:             []string{tag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true,
+	}, h.CreateTransactionUnblockHuma)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "commitTransaction",
