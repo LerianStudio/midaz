@@ -224,6 +224,31 @@ type Config struct {
 	// default; bootstrap applies the value via
 	// HealthChecker.SetCacheStalenessThreshold.
 	ReadyzCacheStalenessThresholdSeconds int `env:"READYZ_CACHE_STALENESS_THRESHOLD_SECONDS"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// StreamingEnabled is the master flag. Default OFF (unset bool = false): a
+	// service with STREAMING_ENABLED=false injects a NoopEmitter and never
+	// initialises the underlying transport, so an existing deployment that never
+	// sets these vars is not broken by the new dependency. Transport knobs
+	// (brokers, compression, acks, linger) are NOT bound here — they are read by
+	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
+	StreamingEnabled bool `env:"STREAMING_ENABLED"`
+
+	// --- Streaming SASL/TLS auth ---
+	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
+	// without authentication, matching the existing behaviour for local/dev
+	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
+	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then required.
+	//
+	// SASL without TLS is rejected by lib-streaming with
+	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
+	// explicit unsafe opt-in for local/dev brokers that do not terminate TLS. It
+	// must NOT be set in production: SASL credentials cross the network in
+	// cleartext.
+	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
+	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
+	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
+	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.
