@@ -137,11 +137,12 @@ func (mr *MockRepositoryMockRecorder) SoftDelete(ctx, id, organizationID any) *g
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, id, organizationID string, updateFields *bson.M) error {
+func (m *MockRepository) Update(ctx context.Context, id, organizationID string, updateFields *bson.M) (*model.BillingPackage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, id, organizationID, updateFields)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*model.BillingPackage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.

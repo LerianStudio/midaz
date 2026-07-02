@@ -914,7 +914,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// account/segment/count reads run in-process. HTTP route mounting is
 	// deferred to the next chunk (P4-T10/T17); here the fee use cases are only
 	// constructed + held so they are not dead code.
-	fees, err := initFees(feeMgo, queryUseCase, cfg, logger)
+	fees, err := initFees(feeMgo, queryUseCase, cfg, logger, streamingEmitter)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)

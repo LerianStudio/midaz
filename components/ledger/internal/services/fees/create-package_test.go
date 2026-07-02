@@ -14,10 +14,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	mongodb "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 )
@@ -308,4 +310,66 @@ func TestCreatePackage(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreatePackage_EmitsFeesPackageCreated asserts a successful create emits
+// the fees-package.created event through the mock emitter.
+func TestCreatePackage_EmitsFeesPackageCreated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
+	mockEmitter := pkgStreaming.NewMockEmitter()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	segID := uuid.New()
+	enable := true
+
+	resultEntity := &pack.Package{
+		ID:            uuid.New(),
+		FeeGroupLabel: "group",
+		SegmentID:     &segID,
+		LedgerID:      ledgerID,
+		Enable:        &enable,
+	}
+
+	mockResolver.EXPECT().
+		AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
+	mockPackRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		Return([]*pack.Package{}, nil).AnyTimes()
+	mockPackRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(resultEntity, nil)
+
+	svc := &UseCase{
+		packageRepo: mockPackRepo,
+		resolver:    mockResolver,
+		Streaming:   mockEmitter,
+	}
+
+	input := &model.CreatePackageInput{
+		FeeGroupLabel: "group",
+		MinAmount:     "100",
+		MaxAmount:     "200",
+		Fee:           map[string]model.Fee{},
+		Enable:        &enable,
+	}
+
+	_, err := svc.CreatePackage(context.Background(), input, orgID, ledgerID, segID)
+	require.NoError(t, err)
+
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fees-package", "created")
+
+	emitted := mockEmitter.Events()
+	require.Len(t, emitted, 1)
+	req := emitted[0]
+	assert.Equal(t, resultEntity.ID.String(), req.Subject)
+
+	payload := unmarshalPayload(t, req.Payload)
+	assert.Equal(t, orgID.String(), payload["organizationId"])
+	assert.Equal(t, ledgerID.String(), payload["ledgerId"])
 }

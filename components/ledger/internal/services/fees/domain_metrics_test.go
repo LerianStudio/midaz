@@ -85,12 +85,20 @@ func TestRecordDomainOperation_Fees(t *testing.T) {
 
 	// Success path.
 	mockPackRepo.EXPECT().
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
+
+	mockPackRepo.EXPECT().
 		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	require.NoError(t, uc.DeletePackageByID(ctx, packID, orgID))
 
 	// Technical-error path.
+	mockPackRepo.EXPECT().
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
+
 	mockPackRepo.EXPECT().
 		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(errors.New("connection refused"))

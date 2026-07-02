@@ -16,16 +16,20 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
@@ -63,7 +67,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 		updateFields["$unset"] = unsetOperationFields
 	}
 
-	err = uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
+	updatedPackage, err := uc.packageRepo.Update(ctx, id, organizationID, &updateFields)
 	if err != nil {
 		if errors.Is(err, ErrDatabaseItemNotFound) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
@@ -83,7 +87,21 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 	// update fields.
 	uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
 
+	uc.emitFeesPackageUpdatedEvent(ctx, span, logger, updatedPackage, organizationID)
+
 	return nil
+}
+
+// emitFeesPackageUpdatedEvent publishes fees-package.updated. IMPORTANT posture.
+func (uc *UseCase) emitFeesPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *pack.Package, organizationID uuid.UUID) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesPackageUpdated(
+				p.ID.String(), organizationID.String(), p.LedgerID.String(),
+				segmentIDToString(p.SegmentID), p.TransactionRoute, enableOrFalse(p.Enable),
+				p.CreatedAt, p.UpdatedAt,
+			).ToEmitRequest(tenantID, p.UpdatedAt)
+		})
 }
 
 // buildUpdateFields Build the fields that will be updated. It also returns the

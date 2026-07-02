@@ -188,6 +188,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 	var (
 		definitionKey string
 		buildFn       func(string) (libStreaming.EmitRequest, error)
+		posted        bool
 	)
 
 	switch phase {
@@ -209,6 +210,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 			buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
 				return events.NewTransactionPosted(src).ToEmitRequestPosted(tenantID, time.Now())
 			}
+			posted = true
 		}
 	case TransactionLifecyclePhaseUpdated:
 		switch tran.Status.Code {
@@ -236,6 +238,36 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 	}
 
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+
+	// fees.applied rides alongside transaction.posted only. Commit/cancel/
+	// revert do NOT re-emit it (the fee charge happened once, at post).
+	if posted {
+		uc.emitFeesAppliedEvent(ctx, span, logger, tran)
+	}
+}
+
+// emitFeesAppliedEvent emits fees.applied for a posted transaction that
+// actually charged a fee. It fires only when feeApplied=true and a
+// packageAppliedID are present in metadata (charged-only, set by the fee
+// engine on the real-charge branch); pure exemptions carry neither. IMPORTANT
+// posture: EmitImportant swallows build/emit failures.
+func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
+	if applied, _ := tran.Metadata["feeApplied"].(string); applied != "true" {
+		return
+	}
+
+	packageID, _ := tran.Metadata["packageAppliedID"].(string)
+	if packageID == "" {
+		return
+	}
+
+	appliedAt := tran.CreatedAt
+
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesApplied(tran.ID, tran.OrganizationID, tran.LedgerID, packageID, appliedAt).
+				ToEmitRequest(tenantID, appliedAt)
+		})
 }
 
 // buildTransactionEventSource maps a persisted Transaction into the
