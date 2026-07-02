@@ -7,13 +7,18 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
@@ -42,5 +47,16 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String()))
 
+	deletedAt := time.Now().UTC()
+
+	uc.emitAliasRelatedPartyDeletedEvent(ctx, span, logger, aliasID.String(), holderID.String(), organizationID, relatedPartyID.String(), deletedAt)
+
 	return nil
+}
+
+func (uc *UseCase) emitAliasRelatedPartyDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, aliasID, holderID, organizationID, relatedPartyID string, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AliasRelatedPartyDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAliasRelatedPartyDeleted(aliasID, holderID, organizationID, relatedPartyID, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

@@ -75,6 +75,35 @@ type Config struct {
 	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
 	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
 	VaultAuthMethod                        string `env:"KMS_VAULT_AUTH_METHOD"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// Default for all streaming knobs is OFF — a service with
+	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
+	// initialises the underlying transport. The pilot ships disabled-by-
+	// default so existing deployments are not broken by the new dependency.
+	// STREAMING_BROKERS, STREAMING_CLIENT_ID, STREAMING_CLOUDEVENTS_SOURCE,
+	// STREAMING_COMPRESSION, STREAMING_REQUIRED_ACKS and STREAMING_BATCH_LINGER_MS
+	// are consumed by libStreaming.LoadConfig() inside BuildStreamingEmitter, not
+	// from this struct — so they have no field here.
+	StreamingEnabled bool `env:"STREAMING_ENABLED"`
+
+	// --- Streaming SASL/TLS auth ---
+	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
+	// without authentication, matching the existing behaviour for local/dev
+	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
+	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then
+	// required and BuildStreamingEmitter wires the matching franz-go
+	// sasl.Mechanism into the lib-streaming Builder.
+	//
+	// SASL without TLS is rejected by lib-streaming with
+	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
+	// explicit unsafe opt-in for local/dev brokers that do not terminate
+	// TLS. It must NOT be set in production: SASL credentials cross the
+	// network in cleartext.
+	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
+	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
+	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
+	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -200,9 +229,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize alias repository: %w", err)
 	}
 
+	// === Streaming producer (lib-streaming) ===
+	// Built before the UseCase so the Emitter is available for injection.
+	// When STREAMING_ENABLED=false (the documented default for this pilot)
+	// the helper returns a NoopEmitter and a no-op closer, preserving full
+	// backward compatibility with existing deployments.
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(context.Background(), cfg, logger, telemetry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
+	}
+
+	// Drain the streaming producer on any partial-boot error return below. On
+	// success the cleanup is disarmed (swapped to a no-op) because the Service
+	// then owns the drain on SIGTERM. The defer covers every error path —
+	// including ones added later — without each return closing manually.
+	streamingCleanup := streamingClose
+
+	defer func() { closeStreamingOnBootFailure(logger, streamingCleanup) }()
+
 	useCases := &services.UseCase{
 		HolderRepo: holderMongoDBRepository,
 		AliasRepo:  aliasMongoDBRepository,
+		Streaming:  streamingEmitter,
 	}
 
 	holderHandler := &in.HolderHandler{
@@ -237,6 +285,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
+	streamingCleanup = noopStreamingCloser
+
 	return &Service{
 		Server:                  serverAPI,
 		EventListener:           eventListener,
@@ -249,6 +299,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ProvisioningService:     encryptionResult.provisioningService,
 		ProtectionStateResolver: encryptionResult.protectionStateResolver,
 		KeysetManager:           encryptionResult.keysetManager,
+		StreamingEnabled:        cfg.StreamingEnabled,
+		StreamingClose:          streamingClose,
 		Logger:                  logger,
 	}, nil
 }

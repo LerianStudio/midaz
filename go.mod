@@ -107,9 +107,11 @@ require (
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
+	github.com/testcontainers/testcontainers-go/modules/redpanda v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
 	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/twmb/franz-go v1.21.2
+	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	go.mongodb.org/mongo-driver/v2 v2.6.0
 	go.uber.org/goleak v1.3.0
 )
