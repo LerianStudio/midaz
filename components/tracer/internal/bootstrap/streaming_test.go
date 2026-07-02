@@ -168,6 +168,55 @@ func TestBuildRoutes_EmptyInPhase1(t *testing.T) {
 	assert.Empty(t, routes, "Phase-1 route table must be empty")
 }
 
+// TestResolveStreamingSource locks the CloudEvents source resolution
+// contract: a trimmed, non-empty STREAMING_CLOUDEVENTS_SOURCE value wins;
+// an empty, whitespace-only, or nil config falls back to the in-code
+// streamingSource default so an unset var never changes historical
+// behaviour.
+func TestResolveStreamingSource(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		cfg      *Config
+		expected string
+	}{
+		{
+			name:     "nil config falls back to default",
+			cfg:      nil,
+			expected: streamingSource,
+		},
+		{
+			name:     "empty value falls back to default",
+			cfg:      &Config{StreamingCloudEventsSource: ""},
+			expected: streamingSource,
+		},
+		{
+			name:     "whitespace-only value falls back to default",
+			cfg:      &Config{StreamingCloudEventsSource: "  \t  "},
+			expected: streamingSource,
+		},
+		{
+			name:     "configured value wins",
+			cfg:      &Config{StreamingCloudEventsSource: "lerian.midaz.tracer.staging"},
+			expected: "lerian.midaz.tracer.staging",
+		},
+		{
+			name:     "configured value is trimmed",
+			cfg:      &Config{StreamingCloudEventsSource: "  lerian.midaz.tracer.shadow  "},
+			expected: "lerian.midaz.tracer.shadow",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, resolveStreamingSource(tc.cfg))
+		})
+	}
+}
+
 // TestResolveSASLMechanism_Disabled covers the default code path: an empty
 // (or whitespace) STREAMING_SASL_MECHANISM yields a nil mechanism and
 // empty name so the Builder is left unauthenticated — the back-compat

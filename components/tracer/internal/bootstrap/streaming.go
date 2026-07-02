@@ -36,10 +36,26 @@ const streamingPrimaryTargetName = "primary"
 // Topic names take the shape "lerian.streaming.<resource>.<event>".
 const streamingTopicPrefix = "lerian.streaming."
 
-// streamingSource is the CloudEvents source stamped on every event tracer
-// emits. Distinct from the ledger component's source so downstream
-// consumers can attribute events to the emitting service.
+// streamingSource is the default CloudEvents source stamped on every event
+// tracer emits. Distinct from the ledger component's source so downstream
+// consumers can attribute events to the emitting service. Overridable via
+// STREAMING_CLOUDEVENTS_SOURCE (see resolveStreamingSource).
 const streamingSource = "lerian.midaz.tracer"
+
+// resolveStreamingSource returns the CloudEvents source to stamp on emitted
+// events. The configured STREAMING_CLOUDEVENTS_SOURCE value wins when set
+// (after trimming surrounding whitespace); otherwise the in-code default
+// streamingSource is used so an unset var never breaks the historical
+// behaviour.
+func resolveStreamingSource(cfg *Config) string {
+	if cfg != nil {
+		if source := strings.TrimSpace(cfg.StreamingCloudEventsSource); source != "" {
+			return source
+		}
+	}
+
+	return streamingSource
+}
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -149,8 +165,10 @@ func buildLiveStreamingEmitter(
 	// canonical "lerian.streaming.<resource>.<event>" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
+	source := resolveStreamingSource(cfg)
+
 	builder := libStreaming.NewBuilder().
-		Source(streamingSource).
+		Source(source).
 		Catalog(catalog).
 		Routes(routes...).
 		Target(libStreaming.TargetConfig{
@@ -199,7 +217,7 @@ func buildLiveStreamingEmitter(
 		logger.Log(ctx, libLog.LevelInfo, "Streaming emitter constructed",
 			libLog.String("brokers", strings.Join(streamingCfg.Brokers, ",")),
 			libLog.String("client_id", streamingCfg.ClientID),
-			libLog.String("ce_source", streamingSource),
+			libLog.String("ce_source", source),
 			libLog.String("auth", authMode),
 			libLog.Int("catalog_size", catalog.Len()),
 			libLog.Int("routes", len(routes)),

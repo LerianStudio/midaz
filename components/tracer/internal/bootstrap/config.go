@@ -22,6 +22,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -233,6 +234,13 @@ type Config struct {
 	// (brokers, compression, acks, linger) are NOT bound here — they are read by
 	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
+
+	// StreamingCloudEventsSource overrides the CloudEvents `ce-source` stamped
+	// on every event tracer emits. When empty (the default), the in-code
+	// default lerian.midaz.tracer is used, so an existing deployment that never
+	// sets this var keeps the historical source. Operators set it only to
+	// distinguish sources across environments or shadow deployments.
+	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
 
 	// --- Streaming SASL/TLS auth ---
 	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
@@ -1493,14 +1501,19 @@ func initWorkers(
 	logger libLog.Logger,
 	clk clock.Clock,
 	mtComponents *componentsMT,
+	streamingEmitter libStreaming.Emitter,
+	streamingClose func() error,
 ) (*Service, error) {
 	svc := &Service{
-		HTTPServer:    serverAPI,
-		grpcServer:    grpcServer,
-		Logger:        logger,
-		postgresConn:  postgresConn,
-		healthChecker: healthChecker,
-		config:        cfg,
+		HTTPServer:       serverAPI,
+		grpcServer:       grpcServer,
+		Logger:           logger,
+		postgresConn:     postgresConn,
+		healthChecker:    healthChecker,
+		config:           cfg,
+		StreamingEmitter: streamingEmitter,
+		StreamingClose:   streamingClose,
+		StreamingEnabled: cfg.StreamingEnabled,
 	}
 
 	if mtComponents != nil {
@@ -1628,8 +1641,11 @@ func conditionalWarmUpCache(
 	return nil
 }
 
-// initCoreInfra initializes logger, validates auth config, and sets up OpenTelemetry.
-func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
+// initCoreInfra initializes logger, validates auth config, sets up
+// OpenTelemetry, and builds the streaming emitter. The emitter and its close
+// hook are non-nil in every path (NoopEmitter + no-op close when streaming is
+// disabled), so callers can wire them unconditionally.
+func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Telemetry, libStreaming.Emitter, func() error, error) {
 	zapEnv := libZap.Environment(cfg.OtelDeploymentEnv)
 	if zapEnv == "" {
 		zapEnv = libZap.EnvironmentDevelopment
@@ -1641,30 +1657,30 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		OTelLibraryName: "tracer",
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	var logger libLog.Logger = zapLogger
 
 	// Validate authentication configuration (fail-fast if misconfigured)
 	if err := ValidateAuthConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
 	// Validate Access Manager plugin configuration (fail-fast if misconfigured)
 	if err := ValidateAccessManagerConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
 	}
 
 	// Cross-check: at least one auth mechanism must be enabled outside local
 	// deployments (fail-fast; the per-mechanism validators above only Warn)
 	if err := ValidateAuthPresence(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("auth presence: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("auth presence: %w", err)
 	}
 
 	// Validate multi-tenant configuration (fail-fast if misconfigured)
 	if err := ValidateMultiTenantConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid multi-tenant configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid multi-tenant configuration: %w", err)
 	}
 
 	// Gate 4: enforce TLS posture for SaaS deployments BEFORE any external
@@ -1673,7 +1689,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	// function with one call site — anti-pattern N6 (scattered inline
 	// checks) is structurally absent.
 	if err := ValidateSaaSTLS(cfg); err != nil {
-		return nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
@@ -1687,7 +1703,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		Logger:                    logger,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
 	// C2: arm lib-commons' panic-observability trident so every
@@ -1699,7 +1715,15 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		libRuntime.InitPanicMetrics(telemetry.MetricsFactory, logger)
 	}
 
-	return logger, telemetry, nil
+	// Build the streaming emitter. Disabled (the default) yields a NoopEmitter
+	// plus a no-op close hook — no transport is constructed and no broker
+	// connection is attempted, so an unset STREAMING_* config never breaks boot.
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(ctx, cfg, logger, telemetry)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to build streaming emitter: %w", err)
+	}
+
+	return logger, telemetry, streamingEmitter, streamingClose, nil
 }
 
 // initClock creates a clock instance based on environment configuration.
@@ -1749,7 +1773,11 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// `envDefault` struct tags; this is the single source of truth for defaults.
 	ApplyMultiTenantDefaults(cfg)
 
-	logger, telemetry, err := initCoreInfra(ctx, cfg)
+	// initCoreInfra also builds the streaming emitter once logger + telemetry
+	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close
+	// hook — no transport is constructed and no broker connection is
+	// attempted, so an unset STREAMING_* config never breaks boot.
+	logger, telemetry, streamingEmitter, streamingClose, err := initCoreInfra(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -1880,7 +1908,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}
@@ -1963,6 +1991,8 @@ func finalizeStartup(
 	telemetry *libOtel.Telemetry,
 	clk clock.Clock,
 	mtComponents *componentsMT,
+	streamingEmitter libStreaming.Emitter,
+	streamingClose func() error,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -1974,7 +2004,7 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents)
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}

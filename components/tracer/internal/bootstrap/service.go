@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
@@ -60,6 +62,20 @@ type Service struct {
 	// single source of truth — env reloads (if ever introduced) propagate
 	// without restarting Service.
 	config *Config
+
+	// StreamingEmitter is the lib-streaming Emitter injected into command
+	// use cases. It is non-nil for both the live producer and the
+	// NoopEmitter (STREAMING_ENABLED=false) so downstream emit sites can
+	// depend on the interface unconditionally.
+	StreamingEmitter libStreaming.Emitter
+	// StreamingClose drains the streaming producer on SIGTERM. Non-nil for
+	// both the live producer and the Noop path; Run() registers it as a
+	// Launcher app only when streaming is enabled (see
+	// shouldRegisterStreamingProducer).
+	StreamingClose func() error
+	// StreamingEnabled mirrors cfg.StreamingEnabled so Run() can decide
+	// whether to register the producer-drain Launcher app.
+	StreamingEnabled bool
 }
 
 // Run starts the application.
@@ -118,6 +134,16 @@ func (app *Service) Run() {
 
 	if app.syncWorker != nil {
 		opts = append(opts, libCommons.RunApp("Rule Sync Worker", app.syncWorker))
+	}
+
+	// Streaming producer drain: register only when streaming is enabled AND a
+	// non-nil close hook is present. The NoopEmitter path (streaming disabled)
+	// registers nothing so the Launcher app list stays lean. The producer drain
+	// touches no DB, so its ordering relative to the DB-backed drains is
+	// immaterial.
+	if shouldRegisterStreamingProducer(app.StreamingEnabled, app.StreamingClose) {
+		opts = append(opts, libCommons.RunApp("Streaming Producer",
+			&streamingProducerRunnable{close: app.StreamingClose, logger: app.Logger}))
 	}
 
 	// Install the drain handler BEFORE the Launcher starts so its
@@ -195,6 +221,57 @@ func (app *Service) installDrainHandler() func() {
 		close(sigCh)
 		<-stopped
 	}
+}
+
+// shouldRegisterStreamingProducer reports whether the streaming producer drain
+// runnable should be registered with the Launcher. It is a pure predicate:
+// registration happens only when streaming is enabled AND a non-nil close hook
+// is present. The disabled path (NoopEmitter) registers nothing.
+func shouldRegisterStreamingProducer(enabled bool, closeHook func() error) bool {
+	return enabled && closeHook != nil
+}
+
+// streamingProducerRunnable adapts the lib-streaming producer's Close hook to
+// the libCommons launcher App interface. It blocks until SIGINT/SIGTERM and
+// then runs the producer's drain/flush close path so buffered records reach the
+// broker before the process exits.
+type streamingProducerRunnable struct {
+	close     func() error
+	logger    libLog.Logger
+	closeOnce sync.Once
+}
+
+// Run blocks until SIGINT/SIGTERM and then drains the producer exactly once.
+func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	r.drain()
+
+	return nil
+}
+
+// drain invokes the producer close hook at most once (sync.Once) and is
+// nil-safe. A non-nil close error is logged at Warn and not propagated: at
+// shutdown the Launcher cannot meaningfully react.
+func (r *streamingProducerRunnable) drain() {
+	if r == nil || r.close == nil {
+		return
+	}
+
+	r.closeOnce.Do(func() {
+		if err := r.close(); err != nil && r.logger != nil {
+			r.logger.With(
+				libLog.String("error.message", err.Error()),
+			).Log(context.Background(), libLog.LevelWarn, "streaming producer Close returned error")
+		}
+	})
 }
 
 // Shutdown gracefully shuts down the application.
