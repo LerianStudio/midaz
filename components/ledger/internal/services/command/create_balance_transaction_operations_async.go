@@ -149,6 +149,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	go uc.SendTransactionEvents(ctx, tran, phase)
 	go uc.SendOverdraftEvents(ctx, tran)
+	go uc.SendBalanceChangedEvents(ctx, tran)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
@@ -484,7 +485,8 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper *operation.Operation) error {
 	if oper.Direction == "" {
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-			"Operation %s has empty direction, may be from pre-migration message", oper.ID))
+			"Operation %s has empty direction, may be from pre-migration message", oper.ID,
+		))
 
 		return nil
 	}
