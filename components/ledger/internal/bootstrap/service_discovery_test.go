@@ -5,36 +5,40 @@
 package bootstrap
 
 import (
-	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
-	"github.com/stretchr/testify/require"
+	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestBuildServiceDiscovery_DisabledReturnsNoopManager(t *testing.T) {
-	t.Setenv("SD_ENABLED", "")
-	t.Setenv("SERVICE_DISCOVERY_ENABLED", "")
-	t.Setenv("SD_ADVERTISE_ADDRESS", "")
-	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
+// launcherAppNames extracts the ordered display names from the service's
+// assembled Launcher apps so a test can assert on the guard-driven set.
+func launcherAppNames(s *Service) []string {
+	apps := s.launcherApps()
+	names := make([]string, len(apps))
 
-	manager, enabled, err := buildServiceDiscovery(libLog.NewNop())
+	for i, a := range apps {
+		names[i] = a.name
+	}
 
-	require.NoError(t, err)
-	require.NotNil(t, manager)
-	require.False(t, enabled)
+	return names
 }
 
-func TestBuildServiceDiscovery_EnabledWithoutAdvertiseAddrFailsFast(t *testing.T) {
-	t.Setenv("SD_ENABLED", "true")
-	t.Setenv("SD_ADVERTISE_ADDRESS", "")
-	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
+// TestService_launcherApps_ServiceDiscoveryGuard asserts the observable effect
+// of the s.ServiceDiscoveryEnabled guard: the "Service Discovery" launcher app is
+// present IFF discovery is enabled. Inspects the assembled app list rather than
+// starting the blocking Run().
+func TestService_launcherApps_ServiceDiscoveryGuard(t *testing.T) {
+	t.Parallel()
 
-	manager, enabled, err := buildServiceDiscovery(libLog.NewNop())
+	disabled := &Service{ServiceDiscoveryEnabled: false}
+	assert.NotContains(t, launcherAppNames(disabled), "Service Discovery",
+		"disabled service must not register the Service Discovery app")
 
-	require.Error(t, err)
-	require.Nil(t, manager)
-	require.True(t, enabled)
-	require.True(t, errors.Is(err, libsd.ErrEmptyAdvertiseAddr))
+	enabled := &Service{
+		ServiceDiscoveryEnabled: true,
+		ServiceDescriptor:       pkgsd.BuildServiceDescriptor("midaz-ledger", 3002),
+	}
+	assert.Contains(t, launcherAppNames(enabled), "Service Discovery",
+		"enabled service must register the Service Discovery app")
 }

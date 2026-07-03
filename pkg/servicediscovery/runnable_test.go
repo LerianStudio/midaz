@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package bootstrap
+package servicediscovery
 
 import (
 	"context"
@@ -91,7 +91,7 @@ func newStubManager(t *testing.T, stub libsd.Registry) *libsd.Manager {
 	t.Helper()
 
 	mgr, err := libsd.New(
-		libsd.Config{Enabled: true, ConsulAddr: "consul:8500", AdvertiseAddr: "crm.test:4003"},
+		libsd.Config{Enabled: true, ConsulAddr: "consul:8500", AdvertiseAddr: "svc.test:3002"},
 		libsd.WithLogger(libLog.NewNop()),
 		libsd.WithRegistry(stub),
 	)
@@ -100,20 +100,20 @@ func newStubManager(t *testing.T, stub libsd.Registry) *libsd.Manager {
 	return mgr
 }
 
-// TestServiceDiscoveryRunnable_Lifecycle exercises the full register/deregister
-// path of Run without a real Consul: RegisterAsync must record a Register with
-// the descriptor's ID/Name/Port/TTL, and simulated SIGTERM (context cancel) must
+// TestRunnable_Lifecycle exercises the full register/deregister path of Run
+// without a real Consul: RegisterAsync must record a Register with the
+// descriptor's ID/Name/Port/TTL, and simulated SIGTERM (context cancel) must
 // trigger a Deregister with the SAME ID.
-func TestServiceDiscoveryRunnable_Lifecycle(t *testing.T) {
+func TestRunnable_Lifecycle(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubRegistry{registeredCh: make(chan struct{}, 1)}
 	mgr := newStubManager(t, stub)
-	svc := buildCRMServiceDescriptor(4003)
+	svc := BuildServiceDescriptor("midaz-ledger", 3002)
 
 	sigCtx, cancel := context.WithCancel(context.Background())
 
-	r := &serviceDiscoveryRunnable{
+	r := &Runnable{
 		manager: mgr,
 		svc:     svc,
 		logger:  libLog.NewNop(),
@@ -142,20 +142,20 @@ func TestServiceDiscoveryRunnable_Lifecycle(t *testing.T) {
 
 	registered := stub.registeredServices()
 	require.Len(t, registered, 1)
-	assert.Equal(t, "midaz-crm-4003", registered[0].ID)
-	assert.Equal(t, "midaz-crm", registered[0].Name)
-	assert.Equal(t, 4003, registered[0].Port)
+	assert.Equal(t, "midaz-ledger-3002", registered[0].ID)
+	assert.Equal(t, "midaz-ledger", registered[0].Name)
+	assert.Equal(t, 3002, registered[0].Port)
 	require.NotNil(t, registered[0].HealthCheck)
 	assert.Equal(t, "30s", registered[0].HealthCheck.TTL)
 
 	deregistered := stub.deregisteredIDs()
 	require.Len(t, deregistered, 1)
-	assert.Equal(t, "midaz-crm-4003", deregistered[0])
+	assert.Equal(t, "midaz-ledger-3002", deregistered[0])
 }
 
-// TestServiceDiscoveryRunnable_DeregisterErrorSwallowed verifies a deregister
-// failure is logged at Warn and NOT propagated: Run still returns nil.
-func TestServiceDiscoveryRunnable_DeregisterErrorSwallowed(t *testing.T) {
+// TestRunnable_DeregisterErrorSwallowed verifies a deregister failure is logged
+// at Warn and NOT propagated: Run still returns nil.
+func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubRegistry{
@@ -163,11 +163,11 @@ func TestServiceDiscoveryRunnable_DeregisterErrorSwallowed(t *testing.T) {
 		registeredCh:  make(chan struct{}, 1),
 	}
 	mgr := newStubManager(t, stub)
-	svc := buildCRMServiceDescriptor(4003)
+	svc := BuildServiceDescriptor("midaz-crm", 4003)
 
 	sigCtx, cancel := context.WithCancel(context.Background())
 
-	r := &serviceDiscoveryRunnable{
+	r := &Runnable{
 		manager: mgr,
 		svc:     svc,
 		logger:  libLog.NewNop(),
@@ -192,106 +192,35 @@ func TestServiceDiscoveryRunnable_DeregisterErrorSwallowed(t *testing.T) {
 	assert.Equal(t, []string{"midaz-crm-4003"}, stub.deregisteredIDs())
 }
 
-func TestParseServerPort(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		address     string
-		wantPort    int
-		expectError bool
-		errContains string
-	}{
-		{name: "leading colon form", address: ":4003", wantPort: 4003},
-		{name: "host and port", address: "0.0.0.0:8080", wantPort: 8080},
-		{name: "localhost and port", address: "localhost:3011", wantPort: 3011},
-		{name: "missing colon", address: "4003", expectError: true, errContains: "parsing server address"},
-		{name: "empty", address: "", expectError: true, errContains: "parsing server address"},
-		{name: "non-numeric port", address: ":bad", expectError: true, errContains: "invalid syntax"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			port, err := parseServerPort(tc.address)
-
-			if tc.expectError {
-				require.ErrorContains(t, err, tc.errContains)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantPort, port)
-		})
-	}
-}
-
-func TestBuildCRMServiceDescriptor(t *testing.T) {
-	t.Parallel()
-
-	svc := buildCRMServiceDescriptor(4003)
-
-	assert.Equal(t, "midaz-crm-4003", svc.ID)
-	assert.Equal(t, "midaz-crm", svc.Name)
-	assert.Equal(t, 4003, svc.Port)
-	require.NotNil(t, svc.HealthCheck)
-	assert.Equal(t, "30s", svc.HealthCheck.TTL)
-	// Address/Scheme are left empty: Manager.Register fills them from
-	// SD_ADVERTISE_ADDRESS.
-	assert.Empty(t, svc.Address)
-	assert.Empty(t, svc.Scheme)
-}
-
-func TestBuildCRMServiceDescriptor_IDReflectsPort(t *testing.T) {
-	t.Parallel()
-
-	svc := buildCRMServiceDescriptor(8080)
-
-	assert.Equal(t, "midaz-crm-8080", svc.ID)
-	assert.Equal(t, 8080, svc.Port)
-}
-
-// TestServiceDiscoveryRunnable_NilManagerNoOp verifies the runnable returns
-// immediately when the manager is nil, before installing any signal handler or
-// spawning goroutines. Also asserts it is a true no-op: nothing registered or
-// deregistered. Keeps the guard branch goleak-safe.
-func TestServiceDiscoveryRunnable_NilManagerNoOp(t *testing.T) {
+// TestRunnable_NilManagerNoOp verifies the runnable returns immediately when the
+// manager is nil, before installing any signal handler or spawning goroutines.
+// Also asserts it is a true no-op: nothing registered or deregistered. Keeps the
+// guard branch goleak-safe.
+func TestRunnable_NilManagerNoOp(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubRegistry{}
-	r := &serviceDiscoveryRunnable{manager: nil, logger: libLog.NewNop()}
+	r := &Runnable{manager: nil, logger: libLog.NewNop()}
 
 	require.NoError(t, r.Run(nil))
 	assert.Empty(t, stub.registeredServices())
 	assert.Empty(t, stub.deregisteredIDs())
 }
 
-// launcherAppNames extracts the ordered display names from the service's
-// assembled Launcher apps so a test can assert on the guard-driven set.
-func launcherAppNames(app *Service) []string {
-	apps := app.launcherApps()
-	names := make([]string, len(apps))
-
-	for i, a := range apps {
-		names[i] = a.name
-	}
-
-	return names
-}
-
-// TestService_launcherApps_ServiceDiscoveryGuard asserts the observable effect
-// of the app.ServiceDiscoveryEnabled guard: the "Service Discovery" launcher app
-// is present IFF discovery is enabled. Inspects the assembled app list rather than
-// starting the blocking Run().
-func TestService_launcherApps_ServiceDiscoveryGuard(t *testing.T) {
+// TestNewRunnable verifies the constructor wires the manager, descriptor, and
+// logger, leaving notifyContext nil so production uses signal.NotifyContext.
+func TestNewRunnable(t *testing.T) {
 	t.Parallel()
 
-	disabled := &Service{ServiceDiscoveryEnabled: false}
-	assert.NotContains(t, launcherAppNames(disabled), "Service Discovery",
-		"disabled service must not register the Service Discovery app")
+	stub := &stubRegistry{}
+	mgr := newStubManager(t, stub)
+	svc := BuildServiceDescriptor("midaz-ledger", 3002)
+	logger := libLog.NewNop()
 
-	enabled := &Service{ServiceDiscoveryEnabled: true, ServiceDescriptor: buildCRMServiceDescriptor(4003)}
-	assert.Contains(t, launcherAppNames(enabled), "Service Discovery",
-		"enabled service must register the Service Discovery app")
+	r := NewRunnable(mgr, svc, logger)
+
+	require.NotNil(t, r)
+	assert.Same(t, mgr, r.manager)
+	assert.Equal(t, svc, r.svc)
+	assert.Nil(t, r.notifyContext)
 }

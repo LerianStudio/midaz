@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package bootstrap
+package servicediscovery
 
 import (
 	"context"
@@ -115,7 +115,7 @@ func TestResolveAuthHost(t *testing.T) {
 				static = tc.staticHost
 			}
 
-			host := resolveAuthHost(context.Background(), stub, tc.authEnabled, static)
+			host := ResolveAuthHost(context.Background(), stub, tc.authEnabled, static)
 
 			require.Equal(t, tc.expectedHost, host)
 			require.Equal(t, tc.expectedCalls, stub.calls)

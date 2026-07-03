@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -36,6 +37,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -715,33 +717,45 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Service discovery: build the Manager (no-op when disabled) before the
-	// auth client so a later task can resolve plugin-auth through it.
-	serviceDiscovery, serviceDiscoveryEnabled, err := buildServiceDiscovery(logger)
+	// auth client so we can resolve plugin-auth through it.
+	serviceDiscovery, serviceDiscoveryEnabled, err := pkgsd.BuildManager(logger)
 	if err != nil {
 		doCleanup()
 
 		return nil, err
 	}
 
-	// Build the registry descriptor now so a malformed SERVER_ADDRESS fails fast
-	// at wiring time rather than at shutdown. The runnable reuses this descriptor.
-	serverPort, err := parseServerPort(cfg.ServerAddress)
-	if err != nil {
-		doCleanup()
+	// Build the registry descriptor ONLY when discovery is enabled: the descriptor
+	// is consumed solely by the discovery runnable (also wired only when enabled),
+	// so parsing the port with discovery off would let a malformed SERVER_ADDRESS
+	// abort boot for no reason. Left zero-value when disabled — boot parity with
+	// pre-discovery behavior.
+	var serviceDescriptor libsd.Service
 
-		return nil, err
+	if serviceDiscoveryEnabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			doCleanup()
+
+			return nil, portErr
+		}
+
+		serviceDescriptor = pkgsd.BuildServiceDescriptor("midaz-ledger", serverPort)
 	}
-
-	serviceDescriptor := buildLedgerServiceDescriptor(serverPort)
 
 	// Auth: resolve plugin-auth through service discovery, degrading to the
 	// static host on any resolve failure so a discovery outage never fails boot.
-	// The explicit deadline caps the Consul query so a slow/hung registry cannot
-	// stall boot; a deadline exceeded degrades to the static host like any error.
-	sdResolveCtx, cancel := context.WithTimeout(context.Background(), serviceDiscoveryResolveTimeout)
-	defer cancel()
+	// The resolve timeout is created only when auth is enabled — with auth off
+	// ResolveAuthHost returns the static host without touching the context, so
+	// building a timer/cancel would be wasted work.
+	authHost := cfg.AuthHost
+	if cfg.AuthEnabled {
+		sdResolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(sdResolveCtx, serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
 
-	authHost := resolveAuthHost(sdResolveCtx, serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
+		cancel()
+	}
+
 	auth := middleware.NewAuthClient(authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
