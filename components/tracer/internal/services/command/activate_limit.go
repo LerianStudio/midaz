@@ -16,6 +16,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -23,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -212,5 +215,17 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 		return nil, fmt.Errorf("failed to activate limit: %w", txErr)
 	}
 
+	c.emitLimitActivatedEvent(ctx, span, logger, limit)
+
 	return limit, nil
+}
+
+// emitLimitActivatedEvent publishes the limit.activated event post-commit. It is
+// not called on the idempotent already-active no-op (which skips the tx).
+// IMPORTANT posture: emit failures never fail the request.
+func (c *ActivateLimitCommand) emitLimitActivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitActivatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLimitActivated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
+		})
 }

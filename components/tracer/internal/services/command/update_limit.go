@@ -26,6 +26,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -258,7 +260,20 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return nil, fmt.Errorf("failed to update limit: %w", txErr)
 	}
 
+	c.emitLimitUpdatedEvent(ctx, span, logger, limit)
+
 	return limit, nil
+}
+
+// emitLimitUpdatedEvent publishes the limit.updated event post-commit. It is
+// called only at the committed-mutation return, never at the no-change
+// short-circuit (which skips the tx), so a no-op update emits nothing.
+// IMPORTANT posture: emit failures never fail the request.
+func (c *UpdateLimitCommand) emitLimitUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLimitUpdated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
+		})
 }
 
 func (c *UpdateLimitCommand) validateInput(span trace.Span, id uuid.UUID, input *UpdateLimitInput) error {
