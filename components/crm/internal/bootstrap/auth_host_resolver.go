@@ -4,7 +4,10 @@
 
 package bootstrap
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // authHostResolver resolves a service host, returning the fallback verbatim when
 // discovery is disabled or fails. *libsd.Manager satisfies this contract.
@@ -22,8 +25,24 @@ func resolveAuthHost(ctx context.Context, r authHostResolver, authEnabled bool, 
 	}
 
 	if resolved, err := r.Resolve(ctx, "plugin-auth", staticHost); err == nil {
-		return resolved
+		return withFallbackScheme(resolved, staticHost)
 	}
 
 	return staticHost
+}
+
+// withFallbackScheme returns resolved unchanged if it already carries a scheme
+// (contains "://"); otherwise, if staticHost carries a scheme, it prepends that
+// scheme to resolved so the auth client can reach it over the intended protocol.
+// Discovery returns a bare host:port; the static fallback carries the scheme.
+func withFallbackScheme(resolved, staticHost string) string {
+	if strings.Contains(resolved, "://") {
+		return resolved
+	}
+
+	if i := strings.Index(staticHost, "://"); i != -1 {
+		return staticHost[:i+len("://")] + resolved
+	}
+
+	return resolved
 }
