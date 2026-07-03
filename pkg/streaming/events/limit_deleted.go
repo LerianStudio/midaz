@@ -29,14 +29,8 @@ type LimitDeletedPayload struct {
 	DeletedAt string `json:"deletedAt"`
 }
 
-// NewLimitDeleted maps a soft-deleted limit into the wire payload.
-//
-// Unlike NewRuleDeleted, which takes primitives because the rule delete use
-// case returns no entity, the limit delete command mutates the in-memory
-// entity's DeletedAt (via SetStatus(DELETED, now)) before the tx, so this
-// domain constructor reads limit.DeletedAt directly. The nil-guard is
-// defensive: after SetStatus(DELETED) DeletedAt is always non-nil, but a nil
-// value must never panic — it falls back to an empty deletedAt.
+// NewLimitDeleted maps a soft-deleted limit into the wire payload. A nil
+// DeletedAt falls back to an empty deletedAt rather than panicking.
 func NewLimitDeleted(limit *model.Limit) LimitDeletedPayload {
 	deletedAt := ""
 	if limit.DeletedAt != nil {
@@ -49,9 +43,8 @@ func NewLimitDeleted(limit *model.Limit) LimitDeletedPayload {
 	}
 }
 
-// ToEmitRequest assembles a libStreaming.EmitRequest; ts is typically the
-// limit's delete time (DeletedAt/UpdatedAt, which SetStatus(DELETED) set to the
-// same instant).
+// ToEmitRequest assembles a libStreaming.EmitRequest; ts is the limit's delete
+// timestamp.
 func (p LimitDeletedPayload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error) {
 	data, err := json.Marshal(p)
 	if err != nil {

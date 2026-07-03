@@ -13,10 +13,11 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/twmb/franz-go/pkg/sasl"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // SASL mechanism names accepted by STREAMING_SASL_MECHANISM. Compared
@@ -93,6 +94,10 @@ func BuildStreamingEmitter(
 ) (libStreaming.Emitter, func() error, error) {
 	if cfg == nil {
 		return nil, noopStreamingCloser, fmt.Errorf("BuildStreamingEmitter: nil config")
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, noopStreamingCloser, err
 	}
 
 	_ = telemetry

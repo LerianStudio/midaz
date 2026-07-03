@@ -224,8 +224,6 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 
 // emitLimitDeletedEvent publishes the limit.deleted event post-commit. It is
 // not called on the idempotent already-deleted no-op (which skips the tx).
-// The domain constructor reads limit.DeletedAt, populated by SetStatus(DELETED)
-// before the tx; ts is limit.UpdatedAt, which SetStatus set to the same instant.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *DeleteLimitCommand) emitLimitDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
 	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeletedDefinition.Key(),

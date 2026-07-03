@@ -15,8 +15,7 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 - **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v1.6.2.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka/Redpanda.
 - **Component:** tracer (`components/tracer`). Tracer is a standalone Go service
-  (like CRM in structure, unlike fees which is folded into ledger); it owns its
-  own self-contained emitter bootstrap at
+  with its own self-contained emitter bootstrap at
   `components/tracer/internal/bootstrap/streaming.go`.
 - **CloudEvents source (`ce-source`):** `lerian.midaz.tracer` (set on the
   producer Builder at construction; there is no per-emit source).
