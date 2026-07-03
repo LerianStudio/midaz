@@ -17,6 +17,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -88,6 +89,12 @@ type CreateRuleCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming publishes past-tense domain events to external consumers. It
+	// holds the Emitter interface (never *libStreaming.Producer) so unit tests
+	// substitute a mock or noop emitter without a broker. optional; nil disables
+	// emission and never fails the request. Set post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewCreateRuleCommand creates a new CreateRuleCommand instance.

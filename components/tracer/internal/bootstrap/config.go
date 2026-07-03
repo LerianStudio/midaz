@@ -917,7 +917,7 @@ func initPostgresConnection(ctx context.Context, cfg *Config, logger libLog.Logg
 // The txBeginner is shared with the limit lifecycle commands and the validation
 // service so the rule lifecycle commands persist the status/update and the
 // audit event atomically via executeInTx.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock, txBeginner pgdb.TxBeginner) (*services.RuleService, error) {
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
 
 	// Inject audit writer and cache writer into Rule commands
@@ -926,30 +926,42 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 		return nil, fmt.Errorf("failed to construct CreateRuleCommand: %w", err)
 	}
 
+	createRuleCmd.Streaming = streaming
+
 	updateRuleCmd, err := command.NewUpdateRuleCommand(ruleRepo, celCompiler, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct UpdateRuleCommand: %w", err)
 	}
+
+	updateRuleCmd.Streaming = streaming
 
 	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, cacheWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate rule service: %w", err)
 	}
 
+	activateRuleCmd.Streaming = streaming
+
 	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, cacheWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deactivate rule service: %w", err)
 	}
+
+	deactivateRuleCmd.Streaming = streaming
 
 	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft rule service: %w", err)
 	}
 
+	draftRuleCmd.Streaming = streaming
+
 	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete rule service: %w", err)
 	}
+
+	deleteRuleCmd.Streaming = streaming
 
 	getRuleQuery := query.NewGetRuleQuery(ruleRepo)
 	listRulesQuery := query.NewListRulesQuery(ruleRepo)
@@ -1025,7 +1037,7 @@ type limitServiceDeps struct {
 // tenant pool fails fast in MT mode rather than silently using root (M1).
 // The txBeginner is shared with the validation service so the limit lifecycle
 // commands persist the status/update and the audit event atomically.
-func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner) (*limitServiceDeps, error) {
+func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepositoryWithConnection(pgConn)
 
 	usageCounterRepo := postgres.NewUsageCounterRepositoryWithConnection(pgConn)
@@ -1035,30 +1047,42 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 		return nil, fmt.Errorf("failed to construct CreateLimitCommand: %w", err)
 	}
 
+	createLimitCmd.Streaming = streaming
+
 	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create update limit command: %w", err)
 	}
+
+	updateLimitCmd.Streaming = streaming
 
 	activateLimitCmd, err := command.NewActivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate limit command: %w", err)
 	}
 
+	activateLimitCmd.Streaming = streaming
+
 	deactivateLimitCmd, err := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deactivate limit command: %w", err)
 	}
+
+	deactivateLimitCmd.Streaming = streaming
 
 	draftLimitCmd, err := command.NewDraftLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft limit command: %w", err)
 	}
 
+	draftLimitCmd.Streaming = streaming
+
 	deleteLimitCmd, err := command.NewDeleteLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete limit command: %w", err)
 	}
+
+	deleteLimitCmd.Streaming = streaming
 
 	getLimitQuery := query.NewGetLimitQuery(limitRepo)
 
@@ -1862,7 +1886,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Rule service with audit writer and rule cache for synchronous cache updates
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk, txBeginner)
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
 	}
@@ -1886,7 +1910,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(pgConn, auditWriter, clk, txBeginner)
+	limitDeps, err := initLimitService(pgConn, auditWriter, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
 	}
