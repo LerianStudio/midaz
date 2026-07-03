@@ -734,8 +734,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	serviceDescriptor := buildLedgerServiceDescriptor(serverPort)
 
-	// Auth
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
+	// Auth: resolve plugin-auth through service discovery, degrading to the
+	// static host on any resolve failure so a discovery outage never fails boot.
+	authHost := resolveAuthHost(context.Background(), serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
+	auth := middleware.NewAuthClient(authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
 
