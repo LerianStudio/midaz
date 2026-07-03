@@ -288,9 +288,8 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 // Kept as a single source of truth so adding a new event is a one-place
 // change.
 //
-// Registers the Rule lifecycle events (created, updated, activated,
-// deactivated, drafted, deleted). Limit lifecycle events land here in a
-// later phase.
+// Registers the full Rule and Limit lifecycle events (created, updated,
+// activated, deactivated, drafted, deleted) — six per resource, twelve total.
 func tracerEventDefinitions() []events.Definition {
 	return []events.Definition{
 		events.RuleCreatedDefinition,
@@ -299,6 +298,12 @@ func tracerEventDefinitions() []events.Definition {
 		events.RuleDeactivatedDefinition,
 		events.RuleDraftedDefinition,
 		events.RuleDeletedDefinition,
+		events.LimitCreatedDefinition,
+		events.LimitUpdatedDefinition,
+		events.LimitActivatedDefinition,
+		events.LimitDeactivatedDefinition,
+		events.LimitDraftedDefinition,
+		events.LimitDeletedDefinition,
 	}
 }
 

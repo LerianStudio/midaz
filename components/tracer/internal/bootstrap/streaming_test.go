@@ -21,7 +21,7 @@ import (
 var noopEmitterReference = libStreaming.NewNoopEmitter()
 
 // expectedRuleEventKeys is the canonical set of event keys tracer registers
-// for the Rule lifecycle (Phase 2). Limit events (Phase 3) extend this set.
+// for the Rule lifecycle (Phase 2).
 var expectedRuleEventKeys = []string{
 	"rule.created",
 	"rule.updated",
@@ -31,26 +31,44 @@ var expectedRuleEventKeys = []string{
 	"rule.deleted",
 }
 
-// TestTracerEventDefinitions_CoversRuleLifecycle locks the Phase-2 contract:
-// tracerEventDefinitions() registers exactly the six Rule lifecycle events,
-// in the fixed order, with no extra and none missing. This is the single
-// source of truth that feeds both the catalog and the routes.
-func TestTracerEventDefinitions_CoversRuleLifecycle(t *testing.T) {
+// expectedLimitEventKeys is the canonical set of event keys tracer registers
+// for the Limit lifecycle (Phase 3).
+var expectedLimitEventKeys = []string{
+	"limit.created",
+	"limit.updated",
+	"limit.activated",
+	"limit.deactivated",
+	"limit.drafted",
+	"limit.deleted",
+}
+
+// expectedAllEventKeys is the full ordered set of the twelve lifecycle events
+// tracer registers (six Rule, then six Limit). This is the drift lock the
+// catalog/routes/bijection tests assert against.
+var expectedAllEventKeys = append(append([]string{}, expectedRuleEventKeys...), expectedLimitEventKeys...)
+
+// TestTracerEventDefinitions_CoversAllLifecycles locks the Phase-3 contract:
+// tracerEventDefinitions() registers exactly the twelve lifecycle events (six
+// Rule, then six Limit), in the fixed order, with no extra and none missing.
+// This is the single source of truth that feeds both the catalog and the
+// routes.
+func TestTracerEventDefinitions_CoversAllLifecycles(t *testing.T) {
 	t.Parallel()
 
 	defs := tracerEventDefinitions()
-	require.Len(t, defs, len(expectedRuleEventKeys),
-		"tracerEventDefinitions must register exactly the six Rule lifecycle events")
+	require.Len(t, defs, len(expectedAllEventKeys),
+		"tracerEventDefinitions must register exactly the twelve lifecycle events")
 
 	actualKeys := make([]string, 0, len(defs))
 	for _, d := range defs {
 		actualKeys = append(actualKeys, d.Key())
 	}
 
-	// Order is part of the contract (created, updated, activated,
-	// deactivated, drafted, deleted).
-	assert.Equal(t, expectedRuleEventKeys, actualKeys,
-		"tracerEventDefinitions must return the Rule events in the fixed order")
+	// Order is part of the contract: six Rule events (created, updated,
+	// activated, deactivated, drafted, deleted) then six Limit events in the
+	// same order.
+	assert.Equal(t, expectedAllEventKeys, actualKeys,
+		"tracerEventDefinitions must return the Rule then Limit events in the fixed order")
 }
 
 // TestBuildStreamingEmitter_DisabledReturnsNoop covers the master-flag-off
@@ -170,41 +188,41 @@ func TestBuildLiveStreamingEmitter_BuildsWithRuleCatalog(t *testing.T) {
 	assert.NoError(t, closer())
 }
 
-// TestBuildCatalog_CoversRuleLifecycle exercises buildCatalog against the
-// populated Rule definition set: it must succeed and register exactly one
-// entry per Rule event, each looked up by its canonical key.
-func TestBuildCatalog_CoversRuleLifecycle(t *testing.T) {
+// TestBuildCatalog_CoversAllLifecycles exercises buildCatalog against the
+// populated Rule + Limit definition set: it must succeed and register exactly
+// one entry per event, each looked up by its canonical key.
+func TestBuildCatalog_CoversAllLifecycles(t *testing.T) {
 	t.Parallel()
 
 	catalog, err := buildCatalog()
 	require.NoError(t, err)
 	require.NotNil(t, catalog)
-	assert.Equal(t, len(expectedRuleEventKeys), catalog.Len(),
-		"catalog must hold one entry per Rule event")
+	assert.Equal(t, len(expectedAllEventKeys), catalog.Len(),
+		"catalog must hold one entry per lifecycle event")
 
-	for _, key := range expectedRuleEventKeys {
+	for _, key := range expectedAllEventKeys {
 		_, ok := catalog.Lookup(key)
 		assert.Truef(t, ok, "catalog must register key %q", key)
 	}
 }
 
-// TestBuildRoutes_CoversRuleLifecycle exercises buildRoutes against the
-// populated Rule definition set: one required route per event, each keyed
-// "<event>.<target>" and pointing at the canonical
+// TestBuildRoutes_CoversAllLifecycles exercises buildRoutes against the
+// populated Rule + Limit definition set: one required route per event, each
+// keyed "<event>.<target>" and pointing at the canonical
 // "lerian.streaming.<event>" Kafka topic.
-func TestBuildRoutes_CoversRuleLifecycle(t *testing.T) {
+func TestBuildRoutes_CoversAllLifecycles(t *testing.T) {
 	t.Parallel()
 
 	routes := buildRoutes(streamingPrimaryTargetName)
-	require.Len(t, routes, len(expectedRuleEventKeys),
-		"one route per Rule event")
+	require.Len(t, routes, len(expectedAllEventKeys),
+		"one route per lifecycle event")
 
 	byDefKey := make(map[string]libStreaming.RouteDefinition, len(routes))
 	for _, r := range routes {
 		byDefKey[r.DefinitionKey] = r
 	}
 
-	for _, key := range expectedRuleEventKeys {
+	for _, key := range expectedAllEventKeys {
 		r, ok := byDefKey[key]
 		require.Truef(t, ok, "missing route for %q", key)
 		assert.Equal(t, key+"."+streamingPrimaryTargetName, r.Key,
@@ -220,12 +238,14 @@ func TestBuildRoutes_CoversRuleLifecycle(t *testing.T) {
 // exact 1:1:1 bijection between the registered event definitions, the
 // catalog entries, and the route table — no event registered without a
 // route, no route pointing at an unregistered event (ghost topic), and no
-// count drift between the three. Phase 3 extends this to all 12 events.
+// count drift between the three. It locks all twelve events (six Rule, six
+// Limit).
 func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 	t.Parallel()
 
 	defs := tracerEventDefinitions()
-	require.NotEmpty(t, defs, "tracer must register at least the Rule events")
+	require.Len(t, defs, len(expectedAllEventKeys),
+		"tracer must register all twelve lifecycle events")
 
 	catalog, err := buildCatalog()
 	require.NoError(t, err)
@@ -277,6 +297,7 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 
 	// Guard against a stale reference to the events package import.
 	assert.Equal(t, "rule.created", events.RuleCreatedDefinition.Key())
+	assert.Equal(t, "limit.created", events.LimitCreatedDefinition.Key())
 }
 
 // TestResolveStreamingSource locks the CloudEvents source resolution
