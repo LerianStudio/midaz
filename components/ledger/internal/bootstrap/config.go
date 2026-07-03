@@ -716,47 +716,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
-	// Service discovery: build the Manager (no-op when disabled) before the
-	// auth client so we can resolve plugin-auth through it.
-	serviceDiscovery, serviceDiscoveryEnabled, err := pkgsd.BuildManager(logger)
+	// Service discovery: build the Manager (no-op when disabled), parse the
+	// advertised port + descriptor (gated on enabled), and resolve plugin-auth
+	// through discovery — all in one helper mirrored on the CRM side.
+	sd, err := wireServiceDiscovery(cfg, logger)
 	if err != nil {
 		doCleanup()
 
 		return nil, err
 	}
 
-	// Build the registry descriptor ONLY when discovery is enabled: the descriptor
-	// is consumed solely by the discovery runnable (also wired only when enabled),
-	// so parsing the port with discovery off would let a malformed SERVER_ADDRESS
-	// abort boot for no reason. Left zero-value when disabled — boot parity with
-	// pre-discovery behavior.
-	var serviceDescriptor libsd.Service
-
-	if serviceDiscoveryEnabled {
-		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
-		if portErr != nil {
-			doCleanup()
-
-			return nil, portErr
-		}
-
-		serviceDescriptor = pkgsd.BuildServiceDescriptor("midaz-ledger", serverPort)
-	}
-
-	// Auth: resolve plugin-auth through service discovery, degrading to the
-	// static host on any resolve failure so a discovery outage never fails boot.
-	// The resolve timeout is created only when auth is enabled — with auth off
-	// ResolveAuthHost returns the static host without touching the context, so
-	// building a timer/cancel would be wasted work.
-	authHost := cfg.AuthHost
-	if cfg.AuthEnabled {
-		sdResolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
-		authHost = pkgsd.ResolveAuthHost(sdResolveCtx, serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
-
-		cancel()
-	}
-
-	auth := middleware.NewAuthClient(authHost, cfg.AuthEnabled, nil)
+	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
 
@@ -849,9 +819,62 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
-		ServiceDiscovery:         serviceDiscovery,
-		ServiceDiscoveryEnabled:  serviceDiscoveryEnabled,
-		ServiceDescriptor:        serviceDescriptor,
+		ServiceDiscovery:         sd.manager,
+		ServiceDiscoveryEnabled:  sd.enabled,
+		ServiceDescriptor:        sd.descriptor,
+	}, nil
+}
+
+// serviceDiscoveryWiring holds the service-discovery outputs consumed by the
+// composition root: the Manager, whether discovery is enabled, the descriptor to
+// register, and the plugin-auth host resolved (or degraded) via discovery.
+type serviceDiscoveryWiring struct {
+	manager    *libsd.Manager
+	enabled    bool
+	descriptor libsd.Service
+	authHost   string
+}
+
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration) and resolves the plugin-auth host — degrading to the static
+// PLUGIN_AUTH_ADDRESS when auth is disabled or resolution fails so a discovery
+// outage never fails boot.
+//
+// The advertised port is parsed and the descriptor built ONLY when discovery is
+// enabled: the descriptor is consumed solely by the discovery runnable (wired
+// only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
+// discovery off. The resolve timeout is created only when auth is enabled, since
+// ResolveAuthHost returns the static host without touching the context otherwise.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWiring, error) {
+	manager, enabled, err := pkgsd.BuildManager(logger)
+	if err != nil {
+		return serviceDiscoveryWiring{}, err
+	}
+
+	var descriptor libsd.Service
+
+	if enabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			return serviceDiscoveryWiring{}, portErr
+		}
+
+		descriptor = pkgsd.BuildServiceDescriptor("midaz-ledger", serverPort)
+	}
+
+	authHost := cfg.AuthHost
+	if cfg.AuthEnabled {
+		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost)
+
+		cancel()
+	}
+
+	return serviceDiscoveryWiring{
+		manager:    manager,
+		enabled:    enabled,
+		descriptor: descriptor,
+		authHost:   authHost,
 	}, nil
 }
 

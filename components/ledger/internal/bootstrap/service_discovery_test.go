@@ -7,8 +7,10 @@ package bootstrap
 import (
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-observability/log"
 	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // launcherAppNames extracts the ordered display names from the service's
@@ -41,4 +43,23 @@ func TestService_launcherApps_ServiceDiscoveryGuard(t *testing.T) {
 	}
 	assert.Contains(t, launcherAppNames(enabled), "Service Discovery",
 		"enabled service must register the Service Discovery app")
+}
+
+// TestWireServiceDiscovery_DisabledIgnoresMalformedServerAddress locks Fix #1:
+// with discovery disabled, the advertised port is never parsed, so a malformed
+// SERVER_ADDRESS must NOT abort boot. The descriptor is left zero-value.
+func TestWireServiceDiscovery_DisabledIgnoresMalformedServerAddress(t *testing.T) {
+	t.Setenv("SD_ENABLED", "")
+	t.Setenv("SERVICE_DISCOVERY_ENABLED", "")
+
+	cfg := &Config{ServerAddress: "not-a-valid-address", AuthEnabled: false, AuthHost: "http://plugin-auth:4000"}
+
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop())
+
+	require.NoError(t, err, "malformed SERVER_ADDRESS must not fail boot when discovery is disabled")
+	require.False(t, sd.enabled)
+	require.NotNil(t, sd.manager)
+	assert.Empty(t, sd.descriptor.ID, "descriptor must stay zero-value when discovery is disabled")
+	// Fix #5: auth disabled returns the static host without resolving.
+	assert.Equal(t, "http://plugin-auth:4000", sd.authHost)
 }
