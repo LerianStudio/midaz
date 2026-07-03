@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -71,13 +72,15 @@ func noopStreamingCloser() error { return nil }
 //     pilot) the function returns libStreaming.NewNoopEmitter() and a no-op
 //     close hook. No transport client is constructed and no broker
 //     connection is attempted.
-//   - When STREAMING_BROKERS is empty (LoadConfig surfaces this as an empty
-//     Brokers slice) the function ALSO returns a NoopEmitter — the Builder
-//     would otherwise reject construction with a missing-Brokers error.
-//   - When tracerEventDefinitions() is empty (the Phase-1 state: tracer
-//     emits no events yet) the function returns a NoopEmitter. An empty
-//     catalog can never build a live producer, so this is the live path
-//     today and is expected.
+//   - When STREAMING_BROKERS is empty, libStreaming.LoadConfig fails closed
+//     with ErrMissingBrokers. The function treats that as an
+//     operator-correctable misconfiguration and degrades to a NoopEmitter
+//     (no error, Warn logged) rather than aborting bootstrap. Any OTHER
+//     LoadConfig failure propagates as a wrapped error.
+//   - When tracerEventDefinitions() is empty the function returns a
+//     NoopEmitter. An empty catalog can never build a live producer; this
+//     is a defensive guard so a future edit that empties the definition set
+//     degrades to Noop rather than failing bootstrap.
 //   - Otherwise the function builds a single-target catalog-first Producer
 //     via libStreaming.NewBuilder(), wiring the tracer CloudEvents source
 //     onto the Builder and registering all tracer event definitions in the
@@ -102,9 +105,9 @@ func BuildStreamingEmitter(
 		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
 	}
 
-	// An empty catalog can never build a live producer. In Phase 1 tracer
-	// emits no events, so this guard is the live path — guarding here keeps
-	// the Builder from being reached with zero routes.
+	// An empty catalog can never build a live producer. Defensive guard so a
+	// future edit that empties the definition set degrades to Noop rather
+	// than reaching the Builder with zero routes.
 	if len(tracerEventDefinitions()) == 0 {
 		if logger != nil {
 			logger.Log(ctx, libLog.LevelInfo,
@@ -120,6 +123,19 @@ func BuildStreamingEmitter(
 	// the zero value of the struct.
 	streamingCfg, warnings, err := libStreaming.LoadConfig()
 	if err != nil {
+		// A missing broker list is an operator-correctable misconfiguration,
+		// not a reason to abort bootstrap: degrade to a NoopEmitter so the
+		// service starts with streaming disabled. Any OTHER LoadConfig
+		// failure is a genuine config error and propagates.
+		if errors.Is(err, libStreaming.ErrMissingBrokers) {
+			if logger != nil {
+				logger.Log(ctx, libLog.LevelWarn,
+					"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
+			}
+
+			return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
+		}
+
 		return nil, noopStreamingCloser, fmt.Errorf("failed to load streaming config: %w", err)
 	}
 
@@ -127,15 +143,6 @@ func BuildStreamingEmitter(
 		for _, warning := range warnings {
 			logger.Log(ctx, libLog.LevelWarn, "Streaming config warning: "+warning)
 		}
-	}
-
-	if len(streamingCfg.Brokers) == 0 {
-		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn,
-				"STREAMING_ENABLED=true but STREAMING_BROKERS is empty; falling back to NoopEmitter")
-		}
-
-		return libStreaming.NewNoopEmitter(), noopStreamingCloser, nil
 	}
 
 	return buildLiveStreamingEmitter(ctx, cfg, logger, streamingCfg)
@@ -281,10 +288,18 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 // Kept as a single source of truth so adding a new event is a one-place
 // change.
 //
-// Empty in Phase 1: tracer emits no events yet. Tracer events (e.g.
-// validation/rule/limit lifecycle) are added here in later phases (2/3).
+// Registers the Rule lifecycle events (created, updated, activated,
+// deactivated, drafted, deleted). Limit lifecycle events land here in a
+// later phase.
 func tracerEventDefinitions() []events.Definition {
-	return []events.Definition{}
+	return []events.Definition{
+		events.RuleCreatedDefinition,
+		events.RuleUpdatedDefinition,
+		events.RuleActivatedDefinition,
+		events.RuleDeactivatedDefinition,
+		events.RuleDraftedDefinition,
+		events.RuleDeletedDefinition,
+	}
 }
 
 // buildCatalog constructs the immutable lib-streaming Catalog from
