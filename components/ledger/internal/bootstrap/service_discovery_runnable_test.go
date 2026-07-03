@@ -5,11 +5,191 @@
 package bootstrap
 
 import (
+	"context"
+	"errors"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// stubRegistry is an in-memory libsd.Registry that records Register/Deregister
+// calls so lifecycle tests can assert the runnable drives the manager without a
+// real Consul. registerErr / deregisterErr let a test exercise failure paths.
+type stubRegistry struct {
+	mu            sync.Mutex
+	registered    []libsd.Service
+	deregistered  []string
+	registerErr   error
+	deregisterErr error
+
+	// registeredCh receives once on the first Register call so a test can wait
+	// for the async RegisterAsync goroutine to land before simulating SIGTERM.
+	registeredCh chan struct{}
+}
+
+func (s *stubRegistry) Register(_ context.Context, svc libsd.Service) error {
+	s.mu.Lock()
+	s.registered = append(s.registered, svc)
+	first := len(s.registered) == 1
+	err := s.registerErr
+	s.mu.Unlock()
+
+	if first && s.registeredCh != nil {
+		s.registeredCh <- struct{}{}
+	}
+
+	return err
+}
+
+func (s *stubRegistry) Deregister(_ context.Context, serviceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.deregistered = append(s.deregistered, serviceID)
+
+	return s.deregisterErr
+}
+
+func (s *stubRegistry) Resolve(_ context.Context, _, _ string) (libsd.Service, error) {
+	return libsd.Service{}, errors.New("not implemented")
+}
+
+func (s *stubRegistry) Watch(_ context.Context, _ string) (<-chan libsd.Event, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *stubRegistry) registeredServices() []libsd.Service {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]libsd.Service, len(s.registered))
+	copy(out, s.registered)
+
+	return out
+}
+
+func (s *stubRegistry) deregisteredIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]string, len(s.deregistered))
+	copy(out, s.deregistered)
+
+	return out
+}
+
+// newStubManager builds an enabled libsd.Manager backed by stub so Register /
+// Deregister actually run through the manager against the stub registry. A
+// non-empty AdvertiseAddr is required for the enabled config to validate.
+func newStubManager(t *testing.T, stub libsd.Registry) *libsd.Manager {
+	t.Helper()
+
+	mgr, err := libsd.New(
+		libsd.Config{Enabled: true, ConsulAddr: "consul:8500", AdvertiseAddr: "ledger.test:3002"},
+		libsd.WithLogger(newTestLogger()),
+		libsd.WithRegistry(stub),
+	)
+	require.NoError(t, err)
+
+	return mgr
+}
+
+// TestServiceDiscoveryRunnable_Lifecycle exercises the full register/deregister
+// path of Run without a real Consul: RegisterAsync must record a Register with
+// the descriptor's ID/Name/Port/TTL, and simulated SIGTERM (context cancel) must
+// trigger a Deregister with the SAME ID.
+func TestServiceDiscoveryRunnable_Lifecycle(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubRegistry{registeredCh: make(chan struct{}, 1)}
+	mgr := newStubManager(t, stub)
+	svc := buildLedgerServiceDescriptor(3002)
+
+	sigCtx, cancel := context.WithCancel(context.Background())
+
+	r := &serviceDiscoveryRunnable{
+		manager: mgr,
+		svc:     svc,
+		logger:  newTestLogger(),
+		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+			return sigCtx, func() {}
+		},
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- r.Run(nil) }()
+
+	// Wait for the async RegisterAsync goroutine to land its Register before
+	// simulating SIGTERM. Register succeeds on attempt 0, so that goroutine then
+	// returns cleanly — no leak for goleak to catch.
+	select {
+	case <-stub.registeredCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("RegisterAsync did not call Register within timeout")
+	}
+
+	// Simulate SIGTERM so Run unblocks from <-sigCtx.Done() and deregisters.
+	cancel()
+
+	require.NoError(t, <-done)
+
+	registered := stub.registeredServices()
+	require.Len(t, registered, 1)
+	assert.Equal(t, "midaz-ledger-3002", registered[0].ID)
+	assert.Equal(t, "midaz-ledger", registered[0].Name)
+	assert.Equal(t, 3002, registered[0].Port)
+	require.NotNil(t, registered[0].HealthCheck)
+	assert.Equal(t, "30s", registered[0].HealthCheck.TTL)
+
+	deregistered := stub.deregisteredIDs()
+	require.Len(t, deregistered, 1)
+	assert.Equal(t, "midaz-ledger-3002", deregistered[0])
+}
+
+// TestServiceDiscoveryRunnable_DeregisterErrorSwallowed verifies a deregister
+// failure is logged at Warn and NOT propagated: Run still returns nil.
+func TestServiceDiscoveryRunnable_DeregisterErrorSwallowed(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubRegistry{
+		deregisterErr: errors.New("consul unreachable"),
+		registeredCh:  make(chan struct{}, 1),
+	}
+	mgr := newStubManager(t, stub)
+	svc := buildLedgerServiceDescriptor(3002)
+
+	sigCtx, cancel := context.WithCancel(context.Background())
+
+	r := &serviceDiscoveryRunnable{
+		manager: mgr,
+		svc:     svc,
+		logger:  newTestLogger(),
+		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+			return sigCtx, func() {}
+		},
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- r.Run(nil) }()
+
+	select {
+	case <-stub.registeredCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("RegisterAsync did not call Register within timeout")
+	}
+
+	cancel()
+
+	require.NoError(t, <-done, "deregister error must be swallowed, not propagated")
+	assert.Equal(t, []string{"midaz-ledger-3002"}, stub.deregisteredIDs())
+}
 
 func TestParseServerPort(t *testing.T) {
 	t.Parallel()
@@ -19,24 +199,24 @@ func TestParseServerPort(t *testing.T) {
 		address     string
 		wantPort    int
 		expectError bool
+		errContains string
 	}{
 		{name: "leading colon form", address: ":3002", wantPort: 3002},
 		{name: "host and port", address: "0.0.0.0:8080", wantPort: 8080},
 		{name: "localhost and port", address: "localhost:3011", wantPort: 3011},
-		{name: "missing colon", address: "3002", expectError: true},
-		{name: "non-numeric port", address: ":bad", expectError: true},
-		{name: "empty", address: "", expectError: true},
+		{name: "missing colon", address: "3002", expectError: true, errContains: "parsing server address"},
+		{name: "empty", address: "", expectError: true, errContains: "parsing server address"},
+		{name: "non-numeric port", address: ":bad", expectError: true, errContains: "invalid syntax"},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			port, err := parseServerPort(tc.address)
 
 			if tc.expectError {
-				require.Error(t, err)
+				require.ErrorContains(t, err, tc.errContains)
 				return
 			}
 
@@ -73,27 +253,44 @@ func TestBuildLedgerServiceDescriptor_IDReflectsPort(t *testing.T) {
 
 // TestServiceDiscoveryRunnable_NilManagerNoOp verifies the runnable returns
 // immediately when the manager is nil, before installing any signal handler or
-// spawning goroutines. Keeps the guard branch goleak-safe.
+// spawning goroutines. Also asserts it is a true no-op: nothing registered or
+// deregistered. Keeps the guard branch goleak-safe.
 func TestServiceDiscoveryRunnable_NilManagerNoOp(t *testing.T) {
 	t.Parallel()
 
+	stub := &stubRegistry{}
 	r := &serviceDiscoveryRunnable{manager: nil, logger: newTestLogger()}
 
 	require.NoError(t, r.Run(nil))
+	assert.Empty(t, stub.registeredServices())
+	assert.Empty(t, stub.deregisteredIDs())
 }
 
-// TestService_Run_ServiceDiscoveryBootParity verifies that when discovery is
-// disabled the "Service Discovery" Launcher entry is not registered, preserving
-// strict boot parity. It inspects the wiring guard directly rather than calling
-// the blocking Run().
-func TestService_Run_ServiceDiscoveryBootParity(t *testing.T) {
+// launcherAppNames extracts the ordered display names from the service's
+// assembled Launcher apps so a test can assert on the guard-driven set.
+func launcherAppNames(s *Service) []string {
+	apps := s.launcherApps()
+	names := make([]string, len(apps))
+
+	for i, a := range apps {
+		names[i] = a.name
+	}
+
+	return names
+}
+
+// TestService_launcherApps_ServiceDiscoveryGuard asserts the observable effect
+// of the s.ServiceDiscoveryEnabled guard: the "Service Discovery" launcher app is
+// present IFF discovery is enabled. Inspects the assembled app list rather than
+// starting the blocking Run().
+func TestService_launcherApps_ServiceDiscoveryGuard(t *testing.T) {
 	t.Parallel()
 
 	disabled := &Service{ServiceDiscoveryEnabled: false}
-	enabled := &Service{ServiceDiscoveryEnabled: true}
+	assert.NotContains(t, launcherAppNames(disabled), "Service Discovery",
+		"disabled service must not register the Service Discovery app")
 
-	assert.False(t, disabled.ServiceDiscoveryEnabled,
-		"disabled service must not add the Service Discovery runnable")
-	assert.True(t, enabled.ServiceDiscoveryEnabled,
-		"enabled service adds the Service Discovery runnable")
+	enabled := &Service{ServiceDiscoveryEnabled: true, ServiceDescriptor: buildLedgerServiceDescriptor(3002)}
+	assert.Contains(t, launcherAppNames(enabled), "Service Discovery",
+		"enabled service must register the Service Discovery app")
 }

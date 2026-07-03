@@ -75,67 +75,95 @@ func (s *Service) Run() {
 		libCommons.WithLogger(s.Logger),
 	}
 
-	// Service discovery: register before the HTTP server so deregister runs
-	// ahead of the server closing on shutdown. Registered only when discovery
-	// is enabled to preserve boot parity — no extra Launcher entry / goroutine
-	// otherwise. TTL expiry is the backstop if deregister is missed.
-	if s.ServiceDiscoveryEnabled {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Service Discovery",
-			&serviceDiscoveryRunnable{
-				manager: s.ServiceDiscovery,
-				svc:     s.ServiceDescriptor,
-				logger:  s.Logger,
-			}))
+	for _, app := range s.launcherApps() {
+		launcherOpts = append(launcherOpts, libCommons.RunApp(app.name, app.app))
 	}
 
-	launcherOpts = append(launcherOpts, libCommons.RunApp("Unified HTTP Server", s.UnifiedServer))
+	libCommons.NewLauncher(launcherOpts...).Run()
+}
+
+// launcherApp pairs a Launcher app with its display name so the assembly order
+// and the enable/disable guards are inspectable by tests without starting the
+// blocking Launcher.
+type launcherApp struct {
+	name string
+	app  libCommons.App
+}
+
+// launcherApps assembles the ordered Launcher apps for this service, applying the
+// same enable/disable guards Run() relies on. Apps run CONCURRENTLY under the
+// Launcher, so this order does not sequence execution — it only fixes assembly.
+func (s *Service) launcherApps() []launcherApp {
+	apps := make([]launcherApp, 0)
+
+	// Service discovery: registered only when discovery is enabled to preserve
+	// boot parity — no extra Launcher entry / goroutine otherwise. Ordering is
+	// best-effort only; the 30s TTL on the descriptor is the real guarantee that
+	// a stale instance drops out of the registry if deregister is missed.
+	if s.ServiceDiscoveryEnabled {
+		apps = append(apps, launcherApp{"Service Discovery", &serviceDiscoveryRunnable{
+			manager: s.ServiceDiscovery,
+			svc:     s.ServiceDescriptor,
+			logger:  s.Logger,
+		}})
+	}
+
+	apps = append(apps, launcherApp{"Unified HTTP Server", s.UnifiedServer})
 
 	// RabbitMQ consumer (single-tenant or multi-tenant)
 	if s.MultiQueueConsumer != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("RabbitMQ Consumer", s.MultiQueueConsumer))
+		apps = append(apps, launcherApp{"RabbitMQ Consumer", s.MultiQueueConsumer})
 	}
 
 	if s.MultiTenantConsumer != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Multi-Tenant RabbitMQ Consumer",
-			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory}))
+		apps = append(apps, launcherApp{
+			"Multi-Tenant RabbitMQ Consumer",
+			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory},
+		})
 	}
 
 	// Redis queue consumer
 	if s.RedisQueueConsumer != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Redis Queue Consumer", s.RedisQueueConsumer))
+		apps = append(apps, launcherApp{"Redis Queue Consumer", s.RedisQueueConsumer})
 	}
 
 	// Balance sync worker (optional, started when configured)
 	if s.BalanceSyncWorker != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Balance Sync Worker", s.BalanceSyncWorker))
+		apps = append(apps, launcherApp{"Balance Sync Worker", s.BalanceSyncWorker})
 	}
 
 	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries
 	if s.LegacyBalanceSyncDrainer != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Legacy Balance Sync Drainer", s.LegacyBalanceSyncDrainer))
+		apps = append(apps, launcherApp{"Legacy Balance Sync Drainer", s.LegacyBalanceSyncDrainer})
 	}
 
 	// Tenant event listener (Redis Pub/Sub)
 	if s.EventListener != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Tenant Event Listener",
-			&eventListenerRunnable{listener: s.EventListener}))
+		apps = append(apps, launcherApp{
+			"Tenant Event Listener",
+			&eventListenerRunnable{listener: s.EventListener},
+		})
 	}
 
 	// Circuit breaker health checker
 	if s.CircuitBreakerManager != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Circuit Breaker Health Checker",
-			NewCircuitBreakerRunnable(s.CircuitBreakerManager)))
+		apps = append(apps, launcherApp{
+			"Circuit Breaker Health Checker",
+			NewCircuitBreakerRunnable(s.CircuitBreakerManager),
+		})
 	}
 
-	// Streaming producer: register only when streaming is actually enabled
-	// AND we have a non-nil close hook. The NoopEmitter path is skipped to
-	// keep the Launcher app list lean.
+	// Streaming producer: register only when streaming is actually enabled AND we
+	// have a non-nil close hook. The NoopEmitter path is skipped to keep the
+	// Launcher app list lean.
 	if s.StreamingEnabled && s.StreamingClose != nil {
-		launcherOpts = append(launcherOpts, libCommons.RunApp("Streaming Producer",
-			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger}))
+		apps = append(apps, launcherApp{
+			"Streaming Producer",
+			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger},
+		})
 	}
 
-	libCommons.NewLauncher(launcherOpts...).Run()
+	return apps
 }
 
 // streamingProducerRunnable adapts the lib-streaming Producer's Close hook
@@ -207,6 +235,11 @@ type serviceDiscoveryRunnable struct {
 	manager *libsd.Manager
 	svc     libsd.Service
 	logger  libLog.Logger
+
+	// notifyContext builds the signal-scoped context that gates the runnable's
+	// lifetime. It defaults to signal.NotifyContext in production; tests inject a
+	// factory returning a context they cancel to simulate SIGTERM deterministically.
+	notifyContext func(context.Context, ...os.Signal) (context.Context, context.CancelFunc)
 }
 
 // Run registers the service asynchronously against the signal-scoped context,
@@ -217,7 +250,12 @@ func (r *serviceDiscoveryRunnable) Run(_ *libCommons.Launcher) error {
 		return nil
 	}
 
-	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	notify := r.notifyContext
+	if notify == nil {
+		notify = signal.NotifyContext
+	}
+
+	sigCtx, stop := notify(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// RegisterAsync is non-blocking and retries in the background until sigCtx
