@@ -196,17 +196,14 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 
 // TestRunnable_NilManagerNoOp verifies the runnable returns immediately when the
 // manager is nil, before installing any signal handler or spawning goroutines.
-// Also asserts it is a true no-op: nothing registered or deregistered. Keeps the
-// guard branch goleak-safe.
+// nil manager -> Run returns nil, a true no-op. Keeps the guard branch
+// goleak-safe.
 func TestRunnable_NilManagerNoOp(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubRegistry{}
 	r := &Runnable{manager: nil, logger: libLog.NewNop()}
 
 	require.NoError(t, r.Run(nil))
-	assert.Empty(t, stub.registeredServices())
-	assert.Empty(t, stub.deregisteredIDs())
 }
 
 // TestNewRunnable verifies the constructor wires the manager, descriptor, and

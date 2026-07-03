@@ -837,7 +837,7 @@ type serviceDiscoveryWiring struct {
 
 // wireServiceDiscovery builds the discovery Manager (fail-fast on
 // misconfiguration) and resolves the plugin-auth host — degrading to the static
-// PLUGIN_AUTH_ADDRESS when auth is disabled or resolution fails so a discovery
+// PLUGIN_AUTH_HOST when auth is disabled or resolution fails so a discovery
 // outage never fails boot.
 //
 // The advertised port is parsed and the descriptor built ONLY when discovery is

@@ -63,3 +63,22 @@ func TestWireServiceDiscovery_DisabledIgnoresMalformedServerAddress(t *testing.T
 	// Fix #5: auth disabled returns the static host without resolving.
 	assert.Equal(t, "http://plugin-auth:4000", sd.authHost)
 }
+
+// TestWireServiceDiscovery_AuthEnabledDiscoveryDisabledFallsBackToStaticHost
+// covers the realistic production state: auth on, discovery not yet rolled out.
+// With SD disabled the no-op Manager's Resolve returns the fallback immediately,
+// so authHost degrades to the static cfg.AuthAddress without hanging.
+func TestWireServiceDiscovery_AuthEnabledDiscoveryDisabledFallsBackToStaticHost(t *testing.T) {
+	t.Setenv("SD_ENABLED", "")
+	t.Setenv("SERVICE_DISCOVERY_ENABLED", "")
+
+	cfg := &Config{ServerAddress: ":4003", AuthEnabled: true, AuthAddress: "http://plugin-auth:4000"}
+
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop())
+
+	require.NoError(t, err)
+	require.False(t, sd.enabled, "discovery must stay disabled when SD_ENABLED is unset")
+	require.NotNil(t, sd.manager)
+	assert.Equal(t, "http://plugin-auth:4000", sd.authHost,
+		"auth enabled + discovery disabled must fall back to the static host")
+}
