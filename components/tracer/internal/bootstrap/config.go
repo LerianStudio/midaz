@@ -956,7 +956,7 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 
 	draftRuleCmd.Streaming = streaming
 
-	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, txBeginner)
+	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, clk, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete rule service: %w", err)
 	}

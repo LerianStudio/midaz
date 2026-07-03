@@ -16,6 +16,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -23,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -264,5 +267,16 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		}()
 	}
 
+	s.emitRuleDeactivatedEvent(ctx, span, logger, rule)
+
 	return rule, nil
+}
+
+// emitRuleDeactivatedEvent publishes the rule.deactivated event post-commit.
+// IMPORTANT posture: emit failures never fail the request.
+func (s *DeactivateRuleService) emitRuleDeactivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDeactivatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleDeactivated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
+		})
 }

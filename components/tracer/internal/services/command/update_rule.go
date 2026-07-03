@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -22,6 +23,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -272,5 +275,16 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		return nil, fmt.Errorf("failed to update rule: %w", txErr)
 	}
 
+	c.emitRuleUpdatedEvent(ctx, span, logger, rule)
+
 	return rule, nil
+}
+
+// emitRuleUpdatedEvent publishes the rule.updated event post-commit. IMPORTANT
+// posture: emit failures never fail the request.
+func (c *UpdateRuleCommand) emitRuleUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleUpdated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
+		})
 }
