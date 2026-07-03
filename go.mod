@@ -106,6 +106,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
 	github.com/tink-crypto/tink-go/v2 v2.7.0
 	github.com/twmb/franz-go v1.21.3
+	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	go.mongodb.org/mongo-driver/v2 v2.6.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.66.0
