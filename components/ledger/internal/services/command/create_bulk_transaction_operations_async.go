@@ -108,7 +108,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
 				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
-				p.Transaction.ID))
+				p.Transaction.ID,
+			))
 
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
 				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
@@ -542,7 +543,8 @@ func (uc *UseCase) processMetadataAndEvents(
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
 				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping events for duplicate transaction %s", tx.ID))
+					"Skipping events for duplicate transaction %s", tx.ID,
+				))
 
 				continue
 			}
@@ -580,6 +582,7 @@ func (uc *UseCase) processMetadataAndEvents(
 
 			uc.SendTransactionEvents(opCtx, tx, phase)
 			uc.SendOverdraftEvents(opCtx, tx)
+			uc.SendBalanceChangedEvents(opCtx, tx)
 		}(phase)
 	}
 }
