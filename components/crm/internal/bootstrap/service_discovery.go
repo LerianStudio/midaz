@@ -22,13 +22,11 @@ type serviceDiscoveryWiring struct {
 	authHost   string
 }
 
-// wireServiceDiscovery performs the full service-discovery composition: it builds
-// the Manager (fail-fast on misconfiguration), parses the advertised port from
-// the listen address (fail-fast on a malformed address), builds this instance's
-// registry descriptor, and resolves the plugin-auth host — degrading to the
-// static PLUGIN_AUTH_ADDRESS when auth is disabled or resolution fails so a
-// discovery outage never fails boot. Extracted from InitServersWithOptions to
-// keep the composition root's branch count within the gocyclo budget.
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration), parses the advertised port from the listen address
+// (fail-fast on a malformed address), registers the CRM registry descriptor, and
+// resolves the plugin-auth host — degrading to the static PLUGIN_AUTH_ADDRESS when
+// auth is disabled or resolution fails so a discovery outage never fails boot.
 func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWiring, error) {
 	manager, enabled, err := buildServiceDiscovery(logger)
 	if err != nil {

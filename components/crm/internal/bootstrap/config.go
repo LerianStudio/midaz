@@ -360,10 +360,7 @@ type encryptionAndRepos struct {
 // wireEncryptionAndRepos initializes KMS (bounding the init, which may perform a
 // Vault Login, so a hung Vault cannot block startup), selects legacy vs envelope
 // crypto, builds the envelope-only encryption repositories and services, and
-// wraps the holder/alias repositories with the resulting field encryptor. It is
-// extracted from InitServersWithOptions to keep the composition root within the
-// gocyclo budget; the KMS, repositories, and encryption services it returns are
-// populated identically to the inline wiring it replaced.
+// wraps the holder/alias repositories with the resulting field encryptor.
 func wireEncryptionAndRepos(
 	cfg *Config,
 	logger libLog.Logger,
