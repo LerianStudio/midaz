@@ -307,7 +307,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("startup_id", startupID),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Starting unified ledger component",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 	)
@@ -605,7 +606,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
 			}
 
-			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+			logger.Log(
+				context.Background(), libLog.LevelInfo, "Tenant event listener configured",
 				libLog.String("redis_host", cfg.MultiTenantRedisHost),
 				libLog.String("service", tenantServiceName),
 			)
@@ -712,6 +714,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
+	// Service discovery: build the Manager (no-op when disabled) before the
+	// auth client so a later task can resolve plugin-auth through it.
+	serviceDiscovery, serviceDiscoveryEnabled, err := buildServiceDiscovery(logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, err
+	}
+
 	// Auth
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
@@ -785,7 +796,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
@@ -805,6 +817,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		ServiceDiscovery:         serviceDiscovery,
+		ServiceDiscoveryEnabled:  serviceDiscoveryEnabled,
 	}, nil
 }
 
@@ -912,7 +926,8 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 
 	// Log the effective config (after defaults applied by the constructor).
 	effectiveCfg := balanceSyncWorker.syncConfig
-	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
@@ -996,7 +1011,8 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
 		libLog.String("service", tenantServiceName),
 		libLog.Bool("tenant_manager_configured", true),
 	)
@@ -1051,7 +1067,8 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("modules", "onboarding,transaction"),
 	)
 
@@ -1085,7 +1102,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	// Tenant suspended or purged → 403 (same semantics as tenant-manager /connections)
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
-		return midazhttp.Forbidden(c,
+		return midazhttp.Forbidden(
+			c,
 			constant.ErrTenantServiceSuspended.Error(),
 			"Service Suspended",
 			fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
@@ -1094,7 +1112,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not found → 404
 	if errors.Is(err, tmcore.ErrTenantNotFound) {
-		return midazhttp.NotFound(c,
+		return midazhttp.NotFound(
+			c,
 			constant.ErrTenantNotFound.Error(),
 			"Tenant Not Found",
 			fmt.Sprintf("tenant not found: %s", tenantID),
@@ -1103,7 +1122,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not provisioned → 422
 	if tmcore.IsTenantNotProvisionedError(err) {
-		return midazhttp.UnprocessableEntity(c,
+		return midazhttp.UnprocessableEntity(
+			c,
 			constant.ErrTenantNotProvisioned.Error(),
 			"Tenant Not Provisioned",
 			"Database schema not initialized for this tenant. Contact your administrator.",
@@ -1111,7 +1131,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	}
 
 	// Unknown error → 503
-	return midazhttp.ServiceUnavailable(c,
+	return midazhttp.ServiceUnavailable(
+		c,
 		constant.ErrTenantServiceUnavailable.Error(),
 		"Tenant Service Unavailable",
 		fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),

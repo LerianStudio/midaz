@@ -16,6 +16,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
@@ -42,6 +43,15 @@ type Service struct {
 	// StreamingEnabled mirrors the config flag so Run() can decide whether
 	// to register the producer-shutdown Launcher app.
 	StreamingEnabled bool
+
+	// ServiceDiscovery is the lib-service-discovery Manager. It is always
+	// non-nil (a working no-op when discovery is disabled), so callers can
+	// invoke Register/Deregister/Resolve unconditionally. A later task wires
+	// register/deregister into a Launcher runnable.
+	ServiceDiscovery *libsd.Manager
+	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
+	// to register the discovery register/deregister Launcher app.
+	ServiceDiscoveryEnabled bool
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -126,7 +136,8 @@ func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
 	<-ctx.Done()
 
 	if err := r.close(); err != nil && r.logger != nil {
-		r.logger.Log(context.Background(), libLog.LevelWarn,
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
 			"streaming producer Close returned error",
 			libLog.String("error", err.Error()),
 		)
