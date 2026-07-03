@@ -285,7 +285,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the protection audit route stays unregistered (404).
 	auditHandler := newAuditHandler(auditRepo, logger)
 
-	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
+	// Resolve the plugin-auth host via service discovery when auth is enabled,
+	// degrading to the static PLUGIN_AUTH_ADDRESS on any resolve error so a
+	// discovery outage never fails boot.
+	sdResolveCtx, cancel := context.WithTimeout(context.Background(), serviceDiscoveryResolveTimeout)
+	defer cancel()
+
+	authHost := resolveAuthHost(sdResolveCtx, serviceDiscovery, cfg.AuthEnabled, cfg.AuthAddress)
+	auth := middleware.NewAuthClient(authHost, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {

@@ -30,6 +30,11 @@ import (
 // is the backstop when deregister does not complete in time.
 const serviceDiscoveryDeregisterTimeout = 5 * time.Second
 
+// serviceDiscoveryResolveTimeout bounds the plugin-auth host resolution at boot
+// so a slow or unreachable registry cannot stall startup. On timeout the caller
+// degrades to the static auth address.
+const serviceDiscoveryResolveTimeout = 5 * time.Second
+
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
