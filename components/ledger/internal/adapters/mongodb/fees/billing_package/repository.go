@@ -24,7 +24,7 @@ type Repository interface {
 	Create(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
 	FindByID(ctx context.Context, id string, organizationID string) (*model.BillingPackage, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
-	Update(ctx context.Context, id string, organizationID string, updateFields *bson.M) error
+	Update(ctx context.Context, id string, organizationID string, updateFields *bson.M) (*model.BillingPackage, error)
 	SoftDelete(ctx context.Context, id string, organizationID string) error
 	FindMatchingPackages(ctx context.Context, orgID, ledgerID, transactionRouteID string) ([]*model.BillingPackage, error)
 	FindActiveByType(ctx context.Context, orgID, ledgerID string, billingType string) ([]*model.BillingPackage, error)

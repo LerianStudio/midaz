@@ -178,6 +178,32 @@ services:
     networks:
       - infra-network
 
+  # Redpanda (Kafka-compatible) broker for lib-streaming local development.
+  # Single-node dev mode. Dual listener so both host (localhost:19092) and
+  # in-network containers (midaz-redpanda:9092) can reach it on infra-network.
+  midaz-redpanda:
+    container_name: midaz-redpanda
+    image: redpandadata/redpanda:v24.2.7
+    restart: always
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=info
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://midaz-redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - infra-network
+
   # HashiCorp Vault for KMS/Transit secrets engine (OPTIONAL)
   # Used by components that need envelope encryption (e.g., CRM with KMS_VENDOR=hashicorp-vault)
   # Start with: docker compose up midaz-hc-vault midaz-hc-vault-init -d

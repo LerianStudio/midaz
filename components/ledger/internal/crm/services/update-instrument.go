@@ -10,11 +10,16 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateInstrumentInput, fieldsToRemove []string) (_ *mmodel.Instrument, err error) {
@@ -106,5 +111,14 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		return nil, err
 	}
 
+	uc.emitInstrumentUpdatedEvent(ctx, span, logger, updatedInstrument, organizationID)
+
 	return updatedInstrument, nil
+}
+
+func (uc *UseCase) emitInstrumentUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, i *mmodel.Instrument, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewInstrumentUpdated(i, organizationID).ToEmitRequest(tenantID, i.UpdatedAt)
+		})
 }

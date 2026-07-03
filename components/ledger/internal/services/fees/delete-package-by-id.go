@@ -11,9 +11,13 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeletePackageByID delete a package from the repository
@@ -42,6 +46,15 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uui
 	// and a stale entry self-heals at the sentinel TTL.
 	ledgerID, ledgerKnown := uc.resolvePackageLedger(ctx, logger, id, organizationID)
 
+	// Resolve the package independently of the cache so the deleted event can
+	// carry its ledger. A miss here skips only the emit; the delete proceeds.
+	deletedPackage, errFind := uc.packageRepo.FindByID(ctx, id, organizationID)
+	if errFind != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve package for deleted event", libLog.Err(errFind))
+	}
+
+	deletedAt := time.Now()
+
 	if err := uc.packageRepo.SoftDelete(ctx, id, organizationID); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to delete package on repo by id", err)
 
@@ -52,7 +65,21 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uui
 		uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
 	}
 
+	if deletedPackage != nil {
+		uc.emitFeesPackageDeletedEvent(ctx, span, logger, id, organizationID, deletedPackage.LedgerID, deletedAt)
+	}
+
 	return nil
+}
+
+// emitFeesPackageDeletedEvent publishes fees-package.deleted. IMPORTANT posture.
+func (uc *UseCase) emitFeesPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID uuid.UUID, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesPackageDeleted(
+				id.String(), organizationID.String(), ledgerID.String(), deletedAt,
+			).ToEmitRequest(tenantID, deletedAt)
+		})
 }
 
 // resolvePackageLedger reads the package's ledger ID for cache invalidation.

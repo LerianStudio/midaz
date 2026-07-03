@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -26,7 +26,7 @@ type Repository interface {
 	Create(ctx context.Context, pack *Package, organizationID uuid.UUID) (*Package, error)
 	FindList(ctx context.Context, filters http.QueryHeader) ([]*Package, error)
 	FindByID(ctx context.Context, id, organizationID uuid.UUID) (*Package, error)
-	Update(ctx context.Context, id, organizationID uuid.UUID, updateFields *bson.M) error
+	Update(ctx context.Context, id, organizationID uuid.UUID, updateFields *bson.M) (*Package, error)
 	SoftDelete(ctx context.Context, id, organizationID uuid.UUID) error
 	FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error)
 	FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error)

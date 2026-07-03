@@ -261,5 +261,11 @@ func (uc *UseCase) updateFeeMetadataIfNeeded(
 		}
 
 		cf.Transaction.Metadata["packageAppliedID"] = packageID.String()
+
+		// feeApplied marks a real charge (not a pure exemption); it gates
+		// the fees.applied streaming emit downstream.
+		if feeApplied {
+			cf.Transaction.Metadata["feeApplied"] = "true"
+		}
 	}
 }

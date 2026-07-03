@@ -15,10 +15,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
 )
@@ -136,6 +138,13 @@ func TestUpdatePackage(t *testing.T) {
 		},
 	}
 
+	updatedPkg := &mongoPack.Package{
+		ID:            packID,
+		FeeGroupLabel: "teste group label",
+		LedgerID:      ledgerID,
+		Enable:        &enableFlag,
+	}
+
 	tests := []struct {
 		name        string
 		packId      uuid.UUID
@@ -153,7 +162,7 @@ func TestUpdatePackage(t *testing.T) {
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil)
+					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -178,7 +187,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil)
+					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -203,7 +212,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(ErrDatabaseItemNotFound)
+					Return(nil, ErrDatabaseItemNotFound)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -229,7 +238,7 @@ func TestUpdatePackage(t *testing.T) {
 
 				mockPackageRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(constant.ErrBadRequest)
+					Return(nil, constant.ErrBadRequest)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -310,9 +319,9 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 
 	mockPackageRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, updateFields interface{}) error {
+		DoAndReturn(func(_ context.Context, id uuid.UUID, _ uuid.UUID, updateFields interface{}) (*pack.Package, error) {
 			capturedUpdateFields = updateFields
-			return nil
+			return &pack.Package{ID: id, LedgerID: amountData.LedgerID}, nil
 		})
 
 	err := packSvc.UpdatePackageByID(context.Background(), packID, orgId, input)
@@ -331,4 +340,62 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 	assert.True(t, ok, "expected $set in updateFields")
 	_, hasUpdatedAt := setFields["updated_at"]
 	assert.True(t, hasUpdatedAt, "expected updated_at in $set fields")
+}
+
+// TestUpdatePackageByID_EmitsFeesPackageUpdated asserts a successful update emits
+// the fees-package.updated event, built from the entity returned by Update.
+func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	mockEmitter := pkgStreaming.NewMockEmitter()
+
+	orgID := uuid.New()
+	packID := uuid.New()
+	ledgerID := uuid.New()
+	enable := true
+
+	amountData := &model.AmountData{
+		MinAmount: decimal.NewFromInt(100),
+		MaxAmount: decimal.NewFromInt(1000),
+		Fees:      map[string]model.Fee{},
+		LedgerID:  ledgerID,
+	}
+
+	persisted := &pack.Package{
+		ID:            packID,
+		FeeGroupLabel: "updated",
+		LedgerID:      ledgerID,
+		Enable:        &enable,
+	}
+
+	mockPackRepo.EXPECT().
+		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(amountData, nil)
+	mockPackRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(persisted, nil)
+
+	svc := &UseCase{
+		packageRepo: mockPackRepo,
+		Streaming:   mockEmitter,
+	}
+
+	newLabel := "updated"
+	input := &model.UpdatePackageInput{FeeGroupLabel: newLabel}
+
+	err := svc.UpdatePackageByID(context.Background(), packID, orgID, input)
+	require.NoError(t, err)
+
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fees-package", "updated")
+
+	emitted := mockEmitter.Events()
+	require.Len(t, emitted, 1)
+	req := emitted[0]
+	assert.Equal(t, packID.String(), req.Subject)
+
+	payload := unmarshalPayload(t, req.Payload)
+	assert.Equal(t, orgID.String(), payload["organizationId"])
+	assert.Equal(t, ledgerID.String(), payload["ledgerId"])
 }

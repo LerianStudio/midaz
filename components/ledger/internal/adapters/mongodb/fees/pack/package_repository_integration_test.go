@@ -402,7 +402,10 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label"}}
-	require.NoError(t, repo.Update(ctx, pkgEntity.ID, orgID, update))
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, update)
+	require.NoError(t, errUpdate)
+	require.NotNil(t, returned, "Update must return the persisted entity")
+	assert.Equal(t, "Updated Package Label", returned.FeeGroupLabel, "returned entity must reflect the change")
 
 	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
 	require.NoError(t, err)
@@ -421,7 +424,11 @@ func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
 
 	// Emptying the fees map must trigger the auto-disable side effect in Update.
 	update := &bson.M{"$set": bson.M{"fees": bson.M{}}}
-	require.NoError(t, repo.Update(ctx, pkgEntity.ID, orgID, update))
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, update)
+	require.NoError(t, errUpdate)
+	require.NotNil(t, returned, "Update must return the persisted entity")
+	require.NotNil(t, returned.Enable)
+	assert.False(t, *returned.Enable, "returned entity must reflect the auto-disable side effect")
 
 	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
 	require.NoError(t, err)
@@ -434,7 +441,7 @@ func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 	repo := newPackRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "x"}}
-	err := repo.Update(context.Background(), uuid.New(), uuid.New(), update)
+	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), update)
 
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError

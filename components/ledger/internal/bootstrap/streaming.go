@@ -267,6 +267,22 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionCommittedDefinition,
 		events.TransactionCanceledDefinition,
 		events.TransactionRevertedDefinition,
+		// Fees
+		events.FeesPackageCreatedDefinition,
+		events.FeesPackageUpdatedDefinition,
+		events.FeesPackageDeletedDefinition,
+		events.FeesBillingPackageCreatedDefinition,
+		events.FeesBillingPackageUpdatedDefinition,
+		events.FeesBillingPackageDeletedDefinition,
+		events.FeesAppliedDefinition,
+		// CRM
+		events.HolderCreatedDefinition,
+		events.HolderUpdatedDefinition,
+		events.HolderDeletedDefinition,
+		events.InstrumentCreatedDefinition,
+		events.InstrumentUpdatedDefinition,
+		events.InstrumentDeletedDefinition,
+		events.InstrumentRelatedPartyDeletedDefinition,
 	}
 }
 

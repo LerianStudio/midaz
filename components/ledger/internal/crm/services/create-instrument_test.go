@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,8 +16,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -45,12 +49,12 @@ func (s *stubLedgerAccountReader) CountAccountsByHolder(_ context.Context, _, _ 
 	return s.accountCount, s.accountCntErr
 }
 
-func TestCreateAlias(t *testing.T) {
+func TestCreateInstrument(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockHolderRepo := holder.NewMockRepository(ctrl)
-	mockAliasRepo := instrument.NewMockRepository(ctrl)
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
 
 	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	id := uuid.Must(libCommons.GenerateUUIDv7())
@@ -61,7 +65,7 @@ func TestCreateAlias(t *testing.T) {
 
 	uc := &UseCase{
 		HolderRepo:     mockHolderRepo,
-		InstrumentRepo: mockAliasRepo,
+		InstrumentRepo: mockInstrumentRepo,
 	}
 
 	// Default reader: both references resolve, so the pre-existing success and
@@ -93,7 +97,7 @@ func TestCreateAlias(t *testing.T) {
 						Document: &holderDocument,
 					}, nil)
 
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -129,7 +133,7 @@ func TestCreateAlias(t *testing.T) {
 						Document: &holderDocument,
 					}, nil)
 
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -153,7 +157,7 @@ func TestCreateAlias(t *testing.T) {
 			},
 		},
 		{
-			name:     "Error when holder not found for alias creation",
+			name:     "Error when holder not found for instrument creation",
 			holderID: uuid.New(),
 			input: &mmodel.CreateInstrumentInput{
 				LedgerID:  ledgerID,
@@ -192,7 +196,7 @@ func TestCreateAlias(t *testing.T) {
 						Document: &holderDocument,
 					}, nil)
 
-				mockAliasRepo.EXPECT().
+				mockInstrumentRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Instrument{
 						ID:        &id,
@@ -270,7 +274,7 @@ func TestCreateAlias(t *testing.T) {
 						ID:       &holderID,
 						Document: &holderDocument,
 					}, nil)
-				// No mockAliasRepo.Create expectation: the create must NOT run.
+				// No mockInstrumentRepo.Create expectation: the create must NOT run.
 			},
 			expectedErr:    cn.ErrInstrumentLedgerReferenceNotFound,
 			expectedResult: nil,
@@ -290,7 +294,7 @@ func TestCreateAlias(t *testing.T) {
 						ID:       &holderID,
 						Document: &holderDocument,
 					}, nil)
-				// No mockAliasRepo.Create expectation: the create must NOT run.
+				// No mockInstrumentRepo.Create expectation: the create must NOT run.
 			},
 			expectedErr:    cn.ErrInstrumentAccountReferenceNotFound,
 			expectedResult: nil,
@@ -310,7 +314,7 @@ func TestCreateAlias(t *testing.T) {
 						ID:       &holderID,
 						Document: &holderDocument,
 					}, nil)
-				// No mockAliasRepo.Create expectation: the create must NOT run.
+				// No mockInstrumentRepo.Create expectation: the create must NOT run.
 			},
 			expectedErr:    cn.ErrInvalidPathParameter,
 			expectedResult: nil,
@@ -330,7 +334,7 @@ func TestCreateAlias(t *testing.T) {
 						ID:       &holderID,
 						Document: &holderDocument,
 					}, nil)
-				// No mockAliasRepo.Create expectation: the create must NOT run.
+				// No mockInstrumentRepo.Create expectation: the create must NOT run.
 			},
 			expectedErr:    cn.ErrInvalidPathParameter,
 			expectedResult: nil,
@@ -372,4 +376,122 @@ func TestCreateAlias(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateInstrument_EmitsInstrumentCreated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockInstrumentRepo,
+		LedgerAccounts: &stubLedgerAccountReader{ledgerExists: true, accountExists: true},
+		Streaming:      emitter,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockInstrumentRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateInstrument(ctx, orgID, holderID, &mmodel.CreateInstrumentInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, events.InstrumentCreatedDefinition.Key(), emitted[0].DefinitionKey)
+	assert.Equal(t, instrumentID.String(), emitted[0].Subject)
+	pkgStreaming.AssertEventEmitted(t, emitter, "instrument", "created")
+}
+
+func TestCreateInstrument_NilEmitterSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+
+	uc := &UseCase{
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockInstrumentRepo,
+		LedgerAccounts: &stubLedgerAccountReader{ledgerExists: true, accountExists: true},
+		Streaming:      nil,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockInstrumentRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateInstrument(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, &mmodel.CreateInstrumentInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestCreateInstrument_EmitFailureDoesNotFailRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHolderRepo := holder.NewMockRepository(ctrl)
+	mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+
+	emitter := pkgStreaming.NewMockEmitter()
+	emitter.SetError(errors.New("broker unavailable"))
+
+	uc := &UseCase{
+		HolderRepo:     mockHolderRepo,
+		InstrumentRepo: mockInstrumentRepo,
+		LedgerAccounts: &stubLedgerAccountReader{ledgerExists: true, accountExists: true},
+		Streaming:      emitter,
+	}
+
+	mockHolderRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+	mockInstrumentRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Instrument{ID: &instrumentID, HolderID: &holderID, Document: &holderDocument, AccountID: &accountID, LedgerID: &ledgerID}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateInstrument(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, &mmodel.CreateInstrumentInput{LedgerID: ledgerID, AccountID: accountID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, emitter.Events())
 }

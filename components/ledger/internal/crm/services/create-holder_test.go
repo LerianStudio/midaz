@@ -10,10 +10,14 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -93,4 +97,96 @@ func TestCreateHolder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateHolder_EmitsHolderCreated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := holder.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	name := "John Smith"
+	document := "90217469051"
+	orgID := "0194ffee-e14f-70f5-b400-04b7b7434131"
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		HolderRepo: mockRepo,
+		Streaming:  emitter,
+	}
+
+	mockRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateHolder(ctx, orgID, &mmodel.CreateHolderInput{Name: name, Document: document})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, events.HolderCreatedDefinition.Key(), emitted[0].DefinitionKey)
+	assert.Equal(t, holderID.String(), emitted[0].Subject)
+	pkgStreaming.AssertEventEmitted(t, emitter, "holder", "created")
+}
+
+func TestCreateHolder_NilEmitterSucceeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := holder.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	name := "John Smith"
+	document := "90217469051"
+
+	uc := &UseCase{
+		HolderRepo: mockRepo,
+		Streaming:  nil,
+	}
+
+	mockRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateHolder(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", &mmodel.CreateHolderInput{Name: name, Document: document})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestCreateHolder_EmitFailureDoesNotFailRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := holder.NewMockRepository(ctrl)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	name := "John Smith"
+	document := "90217469051"
+
+	emitter := pkgStreaming.NewMockEmitter()
+	emitter.SetError(errors.New("broker unavailable"))
+
+	uc := &UseCase{
+		HolderRepo: mockRepo,
+		Streaming:  emitter,
+	}
+
+	mockRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Holder{ID: &holderID, Name: &name, Document: &document}, nil)
+
+	ctx := context.Background()
+	result, err := uc.CreateHolder(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", &mmodel.CreateHolderInput{Name: name, Document: document})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	var _ libStreaming.Emitter = emitter
 }

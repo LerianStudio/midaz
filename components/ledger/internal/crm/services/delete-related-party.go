@@ -9,9 +9,14 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, instrumentID, relatedPartyID uuid.UUID) (err error) {
@@ -40,5 +45,16 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		return err
 	}
 
+	deletedAt := time.Now().UTC()
+
+	uc.emitInstrumentRelatedPartyDeletedEvent(ctx, span, logger, instrumentID.String(), holderID.String(), organizationID, relatedPartyID.String(), deletedAt)
+
 	return nil
+}
+
+func (uc *UseCase) emitInstrumentRelatedPartyDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, instrumentID, holderID, organizationID, relatedPartyID string, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentRelatedPartyDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewInstrumentRelatedPartyDeleted(instrumentID, holderID, organizationID, relatedPartyID, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

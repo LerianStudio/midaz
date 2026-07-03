@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -44,7 +45,9 @@ func TestInitFees_ConstructsReachableUseCases(t *testing.T) {
 	logger := &libLog.GoLogger{}
 	cfg := &Config{FeesDefaultCurrency: "USD"}
 
-	fees, err := initFees(newFeeMongoSlice(t), &query.UseCase{}, cfg, logger)
+	emitter := libStreaming.NewNoopEmitter()
+
+	fees, err := initFees(newFeeMongoSlice(t), &query.UseCase{}, cfg, logger, emitter)
 	require.NoError(t, err, "initFees must succeed with valid dependencies")
 	require.NotNil(t, fees, "fees components must be non-nil")
 
@@ -56,6 +59,11 @@ func TestInitFees_ConstructsReachableUseCases(t *testing.T) {
 
 	require.NotNil(t, fees.billingPackageService, "billing package service must be reachable")
 	require.NotNil(t, fees.billingCalculateService, "billing calculate service must be reachable")
+
+	assert.Same(t, emitter, fees.useCase.Streaming,
+		"fee use case must receive the ledger emitter instance")
+	assert.Same(t, emitter, fees.billingPackageService.Streaming,
+		"billing package service must receive the ledger emitter instance")
 }
 
 // TestInitFees_RejectsNilDependencies asserts initFees fails fast on missing
@@ -69,14 +77,14 @@ func TestInitFees_RejectsNilDependencies(t *testing.T) {
 	t.Run("nil_fee_mongo", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := initFees(nil, &query.UseCase{}, cfg, logger)
+		_, err := initFees(nil, &query.UseCase{}, cfg, logger, libStreaming.NewNoopEmitter())
 		require.Error(t, err, "initFees must reject a nil fee Mongo slice")
 	})
 
 	t.Run("nil_query_use_case", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := initFees(newFeeMongoSlice(t), nil, cfg, logger)
+		_, err := initFees(newFeeMongoSlice(t), nil, cfg, logger, libStreaming.NewNoopEmitter())
 		require.Error(t, err, "initFees must reject a nil query use case")
 	})
 }
@@ -90,7 +98,7 @@ func TestInitFees_EmptyDefaultCurrencyRejected(t *testing.T) {
 	logger := &libLog.GoLogger{}
 	cfg := &Config{FeesDefaultCurrency: ""}
 
-	_, err := initFees(newFeeMongoSlice(t), &query.UseCase{}, cfg, logger)
+	_, err := initFees(newFeeMongoSlice(t), &query.UseCase{}, cfg, logger, libStreaming.NewNoopEmitter())
 	require.Error(t, err, "initFees must reject an empty default currency")
 }
 

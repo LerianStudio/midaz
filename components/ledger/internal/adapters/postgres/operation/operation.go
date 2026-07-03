@@ -254,7 +254,10 @@ type Operation struct {
 	// maxLength: 256
 	Description string `json:"description" example:"Credit card operation" maxLength:"256"`
 
-	// Type of operation (e.g., DEBIT, CREDIT)
+	// Type of operation. One of: DEBIT, CREDIT, ON_HOLD, RELEASE, OVERDRAFT, BLOCK, UNBLOCK.
+	// DEBIT/CREDIT are standard ledger movements; ON_HOLD/RELEASE cover pending-transaction holds;
+	// OVERDRAFT marks system-generated overdraft companion rows; BLOCK/UNBLOCK label direct
+	// account block/unblock transfers. The direction (debit/credit) is carried independently.
 	// example: DEBIT
 	// maxLength: 50
 	Type string `json:"type" example:"DEBIT" maxLength:"50"`

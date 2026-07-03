@@ -272,7 +272,11 @@ type Transaction struct {
 	// while json persists it in the body JSONB so it survives commit/cancel
 	// re-resolution and propagates at runtime.
 	Skip *TransactionSkip `json:"skip,omitempty" swaggerignore:"true"`
-}
+	// OperationTypeOverride overrides the persisted Operation.Type label
+	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
+	// Internal field; populated during processing and excluded from the API contract.
+	OperationTypeOverride string `json:"-" swaggerignore:"true"`
+} // @name TransactionInput
 
 // TransactionSkip carries per-call control opt-outs requested on the transaction
 // body. A skip is honored only when the matching per-ledger override is enabled.

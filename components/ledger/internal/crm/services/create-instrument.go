@@ -10,10 +10,14 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -129,7 +133,16 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	uc.emitInstrumentCreatedEvent(ctx, span, logger, createdInstrument, organizationID)
+
 	return createdInstrument, nil
+}
+
+func (uc *UseCase) emitInstrumentCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, i *mmodel.Instrument, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewInstrumentCreated(i, organizationID).ToEmitRequest(tenantID, i.CreatedAt)
+		})
 }
 
 // validateInstrumentReferences verifies the body-supplied ledger and account

@@ -7,6 +7,7 @@ package services
 import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -34,6 +35,13 @@ type UseCase struct {
 	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so the
 	// binary runs with telemetry disabled.
 	MetricsFactory *metrics.MetricsFactory
+
+	// Streaming emits IMPORTANT-posture CRM business events (holder.*,
+	// instrument.*) via pkgStreaming.EmitImportant at the post-commit,
+	// pre-metadata slot. A nil value disables emission (mirroring the
+	// idempotency nil-guard); bootstrap injects libStreaming.NewNoopEmitter()
+	// when STREAMING_ENABLED=false.
+	Streaming libStreaming.Emitter
 }
 
 // recordSpanError records err onto the span using the class-appropriate helper:
