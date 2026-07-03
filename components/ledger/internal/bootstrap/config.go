@@ -736,7 +736,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Auth: resolve plugin-auth through service discovery, degrading to the
 	// static host on any resolve failure so a discovery outage never fails boot.
-	authHost := resolveAuthHost(context.Background(), serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
+	// The explicit deadline caps the Consul query so a slow/hung registry cannot
+	// stall boot; a deadline exceeded degrades to the static host like any error.
+	sdResolveCtx, cancel := context.WithTimeout(context.Background(), serviceDiscoveryResolveTimeout)
+	defer cancel()
+
+	authHost := resolveAuthHost(sdResolveCtx, serviceDiscovery, cfg.AuthEnabled, cfg.AuthHost)
 	auth := middleware.NewAuthClient(authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===

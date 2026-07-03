@@ -66,6 +66,14 @@ func TestResolveAuthHost(t *testing.T) {
 			expectedHost:  staticHost,
 			expectedCalls: 1,
 		},
+		{
+			name:          "auth enabled degrades to static host on resolve deadline exceeded",
+			authEnabled:   true,
+			stubResolved:  "",
+			stubErr:       context.DeadlineExceeded,
+			expectedHost:  staticHost,
+			expectedCalls: 1,
+		},
 	}
 
 	for _, tc := range tests {

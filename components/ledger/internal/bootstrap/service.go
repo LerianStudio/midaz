@@ -28,6 +28,12 @@ import (
 // is the backstop when deregister does not complete in time.
 const serviceDiscoveryDeregisterTimeout = 5 * time.Second
 
+// serviceDiscoveryResolveTimeout bounds the boot-time plugin-auth resolve so a
+// TCP-reachable but slow/hung registry (brownout) cannot stall boot. On deadline
+// the resolve degrades to the static auth host, keeping "a discovery outage never
+// stalls boot" true for the slow-registry case, not just connection refused.
+const serviceDiscoveryResolveTimeout = 5 * time.Second
+
 // Service is the unified ledger service that owns all infrastructure directly.
 type Service struct {
 	UnifiedServer            *UnifiedServer
