@@ -294,3 +294,39 @@ func TestBuildStreamingEmitter_UnsupportedMechanismFailsClosed(t *testing.T) {
 			strings.Contains(err.Error(), "not supported"),
 		"expected unsupported-mechanism error, got %v", err)
 }
+
+// TestMidazEventDefinitions_IncludesBalanceChanged asserts the generic
+// balance.changed event is registered in the single-source-of-truth
+// definition list, so it flows into both the Catalog and the Routes.
+func TestMidazEventDefinitions_IncludesBalanceChanged(t *testing.T) {
+	t.Parallel()
+
+	defs := midazEventDefinitions()
+
+	found := false
+	for _, d := range defs {
+		if d.Key() == "balance.changed" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "balance.changed must be registered in midazEventDefinitions")
+}
+
+// TestBuildRoutes_BalanceChangedTopic asserts the balance.changed route
+// resolves to the canonical lerian.streaming.balance.changed Kafka topic.
+func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
+	t.Parallel()
+
+	routes := buildRoutes(streamingPrimaryTargetName)
+
+	var dest string
+	for _, r := range routes {
+		if r.DefinitionKey == "balance.changed" {
+			// KafkaTopic stores the topic string in Destination.Name
+			// (Destination is a struct, not a string).
+			dest = r.Destination.Name
+		}
+	}
+	assert.Equal(t, "lerian.streaming.balance.changed", dest)
+}
