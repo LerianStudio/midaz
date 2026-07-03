@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
 	libLog "github.com/LerianStudio/lib-observability/log"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
 	mongoEncryption "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
@@ -47,6 +48,15 @@ type Service struct {
 	// emitter close hook (always non-nil; a no-op when streaming is disabled).
 	StreamingEnabled bool
 	StreamingClose   func() error
+
+	// ServiceDiscovery is the SD Manager (always non-nil; a working no-op when
+	// discovery is disabled). ServiceDiscoveryEnabled mirrors SD_ENABLED so Run()
+	// can decide whether to wire a register/deregister runnable. ServiceDescriptor
+	// is the descriptor this service advertises; it is populated in a later task
+	// and left zero-value here.
+	ServiceDiscovery        *libsd.Manager
+	ServiceDiscoveryEnabled bool
+	ServiceDescriptor       libsd.Service
 
 	libLog.Logger
 }

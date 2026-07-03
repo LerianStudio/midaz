@@ -150,6 +150,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
 	}
 
+	// Build service discovery before the streaming emitter so a misconfigured
+	// SD (fail-fast) returns before anything requiring drain is constructed.
+	serviceDiscovery, serviceDiscoveryEnabled, err := buildServiceDiscovery(logger)
+	if err != nil {
+		return nil, err
+	}
+
 	// Initialize KMS (encryption mode and optional Vault client).
 	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
 	// cannot block startup indefinitely.
@@ -301,6 +308,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		KeysetManager:           encryptionResult.keysetManager,
 		StreamingEnabled:        cfg.StreamingEnabled,
 		StreamingClose:          streamingClose,
+		ServiceDiscovery:        serviceDiscovery,
+		ServiceDiscoveryEnabled: serviceDiscoveryEnabled,
 		Logger:                  logger,
 	}, nil
 }
