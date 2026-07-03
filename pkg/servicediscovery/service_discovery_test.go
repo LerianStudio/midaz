@@ -75,22 +75,37 @@ func TestParseServerPort(t *testing.T) {
 	}
 }
 
-func TestBuildServiceDescriptor(t *testing.T) {
-	t.Parallel()
+// withHostnameFn overrides the package hostnameFn seam for the duration of the
+// test and restores it on cleanup. It is NOT parallel-safe: tests that call it
+// must run serially (no t.Parallel) so the shared package var is not raced.
+func withHostnameFn(t *testing.T, fn func() (string, error)) {
+	t.Helper()
 
+	prev := hostnameFn
+	hostnameFn = fn
+	t.Cleanup(func() { hostnameFn = prev })
+}
+
+func TestBuildServiceDescriptor(t *testing.T) {
+	// No t.Parallel: subtests override the shared hostnameFn package var and run
+	// serially to avoid a data race with each other.
 	tests := []struct {
-		name    string
-		svcName string
-		port    int
-		wantID  string
+		name        string
+		svcName     string
+		port        int
+		hostname    string
+		hostnameErr error
+		wantID      string
 	}{
-		{name: "ledger", svcName: "midaz-ledger", port: 3002, wantID: "midaz-ledger-3002"},
-		{name: "crm", svcName: "midaz-crm", port: 4003, wantID: "midaz-crm-4003"},
+		{name: "ledger", svcName: "midaz-ledger", port: 3002, hostname: "testhost", wantID: "midaz-ledger-testhost-3002"},
+		{name: "crm", svcName: "midaz-crm", port: 4003, hostname: "testhost", wantID: "midaz-crm-testhost-4003"},
+		{name: "hostname error falls back to legacy scheme", svcName: "midaz-ledger", port: 3002, hostnameErr: errors.New("boom"), wantID: "midaz-ledger-3002"},
+		{name: "empty hostname falls back to legacy scheme", svcName: "midaz-crm", port: 4003, hostname: "", wantID: "midaz-crm-4003"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			withHostnameFn(t, func() (string, error) { return tc.hostname, tc.hostnameErr })
 
 			svc := BuildServiceDescriptor(tc.svcName, tc.port)
 
@@ -107,11 +122,12 @@ func TestBuildServiceDescriptor(t *testing.T) {
 	}
 }
 
-func TestBuildServiceDescriptor_IDReflectsPort(t *testing.T) {
-	t.Parallel()
+func TestBuildServiceDescriptor_IDIncludesHostAndPort(t *testing.T) {
+	withHostnameFn(t, func() (string, error) { return "pod-7", nil })
 
 	svc := BuildServiceDescriptor("midaz-ledger", 8080)
 
-	assert.Equal(t, "midaz-ledger-8080", svc.ID)
+	assert.Equal(t, "midaz-ledger-pod-7-8080", svc.ID)
+	assert.Equal(t, "midaz-ledger", svc.Name)
 	assert.Equal(t, 8080, svc.Port)
 }

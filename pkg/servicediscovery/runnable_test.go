@@ -142,7 +142,9 @@ func TestRunnable_Lifecycle(t *testing.T) {
 
 	registered := stub.registeredServices()
 	require.Len(t, registered, 1)
-	assert.Equal(t, "midaz-ledger-3002", registered[0].ID)
+	// Assert against the descriptor the test built, not a hardcoded ID: the
+	// instance ID embeds os.Hostname() and is not deterministic across hosts.
+	assert.Equal(t, svc.ID, registered[0].ID)
 	assert.Equal(t, "midaz-ledger", registered[0].Name)
 	assert.Equal(t, 3002, registered[0].Port)
 	require.NotNil(t, registered[0].HealthCheck)
@@ -150,7 +152,7 @@ func TestRunnable_Lifecycle(t *testing.T) {
 
 	deregistered := stub.deregisteredIDs()
 	require.Len(t, deregistered, 1)
-	assert.Equal(t, "midaz-ledger-3002", deregistered[0])
+	assert.Equal(t, svc.ID, deregistered[0])
 }
 
 // TestRunnable_DeregisterErrorSwallowed verifies a deregister failure is logged
@@ -189,7 +191,7 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 	cancel()
 
 	require.NoError(t, <-done, "deregister error must be swallowed, not propagated")
-	assert.Equal(t, []string{"midaz-crm-4003"}, stub.deregisteredIDs())
+	assert.Equal(t, []string{svc.ID}, stub.deregisteredIDs())
 }
 
 // TestRunnable_NilManagerNoOp verifies the runnable returns immediately when the

@@ -11,12 +11,18 @@ package servicediscovery
 import (
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 )
+
+// hostnameFn resolves the host identity folded into the instance ID. It is a
+// package var so tests can override it deterministically; production uses
+// os.Hostname (= pod name in K8s, machine name on bare metal).
+var hostnameFn = os.Hostname
 
 // ResolveTimeout bounds the boot-time plugin-auth resolve so a TCP-reachable but
 // slow/hung registry (brownout) cannot stall boot. On deadline the resolve
@@ -63,10 +69,23 @@ func ParseServerPort(serverAddress string) (int, error) {
 // instance. Address and Scheme are intentionally left unset: Manager.Register
 // fills them from SD_ADVERTISE_ADDRESS. The TTL health check needs no reachable
 // HTTP endpoint — the registry heartbeats from inside the process. name is the
-// registry service name (e.g. "midaz-ledger", "midaz-crm").
+// registry service name (e.g. "midaz-ledger", "midaz-crm") and stays stable —
+// consumers resolve by it.
+//
+// The instance ID folds in the host identity ("<name>-<host>-<port>") so every
+// replica registers a distinct ID against the same name; without it, N pods
+// sharing a name collide on one central registry and their TTL health flaps. If
+// the host is unresolvable it falls back to the legacy "<name>-<port>" scheme:
+// a descriptor must always be buildable, so this never errors.
 func BuildServiceDescriptor(name string, port int) libsd.Service {
+	id := name + "-" + strconv.Itoa(port)
+
+	if host, err := hostnameFn(); err == nil && host != "" {
+		id = name + "-" + host + "-" + strconv.Itoa(port)
+	}
+
 	return libsd.Service{
-		ID:          name + "-" + strconv.Itoa(port),
+		ID:          id,
 		Name:        name,
 		Port:        port,
 		HealthCheck: &libsd.HealthCheck{TTL: "30s"},
