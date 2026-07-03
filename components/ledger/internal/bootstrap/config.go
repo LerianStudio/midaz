@@ -723,6 +723,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Build the registry descriptor now so a malformed SERVER_ADDRESS fails fast
+	// at wiring time rather than at shutdown. The runnable reuses this descriptor.
+	serverPort, err := parseServerPort(cfg.ServerAddress)
+	if err != nil {
+		doCleanup()
+
+		return nil, err
+	}
+
+	serviceDescriptor := buildLedgerServiceDescriptor(serverPort)
+
 	// Auth
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
@@ -819,6 +830,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingEnabled:         cfg.StreamingEnabled,
 		ServiceDiscovery:         serviceDiscovery,
 		ServiceDiscoveryEnabled:  serviceDiscoveryEnabled,
+		ServiceDescriptor:        serviceDescriptor,
 	}, nil
 }
 

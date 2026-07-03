@@ -6,9 +6,13 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
@@ -18,6 +22,11 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 )
+
+// serviceDiscoveryDeregisterTimeout bounds the shutdown deregister call so a
+// slow or unreachable registry cannot hold the process open at exit. TTL expiry
+// is the backstop when deregister does not complete in time.
+const serviceDiscoveryDeregisterTimeout = 5 * time.Second
 
 // Service is the unified ledger service that owns all infrastructure directly.
 type Service struct {
@@ -46,12 +55,15 @@ type Service struct {
 
 	// ServiceDiscovery is the lib-service-discovery Manager. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
-	// invoke Register/Deregister/Resolve unconditionally. A later task wires
-	// register/deregister into a Launcher runnable.
+	// invoke Register/Deregister/Resolve unconditionally.
 	ServiceDiscovery *libsd.Manager
 	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
 	// to register the discovery register/deregister Launcher app.
 	ServiceDiscoveryEnabled bool
+	// ServiceDescriptor is the descriptor advertised to the registry. It is
+	// built once at wiring time (so a malformed SERVER_ADDRESS fails fast
+	// there) and reused by the service-discovery runnable.
+	ServiceDescriptor libsd.Service
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -61,8 +73,22 @@ func (s *Service) Run() {
 
 	launcherOpts := []libCommons.LauncherOption{
 		libCommons.WithLogger(s.Logger),
-		libCommons.RunApp("Unified HTTP Server", s.UnifiedServer),
 	}
+
+	// Service discovery: register before the HTTP server so deregister runs
+	// ahead of the server closing on shutdown. Registered only when discovery
+	// is enabled to preserve boot parity — no extra Launcher entry / goroutine
+	// otherwise. TTL expiry is the backstop if deregister is missed.
+	if s.ServiceDiscoveryEnabled {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Service Discovery",
+			&serviceDiscoveryRunnable{
+				manager: s.ServiceDiscovery,
+				svc:     s.ServiceDescriptor,
+				logger:  s.Logger,
+			}))
+	}
+
+	launcherOpts = append(launcherOpts, libCommons.RunApp("Unified HTTP Server", s.UnifiedServer))
 
 	// RabbitMQ consumer (single-tenant or multi-tenant)
 	if s.MultiQueueConsumer != nil {
@@ -140,6 +166,76 @@ func (r *streamingProducerRunnable) Run(_ *libCommons.Launcher) error {
 			context.Background(), libLog.LevelWarn,
 			"streaming producer Close returned error",
 			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
+}
+
+// parseServerPort extracts the numeric port from a listen address. It accepts
+// both the leading-colon form (":3002") and the host:port form
+// ("0.0.0.0:8080"); net.SplitHostPort handles both. A malformed address is a
+// config bug and surfaces as an error for fail-fast handling at wiring time.
+func parseServerPort(serverAddress string) (int, error) {
+	_, portStr, err := net.SplitHostPort(serverAddress)
+	if err != nil {
+		return 0, fmt.Errorf("parsing server address %q: %w", serverAddress, err)
+	}
+
+	return strconv.Atoi(portStr)
+}
+
+// buildLedgerServiceDescriptor builds the registry descriptor for this ledger
+// instance. Address and Scheme are intentionally left unset: Manager.Register
+// fills them from SD_ADVERTISE_ADDRESS. The TTL health check needs no reachable
+// HTTP endpoint — the registry heartbeats from inside the process.
+func buildLedgerServiceDescriptor(port int) libsd.Service {
+	return libsd.Service{
+		ID:          "midaz-ledger-" + strconv.Itoa(port),
+		Name:        "midaz-ledger",
+		Port:        port,
+		HealthCheck: &libsd.HealthCheck{TTL: "30s"},
+	}
+}
+
+// serviceDiscoveryRunnable adapts service-discovery register/deregister to the
+// libCommons.App interface. It registers asynchronously at start, blocks until
+// SIGINT/SIGTERM, then deregisters on shutdown. A deregister failure is logged
+// at Warn but not propagated: TTL expiry is the backstop and the Launcher cannot
+// meaningfully react at shutdown.
+type serviceDiscoveryRunnable struct {
+	manager *libsd.Manager
+	svc     libsd.Service
+	logger  libLog.Logger
+}
+
+// Run registers the service asynchronously against the signal-scoped context,
+// blocks until SIGINT/SIGTERM, then deregisters under a fresh short-lived
+// context (the signal context is already cancelled by then).
+func (r *serviceDiscoveryRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.manager == nil {
+		return nil
+	}
+
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// RegisterAsync is non-blocking and retries in the background until sigCtx
+	// is cancelled. It needs the app-lifetime (signal) context, not a
+	// request-scoped one.
+	r.manager.RegisterAsync(sigCtx, r.svc)
+
+	<-sigCtx.Done()
+
+	ctx, cancel := context.WithTimeout(context.Background(), serviceDiscoveryDeregisterTimeout)
+	defer cancel()
+
+	if err := r.manager.Deregister(ctx, r.svc.ID); err != nil && r.logger != nil {
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
+			"service discovery deregister returned error",
+			libLog.String("service_id", r.svc.ID),
+			libLog.Err(err),
 		)
 	}
 
