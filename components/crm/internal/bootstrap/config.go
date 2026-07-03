@@ -157,6 +157,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Parse the advertised port once so a malformed SERVER_ADDRESS fails fast at
+	// wiring time rather than when the discovery runnable tries to register.
+	serverPort, err := parseServerPort(cfg.ServerAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceDescriptor := buildCRMServiceDescriptor(serverPort)
+
 	// Initialize KMS (encryption mode and optional Vault client).
 	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
 	// cannot block startup indefinitely.
@@ -310,6 +319,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingClose:          streamingClose,
 		ServiceDiscovery:        serviceDiscovery,
 		ServiceDiscoveryEnabled: serviceDiscoveryEnabled,
+		ServiceDescriptor:       serviceDescriptor,
 		Logger:                  logger,
 	}, nil
 }
