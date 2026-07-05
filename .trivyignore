@@ -1,1 +1,11 @@
+# CVE-2025-57319 (fast-redact, JS): disputed prototype-pollution advisory. Not a real
+# finding in this Go repo's scanned components. Pre-existing suppression, left as-is.
 CVE-2025-57319
+
+# CVE-2026-45045 (github.com/gofiber/fiber/v2): X-Real-IP spoofing via Header.Add() in the
+# proxy BalancerForward middleware. No upstream fix exists — v2.52.13 is the latest fiber/v2
+# (maintenance mode); the fix ships only in fiber/v3 (>= 3.3.0), which midaz depends on
+# indirectly and has bumped. midaz does not use fiber's proxy / BalancerForward middleware
+# (no middleware/proxy import), so the vulnerable reverse-proxy code path is unreachable.
+# Re-evaluate when a patched fiber/v2 ships or the HTTP runtime migrates to fiber/v3.
+CVE-2026-45045 exp:2027-01-05
