@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -36,6 +37,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -307,7 +309,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("startup_id", startupID),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Starting unified ledger component",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 	)
@@ -605,7 +608,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
 			}
 
-			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+			logger.Log(
+				context.Background(), libLog.LevelInfo, "Tenant event listener configured",
 				libLog.String("redis_host", cfg.MultiTenantRedisHost),
 				libLog.String("service", tenantServiceName),
 			)
@@ -712,8 +716,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
-	// Auth
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
+	// Service discovery: build the Manager (no-op when disabled), parse the
+	// advertised port + descriptor (gated on enabled), and resolve plugin-auth
+	// through discovery — all in one helper mirrored on the CRM side.
+	sd, err := wireServiceDiscovery(cfg, logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, err
+	}
+
+	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
 
@@ -785,7 +798,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
@@ -805,6 +819,62 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		ServiceDiscovery:         sd.manager,
+		ServiceDiscoveryEnabled:  sd.enabled,
+		ServiceDescriptor:        sd.descriptor,
+	}, nil
+}
+
+// serviceDiscoveryWiring holds the service-discovery outputs consumed by the
+// composition root: the Manager, whether discovery is enabled, the descriptor to
+// register, and the plugin-auth host resolved (or degraded) via discovery.
+type serviceDiscoveryWiring struct {
+	manager    *libsd.Manager
+	enabled    bool
+	descriptor libsd.Service
+	authHost   string
+}
+
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration) and resolves the plugin-auth host — degrading to the static
+// PLUGIN_AUTH_HOST when auth is disabled or resolution fails so a discovery
+// outage never fails boot.
+//
+// The advertised port is parsed and the descriptor built ONLY when discovery is
+// enabled: the descriptor is consumed solely by the discovery runnable (wired
+// only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
+// discovery off. The resolve timeout is created only when auth is enabled, since
+// ResolveAuthHost returns the static host without touching the context otherwise.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWiring, error) {
+	manager, enabled, err := pkgsd.BuildManager(logger)
+	if err != nil {
+		return serviceDiscoveryWiring{}, err
+	}
+
+	var descriptor libsd.Service
+
+	if enabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			return serviceDiscoveryWiring{}, portErr
+		}
+
+		descriptor = pkgsd.BuildServiceDescriptor("midaz-ledger", serverPort)
+	}
+
+	authHost := cfg.AuthHost
+	if cfg.AuthEnabled {
+		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost)
+
+		cancel()
+	}
+
+	return serviceDiscoveryWiring{
+		manager:    manager,
+		enabled:    enabled,
+		descriptor: descriptor,
+		authHost:   authHost,
 	}, nil
 }
 
@@ -912,7 +982,8 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 
 	// Log the effective config (after defaults applied by the constructor).
 	effectiveCfg := balanceSyncWorker.syncConfig
-	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
@@ -996,7 +1067,8 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
 		libLog.String("service", tenantServiceName),
 		libLog.Bool("tenant_manager_configured", true),
 	)
@@ -1051,7 +1123,8 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("modules", "onboarding,transaction"),
 	)
 
@@ -1085,7 +1158,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	// Tenant suspended or purged → 403 (same semantics as tenant-manager /connections)
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
-		return midazhttp.Forbidden(c,
+		return midazhttp.Forbidden(
+			c,
 			constant.ErrTenantServiceSuspended.Error(),
 			"Service Suspended",
 			fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
@@ -1094,7 +1168,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not found → 404
 	if errors.Is(err, tmcore.ErrTenantNotFound) {
-		return midazhttp.NotFound(c,
+		return midazhttp.NotFound(
+			c,
 			constant.ErrTenantNotFound.Error(),
 			"Tenant Not Found",
 			fmt.Sprintf("tenant not found: %s", tenantID),
@@ -1103,7 +1178,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not provisioned → 422
 	if tmcore.IsTenantNotProvisionedError(err) {
-		return midazhttp.UnprocessableEntity(c,
+		return midazhttp.UnprocessableEntity(
+			c,
 			constant.ErrTenantNotProvisioned.Error(),
 			"Tenant Not Provisioned",
 			"Database schema not initialized for this tenant. Contact your administrator.",
@@ -1111,7 +1187,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	}
 
 	// Unknown error → 503
-	return midazhttp.ServiceUnavailable(c,
+	return midazhttp.ServiceUnavailable(
+		c,
 		constant.ErrTenantServiceUnavailable.Error(),
 		"Tenant Service Unavailable",
 		fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
