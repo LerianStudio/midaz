@@ -14,14 +14,19 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
+
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -75,6 +80,11 @@ type CreateLimitCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewCreateLimitCommand creates a new CreateLimitCommand with dependencies.
@@ -317,5 +327,17 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		return nil, fmt.Errorf("failed to create limit: %w", txErr)
 	}
 
+	c.emitLimitCreatedEvent(ctx, span, logger, limit)
+
 	return limit, nil
+}
+
+// emitLimitCreatedEvent publishes the limit.created event post-commit. IMPORTANT
+// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// propagates build/emit failures — so this never fails the request.
+func (c *CreateLimitCommand) emitLimitCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLimitCreated(limit).ToEmitRequest(tenantID, limit.CreatedAt)
+		})
 }

@@ -13,8 +13,10 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -22,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -31,6 +35,11 @@ type DeactivateLimitCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewDeactivateLimitCommand creates a new DeactivateLimitCommand with dependencies.
@@ -206,5 +215,17 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *
 		return nil, fmt.Errorf("failed to deactivate limit: %w", txErr)
 	}
 
+	c.emitLimitDeactivatedEvent(ctx, span, logger, limit)
+
 	return limit, nil
+}
+
+// emitLimitDeactivatedEvent publishes the limit.deactivated event post-commit.
+// It is not called on the idempotent already-inactive no-op (which skips the
+// tx). IMPORTANT posture: emit failures never fail the request.
+func (c *DeactivateLimitCommand) emitLimitDeactivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeactivatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLimitDeactivated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
+		})
 }

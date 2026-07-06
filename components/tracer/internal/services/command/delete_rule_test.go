@@ -20,7 +20,7 @@ import (
 )
 
 func TestNewDeleteRuleService_NilRepository(t *testing.T) {
-	service, err := NewDeleteRuleService(nil, nil, nil)
+	service, err := NewDeleteRuleService(nil, nil, nil, nil)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNilDeleteRuleRepository)
@@ -31,7 +31,7 @@ func TestNewDeleteRuleService_NilAuditWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockRepo := NewMockRuleRepository(ctrl)
 
-	service, err := NewDeleteRuleService(mockRepo, nil, nil)
+	service, err := NewDeleteRuleService(mockRepo, nil, nil, nil)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNilAuditWriter)
@@ -88,7 +88,7 @@ func TestDeleteRule_Success_FromInactive(t *testing.T) {
 		mockTx.EXPECT().Commit().Return(nil),
 	)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -145,7 +145,7 @@ func TestDeleteRule_Success_FromDraft(t *testing.T) {
 		mockTx.EXPECT().Commit().Return(nil),
 	)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -172,7 +172,7 @@ func TestDeleteRule_RuleNotFound(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -207,7 +207,7 @@ func TestDeleteRule_NilRuleFromRepo(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -243,7 +243,7 @@ func TestDeleteRule_AlreadyDeleted_Idempotent(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -292,7 +292,7 @@ func TestDeleteRule_InvalidTransition(t *testing.T) {
 				RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Times(0)
 
-			service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+			service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 			require.NoError(t, err)
 
 			err = service.Execute(ctx, ruleID)
@@ -328,7 +328,7 @@ func TestDeleteRule_GetByIDError(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -379,7 +379,7 @@ func TestDeleteRule_DeleteError(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -427,7 +427,7 @@ func TestDeleteRule_BeginTxError(t *testing.T) {
 		RecordRuleEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -484,7 +484,7 @@ func TestDeleteRule_AuditError_Rollback(t *testing.T) {
 	)
 	mockTx.EXPECT().Commit().Times(0)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)
@@ -541,7 +541,7 @@ func TestDeleteRule_CommitError(t *testing.T) {
 		mockTx.EXPECT().Rollback().Return(nil),
 	)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 
 	err = service.Execute(ctx, ruleID)

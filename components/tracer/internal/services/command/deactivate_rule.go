@@ -13,8 +13,10 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -22,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -45,6 +49,11 @@ type DeactivateRuleService struct {
 	auditWriter AuditWriter
 	cacheWriter RuleCacheWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewDeactivateRuleService creates a new DeactivateRuleService.
@@ -258,5 +267,16 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		}()
 	}
 
+	s.emitRuleDeactivatedEvent(ctx, span, logger, rule)
+
 	return rule, nil
+}
+
+// emitRuleDeactivatedEvent publishes the rule.deactivated event post-commit.
+// IMPORTANT posture: emit failures never fail the request.
+func (s *DeactivateRuleService) emitRuleDeactivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDeactivatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleDeactivated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
+		})
 }

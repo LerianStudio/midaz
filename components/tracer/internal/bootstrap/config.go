@@ -22,6 +22,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -224,6 +225,38 @@ type Config struct {
 	// default; bootstrap applies the value via
 	// HealthChecker.SetCacheStalenessThreshold.
 	ReadyzCacheStalenessThresholdSeconds int `env:"READYZ_CACHE_STALENESS_THRESHOLD_SECONDS"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// StreamingEnabled is the master flag. Default OFF (unset bool = false): a
+	// service with STREAMING_ENABLED=false injects a NoopEmitter and never
+	// initialises the underlying transport, so an existing deployment that never
+	// sets these vars is not broken by the new dependency. Transport knobs
+	// (brokers, compression, acks, linger) are NOT bound here — they are read by
+	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
+	StreamingEnabled bool `env:"STREAMING_ENABLED"`
+
+	// StreamingCloudEventsSource overrides the CloudEvents `ce-source` stamped
+	// on every event tracer emits. When empty (the default), the in-code
+	// default lerian.midaz.tracer is used, so an existing deployment that never
+	// sets this var keeps the historical source. Operators set it only to
+	// distinguish sources across environments or shadow deployments.
+	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
+
+	// --- Streaming SASL/TLS auth ---
+	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
+	// without authentication, matching the existing behaviour for local/dev
+	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
+	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then required.
+	//
+	// SASL without TLS is rejected by lib-streaming with
+	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
+	// explicit unsafe opt-in for local/dev brokers that do not terminate TLS. It
+	// must NOT be set in production: SASL credentials cross the network in
+	// cleartext.
+	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
+	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
+	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
+	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.
@@ -884,7 +917,7 @@ func initPostgresConnection(ctx context.Context, cfg *Config, logger libLog.Logg
 // The txBeginner is shared with the limit lifecycle commands and the validation
 // service so the rule lifecycle commands persist the status/update and the
 // audit event atomically via executeInTx.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock, txBeginner pgdb.TxBeginner) (*services.RuleService, error) {
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
 
 	// Inject audit writer and cache writer into Rule commands
@@ -893,30 +926,42 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 		return nil, fmt.Errorf("failed to construct CreateRuleCommand: %w", err)
 	}
 
+	createRuleCmd.Streaming = streaming
+
 	updateRuleCmd, err := command.NewUpdateRuleCommand(ruleRepo, celCompiler, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct UpdateRuleCommand: %w", err)
 	}
+
+	updateRuleCmd.Streaming = streaming
 
 	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, cacheWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate rule service: %w", err)
 	}
 
+	activateRuleCmd.Streaming = streaming
+
 	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, cacheWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deactivate rule service: %w", err)
 	}
+
+	deactivateRuleCmd.Streaming = streaming
 
 	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft rule service: %w", err)
 	}
 
-	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, txBeginner)
+	draftRuleCmd.Streaming = streaming
+
+	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, clk, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete rule service: %w", err)
 	}
+
+	deleteRuleCmd.Streaming = streaming
 
 	getRuleQuery := query.NewGetRuleQuery(ruleRepo)
 	listRulesQuery := query.NewListRulesQuery(ruleRepo)
@@ -992,7 +1037,7 @@ type limitServiceDeps struct {
 // tenant pool fails fast in MT mode rather than silently using root (M1).
 // The txBeginner is shared with the validation service so the limit lifecycle
 // commands persist the status/update and the audit event atomically.
-func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner) (*limitServiceDeps, error) {
+func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner, streaming libStreaming.Emitter) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepositoryWithConnection(pgConn)
 
 	usageCounterRepo := postgres.NewUsageCounterRepositoryWithConnection(pgConn)
@@ -1002,30 +1047,42 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 		return nil, fmt.Errorf("failed to construct CreateLimitCommand: %w", err)
 	}
 
+	createLimitCmd.Streaming = streaming
+
 	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create update limit command: %w", err)
 	}
+
+	updateLimitCmd.Streaming = streaming
 
 	activateLimitCmd, err := command.NewActivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate limit command: %w", err)
 	}
 
+	activateLimitCmd.Streaming = streaming
+
 	deactivateLimitCmd, err := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deactivate limit command: %w", err)
 	}
+
+	deactivateLimitCmd.Streaming = streaming
 
 	draftLimitCmd, err := command.NewDraftLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft limit command: %w", err)
 	}
 
+	draftLimitCmd.Streaming = streaming
+
 	deleteLimitCmd, err := command.NewDeleteLimitCommand(limitRepo, clk, auditWriter, txBeginner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete limit command: %w", err)
 	}
+
+	deleteLimitCmd.Streaming = streaming
 
 	getLimitQuery := query.NewGetLimitQuery(limitRepo)
 
@@ -1468,14 +1525,19 @@ func initWorkers(
 	logger libLog.Logger,
 	clk clock.Clock,
 	mtComponents *componentsMT,
+	streamingEmitter libStreaming.Emitter,
+	streamingClose func() error,
 ) (*Service, error) {
 	svc := &Service{
-		HTTPServer:    serverAPI,
-		grpcServer:    grpcServer,
-		Logger:        logger,
-		postgresConn:  postgresConn,
-		healthChecker: healthChecker,
-		config:        cfg,
+		HTTPServer:       serverAPI,
+		grpcServer:       grpcServer,
+		Logger:           logger,
+		postgresConn:     postgresConn,
+		healthChecker:    healthChecker,
+		config:           cfg,
+		StreamingEmitter: streamingEmitter,
+		StreamingClose:   streamingClose,
+		StreamingEnabled: cfg.StreamingEnabled,
 	}
 
 	if mtComponents != nil {
@@ -1603,8 +1665,11 @@ func conditionalWarmUpCache(
 	return nil
 }
 
-// initCoreInfra initializes logger, validates auth config, and sets up OpenTelemetry.
-func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
+// initCoreInfra initializes logger, validates auth config, sets up
+// OpenTelemetry, and builds the streaming emitter. The emitter and its close
+// hook are non-nil in every path (NoopEmitter + no-op close when streaming is
+// disabled), so callers can wire them unconditionally.
+func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Telemetry, libStreaming.Emitter, func() error, error) {
 	zapEnv := libZap.Environment(cfg.OtelDeploymentEnv)
 	if zapEnv == "" {
 		zapEnv = libZap.EnvironmentDevelopment
@@ -1616,30 +1681,30 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		OTelLibraryName: "tracer",
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	var logger libLog.Logger = zapLogger
 
 	// Validate authentication configuration (fail-fast if misconfigured)
 	if err := ValidateAuthConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
 	// Validate Access Manager plugin configuration (fail-fast if misconfigured)
 	if err := ValidateAccessManagerConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
 	}
 
 	// Cross-check: at least one auth mechanism must be enabled outside local
 	// deployments (fail-fast; the per-mechanism validators above only Warn)
 	if err := ValidateAuthPresence(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("auth presence: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("auth presence: %w", err)
 	}
 
 	// Validate multi-tenant configuration (fail-fast if misconfigured)
 	if err := ValidateMultiTenantConfig(ctx, cfg, logger); err != nil {
-		return nil, nil, fmt.Errorf("invalid multi-tenant configuration: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("invalid multi-tenant configuration: %w", err)
 	}
 
 	// Gate 4: enforce TLS posture for SaaS deployments BEFORE any external
@@ -1648,7 +1713,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	// function with one call site — anti-pattern N6 (scattered inline
 	// checks) is structurally absent.
 	if err := ValidateSaaSTLS(cfg); err != nil {
-		return nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
@@ -1662,7 +1727,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		Logger:                    logger,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
 	// C2: arm lib-commons' panic-observability trident so every
@@ -1674,7 +1739,15 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		libRuntime.InitPanicMetrics(telemetry.MetricsFactory, logger)
 	}
 
-	return logger, telemetry, nil
+	// Build the streaming emitter. Disabled (the default) yields a NoopEmitter
+	// plus a no-op close hook — no transport is constructed and no broker
+	// connection is attempted, so an unset STREAMING_* config never breaks boot.
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(ctx, cfg, logger, telemetry)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to build streaming emitter: %w", err)
+	}
+
+	return logger, telemetry, streamingEmitter, streamingClose, nil
 }
 
 // initClock creates a clock instance based on environment configuration.
@@ -1724,7 +1797,11 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// `envDefault` struct tags; this is the single source of truth for defaults.
 	ApplyMultiTenantDefaults(cfg)
 
-	logger, telemetry, err := initCoreInfra(ctx, cfg)
+	// initCoreInfra also builds the streaming emitter once logger + telemetry
+	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close
+	// hook — no transport is constructed and no broker connection is
+	// attempted, so an unset STREAMING_* config never breaks boot.
+	logger, telemetry, streamingEmitter, streamingClose, err := initCoreInfra(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -1809,7 +1886,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Rule service with audit writer and rule cache for synchronous cache updates
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk, txBeginner)
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
 	}
@@ -1833,7 +1910,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(pgConn, auditWriter, clk, txBeginner)
+	limitDeps, err := initLimitService(pgConn, auditWriter, clk, txBeginner, streamingEmitter)
 	if err != nil {
 		return nil, err
 	}
@@ -1855,7 +1932,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}
@@ -1938,6 +2015,8 @@ func finalizeStartup(
 	telemetry *libOtel.Telemetry,
 	clk clock.Clock,
 	mtComponents *componentsMT,
+	streamingEmitter libStreaming.Emitter,
+	streamingClose func() error,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -1949,7 +2028,7 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents)
+	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}

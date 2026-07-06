@@ -210,7 +210,7 @@ func TestAuditEventRecording_DeleteRule(t *testing.T) {
 		mockTx.EXPECT().Commit().Return(nil),
 	)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, txBeginner)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter, testutil.NewDefaultMockClock(), txBeginner)
 	require.NoError(t, err)
 	err = service.Execute(context.Background(), ruleID)
 	require.NoError(t, err)

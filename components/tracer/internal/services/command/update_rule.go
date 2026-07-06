@@ -11,16 +11,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -71,6 +75,11 @@ type UpdateRuleCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewUpdateRuleCommand creates a new UpdateRuleCommand instance.
@@ -266,5 +275,16 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		return nil, fmt.Errorf("failed to update rule: %w", txErr)
 	}
 
+	c.emitRuleUpdatedEvent(ctx, span, logger, rule)
+
 	return rule, nil
+}
+
+// emitRuleUpdatedEvent publishes the rule.updated event post-commit. IMPORTANT
+// posture: emit failures never fail the request.
+func (c *UpdateRuleCommand) emitRuleUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleUpdated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
+		})
 }

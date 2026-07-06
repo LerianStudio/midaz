@@ -13,14 +13,19 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -35,6 +40,12 @@ type DeleteRuleService struct {
 	repository  RuleRepository
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+	clock       clock.Clock
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 var (
@@ -43,9 +54,12 @@ var (
 )
 
 // NewDeleteRuleService creates a new DeleteRuleService.
+// The clock supplies the delete-moment timestamp carried on the rule.deleted
+// streaming event (the DB/audit remain the source of truth for persisted
+// timestamps).
 // txBeginner may be nil — in that case Execute will surface pgdb.ErrNilConnection
 // when it attempts to start the persistence transaction.
-func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter, txBeginner pgdb.TxBeginner) (*DeleteRuleService, error) {
+func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter, clk clock.Clock, txBeginner pgdb.TxBeginner) (*DeleteRuleService, error) {
 	if repository == nil {
 		return nil, ErrNilDeleteRuleRepository
 	}
@@ -54,10 +68,15 @@ func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter, tx
 		return nil, ErrNilAuditWriter
 	}
 
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &DeleteRuleService{
 		repository:  repository,
 		auditWriter: auditWriter,
 		txBeginner:  txBeginner,
+		clock:       clk,
 	}, nil
 }
 
@@ -141,6 +160,12 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (retE
 		return err
 	}
 
+	// Capture the delete moment for the rule.deleted streaming payload. The
+	// delete use case returns no post-delete entity to read DeletedAt from, so
+	// the clock provides a deterministic, request-monotonic timestamp used only
+	// for the event (persisted timestamps remain DB/audit-owned).
+	deletedAt := s.clock.Now().UTC()
+
 	// Capture "before" state for audit (after idempotency + transition checks,
 	// before the soft-delete mutates the rule row).
 	beforeState := RuleToMap(rule)
@@ -208,5 +233,17 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (retE
 		return fmt.Errorf("failed to delete rule: %w", txErr)
 	}
 
+	s.emitRuleDeletedEvent(ctx, span, logger, ruleID, deletedAt)
+
 	return nil
+}
+
+// emitRuleDeletedEvent publishes the rule.deleted event post-commit. IMPORTANT
+// posture: emit failures never fail the request. deletedAt is the delete moment
+// captured before the transaction.
+func (s *DeleteRuleService) emitRuleDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, ruleID uuid.UUID, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleDeleted(ruleID, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

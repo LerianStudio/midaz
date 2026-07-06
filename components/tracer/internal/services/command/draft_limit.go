@@ -13,8 +13,10 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -22,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -33,6 +37,11 @@ type DraftLimitCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense domain
+	// events; nil disables emission and never fails the request. Set
+	// post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewDraftLimitCommand creates a new DraftLimitCommand with dependencies.
@@ -208,5 +217,17 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *model
 		return nil, fmt.Errorf("failed to transition limit to draft: %w", txErr)
 	}
 
+	c.emitLimitDraftedEvent(ctx, span, logger, limit)
+
 	return limit, nil
+}
+
+// emitLimitDraftedEvent publishes the limit.drafted event post-commit. It is
+// not called on the idempotent already-draft no-op (which skips the tx).
+// IMPORTANT posture: emit failures never fail the request.
+func (c *DraftLimitCommand) emitLimitDraftedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDraftedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewLimitDrafted(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
+		})
 }

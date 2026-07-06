@@ -17,12 +17,17 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -88,6 +93,12 @@ type CreateRuleCommand struct {
 	clock       clock.Clock
 	auditWriter AuditWriter
 	txBeginner  pgdb.TxBeginner
+
+	// Streaming publishes past-tense domain events to external consumers. It
+	// holds the Emitter interface (never *libStreaming.Producer) so unit tests
+	// substitute a mock or noop emitter without a broker. optional; nil disables
+	// emission and never fails the request. Set post-construction at bootstrap.
+	Streaming libStreaming.Emitter
 }
 
 // NewCreateRuleCommand creates a new CreateRuleCommand instance.
@@ -261,5 +272,17 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, fmt.Errorf("failed to create rule: %w", txErr)
 	}
 
+	c.emitRuleCreatedEvent(ctx, span, logger, result)
+
 	return result, nil
+}
+
+// emitRuleCreatedEvent publishes the rule.created event post-commit. IMPORTANT
+// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// propagates build/emit failures — so this never fails the request.
+func (c *CreateRuleCommand) emitRuleCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
+	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewRuleCreated(rule).ToEmitRequest(tenantID, rule.CreatedAt)
+		})
 }
