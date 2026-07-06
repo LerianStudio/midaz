@@ -10,16 +10,16 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
-	github.com/gofiber/fiber/v2 v2.52.13
+	github.com/gofiber/fiber/v2 v2.52.14
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/lib/pq v1.12.3
-	github.com/rabbitmq/amqp091-go v1.11.0
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/rabbitmq/amqp091-go v1.12.0
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.6
-	github.com/testcontainers/testcontainers-go v0.42.0
+	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
@@ -106,14 +106,14 @@ require (
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
 	github.com/hashicorp/vault/api v1.23.0
-	github.com/moby/moby/api v1.54.2
-	github.com/moby/moby/client v0.4.1
-	github.com/testcontainers/testcontainers-go/modules/redpanda v0.42.0
-	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.42.0
-	github.com/tink-crypto/tink-go/v2 v2.6.0
-	github.com/twmb/franz-go v1.21.3
+	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/client v0.5.0
+	github.com/testcontainers/testcontainers-go/modules/redpanda v0.43.0
+	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.43.0
+	github.com/tink-crypto/tink-go/v2 v2.7.0
+	github.com/twmb/franz-go v1.21.5
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
-	go.mongodb.org/mongo-driver/v2 v2.6.0
+	go.mongodb.org/mongo-driver/v2 v2.7.0
 	go.uber.org/goleak v1.3.0
 )
 
