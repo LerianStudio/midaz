@@ -12,9 +12,13 @@ type indexState struct {
 	done bool
 }
 
-// indexTracker manages per-database index creation state.
-// In multi-tenant mode, each tenant database needs its own indexes.
-// This tracker ensures indexes are created exactly once per database, with retry on failure.
+// indexTracker manages index-creation state per (database, collection) pair.
+// In multi-tenant mode each tenant database needs its own indexes, and holder
+// collections are per-organization (holders_<orgID>), so one entry accumulates
+// per (tenant database, organization). Entries are never evicted in production:
+// the map grows with the distinct collection count, bounded by the org/tenant
+// scale — an intentional, create-once-per-collection cache (reset is test-only).
+// Indexes are created once per key, with retry on failure.
 type indexTracker struct {
 	states sync.Map // key: "dbName:collection" -> *indexState
 }
@@ -49,6 +53,6 @@ func (t *indexTracker) reset(key string) {
 	t.states.Delete(key)
 }
 
-// globalIndexTracker is shared across all audit repository instances.
-// This ensures indexes are created once per database even if multiple repository instances exist.
+// globalIndexTracker is shared across all holder repository instances, so indexes
+// are created once per (database, collection) even when multiple instances exist.
 var globalIndexTracker = &indexTracker{}
