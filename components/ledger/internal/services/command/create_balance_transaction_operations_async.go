@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -147,8 +148,34 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctx, tran, phase)
-	go uc.SendOverdraftEvents(ctx, tran)
+	// Send events asynchronously with context that preserves trace but survives parent cancellation.
+	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
+	go func() {
+		base := context.WithoutCancel(ctx)
+
+		runWithTimeout := func(fn func(context.Context)) {
+			emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+			defer cancel()
+
+			fn(emitCtx)
+		}
+
+		var wg sync.WaitGroup
+
+		wg.Add(3)
+
+		go func() {
+			defer wg.Done()
+			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
+		}()
+		go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) }) }()
+		go func() {
+			defer wg.Done()
+			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
+		}()
+
+		wg.Wait()
+	}()
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
@@ -483,8 +510,8 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 // Non-empty direction must be one of the valid values ("debit", "credit").
 func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper *operation.Operation) error {
 	if oper.Direction == "" {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-			"Operation %s has empty direction, may be from pre-migration message", oper.ID))
+		logger.Log(ctx, libLog.LevelWarn, "Operation has empty direction, may be from pre-migration message",
+			libLog.String("operation_id", oper.ID))
 
 		return nil
 	}

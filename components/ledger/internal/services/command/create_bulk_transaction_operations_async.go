@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -108,7 +109,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
 				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
-				p.Transaction.ID))
+				p.Transaction.ID,
+			))
 
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
 				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
@@ -542,7 +544,8 @@ func (uc *UseCase) processMetadataAndEvents(
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
 				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping events for duplicate transaction %s", tx.ID))
+					"Skipping events for duplicate transaction %s", tx.ID,
+				))
 
 				continue
 			}
@@ -573,13 +576,33 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
-		// Send events asynchronously with context that preserves trace but survives parent cancellation
+		// Send events asynchronously with context that preserves trace but survives parent cancellation.
+		// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 		go func(phase string) {
-			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-			defer cancel()
+			base := context.WithoutCancel(ctx)
 
-			uc.SendTransactionEvents(opCtx, tx, phase)
-			uc.SendOverdraftEvents(opCtx, tx)
+			runWithTimeout := func(fn func(context.Context)) {
+				emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+				defer cancel()
+
+				fn(emitCtx)
+			}
+
+			var wg sync.WaitGroup
+
+			wg.Add(3)
+
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
+			}()
+			go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) }) }()
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			}()
+
+			wg.Wait()
 		}(phase)
 	}
 }
