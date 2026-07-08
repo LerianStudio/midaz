@@ -57,6 +57,10 @@ type Service struct {
 	// SERVER_ADDRESS never aborts boot with discovery off) and reused by the
 	// service-discovery runnable. It is zero-value when discovery is disabled.
 	ServiceDescriptor libsd.Service
+	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
+	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
+	// so no SD metrics are emitted with SD off.
+	ServiceDiscoveryMetrics pkgsd.MetricsRecorder
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
@@ -96,7 +100,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.ServiceDiscoveryEnabled {
 		apps = append(apps, launcherApp{
 			"Service Discovery",
-			pkgsd.NewRunnable(s.ServiceDiscovery, s.ServiceDescriptor, s.Logger, nil),
+			pkgsd.NewRunnable(s.ServiceDiscovery, s.ServiceDescriptor, s.Logger, s.ServiceDiscoveryMetrics),
 		})
 	}
 
