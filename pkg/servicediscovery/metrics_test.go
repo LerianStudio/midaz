@@ -10,16 +10,30 @@ import (
 )
 
 // stubRecorder is a local white-box stub used to assert orNop identity passthrough
-// and that call sites can drive a plain (non-OTel) MetricsRecorder.
+// and that call sites can drive a plain (non-OTel) MetricsRecorder. It tracks each
+// method independently so future call-site tests can assert which method fired and
+// with what arguments.
 type stubRecorder struct {
-	called bool
+	registerInitiatedCalls int
+	deregisterResults      []string
+	resolveResults         []resolveCall
 }
 
-func (s *stubRecorder) RegisterInitiated(_ context.Context) { s.called = true }
+type resolveCall struct {
+	service    string
+	result     string
+	durationMs int64
+}
 
-func (s *stubRecorder) DeregisterResult(_ context.Context, _ string) { s.called = true }
+func (s *stubRecorder) RegisterInitiated(_ context.Context) { s.registerInitiatedCalls++ }
 
-func (s *stubRecorder) ResolveResult(_ context.Context, _, _ string, _ int64) { s.called = true }
+func (s *stubRecorder) DeregisterResult(_ context.Context, result string) {
+	s.deregisterResults = append(s.deregisterResults, result)
+}
+
+func (s *stubRecorder) ResolveResult(_ context.Context, service, result string, durationMs int64) {
+	s.resolveResults = append(s.resolveResults, resolveCall{service: service, result: result, durationMs: durationMs})
+}
 
 func TestNopMetricsRecorder_SatisfiesInterfaceAndDoesNotPanic(t *testing.T) {
 	var r MetricsRecorder = NopMetricsRecorder{}
@@ -61,9 +75,22 @@ func TestOrNop_NonNilReturnsSameRecorder(t *testing.T) {
 		t.Fatal("orNop(stub) returned a different recorder; want the same instance")
 	}
 
-	got.RegisterInitiated(context.Background())
-	if !stub.called {
-		t.Fatal("call through orNop(stub) did not reach the underlying recorder")
+	ctx := context.Background()
+	got.RegisterInitiated(ctx)
+	got.DeregisterResult(ctx, ResultError)
+	got.ResolveResult(ctx, "plugin-auth", ResultFallback, 7)
+
+	if stub.registerInitiatedCalls != 1 {
+		t.Errorf("RegisterInitiated calls = %d; want 1 (call must reach the same instance)", stub.registerInitiatedCalls)
+	}
+
+	if len(stub.deregisterResults) != 1 || stub.deregisterResults[0] != ResultError {
+		t.Errorf("DeregisterResult calls = %v; want [%q]", stub.deregisterResults, ResultError)
+	}
+
+	wantResolve := resolveCall{service: "plugin-auth", result: ResultFallback, durationMs: 7}
+	if len(stub.resolveResults) != 1 || stub.resolveResults[0] != wantResolve {
+		t.Errorf("ResolveResult calls = %v; want [%+v]", stub.resolveResults, wantResolve)
 	}
 }
 

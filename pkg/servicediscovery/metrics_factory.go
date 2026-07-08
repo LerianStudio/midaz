@@ -37,7 +37,17 @@ var (
 		Name:        "sd_resolve_duration_milliseconds",
 		Unit:        "ms",
 		Description: "Service Discovery resolve duration in milliseconds.",
+		// Explicit millisecond boundaries. Without them, MetricsFactory.Histogram
+		// auto-selects DefaultLatencyBuckets (seconds, 0.001-10) for any "duration"
+		// metric, collapsing every ms observation into the +Inf bucket. These bounds
+		// match the declared "ms" unit and the int64 ms values ResolveResult records.
+		Buckets: sdResolveDurationMsBuckets,
 	}
+
+	// sdResolveDurationMsBuckets are the explicit ms bucket boundaries locked to
+	// the "ms" unit of sdResolveDurationMs. Kept as a package var so tests can
+	// assert the descriptor and the emitted histogram share the same scale.
+	sdResolveDurationMsBuckets = []float64{1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000}
 )
 
 // metricsFactoryRecorder is the OTel-backed MetricsRecorder. It records SD metrics
