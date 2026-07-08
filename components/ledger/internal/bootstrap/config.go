@@ -865,7 +865,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWi
 	authHost := cfg.AuthHost
 	if cfg.AuthEnabled {
 		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
-		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost, nil)
 
 		cancel()
 	}
