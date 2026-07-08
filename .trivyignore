@@ -3,18 +3,3 @@
 # Not applicable to this Go repository; retained from prior configuration.
 # ---------------------------------------------------------------------------
 CVE-2025-57319
-
-# ---------------------------------------------------------------------------
-# Go stdlib LOW CVEs baked into the compiled binary (built with
-# golang:1.26.4-alpine). No patched Go release (> 1.26.4) is available as of
-# 2026-07-08. Both are LOW severity and are hidden from the CRITICAL/HIGH scan
-# summary, but they flip the PR security-reporter gate's has_findings via the
-# all-severity SARIF, blocking every midaz PR (they surface in both the ledger
-# and crm image scans). Remove once the Go builder image is bumped to a release
-# carrying the fixes.
-# Review by: 2026-09-01
-#   CVE-2026-39822 — os: root escape via symlink plus trailing slash
-#   CVE-2026-42505 — crypto/tls: Encrypted Client Hello privacy leak
-# ---------------------------------------------------------------------------
-CVE-2026-39822
-CVE-2026-42505
