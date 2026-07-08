@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"strings"
-	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
 	libStreaming "github.com/LerianStudio/lib-streaming"
@@ -21,8 +20,7 @@ import (
 // SendBalanceChangedEvents emits one generic, domain-agnostic balance.changed
 // event per balance-affecting operation of a committed transaction.
 //
-// Fire-and-forget: launched as a goroutine alongside SendTransactionEvents /
-// SendOverdraftEvents. Emission failures are logged/span-recorded but never
+// Fire-and-forget: emission failures are logged/span-recorded but never
 // propagate — this MUST NOT fail the parent transaction (mirrors the
 // EmitImportant contract). Emission happens whenever streaming is enabled:
 // when STREAMING_ENABLED=false the streaming client is a NoopEmitter, so this
@@ -45,7 +43,9 @@ func (uc *UseCase) SendBalanceChangedEvents(ctx context.Context, tran *transacti
 	ctxSend, span := tracer.Start(ctx, "command.send_balance_changed_events_async")
 	defer span.End()
 
-	occurredAt := time.Now().UTC()
+	if ctxSend.Err() != nil {
+		return
+	}
 
 	for _, op := range tran.Operations {
 		if op == nil || !op.BalanceAffected {
@@ -71,7 +71,7 @@ func (uc *UseCase) SendBalanceChangedEvents(ctx context.Context, tran *transacti
 			Amount:         decimalOrZero(op.Amount.Value),
 			TransactionID:  tran.ID,
 			OperationID:    op.ID,
-			OccurredAt:     occurredAt,
+			OccurredAt:     op.CreatedAt,
 		}
 
 		buildFn := func(tenantID string) (libStreaming.EmitRequest, error) {

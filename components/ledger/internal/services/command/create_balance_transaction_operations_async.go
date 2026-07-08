@@ -147,9 +147,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctx, tran, phase)
-	go uc.SendOverdraftEvents(ctx, tran)
-	go uc.SendBalanceChangedEvents(ctx, tran)
+	// Send events asynchronously with context that preserves trace but survives parent cancellation
+	go func() {
+		eventCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
+		defer cancel()
+
+		uc.SendTransactionEvents(eventCtx, tran, phase)
+		uc.SendOverdraftEvents(eventCtx, tran)
+		uc.SendBalanceChangedEvents(eventCtx, tran)
+	}()
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
 
