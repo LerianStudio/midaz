@@ -103,13 +103,15 @@ func newStubManager(t *testing.T, stub libsd.Registry) *libsd.Manager {
 // TestRunnable_Lifecycle exercises the full register/deregister path of Run
 // without a real Consul: RegisterAsync must record a Register with the
 // descriptor's ID/Name/Port/TTL, and simulated SIGTERM (context cancel) must
-// trigger a Deregister with the SAME ID.
+// trigger a Deregister with the SAME ID. It also asserts the metrics recorder
+// observes exactly one register-initiated and one deregister-OK over the cycle.
 func TestRunnable_Lifecycle(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubRegistry{registeredCh: make(chan struct{}, 1)}
 	mgr := newStubManager(t, stub)
 	svc := BuildServiceDescriptor("midaz-ledger", 3002)
+	recorder := &stubRecorder{}
 
 	sigCtx, cancel := context.WithCancel(context.Background())
 
@@ -117,6 +119,7 @@ func TestRunnable_Lifecycle(t *testing.T) {
 		manager: mgr,
 		svc:     svc,
 		logger:  libLog.NewNop(),
+		metrics: recorder,
 		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
 			return sigCtx, func() {}
 		},
@@ -153,10 +156,14 @@ func TestRunnable_Lifecycle(t *testing.T) {
 	deregistered := stub.deregisteredIDs()
 	require.Len(t, deregistered, 1)
 	assert.Equal(t, svc.ID, deregistered[0])
+
+	assert.Equal(t, 1, recorder.registerInitiatedCalls, "exactly one register-initiated over the cycle")
+	assert.Equal(t, []string{ResultOK}, recorder.deregisterResults, "clean shutdown records deregister OK")
 }
 
 // TestRunnable_DeregisterErrorSwallowed verifies a deregister failure is logged
-// at Warn and NOT propagated: Run still returns nil.
+// at Warn and NOT propagated: Run still returns nil. The failure path must also
+// record a single deregister-error metric.
 func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +173,7 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 	}
 	mgr := newStubManager(t, stub)
 	svc := BuildServiceDescriptor("midaz-crm", 4003)
+	recorder := &stubRecorder{}
 
 	sigCtx, cancel := context.WithCancel(context.Background())
 
@@ -173,6 +181,7 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 		manager: mgr,
 		svc:     svc,
 		logger:  libLog.NewNop(),
+		metrics: recorder,
 		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
 			return sigCtx, func() {}
 		},
@@ -192,6 +201,42 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 
 	require.NoError(t, <-done, "deregister error must be swallowed, not propagated")
 	assert.Equal(t, []string{svc.ID}, stub.deregisteredIDs())
+
+	assert.Equal(t, 1, recorder.registerInitiatedCalls, "exactly one register-initiated over the cycle")
+	assert.Equal(t, []string{ResultError}, recorder.deregisterResults, "deregister failure records error result")
+}
+
+// TestRunnable_NilRecorderNoOp verifies passing a nil recorder to NewRunnable
+// does not panic across a full register/deregister lifecycle: orNop must
+// substitute the no-op recorder at construction.
+func TestRunnable_NilRecorderNoOp(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubRegistry{registeredCh: make(chan struct{}, 1)}
+	mgr := newStubManager(t, stub)
+	svc := BuildServiceDescriptor("midaz-ledger", 3002)
+
+	r := NewRunnable(mgr, svc, libLog.NewNop(), nil)
+
+	sigCtx, cancel := context.WithCancel(context.Background())
+	r.notifyContext = func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+		return sigCtx, func() {}
+	}
+
+	done := make(chan error, 1)
+
+	go func() { done <- r.Run(nil) }()
+
+	select {
+	case <-stub.registeredCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("RegisterAsync did not call Register within timeout")
+	}
+
+	cancel()
+
+	require.NoError(t, <-done, "nil recorder must be safe across the full lifecycle")
+	assert.Equal(t, []string{svc.ID}, stub.deregisteredIDs())
 }
 
 // TestRunnable_NilManagerNoOp verifies the runnable returns immediately when the
@@ -206,8 +251,9 @@ func TestRunnable_NilManagerNoOp(t *testing.T) {
 	require.NoError(t, r.Run(nil))
 }
 
-// TestNewRunnable verifies the constructor wires the manager, descriptor, and
-// logger, leaving notifyContext nil so production uses signal.NotifyContext.
+// TestNewRunnable verifies the constructor wires the manager, descriptor,
+// logger, and recorder, leaving notifyContext nil so production uses
+// signal.NotifyContext.
 func TestNewRunnable(t *testing.T) {
 	t.Parallel()
 
@@ -215,11 +261,30 @@ func TestNewRunnable(t *testing.T) {
 	mgr := newStubManager(t, stub)
 	svc := BuildServiceDescriptor("midaz-ledger", 3002)
 	logger := libLog.NewNop()
+	recorder := &stubRecorder{}
 
-	r := NewRunnable(mgr, svc, logger)
+	r := NewRunnable(mgr, svc, logger, recorder)
 
 	require.NotNil(t, r)
 	assert.Same(t, mgr, r.manager)
 	assert.Equal(t, svc, r.svc)
+	assert.Same(t, recorder, r.metrics)
 	assert.Nil(t, r.notifyContext)
+}
+
+// TestNewRunnable_NilRecorderStoresNop verifies a nil recorder is replaced by
+// the no-op recorder at construction, so Run never dereferences nil.
+func TestNewRunnable_NilRecorderStoresNop(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubRegistry{}
+	mgr := newStubManager(t, stub)
+	svc := BuildServiceDescriptor("midaz-ledger", 3002)
+
+	r := NewRunnable(mgr, svc, libLog.NewNop(), nil)
+
+	require.NotNil(t, r)
+	require.NotNil(t, r.metrics)
+	_, ok := r.metrics.(NopMetricsRecorder)
+	assert.True(t, ok, "nil recorder must be stored as NopMetricsRecorder")
 }

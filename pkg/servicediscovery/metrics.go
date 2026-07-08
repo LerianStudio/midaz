@@ -46,9 +46,7 @@ func (NopMetricsRecorder) ResolveResult(_ context.Context, _, _ string, _ int64)
 
 // orNop returns r, or a NopMetricsRecorder when r is nil, so callers can invoke
 // recorder methods unconditionally. It is the nil-guard the register/deregister/
-// resolve call sites route every recorder through once they adopt the seam.
-//
-//nolint:unused // consumed by the SD call sites wired in a follow-up task.
+// resolve call sites route every recorder through.
 func orNop(r MetricsRecorder) MetricsRecorder {
 	if r == nil {
 		return NopMetricsRecorder{}

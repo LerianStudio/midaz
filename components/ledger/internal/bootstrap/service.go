@@ -96,7 +96,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.ServiceDiscoveryEnabled {
 		apps = append(apps, launcherApp{
 			"Service Discovery",
-			pkgsd.NewRunnable(s.ServiceDiscovery, s.ServiceDescriptor, s.Logger),
+			pkgsd.NewRunnable(s.ServiceDiscovery, s.ServiceDescriptor, s.Logger, nil),
 		})
 	}
 
