@@ -56,6 +56,48 @@ func TestNewBalanceChanged_MapsAllFields(t *testing.T) {
 	assert.Equal(t, "2026-07-03T12:00:00Z", p.OccurredAt)
 }
 
+// Minimal-domain mapping: only the required identifiers are set. Optional
+// fields (Alias, Direction) are left zero and must stay empty after mapping,
+// and their omitempty JSON tags must drop them from the wire payload.
+func TestNewBalanceChanged_MinimalDomain(t *testing.T) {
+	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+	src := BalanceChangedSource{
+		OrganizationID: "org-1",
+		LedgerID:       "led-1",
+		AccountID:      "acc-1",
+		BalanceID:      "bal-1",
+		AssetCode:      "BRL",
+		BalanceKey:     "default",
+		Reason:         BalanceChangeReasonAdjust,
+		OperationType:  "CREDIT",
+		TransactionID:  "txn-1",
+		OperationID:    "op-1",
+		OccurredAt:     ts,
+	}
+
+	p := NewBalanceChanged(src)
+
+	assert.Empty(t, p.Alias)
+	assert.Empty(t, p.Direction)
+	assert.True(t, p.Available.IsZero())
+	assert.True(t, p.OnHold.IsZero())
+	assert.True(t, p.Amount.IsZero())
+	assert.Equal(t, int64(0), p.Version)
+
+	raw, err := json.Marshal(p)
+	require.NoError(t, err)
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(raw, &m))
+
+	assert.NotContains(t, m, "alias", "empty alias must be dropped by omitempty")
+	assert.NotContains(t, m, "direction", "empty direction must be dropped by omitempty")
+	// Required fields stay on the wire even when zero-valued.
+	assert.Contains(t, m, "available")
+	assert.Contains(t, m, "onHold")
+	assert.Contains(t, m, "version")
+}
+
 func TestBalanceChangedPayload_ToEmitRequest(t *testing.T) {
 	ts := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
 	p := NewBalanceChanged(BalanceChangedSource{
@@ -93,7 +135,7 @@ func TestBalanceChangedPayload_JSONShape(t *testing.T) {
 		Amount:         decimal.NewFromInt(100),
 		TransactionID:  "txn-1",
 		OperationID:    "op-1",
-		OccurredAt:     time.Now().UTC(),
+		OccurredAt:     time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC),
 	})
 
 	raw, err := json.Marshal(p)
