@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -159,9 +160,21 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			fn(emitCtx)
 		}
 
-		runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
-		runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) })
-		runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
+		var wg sync.WaitGroup
+
+		wg.Add(3)
+
+		go func() {
+			defer wg.Done()
+			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
+		}()
+		go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) }) }()
+		go func() {
+			defer wg.Done()
+			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
+		}()
+
+		wg.Wait()
 	}()
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))

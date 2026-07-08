@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -587,9 +588,21 @@ func (uc *UseCase) processMetadataAndEvents(
 				fn(emitCtx)
 			}
 
-			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
-			runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) })
-			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			var wg sync.WaitGroup
+
+			wg.Add(3)
+
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
+			}()
+			go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) }) }()
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			}()
+
+			wg.Wait()
 		}(phase)
 	}
 }
