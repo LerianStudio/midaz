@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
@@ -645,4 +646,90 @@ func TestMongoDBRepository_appendEncryptedFilters_MultiTokenKeyRotation_OrderPre
 
 	require.Len(t, foundTokens, len(orderedTokens))
 	assert.Equal(t, orderedTokens, foundTokens, "token order must be preserved for deterministic queries")
+}
+
+func TestRepositoryInputAttributes(t *testing.T) {
+	const (
+		keyHasMetadata         = "app.request.repository_input.has_metadata"
+		keyHasBankingDetails   = "app.request.repository_input.has_banking_details"
+		keyHasRegulatoryFields = "app.request.repository_input.has_regulatory_fields"
+		keyRelatedPartiesCount = "app.request.repository_input.related_parties_count"
+	)
+
+	allowedKeys := map[attribute.Key]struct{}{
+		attribute.Key(keyHasMetadata):         {},
+		attribute.Key(keyHasBankingDetails):   {},
+		attribute.Key(keyHasRegulatoryFields): {},
+		attribute.Key(keyRelatedPartiesCount): {},
+	}
+
+	tests := []struct {
+		name              string
+		model             *MongoDBModel
+		wantHasMetadata   bool
+		wantHasBanking    bool
+		wantHasRegulatory bool
+		wantCount         int64
+	}{
+		{
+			name: "populated model",
+			model: &MongoDBModel{
+				Metadata:         map[string]any{"k": "v"},
+				BankingDetails:   &BankingMongoDBModel{},
+				RegulatoryFields: &RegulatoryFieldsMongoDBModel{},
+				RelatedParties:   []*RelatedPartyMongoDBModel{{}, {}},
+			},
+			wantHasMetadata:   true,
+			wantHasBanking:    true,
+			wantHasRegulatory: true,
+			wantCount:         2,
+		},
+		{
+			name:              "zero-value model",
+			model:             &MongoDBModel{},
+			wantHasMetadata:   false,
+			wantHasBanking:    false,
+			wantHasRegulatory: false,
+			wantCount:         0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := repositoryInputAttributes(tt.model)
+
+			byKey := make(map[attribute.Key]attribute.Value, len(attrs))
+			for _, a := range attrs {
+				if _, ok := allowedKeys[a.Key]; !ok {
+					t.Fatalf("unexpected attribute key emitted: %q", a.Key)
+				}
+
+				if _, dup := byKey[a.Key]; dup {
+					t.Fatalf("duplicate attribute key emitted: %q", a.Key)
+				}
+
+				byKey[a.Key] = a.Value
+			}
+
+			if len(byKey) != len(allowedKeys) {
+				t.Fatalf("expected exactly %d keys, got %d: %v", len(allowedKeys), len(byKey), byKey)
+			}
+
+			if got := byKey[attribute.Key(keyHasMetadata)].AsBool(); got != tt.wantHasMetadata {
+				t.Errorf("%s = %v, want %v", keyHasMetadata, got, tt.wantHasMetadata)
+			}
+
+			if got := byKey[attribute.Key(keyHasBankingDetails)].AsBool(); got != tt.wantHasBanking {
+				t.Errorf("%s = %v, want %v", keyHasBankingDetails, got, tt.wantHasBanking)
+			}
+
+			if got := byKey[attribute.Key(keyHasRegulatoryFields)].AsBool(); got != tt.wantHasRegulatory {
+				t.Errorf("%s = %v, want %v", keyHasRegulatoryFields, got, tt.wantHasRegulatory)
+			}
+
+			if got := byKey[attribute.Key(keyRelatedPartiesCount)].AsInt64(); got != tt.wantCount {
+				t.Errorf("%s = %d, want %d", keyRelatedPartiesCount, got, tt.wantCount)
+			}
+		})
+	}
 }
