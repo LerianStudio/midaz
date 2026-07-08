@@ -147,14 +147,21 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	// Send events asynchronously with context that preserves trace but survives parent cancellation
+	// Send events asynchronously with context that preserves trace but survives parent cancellation.
+	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 	go func() {
-		eventCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-		defer cancel()
+		base := context.WithoutCancel(ctx)
 
-		uc.SendTransactionEvents(eventCtx, tran, phase)
-		uc.SendOverdraftEvents(eventCtx, tran)
-		uc.SendBalanceChangedEvents(eventCtx, tran)
+		runWithTimeout := func(fn func(context.Context)) {
+			emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+			defer cancel()
+
+			fn(emitCtx)
+		}
+
+		runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
+		runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) })
+		runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
 	}()
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: cleaning up transaction %s after successful processing", tran.ID))
@@ -490,9 +497,8 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 // Non-empty direction must be one of the valid values ("debit", "credit").
 func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper *operation.Operation) error {
 	if oper.Direction == "" {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-			"Operation %s has empty direction, may be from pre-migration message", oper.ID,
-		))
+		logger.Log(ctx, libLog.LevelWarn, "Operation has empty direction, may be from pre-migration message",
+			libLog.String("operation_id", oper.ID))
 
 		return nil
 	}

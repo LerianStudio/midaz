@@ -575,14 +575,21 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
-		// Send events asynchronously with context that preserves trace but survives parent cancellation
+		// Send events asynchronously with context that preserves trace but survives parent cancellation.
+		// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 		go func(phase string) {
-			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-			defer cancel()
+			base := context.WithoutCancel(ctx)
 
-			uc.SendTransactionEvents(opCtx, tx, phase)
-			uc.SendOverdraftEvents(opCtx, tx)
-			uc.SendBalanceChangedEvents(opCtx, tx)
+			runWithTimeout := func(fn func(context.Context)) {
+				emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+				defer cancel()
+
+				fn(emitCtx)
+			}
+
+			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
+			runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) })
+			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
 		}(phase)
 	}
 }
