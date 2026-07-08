@@ -30,12 +30,8 @@ const (
 
 // BalanceChangedDefinition is the routing contract for balance.changed.
 //
-// Emission anchor: components/ledger/internal/services/command/send_balance_changed_events.go,
-// inside SendBalanceChangedEvents, launched as a goroutine alongside
-// SendTransactionEvents / SendOverdraftEvents from
-// create_balance_transaction_operations_async.go and
-// create_bulk_transaction_operations_async.go. One balance.changed is emitted
-// per balance-affecting operation of the committed transaction.
+// One balance.changed event is emitted per balance-affecting operation of a
+// committed transaction.
 //
 // Design intent: this event is INTENTIONALLY generic and domain-agnostic. It
 // carries only Midaz identities (org/ledger/account/balance/asset) plus a
@@ -58,9 +54,10 @@ var BalanceChangedDefinition = Definition{
 
 // BalanceChangedPayload is the wire payload for balance.changed.
 //
-// Available/OnHold/Amount are decimal.Decimal so the wire encodes them as JSON
-// numbers (matching the HTTP balance contract). They reflect the state AFTER
-// the operation.
+// Available/OnHold/Amount are decimal.Decimal. shopspring/decimal marshals to
+// quoted JSON strings by default, so these fields travel on the wire as strings
+// (matching the HTTP balance contract). They reflect the state AFTER the
+// operation.
 //
 // Scale is intentionally OMITTED: it is an asset-level property, not a
 // balance-level one (see balance_created.go). Consumers needing scale should
