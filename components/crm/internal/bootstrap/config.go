@@ -313,8 +313,7 @@ type serviceDiscoveryWiring struct {
 // The metrics recorder is built AFTER BuildManager reports enabled so it is a
 // NopMetricsRecorder whenever discovery is disabled: with SD off, resolve (and
 // every downstream SD metric) emits nothing, even though metricsFactory is
-// non-nil. When enabled it is the OTel-backed recorder (a nil factory still
-// degrades to a no-op via NewMetricsFactoryRecorder).
+// non-nil. When enabled it is the OTel-backed recorder.
 func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *metrics.MetricsFactory) (serviceDiscoveryWiring, error) {
 	manager, enabled, err := pkgsd.BuildManager(logger)
 	if err != nil {
