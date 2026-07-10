@@ -3,26 +3,33 @@
 # RUNBOOK (this comment block is the runbook — no tracked .md, by design).
 #
 # PURPOSE
-#   PRs to this repo are gated: the golden-file test TestOpenAPISpecDump runs
-#   inside `make coverage-unit` (auto-detected by the shared go-pr-analysis
-#   workflow), so a PR that changes ledger/tracer routes without refreshing the
-#   committed Huma dumps fails. DIRECT pushes bypass that gate — gandalf-at-lerian
-#   pushes straight to develop. This workflow closes that hole: after a direct
-#   push it regenerates the two Huma OAS 3.1 dumps from code and, if a push left
-#   them stale, commits + pushes a `[skip ci]` fix-up so the tree matches HEAD.
-#   It reproduces exactly what the PR gate would have caught, nothing more.
+#   PRs to this repo are gated by the REQUIRED check-docs job (pr-validation.yml):
+#   it runs `CHECK_DOCS_REGEN=1 make check-docs`, which regenerates the docs via
+#   generate-docs.sh and fails on `git diff -- 'components/*/api' postman/specs`.
+#   So a PR that changes ledger/tracer routes without refreshing the committed
+#   Huma dumps AND their consolidated postman/specs hub fails. DIRECT pushes
+#   bypass that gate — gandalf-at-lerian pushes straight to develop. This workflow
+#   closes that hole: after a direct push it regenerates the SAME artifact set the
+#   gate diffs and, if the push left it stale, commits + pushes a `[skip ci]`
+#   fix-up so the tree matches HEAD. It reproduces the check-docs gate's
+#   regenerate-and-diff over the same paths, nothing more.
 #
-# SCOPE (deliberately narrow)
-#   Regenerates ONLY the two golden dumps the PR gate enforces:
-#     components/ledger/api/openapi.huma.yaml
-#     components/tracer/api/openapi.huma.yaml
-#   via the pure-Go golden test (no swag, no Docker, no Node). The consolidated
-#   hub artifacts under postman/specs/ (redocly join → midaz.openapi.{yaml,json})
-#   are OUT OF SCOPE here: they are produced by `make check-docs`, which needs
-#   swag + `npm ci` + the openapi-generator Docker step — a heavy toolchain the
-#   PR unit-gate does not run. A subsequent PR's check-docs job still verifies
-#   them, and the docs-repo weekly OpenAPI drift-watcher tracks the same dumps
-#   this workflow keeps fresh.
+# SCOPE
+#   Regenerates the full doc artifact set the required check-docs gate diffs,
+#   via the same script that gate runs (`make generate-docs` = generate-docs.sh):
+#     components/ledger/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
+#     components/tracer/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
+#     postman/specs/ledger/openapi.huma.yaml    (published copy)
+#     postman/specs/tracer/openapi.huma.yaml    (published copy)
+#     postman/specs/midaz.openapi.{yaml,json}   (redocly-joined hub spec)
+#   Reusing generate-docs.sh — rather than re-inlining its regen/publish/join
+#   steps here — is deliberate: it makes divergence from the gate impossible by
+#   construction. Toolchain is Go + Node/npm only (generate-docs.sh self-installs
+#   its npm deps; redocly + js-yaml are npm packages) — NO swag, NO Docker.
+#   generate-docs.sh also regenerates the Postman collection
+#   (postman/MIDAZ.postman_*.json) as a side effect, but the fix-up commit does
+#   NOT stage it: the check-docs gate diffs only `components/*/api` and
+#   postman/specs, so the commit stays scoped to exactly what the gate enforces.
 #
 # TRIGGER
 #   push to the branches the release pipeline builds from (develop,
@@ -47,7 +54,9 @@
 #        loop is bounded to one no-op iteration regardless.
 #
 # FAILURE MODES (all fail LOUD — never push a broken tree)
-#   - Regen step fails (build/route error): job fails, NO push. Fix the code.
+#   - `make generate-docs` fails (build/route error, redocly join failure, or
+#     Postman conversion error): job fails, NO push. Fix the code. This mirrors
+#     the gate, which runs the same script and also fails on any of these.
 #   - `make test-openapi-locks` fails: the regenerated dumps broke the cross-plane
 #     RFC 9457 error-contract lock the SDK depends on — job fails, NO commit/push.
 #     A human investigates; this must never be auto-committed.
@@ -139,11 +148,14 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      - name: Regenerate ledger Huma spec
-        run: go test -buildvcs=false -run TestOpenAPISpecDump ./components/ledger/internal/adapters/http/in/ -update
-
-      - name: Regenerate tracer Huma spec
-        run: go test -buildvcs=false -run TestOpenAPISpecDump ./components/tracer/internal/adapters/http/in/ -update
+      # Regenerate the FULL gate-enforced doc artifact set (both Huma dumps + the
+      # published copies + the redocly-joined postman/specs hub) via the same
+      # script the required check-docs gate runs under CHECK_DOCS_REGEN=1.
+      # generate-docs.sh self-installs its npm deps (redocly, js-yaml) and runs
+      # the pure-Go golden dump under the MANAGE_TOKEN module auth configured
+      # above; no swag, no Docker.
+      - name: Regenerate OpenAPI docs
+        run: make generate-docs
 
       - name: Verify cross-plane OpenAPI spec locks
         run: make test-openapi-locks
@@ -154,13 +166,17 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          if git diff --quiet -- components/ledger/api/openapi.huma.yaml components/tracer/api/openapi.huma.yaml; then
-            echo "Huma specs already fresh after regen — no fix-up needed."
+          # Same pathspec the required check-docs gate diffs
+          # (drift_check: git diff --exit-code -- 'components/*/api' postman/specs).
+          # The regenerated Postman collection is intentionally NOT staged — the
+          # gate does not diff it, so the fix-up stays scoped to what it enforces.
+          if git diff --quiet -- 'components/*/api' postman/specs; then
+            echo "OpenAPI docs already fresh after regen — no fix-up needed."
             exit 0
           fi
-          echo "Huma specs drifted after a direct push — committing a [skip ci] fix-up."
-          git add components/ledger/api/openapi.huma.yaml components/tracer/api/openapi.huma.yaml
-          git commit -m "chore(openapi): sync huma specs after direct push [skip ci]"
+          echo "OpenAPI docs drifted after a direct push — committing a [skip ci] fix-up."
+          git add 'components/*/api' postman/specs
+          git commit -m "chore(openapi): sync openapi docs after direct push [skip ci]"
           # Explicit App-token URL: carries its own auth (bypasses branch
           # protection) and is NOT rewritten by the MANAGE_TOKEN insteadOf above
           # (that rule only matches bare https://github.com/ prefixes).
