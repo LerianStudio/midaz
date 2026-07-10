@@ -113,7 +113,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("holders_" + organizationID))
 
-	err = createIndexes(ctx, coll)
+	err = ensureIndexes(ctx, coll)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
@@ -139,14 +139,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	spanInsert.SetAttributes(
-		attribute.Bool("app.request.repository_input.has_metadata", len(record.Metadata) > 0),
-		attribute.Bool("app.request.repository_input.has_external_id", record.ExternalID != nil),
-		attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil),
-		attribute.Bool("app.request.repository_input.has_addresses", record.Addresses != nil),
-		attribute.Bool("app.request.repository_input.has_natural_person", record.NaturalPerson != nil),
-		attribute.Bool("app.request.repository_input.has_legal_person", record.LegalPerson != nil),
-	)
+	spanInsert.SetAttributes(repositoryInputAttributes(record)...)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
@@ -271,11 +264,6 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert holder to JSON string", err)
-	}
-
 	// Build encryption context for this holder
 	encryptionCtx := encryption.EncryptionContext{
 		TenantID:       encryption.ExtractTenantID(ctx),
@@ -290,6 +278,8 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 		return nil, err
 	}
+
+	spanUpdate.SetAttributes(repositoryInputAttributes(holderToUpdate)...)
 
 	bsonData, err := bson.Marshal(holderToUpdate)
 	if err != nil {
@@ -419,4 +409,20 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	logger.Log(ctx, libLog.LevelInfo, "Deleted holder", libLog.String("holder_id", id.String()))
 
 	return nil
+}
+
+// repositoryInputAttributes derives non-sensitive presence indicators from an
+// already-encrypted holder model for span telemetry. It returns only boolean
+// has_* attributes and never serializes field values, so plaintext PII cannot
+// leak onto a span. Both Create and Update route through this helper so their
+// span attributes cannot drift apart.
+func repositoryInputAttributes(m *MongoDBModel) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.Bool("app.request.repository_input.has_metadata", len(m.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_external_id", m.ExternalID != nil),
+		attribute.Bool("app.request.repository_input.has_contact", m.Contact != nil),
+		attribute.Bool("app.request.repository_input.has_addresses", m.Addresses != nil),
+		attribute.Bool("app.request.repository_input.has_natural_person", m.NaturalPerson != nil),
+		attribute.Bool("app.request.repository_input.has_legal_person", m.LegalPerson != nil),
+	}
 }

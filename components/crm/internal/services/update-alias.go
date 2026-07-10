@@ -13,9 +13,13 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateAliasInput, fieldsToRemove []string) (*mmodel.Alias, error) {
@@ -109,5 +113,14 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		return nil, err
 	}
 
+	uc.emitAliasUpdatedEvent(ctx, span, logger, updatedAlias, organizationID)
+
 	return updatedAlias, nil
+}
+
+func (uc *UseCase) emitAliasUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Alias, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AliasUpdatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAliasUpdated(a, organizationID).ToEmitRequest(tenantID, a.UpdatedAt)
+		})
 }

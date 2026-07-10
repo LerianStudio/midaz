@@ -85,6 +85,42 @@ func TestAccountingEntries_Actions(t *testing.T) {
 			},
 			expected: []string{"direct", "hold", "commit", "cancel", "revert"},
 		},
+		{
+			name: "block only",
+			entries: &AccountingEntries{
+				Block: &AccountingEntry{},
+			},
+			expected: []string{"block"},
+		},
+		{
+			name: "unblock only",
+			entries: &AccountingEntries{
+				Unblock: &AccountingEntry{},
+			},
+			expected: []string{"unblock"},
+		},
+		{
+			name: "block and unblock",
+			entries: &AccountingEntries{
+				Block:   &AccountingEntry{},
+				Unblock: &AccountingEntry{},
+			},
+			expected: []string{"block", "unblock"},
+		},
+		{
+			name: "all actions including overdraft, block and unblock",
+			entries: &AccountingEntries{
+				Direct:    &AccountingEntry{},
+				Hold:      &AccountingEntry{},
+				Commit:    &AccountingEntry{},
+				Cancel:    &AccountingEntry{},
+				Revert:    &AccountingEntry{},
+				Overdraft: &AccountingEntry{},
+				Block:     &AccountingEntry{},
+				Unblock:   &AccountingEntry{},
+			},
+			expected: []string{"direct", "hold", "commit", "cancel", "revert", "overdraft", "block", "unblock"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,4 +131,69 @@ func TestAccountingEntries_Actions(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestAccountingEntries_BlockUnblockJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	entries := AccountingEntries{
+		Block: &AccountingEntry{
+			Debit:  &AccountingRubric{Code: "2001", Description: "Block debit"},
+			Credit: &AccountingRubric{Code: "2002", Description: "Block credit"},
+		},
+		Unblock: &AccountingEntry{
+			Debit:  &AccountingRubric{Code: "3001", Description: "Unblock debit"},
+			Credit: &AccountingRubric{Code: "3002", Description: "Unblock credit"},
+		},
+	}
+
+	data, err := json.Marshal(entries)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	err = json.Unmarshal(data, &raw)
+	require.NoError(t, err)
+
+	_, hasBlock := raw["block"]
+	assert.True(t, hasBlock, "populated Block must appear under the \"block\" JSON key")
+
+	_, hasUnblock := raw["unblock"]
+	assert.True(t, hasUnblock, "populated Unblock must appear under the \"unblock\" JSON key")
+
+	var decoded AccountingEntries
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	require.NotNil(t, decoded.Block)
+	require.NotNil(t, decoded.Block.Debit)
+	assert.Equal(t, "2001", decoded.Block.Debit.Code)
+	require.NotNil(t, decoded.Block.Credit)
+	assert.Equal(t, "2002", decoded.Block.Credit.Code)
+
+	require.NotNil(t, decoded.Unblock)
+	require.NotNil(t, decoded.Unblock.Debit)
+	assert.Equal(t, "3001", decoded.Unblock.Debit.Code)
+	require.NotNil(t, decoded.Unblock.Credit)
+	assert.Equal(t, "3002", decoded.Unblock.Credit.Code)
+}
+
+func TestAccountingEntries_BlockUnblockOmitEmpty(t *testing.T) {
+	t.Parallel()
+
+	entries := AccountingEntries{
+		Direct: &AccountingEntry{},
+	}
+
+	data, err := json.Marshal(entries)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	err = json.Unmarshal(data, &raw)
+	require.NoError(t, err)
+
+	_, hasBlock := raw["block"]
+	assert.False(t, hasBlock, "nil Block must be omitted from JSON output")
+
+	_, hasUnblock := raw["unblock"]
+	assert.False(t, hasUnblock, "nil Unblock must be omitted from JSON output")
 }

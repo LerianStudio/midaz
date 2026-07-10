@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/audit"
@@ -27,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services/encryption"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -75,6 +77,35 @@ type Config struct {
 	VaultRoleID                            string `env:"KMS_VAULT_ROLE_ID"`
 	VaultSecretID                          string `env:"KMS_VAULT_SECRET_ID"`
 	VaultAuthMethod                        string `env:"KMS_VAULT_AUTH_METHOD"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// Default for all streaming knobs is OFF — a service with
+	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
+	// initialises the underlying transport. The pilot ships disabled-by-
+	// default so existing deployments are not broken by the new dependency.
+	// STREAMING_BROKERS, STREAMING_CLIENT_ID, STREAMING_CLOUDEVENTS_SOURCE,
+	// STREAMING_COMPRESSION, STREAMING_REQUIRED_ACKS and STREAMING_BATCH_LINGER_MS
+	// are consumed by libStreaming.LoadConfig() inside BuildStreamingEmitter, not
+	// from this struct — so they have no field here.
+	StreamingEnabled bool `env:"STREAMING_ENABLED"`
+
+	// --- Streaming SASL/TLS auth ---
+	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
+	// without authentication, matching the existing behaviour for local/dev
+	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
+	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then
+	// required and BuildStreamingEmitter wires the matching franz-go
+	// sasl.Mechanism into the lib-streaming Builder.
+	//
+	// SASL without TLS is rejected by lib-streaming with
+	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
+	// explicit unsafe opt-in for local/dev brokers that do not terminate
+	// TLS. It must NOT be set in production: SASL credentials cross the
+	// network in cleartext.
+	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
+	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
+	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
+	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -121,18 +152,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
 	}
 
-	// Initialize KMS (encryption mode and optional Vault client).
-	// Bound the KMS init (which may perform a Vault Login) so a hung Vault
-	// cannot block startup indefinitely.
-	kmsCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	kms, err := initKMS(kmsCtx, cfg, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	// Init Open telemetry to control logs and flows
+	// Init Open telemetry to control logs and flows. Built before service
+	// discovery so the metrics factory is available to back the SD recorder.
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
@@ -153,10 +174,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Extract the metrics factory ONCE (nil when telemetry disabled) and reuse it
-	// for both encryption metrics and readyz metrics emission.
+	// for the SD recorder, encryption metrics, and readyz metrics emission.
 	var metricsFactory *metrics.MetricsFactory
 	if telemetry != nil {
 		metricsFactory = telemetry.MetricsFactory
+	}
+
+	// Build service discovery before the streaming emitter so a misconfigured
+	// SD (fail-fast) returns before anything requiring drain is constructed. The
+	// helper also parses the advertised port (fail-fast on a malformed
+	// SERVER_ADDRESS), builds this instance's descriptor, and resolves the
+	// plugin-auth host. The recorder is a no-op unless discovery is enabled, so
+	// SD off emits zero SD metrics.
+	sd, err := wireServiceDiscovery(cfg, logger, metricsFactory)
+	if err != nil {
+		return nil, err
 	}
 
 	mongoConnection, err := initMongoConnection(cfg, logger)
@@ -164,45 +196,37 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	// Create legacy crypto based on KMS mode.
-	legacyCrypto, err := initLegacyCrypto(cfg, kms, logger)
+	// Wire KMS, encryption services, and the PII repositories in one cohesive
+	// step. The helper owns the KMS init timeout, the legacy/envelope crypto
+	// selection, the envelope-only encryption repositories, and the holder/alias
+	// repositories wrapped with the resulting field encryptor.
+	enc, err := wireEncryptionAndRepos(cfg, logger, mongoConnection, metricsFactory)
 	if err != nil {
 		return nil, err
 	}
 
-	// Initialize encryption repositories for envelope mode only.
-	// In legacy mode, these remain nil (not needed for legacy encryption).
-	keysetRepo, registryRepo, auditRepo, auditWriter, err := initEncryptionRepos(kms, mongoConnection, logger)
+	// === Streaming producer (lib-streaming) ===
+	// Built before the UseCase so the Emitter is available for injection.
+	// When STREAMING_ENABLED=false (the documented default for this pilot)
+	// the helper returns a NoopEmitter and a no-op closer, preserving full
+	// backward compatibility with existing deployments.
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(context.Background(), cfg, logger, telemetry)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
 	}
 
-	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
-	encryptionResult, err := buildEncryptionServices(cfg, kms, logger, keysetRepo, registryRepo, auditWriter, legacyCrypto, metricsFactory)
-	if err != nil {
-		return nil, err
-	}
+	// Drain the streaming producer on any partial-boot error return below. On
+	// success the cleanup is disarmed (swapped to a no-op) because the Service
+	// then owns the drain on SIGTERM. The defer covers every error path —
+	// including ones added later — without each return closing manually.
+	streamingCleanup := streamingClose
 
-	// Create FieldEncryptor using FieldEncryptorAdapter wrapping EncryptionService.
-	// EncryptionService is always available (legacy or envelope mode).
-	fieldEncryptor := encryption.NewFieldEncryptorAdapter(encryptionResult.encryptionService)
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Encryption service initialized",
-		libLog.String("mode", kms.Mode.String()))
-
-	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, fieldEncryptor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize holder repository: %w", err)
-	}
-
-	aliasMongoDBRepository, err := alias.NewMongoDBRepository(mongoConnection, fieldEncryptor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize alias repository: %w", err)
-	}
+	defer func() { closeStreamingOnBootFailure(logger, streamingCleanup) }()
 
 	useCases := &services.UseCase{
-		HolderRepo: holderMongoDBRepository,
-		AliasRepo:  aliasMongoDBRepository,
+		HolderRepo: enc.holderRepo,
+		AliasRepo:  enc.aliasRepo,
+		Streaming:  streamingEmitter,
 	}
 
 	holderHandler := &in.HolderHandler{
@@ -214,14 +238,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Create encryption handler only when provisioning service is available (envelope mode)
-	encryptionHandler := newEncryptionHandler(encryptionResult.provisioningService, logger)
+	encryptionHandler := newEncryptionHandler(enc.encryptionResult.provisioningService, logger)
 
 	// Create audit handler only when the read-side audit repository is available
 	// (envelope mode). In legacy mode auditRepo is nil, so the handler is nil and
 	// the protection audit route stays unregistered (404).
-	auditHandler := newAuditHandler(auditRepo, logger)
+	auditHandler := newAuditHandler(enc.auditRepo, logger)
 
-	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
+	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {
@@ -229,7 +253,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Build readyz handler with MongoDB and Vault checkers (reuses the shared metricsFactory)
-	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, kms, metricsFactory)
+	readyzHandler, err := buildReadyzHandler(cfg, logger, mongoConnection, enc.kms, metricsFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize readyz handler: %w", err)
 	}
@@ -237,19 +261,95 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, readyzHandler, holderHandler, aliasHandler, encryptionHandler, auditHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
+	streamingCleanup = noopStreamingCloser
+
 	return &Service{
 		Server:                  serverAPI,
 		EventListener:           eventListener,
-		EncryptionMode:          kms.Mode,
-		VaultClient:             kms.VaultClient,
-		KeysetRepo:              keysetRepo,
-		RegistryRepo:            registryRepo,
-		AuditRepo:               auditRepo,
-		EncryptionService:       encryptionResult.encryptionService,
-		ProvisioningService:     encryptionResult.provisioningService,
-		ProtectionStateResolver: encryptionResult.protectionStateResolver,
-		KeysetManager:           encryptionResult.keysetManager,
+		EncryptionMode:          enc.kms.Mode,
+		VaultClient:             enc.kms.VaultClient,
+		KeysetRepo:              enc.keysetRepo,
+		RegistryRepo:            enc.registryRepo,
+		AuditRepo:               enc.auditRepo,
+		EncryptionService:       enc.encryptionResult.encryptionService,
+		ProvisioningService:     enc.encryptionResult.provisioningService,
+		ProtectionStateResolver: enc.encryptionResult.protectionStateResolver,
+		KeysetManager:           enc.encryptionResult.keysetManager,
+		StreamingEnabled:        cfg.StreamingEnabled,
+		StreamingClose:          streamingClose,
+		ServiceDiscovery:        sd.manager,
+		ServiceDiscoveryEnabled: sd.enabled,
+		ServiceDescriptor:       sd.descriptor,
+		ServiceDiscoveryMetrics: sd.recorder,
 		Logger:                  logger,
+	}, nil
+}
+
+// serviceDiscoveryWiring holds the service-discovery outputs consumed by the
+// composition root: the Manager, whether discovery is enabled, the descriptor to
+// register, the plugin-auth host resolved (or degraded) via discovery, and the
+// metrics recorder threaded through the SD call paths. The recorder is a no-op
+// unless discovery is enabled, upholding the invariant that SD off emits zero
+// SD metrics.
+type serviceDiscoveryWiring struct {
+	manager    *libsd.Manager
+	enabled    bool
+	descriptor libsd.Service
+	authHost   string
+	recorder   pkgsd.MetricsRecorder
+}
+
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration) and resolves the plugin-auth host — degrading to the static
+// PLUGIN_AUTH_ADDRESS when auth is disabled or resolution fails so a discovery
+// outage never fails boot.
+//
+// The advertised port is parsed and the descriptor built ONLY when discovery is
+// enabled: the descriptor is consumed solely by the discovery runnable (wired
+// only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
+// discovery off. The resolve timeout is created only when auth is enabled, since
+// ResolveAuthHost returns the static host without touching the context otherwise.
+//
+// The metrics recorder is built AFTER BuildManager reports enabled so it is a
+// NopMetricsRecorder whenever discovery is disabled: with SD off, resolve (and
+// every downstream SD metric) emits nothing, even though metricsFactory is
+// non-nil. When enabled it is the OTel-backed recorder.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *metrics.MetricsFactory) (serviceDiscoveryWiring, error) {
+	manager, enabled, err := pkgsd.BuildManager(logger)
+	if err != nil {
+		return serviceDiscoveryWiring{}, err
+	}
+
+	recorder := pkgsd.MetricsRecorder(pkgsd.NopMetricsRecorder{})
+	if enabled {
+		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
+	}
+
+	var descriptor libsd.Service
+
+	if enabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			return serviceDiscoveryWiring{}, portErr
+		}
+
+		descriptor = pkgsd.BuildServiceDescriptor("midaz-crm", serverPort)
+	}
+
+	authHost := cfg.AuthAddress
+	if cfg.AuthEnabled {
+		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthAddress, recorder)
+
+		cancel()
+	}
+
+	return serviceDiscoveryWiring{
+		manager:    manager,
+		enabled:    enabled,
+		descriptor: descriptor,
+		authHost:   authHost,
+		recorder:   recorder,
 	}, nil
 }
 
@@ -316,6 +416,85 @@ func buildEncryptionServices(
 	}
 
 	return encryptionResult, nil
+}
+
+// encryptionAndRepos holds the KMS, encryption services, and PII repositories
+// wired by wireEncryptionAndRepos for the composition root.
+type encryptionAndRepos struct {
+	kms              *KMSResult
+	keysetRepo       mongoEncryption.KeysetRepository
+	registryRepo     mongoEncryption.RegistryRepository
+	auditRepo        audit.Repository
+	encryptionResult wireEncryptionServicesOutput
+	holderRepo       *holder.MongoDBRepository
+	aliasRepo        *alias.MongoDBRepository
+}
+
+// wireEncryptionAndRepos initializes KMS (bounding the init, which may perform a
+// Vault Login, so a hung Vault cannot block startup), selects legacy vs envelope
+// crypto, builds the envelope-only encryption repositories and services, and
+// wraps the holder/alias repositories with the resulting field encryptor.
+func wireEncryptionAndRepos(
+	cfg *Config,
+	logger libLog.Logger,
+	mongoConnection *libMongo.Client,
+	metricsFactory *metrics.MetricsFactory,
+) (encryptionAndRepos, error) {
+	// Bound the KMS init (which may perform a Vault Login) so a hung Vault cannot
+	// block startup indefinitely.
+	kmsCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	kms, err := initKMS(kmsCtx, cfg, logger)
+	if err != nil {
+		return encryptionAndRepos{}, err
+	}
+
+	// Create legacy crypto based on KMS mode.
+	legacyCrypto, err := initLegacyCrypto(cfg, kms, logger)
+	if err != nil {
+		return encryptionAndRepos{}, err
+	}
+
+	// Initialize encryption repositories for envelope mode only.
+	// In legacy mode, these remain nil (not needed for legacy encryption).
+	keysetRepo, registryRepo, auditRepo, auditWriter, err := initEncryptionRepos(kms, mongoConnection, logger)
+	if err != nil {
+		return encryptionAndRepos{}, err
+	}
+
+	// Wire encryption services (ProtectionStateResolver, KeysetManager, EncryptionService, ProvisioningService).
+	encryptionResult, err := buildEncryptionServices(cfg, kms, logger, keysetRepo, registryRepo, auditWriter, legacyCrypto, metricsFactory)
+	if err != nil {
+		return encryptionAndRepos{}, err
+	}
+
+	// Create FieldEncryptor using FieldEncryptorAdapter wrapping EncryptionService.
+	// EncryptionService is always available (legacy or envelope mode).
+	fieldEncryptor := encryption.NewFieldEncryptorAdapter(encryptionResult.encryptionService)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Encryption service initialized",
+		libLog.String("mode", kms.Mode.String()))
+
+	holderMongoDBRepository, err := holder.NewMongoDBRepository(mongoConnection, fieldEncryptor)
+	if err != nil {
+		return encryptionAndRepos{}, fmt.Errorf("failed to initialize holder repository: %w", err)
+	}
+
+	aliasMongoDBRepository, err := alias.NewMongoDBRepository(mongoConnection, fieldEncryptor)
+	if err != nil {
+		return encryptionAndRepos{}, fmt.Errorf("failed to initialize alias repository: %w", err)
+	}
+
+	return encryptionAndRepos{
+		kms:              kms,
+		keysetRepo:       keysetRepo,
+		registryRepo:     registryRepo,
+		auditRepo:        auditRepo,
+		encryptionResult: encryptionResult,
+		holderRepo:       holderMongoDBRepository,
+		aliasRepo:        aliasMongoDBRepository,
+	}, nil
 }
 
 // initLegacyCrypto builds the LegacyCrypto for the active KMS mode:
