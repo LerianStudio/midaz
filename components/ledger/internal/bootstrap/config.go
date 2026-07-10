@@ -716,10 +716,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
+	// Extract the metrics factory ONCE (nil when telemetry disabled) so it can
+	// back both the service-discovery recorder below and the readyz handler.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	// Service discovery: build the Manager (no-op when disabled), parse the
 	// advertised port + descriptor (gated on enabled), and resolve plugin-auth
-	// through discovery — all in one helper mirrored on the CRM side.
-	sd, err := wireServiceDiscovery(cfg, logger)
+	// through discovery — all in one helper mirrored on the CRM side. The recorder
+	// is a no-op unless discovery is enabled, so SD off emits zero SD metrics.
+	sd, err := wireServiceDiscovery(cfg, logger, metricsFactory)
 	if err != nil {
 		doCleanup()
 
@@ -752,12 +760,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Readyz handler ===
 
-	// Get metricsFactory from telemetry (nil-safe: checked inside handler)
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
-
+	// metricsFactory was extracted above (nil-safe: checked inside handler).
 	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()
@@ -822,17 +825,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,
+		ServiceDiscoveryMetrics:  sd.recorder,
 	}, nil
 }
 
 // serviceDiscoveryWiring holds the service-discovery outputs consumed by the
 // composition root: the Manager, whether discovery is enabled, the descriptor to
-// register, and the plugin-auth host resolved (or degraded) via discovery.
+// register, the plugin-auth host resolved (or degraded) via discovery, and the
+// metrics recorder threaded through the SD call paths. The recorder is a no-op
+// unless discovery is enabled, upholding the invariant that SD off emits zero
+// SD metrics.
 type serviceDiscoveryWiring struct {
 	manager    *libsd.Manager
 	enabled    bool
 	descriptor libsd.Service
 	authHost   string
+	recorder   pkgsd.MetricsRecorder
 }
 
 // wireServiceDiscovery builds the discovery Manager (fail-fast on
@@ -845,10 +853,20 @@ type serviceDiscoveryWiring struct {
 // only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
 // discovery off. The resolve timeout is created only when auth is enabled, since
 // ResolveAuthHost returns the static host without touching the context otherwise.
-func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWiring, error) {
+//
+// The metrics recorder is built AFTER BuildManager reports enabled so it is a
+// NopMetricsRecorder whenever discovery is disabled: with SD off, resolve (and
+// every downstream SD metric) emits nothing, even though metricsFactory is
+// non-nil. When enabled it is the OTel-backed recorder.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *metrics.MetricsFactory) (serviceDiscoveryWiring, error) {
 	manager, enabled, err := pkgsd.BuildManager(logger)
 	if err != nil {
 		return serviceDiscoveryWiring{}, err
+	}
+
+	recorder := pkgsd.MetricsRecorder(pkgsd.NopMetricsRecorder{})
+	if enabled {
+		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
 	var descriptor libsd.Service
@@ -865,7 +883,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWi
 	authHost := cfg.AuthHost
 	if cfg.AuthEnabled {
 		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
-		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost, recorder)
 
 		cancel()
 	}
@@ -875,6 +893,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger) (serviceDiscoveryWi
 		enabled:    enabled,
 		descriptor: descriptor,
 		authHost:   authHost,
+		recorder:   recorder,
 	}, nil
 }
 

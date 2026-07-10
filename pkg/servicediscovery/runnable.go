@@ -24,6 +24,7 @@ type Runnable struct {
 	manager *libsd.Manager
 	svc     libsd.Service
 	logger  libLog.Logger
+	metrics MetricsRecorder
 
 	// notifyContext builds the signal-scoped context that gates the runnable's
 	// lifetime. It defaults to signal.NotifyContext in production; tests inject a
@@ -32,9 +33,10 @@ type Runnable struct {
 }
 
 // NewRunnable builds a Runnable that registers svc against manager on start and
-// deregisters it on SIGINT/SIGTERM.
-func NewRunnable(manager *libsd.Manager, svc libsd.Service, logger libLog.Logger) *Runnable {
-	return &Runnable{manager: manager, svc: svc, logger: logger}
+// deregisters it on SIGINT/SIGTERM. A nil recorder is safe: it is replaced by a
+// no-op recorder so the lifecycle never dereferences nil.
+func NewRunnable(manager *libsd.Manager, svc libsd.Service, logger libLog.Logger, recorder MetricsRecorder) *Runnable {
+	return &Runnable{manager: manager, svc: svc, logger: logger, metrics: orNop(recorder)}
 }
 
 // Run registers the service asynchronously against the signal-scoped context,
@@ -53,24 +55,35 @@ func (r *Runnable) Run(_ *libCommons.Launcher) error {
 	sigCtx, stop := notify(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	metrics := orNop(r.metrics)
+
 	// RegisterAsync is non-blocking and retries in the background until sigCtx
 	// is cancelled. It needs the app-lifetime (signal) context, not a
 	// request-scoped one.
 	r.manager.RegisterAsync(sigCtx, r.svc)
+	metrics.RegisterInitiated(sigCtx)
 
 	<-sigCtx.Done()
 
 	ctx, cancel := context.WithTimeout(context.Background(), DeregisterTimeout)
 	defer cancel()
 
-	if err := r.manager.Deregister(ctx, r.svc.ID); err != nil && r.logger != nil {
-		r.logger.Log(
-			context.Background(), libLog.LevelWarn,
-			"service discovery deregister returned error",
-			libLog.String("service_id", r.svc.ID),
-			libLog.Err(err),
-		)
+	result := ResultOK
+
+	if err := r.manager.Deregister(ctx, r.svc.ID); err != nil {
+		result = ResultError
+
+		if r.logger != nil {
+			r.logger.Log(
+				context.Background(), libLog.LevelWarn,
+				"service discovery deregister returned error",
+				libLog.String("service_id", r.svc.ID),
+				libLog.Err(err),
+			)
+		}
 	}
+
+	metrics.DeregisterResult(ctx, result)
 
 	return nil
 }

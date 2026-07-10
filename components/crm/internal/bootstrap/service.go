@@ -58,6 +58,10 @@ type Service struct {
 	ServiceDiscovery        *libsd.Manager
 	ServiceDiscoveryEnabled bool
 	ServiceDescriptor       libsd.Service
+	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
+	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
+	// so no SD metrics are emitted with SD off.
+	ServiceDiscoveryMetrics pkgsd.MetricsRecorder
 
 	libLog.Logger
 }
@@ -97,7 +101,7 @@ func (app *Service) launcherApps() []launcherApp {
 	if app.ServiceDiscoveryEnabled {
 		apps = append(apps, launcherApp{
 			"Service Discovery",
-			pkgsd.NewRunnable(app.ServiceDiscovery, app.ServiceDescriptor, app.Logger),
+			pkgsd.NewRunnable(app.ServiceDiscovery, app.ServiceDescriptor, app.Logger, app.ServiceDiscoveryMetrics),
 		})
 	}
 
