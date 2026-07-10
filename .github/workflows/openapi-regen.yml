@@ -34,11 +34,11 @@
 # TRIGGER
 #   push to the branches the release pipeline builds from (develop,
 #   release-candidate, main), filtered to the two image-bearing component trees
-#   release.yml declares (components/ledger, components/tracer). A schema change
-#   that reaches the dump only through shared pkg/ code (no component file
-#   touched) will not match the path filter — that residual edge is covered by
-#   the weekly drift-watcher and by `workflow_dispatch` (force a regen check by
-#   hand). Push/schedule-style triggers only fire from the DEFAULT branch, so
+#   release.yml declares (components/ledger, components/tracer) PLUS pkg/** —
+#   shared pkg/ code (e.g. the RFC 9457 Error schema) is embedded in the dumps,
+#   and release.yml/pr-validation.yml declare pkg/ as a shared_path for the
+#   same reason. `workflow_dispatch` remains available to force a regen check
+#   by hand. Push/schedule-style triggers only fire from the DEFAULT branch, so
 #   this file is INERT until the huma consolidation lands on develop — it rides
 #   that merge (same activation-gating as the docs-repo Phase 9 CI). Authoring it
 #   on the feature branch now is safe.
@@ -92,6 +92,7 @@ on:
     paths:
       - components/ledger/**
       - components/tracer/**
+      - pkg/**
   workflow_dispatch:
 
 # GITHUB_TOKEN stays read-only: every mutation (module fetch, commit, push) uses
@@ -110,13 +111,6 @@ jobs:
     name: Regenerate & sync Huma specs
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - name: Create GitHub App token (push auth)
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -159,6 +153,17 @@ jobs:
 
       - name: Verify cross-plane OpenAPI spec locks
         run: make test-openapi-locks
+
+      # Minted LAST and scoped to contents:write only: the regen steps above run
+      # third-party Go/Node dependency code, and a bypass-capable App token must
+      # not be live on the runner while they execute.
+      - name: Create GitHub App token (push auth)
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+          permission-contents: write
 
       - name: Commit & push fix-up if specs drifted
         env:
