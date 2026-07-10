@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
 	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,7 @@ func TestService_launcherApps_ServiceDiscoveryGuard(t *testing.T) {
 	enabled := &Service{
 		ServiceDiscoveryEnabled: true,
 		ServiceDescriptor:       pkgsd.BuildServiceDescriptor("midaz-ledger", 3002),
+		ServiceDiscoveryMetrics: pkgsd.NewMetricsFactoryRecorder(metrics.NewNopFactory(), libLog.NewNop()),
 	}
 	assert.Contains(t, launcherAppNames(enabled), "Service Discovery",
 		"enabled service must register the Service Discovery app")
@@ -54,7 +56,7 @@ func TestWireServiceDiscovery_DisabledIgnoresMalformedServerAddress(t *testing.T
 
 	cfg := &Config{ServerAddress: "not-a-valid-address", AuthEnabled: false, AuthHost: "http://plugin-auth:4000"}
 
-	sd, err := wireServiceDiscovery(cfg, libLog.NewNop())
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop(), metrics.NewNopFactory())
 
 	require.NoError(t, err, "malformed SERVER_ADDRESS must not fail boot when discovery is disabled")
 	require.False(t, sd.enabled)
@@ -74,11 +76,72 @@ func TestWireServiceDiscovery_AuthEnabledDiscoveryDisabledFallsBackToStaticHost(
 
 	cfg := &Config{ServerAddress: ":3002", AuthEnabled: true, AuthHost: "http://plugin-auth:4000"}
 
-	sd, err := wireServiceDiscovery(cfg, libLog.NewNop())
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop(), metrics.NewNopFactory())
 
 	require.NoError(t, err)
 	require.False(t, sd.enabled, "discovery must stay disabled when SD_ENABLED is unset")
 	require.NotNil(t, sd.manager)
 	assert.Equal(t, "http://plugin-auth:4000", sd.authHost,
 		"auth enabled + discovery disabled must fall back to the static host")
+}
+
+// TestWireServiceDiscovery_DisabledUsesNopRecorder locks the SD metrics INVARIANT:
+// when discovery is disabled, wireServiceDiscovery must forward a
+// NopMetricsRecorder — even though a real MetricsFactory is available — so that
+// the resolve path (and every downstream SD metric) emits nothing with SD off.
+func TestWireServiceDiscovery_DisabledUsesNopRecorder(t *testing.T) {
+	t.Setenv("SD_ENABLED", "")
+	t.Setenv("SERVICE_DISCOVERY_ENABLED", "")
+
+	cfg := &Config{ServerAddress: ":3002", AuthEnabled: true, AuthHost: "http://plugin-auth:4000"}
+
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop(), metrics.NewNopFactory())
+
+	require.NoError(t, err)
+	require.False(t, sd.enabled)
+
+	_, isNop := sd.recorder.(pkgsd.NopMetricsRecorder)
+	assert.True(t, isNop,
+		"SD disabled must yield a NopMetricsRecorder so zero SD metrics are emitted")
+}
+
+// TestWireServiceDiscovery_EnabledUsesRealRecorder asserts that when discovery is
+// enabled with a real MetricsFactory the wiring carries the OTel-backed recorder
+// (not the no-op), so register/deregister/resolve metrics actually flow.
+func TestWireServiceDiscovery_EnabledUsesRealRecorder(t *testing.T) {
+	t.Setenv("SD_ENABLED", "true")
+	t.Setenv("SD_ADVERTISE_ADDRESS", "midaz-ledger")
+
+	// AuthEnabled=false so ResolveAuthHost is skipped and the test never dials a
+	// registry; the recorder posture is what is under test.
+	cfg := &Config{ServerAddress: ":3002", AuthEnabled: false, AuthHost: "http://plugin-auth:4000"}
+
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop(), metrics.NewNopFactory())
+
+	require.NoError(t, err)
+	require.True(t, sd.enabled)
+	require.NotNil(t, sd.recorder)
+
+	_, isNop := sd.recorder.(pkgsd.NopMetricsRecorder)
+	assert.False(t, isNop,
+		"SD enabled with a real factory must yield the OTel-backed recorder")
+}
+
+// TestWireServiceDiscovery_EnabledNilFactoryDegradesToNop asserts that when SD is
+// enabled but telemetry is off (nil factory), the recorder degrades to a no-op via
+// NewMetricsFactoryRecorder — safe, and never a nil deref at the call sites.
+func TestWireServiceDiscovery_EnabledNilFactoryDegradesToNop(t *testing.T) {
+	t.Setenv("SD_ENABLED", "true")
+	t.Setenv("SD_ADVERTISE_ADDRESS", "midaz-ledger")
+
+	cfg := &Config{ServerAddress: ":3002", AuthEnabled: false, AuthHost: "http://plugin-auth:4000"}
+
+	sd, err := wireServiceDiscovery(cfg, libLog.NewNop(), nil)
+
+	require.NoError(t, err)
+	require.True(t, sd.enabled)
+	require.NotNil(t, sd.recorder)
+
+	_, isNop := sd.recorder.(pkgsd.NopMetricsRecorder)
+	assert.True(t, isNop, "nil factory must degrade to a NopMetricsRecorder")
 }
