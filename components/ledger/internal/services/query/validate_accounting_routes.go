@@ -150,8 +150,10 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 // covered by an `overdraft` accounting entry carrying the rubric for the
 // direction actually posted (debit = usage, credit = repayment). Companions are
 // system-generated legs on the reserved overdraft balance; their route is the
-// primary's route mirrored into validate.OperationRoutesFrom keyed by the
-// companion's concat-form alias (see registerCompanionInValidate). When a
+// primary's route mirrored under the companion's concat-form alias into
+// validate.OperationRoutesFrom for usage/cancel companions
+// (registerCompanionInValidate) or validate.OperationRoutesTo for
+// refund/repayment companions (registerCompanionInValidateTo). When a
 // companion draws overdraft through a route that lacks a valid direction-specific
 // overdraft rubric, the leg would post with no GL classification — so this
 // rejects with ErrOverdraftRouteNotConfigured instead. Non-overdraft
@@ -167,7 +169,16 @@ func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteC
 			continue
 		}
 
+		// Resolve the companion's route from BOTH sides, mirroring
+		// validateAccountRules. Usage and cancel companions register into
+		// OperationRoutesFrom (registerCompanionInValidate); refund/repayment
+		// companions register EXCLUSIVELY into OperationRoutesTo
+		// (registerCompanionInValidateTo). Reading only From would miss the
+		// repayment route and wrongly reject a correctly-configured Overdraft.Credit.
 		routeID := validate.OperationRoutesFrom[op.Alias]
+		if routeID == "" {
+			routeID = validate.OperationRoutesTo[op.Alias]
+		}
 
 		if !overdraftRubricConfigured(cache, routeID, op.Amount.Direction) {
 			err := pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, constant.EntityOperationRoute)
@@ -196,7 +207,7 @@ func overdraftRubricConfigured(cache mmodel.TransactionRouteCache, routeID, dire
 		return false
 	}
 
-	rc, ok := findRouteInOverdraftCache(actionCache, routeID)
+	rc, ok := actionCache.FindRoute(routeID)
 	if !ok || rc.AccountingEntries == nil || rc.AccountingEntries.Overdraft == nil {
 		return false
 	}
@@ -215,24 +226,6 @@ func overdraftRubricConfigured(cache mmodel.TransactionRouteCache, routeID, dire
 	}
 
 	return rubric != nil && rubric.Code != ""
-}
-
-// findRouteInOverdraftCache searches for a routeID across the Source,
-// Destination, and Bidirectional maps of an ActionRouteCache.
-func findRouteInOverdraftCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
-	if rc, ok := actionCache.Source[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Destination[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Bidirectional[routeID]; ok {
-		return rc, true
-	}
-
-	return mmodel.OperationRouteCache{}, false
 }
 
 // validateRouteCountAndCounterparts verifies that the number of unique operation

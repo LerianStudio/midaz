@@ -12,6 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
@@ -611,11 +612,7 @@ func TestValidateAccountingRules_OverdraftRouteNotConfigured(t *testing.T) {
 	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 	require.Error(t, err, "overdraft companion without a valid overdraft route must be rejected")
-	// UnprocessableOperationError has no Unwrap method, so identity is asserted
-	// by the numeric code carried in the error string (mirrors the existing
-	// overdraft error-table tests). ErrOverdraftRouteNotConfigured == "0176".
-	assert.Contains(t, err.Error(), constant.ErrOverdraftRouteNotConfigured.Error(),
-		"error must carry ErrOverdraftRouteNotConfigured code (0176)")
+	assertOverdraftRouteNotConfigured(t, err)
 }
 
 // TestValidateAccountingRules_OverdraftRoutePasses exercises the accepted paths
@@ -710,6 +707,93 @@ func TestValidateAccountingRules_OverdraftRoutePasses(t *testing.T) {
 			},
 		},
 		{
+			name: "companion resolved via the overdraft action Destination map passes",
+			buildCache: func(srcRouteID, dstRouteID string) mmodel.TransactionRouteCache {
+				cache := directOnlyCache(srcRouteID, dstRouteID)
+				cache.Actions["overdraft"] = mmodel.ActionRouteCache{
+					Source: make(map[string]mmodel.OperationRouteCache),
+					Destination: map[string]mmodel.OperationRouteCache{
+						dstRouteID: {
+							OperationType: "destination",
+							AccountingEntries: &mmodel.AccountingEntries{
+								Overdraft: &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "9002", Description: "Overdraft repayment"}},
+							},
+						},
+					},
+					Bidirectional: make(map[string]mmodel.OperationRouteCache),
+				}
+
+				return cache
+			},
+			operations: func(srcRouteID, dstRouteID string) []mmodel.BalanceOperation {
+				return []mmodel.BalanceOperation{
+					{Alias: primaryAlias, Balance: &mmodel.Balance{AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "DEBIT", Direction: "debit"}},
+					{Alias: receiverAlias, Balance: &mmodel.Balance{AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "CREDIT", Direction: "credit"}},
+					{Alias: companionAlias, Balance: &mmodel.Balance{Key: constant.OverdraftBalanceKey, AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "CREDIT", Direction: "credit"}},
+				}
+			},
+			validate: func(txRouteID uuid.UUID, srcRouteID, dstRouteID string) *mtransaction.Responses {
+				return &mtransaction.Responses{
+					TransactionRouteID:  strPtr(txRouteID.String()),
+					OperationRoutesFrom: map[string]string{primaryAlias: srcRouteID},
+					OperationRoutesTo: map[string]string{
+						receiverAlias:  dstRouteID,
+						companionAlias: dstRouteID,
+					},
+					From: map[string]mtransaction.Amount{primaryAlias: {Operation: "DEBIT", Direction: "debit"}},
+					To: map[string]mtransaction.Amount{
+						receiverAlias:  {Operation: "CREDIT", Direction: "credit"},
+						companionAlias: {Operation: "CREDIT", Direction: "credit"},
+					},
+				}
+			},
+		},
+		{
+			name: "companion resolved via the overdraft action Bidirectional map passes",
+			buildCache: func(srcRouteID, dstRouteID string) mmodel.TransactionRouteCache {
+				cache := directOnlyCache(srcRouteID, dstRouteID)
+				cache.Actions["overdraft"] = mmodel.ActionRouteCache{
+					Source:      make(map[string]mmodel.OperationRouteCache),
+					Destination: make(map[string]mmodel.OperationRouteCache),
+					Bidirectional: map[string]mmodel.OperationRouteCache{
+						srcRouteID: {
+							OperationType: "bidirectional",
+							AccountingEntries: &mmodel.AccountingEntries{
+								Overdraft: &mmodel.AccountingEntry{
+									Debit:  &mmodel.AccountingRubric{Code: "9001", Description: "Overdraft usage"},
+									Credit: &mmodel.AccountingRubric{Code: "9002", Description: "Overdraft repayment"},
+								},
+							},
+						},
+					},
+				}
+
+				return cache
+			},
+			operations: func(srcRouteID, dstRouteID string) []mmodel.BalanceOperation {
+				return []mmodel.BalanceOperation{
+					{Alias: primaryAlias, Balance: &mmodel.Balance{AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "DEBIT", Direction: "debit"}},
+					{Alias: companionAlias, Balance: &mmodel.Balance{Key: constant.OverdraftBalanceKey, AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "DEBIT", Direction: "debit"}},
+					{Alias: receiverAlias, Balance: &mmodel.Balance{AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "CREDIT", Direction: "credit"}},
+				}
+			},
+			validate: func(txRouteID uuid.UUID, srcRouteID, dstRouteID string) *mtransaction.Responses {
+				return &mtransaction.Responses{
+					TransactionRouteID: strPtr(txRouteID.String()),
+					OperationRoutesFrom: map[string]string{
+						primaryAlias:   srcRouteID,
+						companionAlias: srcRouteID,
+					},
+					OperationRoutesTo: map[string]string{receiverAlias: dstRouteID},
+					From: map[string]mtransaction.Amount{
+						primaryAlias:   {Operation: "DEBIT", Direction: "debit"},
+						companionAlias: {Operation: "DEBIT", Direction: "debit"},
+					},
+					To: map[string]mtransaction.Amount{receiverAlias: {Operation: "CREDIT", Direction: "credit"}},
+				}
+			},
+		},
+		{
 			name:       "non-overdraft transaction on overdraft-less route still passes",
 			buildCache: directOnlyCache,
 			operations: func(srcRouteID, dstRouteID string) []mmodel.BalanceOperation {
@@ -772,10 +856,14 @@ func TestValidateAccountingRules_OverdraftRoutePasses(t *testing.T) {
 	}
 }
 
-// TestValidateAccountingRules_OverdraftWrongDirectionRubric rejects an overdraft
-// companion when the route's overdraft entry only defines the opposite-direction
-// rubric (debit usage configured, but this companion posts a credit repayment).
-func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
+// TestValidateAccountingRules_OverdraftRefundToSidePasses models the REAL
+// refund/repayment path: registerCompanionInValidateTo mirrors the credit
+// companion EXCLUSIVELY into validate.To and validate.OperationRoutesTo (never
+// into the From maps). The route defines a valid Overdraft.Credit rubric, so the
+// gate must accept. Before the fix, validateOverdraftRoutes read only
+// OperationRoutesFrom, missed the companion's routeID, and wrongly rejected with
+// 0176 — repayment could never succeed on any ledger with ValidateRoutes=true.
+func TestValidateAccountingRules_OverdraftRefundToSidePasses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -783,7 +871,7 @@ func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionRouteID := uuid.New()
-	srcRouteID := uuid.New().String()
+	dstRouteID := uuid.New().String()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
@@ -794,32 +882,32 @@ func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
 			"accounting": map[string]any{"validateRoutes": true},
 		}, nil)
 
-	// Overdraft entry defines only the Debit rubric; the companion posts a
-	// credit repayment, so the required Credit rubric is missing.
+	// The overdraft companion for a refund resolves through the destination
+	// primary's route. The route defines a valid Overdraft.Credit rubric.
 	cache := mmodel.TransactionRouteCache{
 		Actions: map[string]mmodel.ActionRouteCache{
 			"direct": {
-				Source: map[string]mmodel.OperationRouteCache{
-					srcRouteID: {
-						OperationType: "source",
+				Source: make(map[string]mmodel.OperationRouteCache),
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {
+						OperationType: "destination",
 						AccountingEntries: &mmodel.AccountingEntries{
-							Direct: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Cash"}},
+							Direct: &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Revenue"}},
 						},
 					},
 				},
-				Destination:   make(map[string]mmodel.OperationRouteCache),
 				Bidirectional: make(map[string]mmodel.OperationRouteCache),
 			},
 			"overdraft": {
-				Source: map[string]mmodel.OperationRouteCache{
-					srcRouteID: {
-						OperationType: "source",
+				Source: make(map[string]mmodel.OperationRouteCache),
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {
+						OperationType: "destination",
 						AccountingEntries: &mmodel.AccountingEntries{
-							Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "9001", Description: "Overdraft usage"}},
+							Overdraft: &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "9002", Description: "Overdraft repayment"}},
 						},
 					},
 				},
-				Destination:   make(map[string]mmodel.OperationRouteCache),
 				Bidirectional: make(map[string]mmodel.OperationRouteCache),
 			},
 		},
@@ -836,26 +924,305 @@ func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
 		LedgerRepo:           mockLedgerRepo,
 	}
 
-	companionAlias := "0#@sender#overdraft"
+	// Concat-form alias and To-side registration exactly as
+	// registerCompanionInValidateTo produces for a refund companion.
+	receiverAlias := "0#@receiver#default"
+	companionAlias := "0#@receiver#overdraft"
 
 	validate := &mtransaction.Responses{
-		TransactionRouteID:  strPtr(transactionRouteID.String()),
-		OperationRoutesFrom: map[string]string{companionAlias: srcRouteID},
-		From:                map[string]mtransaction.Amount{companionAlias: {Operation: "CREDIT", Direction: "credit"}},
+		TransactionRouteID: strPtr(transactionRouteID.String()),
+		OperationRoutesTo: map[string]string{
+			receiverAlias:  dstRouteID,
+			companionAlias: dstRouteID,
+		},
+		To: map[string]mtransaction.Amount{
+			receiverAlias:  {Operation: "CREDIT", Direction: constant.DirectionCredit},
+			companionAlias: {Operation: "CREDIT", Direction: constant.DirectionCredit},
+		},
 	}
 
 	operations := []mmodel.BalanceOperation{
 		{
+			Alias:   receiverAlias,
+			Balance: &mmodel.Balance{AccountType: "deposit"},
+			Amount:  mtransaction.Amount{Operation: "CREDIT", Direction: constant.DirectionCredit},
+		},
+		{
 			Alias:   companionAlias,
 			Balance: &mmodel.Balance{Key: constant.OverdraftBalanceKey, AccountType: "deposit"},
-			Amount:  mtransaction.Amount{Operation: "CREDIT", Direction: "credit"},
+			Amount:  mtransaction.Amount{Operation: "CREDIT", Direction: constant.DirectionCredit},
+		},
+	}
+
+	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+	assert.NoError(t, err, "refund companion registered on the To side with a valid Overdraft.Credit rubric must be accepted")
+}
+
+// TestValidateAccountingRules_OverdraftWrongDirectionRubric rejects an overdraft
+// refund companion when the route's overdraft entry only defines the
+// opposite-direction rubric (debit usage configured, but this companion posts a
+// credit repayment). It models the REAL refund path: the credit companion is
+// registered EXCLUSIVELY into validate.To / validate.OperationRoutesTo, exactly
+// as registerCompanionInValidateTo produces — never into the From maps.
+func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionRouteID := uuid.New()
+	dstRouteID := uuid.New().String()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]any{
+			"accounting": map[string]any{"validateRoutes": true},
+		}, nil)
+
+	// Overdraft entry defines only the Debit rubric; the refund companion posts
+	// a credit repayment, so the required Credit rubric is missing.
+	cache := mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			"direct": {
+				Source: make(map[string]mmodel.OperationRouteCache),
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {
+						OperationType: "destination",
+						AccountingEntries: &mmodel.AccountingEntries{
+							Direct: &mmodel.AccountingEntry{Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Revenue"}},
+						},
+					},
+				},
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+			"overdraft": {
+				Source: make(map[string]mmodel.OperationRouteCache),
+				Destination: map[string]mmodel.OperationRouteCache{
+					dstRouteID: {
+						OperationType: "destination",
+						AccountingEntries: &mmodel.AccountingEntries{
+							Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "9001", Description: "Overdraft usage"}},
+						},
+					},
+				},
+				Bidirectional: make(map[string]mmodel.OperationRouteCache),
+			},
+		},
+	}
+
+	cacheBytes, err := cache.ToMsgpack()
+	require.NoError(t, err)
+
+	cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+	mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
+
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+		LedgerRepo:           mockLedgerRepo,
+	}
+
+	receiverAlias := "0#@receiver#default"
+	companionAlias := "0#@receiver#overdraft"
+
+	validate := &mtransaction.Responses{
+		TransactionRouteID: strPtr(transactionRouteID.String()),
+		OperationRoutesTo: map[string]string{
+			receiverAlias:  dstRouteID,
+			companionAlias: dstRouteID,
+		},
+		To: map[string]mtransaction.Amount{
+			receiverAlias:  {Operation: "CREDIT", Direction: constant.DirectionCredit},
+			companionAlias: {Operation: "CREDIT", Direction: constant.DirectionCredit},
+		},
+	}
+
+	operations := []mmodel.BalanceOperation{
+		{
+			Alias:   receiverAlias,
+			Balance: &mmodel.Balance{AccountType: "deposit"},
+			Amount:  mtransaction.Amount{Operation: "CREDIT", Direction: constant.DirectionCredit},
+		},
+		{
+			Alias:   companionAlias,
+			Balance: &mmodel.Balance{Key: constant.OverdraftBalanceKey, AccountType: "deposit"},
+			Amount:  mtransaction.Amount{Operation: "CREDIT", Direction: constant.DirectionCredit},
 		},
 	}
 
 	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 	require.Error(t, err, "credit-repayment companion must be rejected when only the debit overdraft rubric is configured")
-	assert.Contains(t, err.Error(), constant.ErrOverdraftRouteNotConfigured.Error())
+	assertOverdraftRouteNotConfigured(t, err)
+}
+
+// assertOverdraftRouteNotConfigured asserts the returned error is a
+// pkg.UnprocessableOperationError (HTTP 422) carrying the 0176 overdraft-route
+// code and the OperationRoute entity type, mirroring the identity assertions in
+// pkg/errors_overdraft_test.go.
+func assertOverdraftRouteNotConfigured(t *testing.T, err error) {
+	t.Helper()
+
+	mapped, ok := err.(pkg.UnprocessableOperationError)
+	require.True(t, ok, "error must map to pkg.UnprocessableOperationError (HTTP 422), got %T", err)
+	assert.Equal(t, constant.ErrOverdraftRouteNotConfigured.Error(), mapped.Code, "code must be 0176")
+	assert.Equal(t, constant.EntityOperationRoute, mapped.EntityType, "entity type must be OperationRoute")
+}
+
+// TestValidateAccountingRules_OverdraftRouteRejections covers additional gate
+// rejection paths: (a) an Overdraft rubric present but with an empty Code counts
+// as missing; (c) a companion whose route is absent from BOTH the From and To
+// maps resolves to an empty routeID and is rejected. Both must return the
+// typed 0176 UnprocessableOperationError.
+func TestValidateAccountingRules_OverdraftRouteRejections(t *testing.T) {
+	primaryAlias := "0#@sender#default"
+	companionAlias := "0#@sender#overdraft"
+
+	tests := []struct {
+		name       string
+		buildCache func(srcRouteID string) mmodel.TransactionRouteCache
+		validate   func(txRouteID uuid.UUID, srcRouteID string) *mtransaction.Responses
+	}{
+		{
+			name: "overdraft rubric present but empty Code is rejected",
+			buildCache: func(srcRouteID string) mmodel.TransactionRouteCache {
+				return mmodel.TransactionRouteCache{
+					Actions: map[string]mmodel.ActionRouteCache{
+						"direct": {
+							Source: map[string]mmodel.OperationRouteCache{
+								srcRouteID: {
+									OperationType: "source",
+									AccountingEntries: &mmodel.AccountingEntries{
+										Direct: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Cash"}},
+									},
+								},
+							},
+							Destination:   make(map[string]mmodel.OperationRouteCache),
+							Bidirectional: make(map[string]mmodel.OperationRouteCache),
+						},
+						"overdraft": {
+							Source: map[string]mmodel.OperationRouteCache{
+								srcRouteID: {
+									OperationType: "source",
+									AccountingEntries: &mmodel.AccountingEntries{
+										// Debit rubric present but Code is empty -> counts as missing.
+										Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "", Description: "no code"}},
+									},
+								},
+							},
+							Destination:   make(map[string]mmodel.OperationRouteCache),
+							Bidirectional: make(map[string]mmodel.OperationRouteCache),
+						},
+					},
+				}
+			},
+			validate: func(txRouteID uuid.UUID, srcRouteID string) *mtransaction.Responses {
+				return &mtransaction.Responses{
+					TransactionRouteID: strPtr(txRouteID.String()),
+					OperationRoutesFrom: map[string]string{
+						primaryAlias:   srcRouteID,
+						companionAlias: srcRouteID,
+					},
+					From: map[string]mtransaction.Amount{
+						primaryAlias:   {Operation: "DEBIT", Direction: constant.DirectionDebit},
+						companionAlias: {Operation: "DEBIT", Direction: constant.DirectionDebit},
+					},
+				}
+			},
+		},
+		{
+			name: "companion absent from both From and To maps (empty routeID) is rejected",
+			buildCache: func(srcRouteID string) mmodel.TransactionRouteCache {
+				return mmodel.TransactionRouteCache{
+					Actions: map[string]mmodel.ActionRouteCache{
+						"direct": {
+							Source: map[string]mmodel.OperationRouteCache{
+								srcRouteID: {
+									OperationType: "source",
+									AccountingEntries: &mmodel.AccountingEntries{
+										Direct: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Cash"}},
+									},
+								},
+							},
+							Destination:   make(map[string]mmodel.OperationRouteCache),
+							Bidirectional: make(map[string]mmodel.OperationRouteCache),
+						},
+						"overdraft": {
+							Source: map[string]mmodel.OperationRouteCache{
+								srcRouteID: {
+									OperationType: "source",
+									AccountingEntries: &mmodel.AccountingEntries{
+										Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "9001", Description: "Overdraft usage"}},
+									},
+								},
+							},
+							Destination:   make(map[string]mmodel.OperationRouteCache),
+							Bidirectional: make(map[string]mmodel.OperationRouteCache),
+						},
+					},
+				}
+			},
+			validate: func(txRouteID uuid.UUID, srcRouteID string) *mtransaction.Responses {
+				// Primary is routed; the companion alias appears in NEITHER
+				// OperationRoutesFrom nor OperationRoutesTo, so routeID resolves
+				// to "" and the gate must reject.
+				return &mtransaction.Responses{
+					TransactionRouteID:  strPtr(txRouteID.String()),
+					OperationRoutesFrom: map[string]string{primaryAlias: srcRouteID},
+					From:                map[string]mtransaction.Amount{primaryAlias: {Operation: "DEBIT", Direction: constant.DirectionDebit}},
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			organizationID := uuid.New()
+			ledgerID := uuid.New()
+			transactionRouteID := uuid.New()
+			srcRouteID := uuid.New().String()
+
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+			mockLedgerRepo.EXPECT().
+				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(map[string]any{
+					"accounting": map[string]any{"validateRoutes": true},
+				}, nil)
+
+			cache := tt.buildCache(srcRouteID)
+			cacheBytes, err := cache.ToMsgpack()
+			require.NoError(t, err)
+
+			cacheKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+			mockRedisRepo.EXPECT().GetBytes(gomock.Any(), cacheKey).Return(cacheBytes, nil)
+
+			uc := &UseCase{
+				TransactionRedisRepo: mockRedisRepo,
+				LedgerRepo:           mockLedgerRepo,
+			}
+
+			operations := []mmodel.BalanceOperation{
+				{Alias: primaryAlias, Balance: &mmodel.Balance{AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "DEBIT", Direction: constant.DirectionDebit}},
+				{Alias: companionAlias, Balance: &mmodel.Balance{Key: constant.OverdraftBalanceKey, AccountType: "deposit"}, Amount: mtransaction.Amount{Operation: "DEBIT", Direction: constant.DirectionDebit}},
+			}
+
+			validate := tt.validate(transactionRouteID, srcRouteID)
+
+			_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+
+			require.Error(t, err)
+			assertOverdraftRouteNotConfigured(t, err)
+		})
+	}
 }
 
 // TestValidateAccountingRules_OverdraftValidateRoutesDisabled confirms the gate

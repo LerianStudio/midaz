@@ -348,7 +348,7 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 
 		routeID := *op.RouteID
 
-		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+		if rc, ok := actionCache.FindRoute(routeID); ok {
 			if rubric := resolveAccountingRubric(rc.AccountingEntries, resolvedAction, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
@@ -372,7 +372,7 @@ func blockEntryConfigured(cache *mmodel.TransactionRouteCache, action, routeID s
 		return false
 	}
 
-	rc, ok := findRouteInActionCache(actionCache, routeID)
+	rc, ok := actionCache.FindRoute(routeID)
 	if !ok || rc.AccountingEntries == nil {
 		return false
 	}
@@ -421,24 +421,6 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 	}
 
 	return nil
-}
-
-// findRouteInActionCache searches for a routeID across Source, Destination, and
-// Bidirectional maps of an ActionRouteCache.
-func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
-	if rc, ok := actionCache.Source[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Destination[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Bidirectional[routeID]; ok {
-		return rc, true
-	}
-
-	return mmodel.OperationRouteCache{}, false
 }
 
 // effectiveOperationAmount returns the amount that should be recorded on a
