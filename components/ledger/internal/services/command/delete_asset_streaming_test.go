@@ -26,8 +26,8 @@ import (
 //
 // AssetRepo.Find echoes the requested identity so test bodies can assert
 // the emitted Subject and payload.id without prior coordination.
-// AccountRepo.ListAccountsByAlias returns an empty slice so the
-// implicit-external-account cascade is a no-op (the asset.deleted event
+// AccountRepo.ListExternalAccountsByAssetCode returns an empty slice so
+// the external-account cascade is a no-op (the asset.deleted event
 // must still emit; that cascade is internal plumbing).
 func newDeleteAssetStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libStreaming.Emitter, assetID uuid.UUID) *UseCase {
 	t.Helper()
@@ -49,9 +49,9 @@ func newDeleteAssetStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, e
 			}, nil
 		}).AnyTimes()
 
-	// No implicit external account exists → cascade-delete branch is a no-op.
+	// No external accounts exist → cascade-delete branch is a no-op.
 	mockAccountRepo.EXPECT().
-		ListAccountsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		ListExternalAccountsByAssetCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{}, nil).AnyTimes()
 
 	mockAssetRepo.EXPECT().
