@@ -69,6 +69,9 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
+	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
+	// type external for the given asset code within the organization and ledger.
+	ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
@@ -1217,6 +1220,102 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var acc AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.AssetCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.SegmentID,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+			&acc.Blocked,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
+
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
+
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_external_accounts_by_asset_code")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+
+		return nil, err
+	}
+
+	var accounts []*mmodel.Account
+
+	findAll := squirrel.Select(accountColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"asset_code": assetCode}).
+		Where(squirrel.Eq{"type": constant.ExternalAccountType}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Executing query: %s", query))
+
+	_, spanQuery := tracer.Start(ctx, "postgres.list_external_accounts_by_asset_code.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+
+		spanQuery.End()
 
 		return nil, err
 	}

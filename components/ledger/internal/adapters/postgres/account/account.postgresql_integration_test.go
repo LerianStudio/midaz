@@ -1183,6 +1183,100 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t
 }
 
 // ============================================================================
+// ListExternalAccountsByAssetCode Tests
+// ============================================================================
+
+func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOnlyLiveExternals(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	deletedAt := time.Now().Truncate(time.Microsecond)
+
+	newExternal := func(alias string, deleted *time.Time) uuid.UUID {
+		p := pgtestutil.DefaultAccountParams()
+		p.Name = "External " + alias
+		p.Alias = alias
+		p.AssetCode = "BRL"
+		p.Type = constant.ExternalAccountType
+		p.DeletedAt = deleted
+		return pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
+	}
+
+	// Live externals for the target asset (canonical + custom).
+	canonicalID := newExternal(constant.DefaultExternalAccountAliasPrefix+"BRL", nil)
+	customID := newExternal("@brl-external-custom", nil)
+
+	// Soft-deleted external for the same asset must be excluded.
+	newExternal("@brl-external-deleted", &deletedAt)
+
+	// Regular (non-external) account for the same asset must be excluded.
+	regularParams := pgtestutil.DefaultAccountParams()
+	regularParams.Name = "Regular BRL"
+	regularParams.Alias = "@brl-regular"
+	regularParams.AssetCode = "BRL"
+	regularParams.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, regularParams)
+
+	// External account for a different asset must be excluded.
+	otherAssetParams := pgtestutil.DefaultAccountParams()
+	otherAssetParams.Name = "External USD"
+	otherAssetParams.Alias = constant.DefaultExternalAccountAliasPrefix + "USD"
+	otherAssetParams.AssetCode = "USD"
+	otherAssetParams.Type = constant.ExternalAccountType
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, otherAssetParams)
+
+	ctx := context.Background()
+
+	// Act
+	accounts, err := repo.ListExternalAccountsByAssetCode(ctx, orgID, ledgerID, "BRL")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only the two live external accounts for BRL")
+
+	ids := make(map[string]bool)
+	for _, acc := range accounts {
+		ids[acc.ID] = true
+		assert.Equal(t, constant.ExternalAccountType, acc.Type, "returned account must be external")
+		assert.Equal(t, "BRL", acc.AssetCode, "returned account must match asset code")
+	}
+	assert.True(t, ids[canonicalID.String()], "canonical external account must be returned")
+	assert.True(t, ids[customID.String()], "custom external account must be returned")
+}
+
+func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsEmptyWhenNone(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Only a regular account exists for the asset.
+	p := pgtestutil.DefaultAccountParams()
+	p.Name = "Regular EUR"
+	p.Alias = "@eur-regular"
+	p.AssetCode = "EUR"
+	p.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
+
+	ctx := context.Background()
+
+	// Act
+	accounts, err := repo.ListExternalAccountsByAssetCode(ctx, orgID, ledgerID, "EUR")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, accounts, "should return no external accounts")
+}
+
+// ============================================================================
 // Count Tests
 // ============================================================================
 
