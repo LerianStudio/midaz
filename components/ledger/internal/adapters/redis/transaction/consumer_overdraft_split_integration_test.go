@@ -344,8 +344,8 @@ func TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable(t *te
 // balance that negative result is rejected with 0018 (insufficient funds); for an
 // external balance the external-account carve-out in balance_atomic_operation.lua
 // (the `balance.AccountType ~= "external"` guard) short-circuits the rejection and
-// the negative Available is accepted. This is the type-based no-balance-validation
-// the task requires proving end-to-end.
+// the negative Available is accepted. This proves the external-account bypass of
+// the insufficient-funds (`0018`) check end-to-end.
 func TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

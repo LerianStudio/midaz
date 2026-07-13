@@ -739,14 +739,13 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	assert.Equal(t, accountID.String(), byAlias.ID)
 	assert.Equal(t, constant.ExternalAccountType, byAlias.Type)
 
-	// Act & Assert: appears in the paginated listing.
-	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	// Act & Assert: appears in the paginated listing. No date window is set
+	// (StartDate/EndDate left zero) so FindAll skips date filtering entirely and
+	// the fixture's real-time created_at is always included.
 	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
-		StartDate: fixedNow.Add(-24 * time.Hour),
-		EndDate:   fixedNow.Add(24 * time.Hour),
 	}
 	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 	require.NoError(t, err, "FindAll should not error")
