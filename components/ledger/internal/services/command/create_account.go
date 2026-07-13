@@ -50,6 +50,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	// External is matched case-insensitively but persisted as the canonical
+	// lowercase constant so the balance's AccountType compares equal on the
+	// Redis Lua external path (balance.AccountType == "external").
+	isExternal := strings.EqualFold(cai.Type, constant.ExternalAccountType)
+	if isExternal {
+		cai.Type = constant.ExternalAccountType
+	}
+
 	if libCommons.IsNilOrEmpty(&cai.Name) {
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
@@ -124,7 +132,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, accountID.String())
+	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, accountID.String(), isExternal)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by alias", err)
 		return nil, err
@@ -222,9 +230,19 @@ func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span,
 }
 
 // resolveAccountAlias resolves and validates the account alias.
-// Returns provided alias when present and valid; otherwise falls back to generated ID.
-func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string) (*string, error) {
-	if !libCommons.IsNilOrEmpty(cai.Alias) {
+// Returns the provided alias when present and unique. Non-external accounts
+// fall back to the generated account ID when no alias is supplied. External
+// accounts require a user-provided alias and reject nil, empty, or
+// whitespace-only values with a missing-field business error, since a
+// generated ID would defeat the deterministic external-account addressing.
+func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string, isExternal bool) (*string, error) {
+	hasAlias := cai.Alias != nil && strings.TrimSpace(*cai.Alias) != ""
+
+	if isExternal && !hasAlias {
+		return nil, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityAccount, "alias")
+	}
+
+	if hasAlias {
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			return nil, err

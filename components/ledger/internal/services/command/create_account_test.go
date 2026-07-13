@@ -55,6 +55,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 	ledgerID := uuid.New()
 	customAlias := "custom-alias"
 	existingAlias := "existing-alias"
+	externalScenarioAlias := "@external/USD"
 
 	tests := []struct {
 		name         string
@@ -166,6 +167,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Name:      "External Account",
 				Type:      "external",
 				AssetCode: "USD",
+				Alias:     &externalScenarioAlias,
 			},
 			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
 				mockLedgerRepo.EXPECT().
@@ -215,6 +217,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Name:      "External Account",
 				Type:      "EXTERNAL",
 				AssetCode: "USD",
+				Alias:     &externalScenarioAlias,
 			},
 			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
 				mockLedgerRepo.EXPECT().
@@ -1052,6 +1055,192 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, account)
 				assert.Equal(t, tt.expectedName, account.Name)
+			}
+		})
+	}
+}
+
+// TestCreateAccountExternalAlias covers external-account-specific rules:
+// canonical lowercase persistence of the "external" type on both the account
+// and its default balance, the mandatory user-provided alias for external
+// accounts, and the unchanged generated-ID fallback for non-external accounts.
+func TestCreateAccountExternalAlias(t *testing.T) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *balance.MockRepository, *ledger.MockRepository) {
+		mockAssetRepo := asset.NewMockRepository(ctrl)
+		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+		mockAccountRepo := account.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+		uc := &UseCase{
+			AssetRepo:              mockAssetRepo,
+			PortfolioRepo:          mockPortfolioRepo,
+			AccountRepo:            mockAccountRepo,
+			OnboardingMetadataRepo: mockMetadataRepo,
+			AccountTypeRepo:        mockAccountTypeRepo,
+			BalanceRepo:            mockBalanceRepo,
+			LedgerRepo:             mockLedgerRepo,
+		}
+
+		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalanceRepo, mockLedgerRepo
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	externalAlias := "@external/USD"
+	blankAlias := "   "
+	emptyAlias := ""
+
+	tests := []struct {
+		name string
+		// input built per-case so alias pointers stay isolated
+		input *mmodel.CreateAccountInput
+		// expectedType/expectedBalanceType assert the persisted canonical value.
+		expectedType        string
+		expectedBalanceType string
+		// expectAliasIsID asserts the alias fell back to the generated account ID.
+		expectAliasIsID bool
+		expectError     bool
+		expectedErr     string
+	}{
+		{
+			name: "external with valid custom alias persists lowercase external",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+				Alias:     &externalAlias,
+			},
+			expectedType:        "external",
+			expectedBalanceType: "external",
+		},
+		{
+			name: "external mixed-case normalizes to lowercase external",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "EXTERNAL",
+				AssetCode: "USD",
+				Alias:     &externalAlias,
+			},
+			expectedType:        "external",
+			expectedBalanceType: "external",
+		},
+		{
+			name: "external with nil alias returns missing-field error",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+			},
+			expectError: true,
+			expectedErr: "alias",
+		},
+		{
+			name: "external with empty alias returns missing-field error",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+				Alias:     &emptyAlias,
+			},
+			expectError: true,
+			expectedErr: "alias",
+		},
+		{
+			name: "external with whitespace alias returns missing-field error",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+				Alias:     &blankAlias,
+			},
+			expectError: true,
+			expectedErr: "alias",
+		},
+		{
+			name: "non-external without alias falls back to generated ID",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Deposit Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			expectedType:    "deposit",
+			expectAliasIsID: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc, mockAssetRepo, _, mockAccountRepo, mockMetadataRepo, _, mockBalance, mockLedgerRepo := setupTest(ctrl)
+
+			mockLedgerRepo.EXPECT().
+				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil, nil).AnyTimes()
+
+			mockAssetRepo.EXPECT().
+				FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).AnyTimes()
+
+			mockAccountRepo.EXPECT().
+				FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(false, nil).AnyTimes()
+
+			var createdAccount *mmodel.Account
+
+			mockAccountRepo.EXPECT().
+				Create(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+					out := *in
+					createdAccount = &out
+					return &out, nil
+				}).AnyTimes()
+
+			mockMetadataRepo.EXPECT().
+				Create(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil).AnyTimes()
+
+			mockBalance.EXPECT().
+				ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(false, nil).AnyTimes()
+
+			var balanceType string
+
+			mockBalance.EXPECT().
+				Create(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, in *mmodel.Balance) (*mmodel.Balance, error) {
+					balanceType = in.AccountType
+					return in, nil
+				}).AnyTimes()
+
+			token := "Bearer test-token"
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				assert.Nil(t, acc)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, acc)
+			assert.Equal(t, tt.expectedType, acc.Type)
+
+			if tt.expectedBalanceType != "" {
+				assert.Equal(t, tt.expectedBalanceType, balanceType)
+			}
+
+			if tt.expectAliasIsID {
+				assert.NotNil(t, createdAccount)
+				assert.NotNil(t, createdAccount.Alias)
+				assert.Equal(t, createdAccount.ID, *createdAccount.Alias)
 			}
 		})
 	}
