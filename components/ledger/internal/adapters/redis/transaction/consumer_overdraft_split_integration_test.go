@@ -304,7 +304,7 @@ func TestIntegration_Overdraft_ExternalAccount_BypassesOverdraft(t *testing.T) {
 // against a CUSTOM external account (non-canonical alias, Type=external,
 // default balance Direction=debit) increases Available — matching the
 // overdraft-proven direction math where DEBIT on a debit-direction balance
-// adds to Available (balance_atomic_operation.lua:450-455). No overdraft
+// adds to Available in balance_atomic_operation.lua. No overdraft
 // settings are present, so no OverdraftUsed accrues.
 func TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable(t *testing.T) {
 	if testing.Short() {
@@ -339,12 +339,13 @@ func TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable(t *te
 
 // TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds
 // proves the "insufficient-funds bypass" half of the custom-external contract.
-// A CREDIT on a debit-direction balance SUBTRACTS from Available
-// (balance_atomic_operation.lua:456-461), driving it negative. For a NON-external
-// balance that negative result is rejected with 0018 (line 564-566); for an
-// external balance the type guard at line 526 (balance.AccountType ~= "external")
-// short-circuits the rejection and the negative Available is accepted. This is
-// the type-based no-balance-validation the task requires proving end-to-end.
+// A CREDIT on a debit-direction balance SUBTRACTS from Available in
+// balance_atomic_operation.lua, driving it negative. For a NON-external
+// balance that negative result is rejected with 0018 (insufficient funds); for an
+// external balance the external-account carve-out in balance_atomic_operation.lua
+// (the `balance.AccountType ~= "external"` guard) short-circuits the rejection and
+// the negative Available is accepted. This is the type-based no-balance-validation
+// the task requires proving end-to-end.
 func TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

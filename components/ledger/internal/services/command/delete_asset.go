@@ -109,9 +109,8 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 // The PG deleted_at column is set by the same wall clock at row-update
 // time, so the values are effectively identical up to clock skew.
 //
-// The cascade soft-delete of the asset's external accounts earlier in
-// this use case goes through AccountRepo directly — NOT through
-// UseCase.DeleteAccountByID — so it produces no account.deleted events.
+// The asset.deleted event below is the single user-visible signal for this
+// operation; the external-account soft-deletes above are internal cleanup.
 //
 // Wire-format mapping lives in pkg/streaming/events/asset_deleted.go;
 // changes to the payload contract belong there, not here.

@@ -51,8 +51,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	// External is matched case-insensitively but persisted as the canonical
-	// lowercase constant so the balance's AccountType compares equal on the
-	// Redis Lua external path (balance.AccountType == "external").
+	// lowercase constant so the account and its default balance stay consistent.
 	isExternal := strings.EqualFold(cai.Type, constant.ExternalAccountType)
 	if isExternal {
 		cai.Type = constant.ExternalAccountType

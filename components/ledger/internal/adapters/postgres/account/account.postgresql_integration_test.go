@@ -740,12 +740,13 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	assert.Equal(t, constant.ExternalAccountType, byAlias.Type)
 
 	// Act & Assert: appears in the paginated listing.
+	fixedNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	filter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
-		StartDate: time.Now().Add(-24 * time.Hour),
-		EndDate:   time.Now().Add(24 * time.Hour),
+		StartDate: fixedNow.Add(-24 * time.Hour),
+		EndDate:   fixedNow.Add(24 * time.Hour),
 	}
 	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 	require.NoError(t, err, "FindAll should not error")
@@ -1305,7 +1306,7 @@ func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOn
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
-	deletedAt := time.Now().Truncate(time.Microsecond)
+	deletedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Truncate(time.Microsecond)
 
 	newExternal := func(alias string, deleted *time.Time) uuid.UUID {
 		p := pgtestutil.DefaultAccountParams()
