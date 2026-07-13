@@ -95,6 +95,54 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			},
 		},
 		{
+			name: "success returns 201 with user-created external account",
+			payload: &mmodel.CreateAccountInput{
+				Name:      "User External Account",
+				AssetCode: "BRL",
+				Type:      "external",
+				Status: mmodel.Status{
+					Code: "ACTIVE",
+				},
+			},
+			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
+				assetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "BRL").
+					Return(true, nil).
+					Times(1)
+
+				accountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx any, acc *mmodel.Account) (*mmodel.Account, error) {
+						acc.ID = uuid.New().String()
+						acc.OrganizationID = orgID.String()
+						acc.LedgerID = ledgerID.String()
+						fixed := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+						acc.CreatedAt = fixed
+						acc.UpdatedAt = fixed
+						return acc, nil
+					}).
+					Times(1)
+
+				balanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				balanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+			},
+			expectedStatus: 201,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Equal(t, "external", result["type"], "user-created external account type should be accepted")
+				assert.Equal(t, "BRL", result["assetCode"])
+			},
+		},
+		{
 			name: "asset not found returns 404",
 			payload: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
@@ -181,7 +229,8 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			handler := &AccountHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -551,7 +600,8 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			handler := &AccountHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -696,7 +746,8 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			handler := &AccountHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -835,7 +886,8 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			handler := &AccountHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -971,7 +1023,8 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			handler := &AccountHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -1202,7 +1255,8 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -1333,7 +1387,8 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			handler := &AccountHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -1410,7 +1465,8 @@ func TestAccountHandler_CountAccounts(t *testing.T) {
 			handler := &AccountHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count",
+			app.Head(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
