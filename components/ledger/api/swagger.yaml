@@ -8131,7 +8131,7 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "422":
-          description: Unprocessable Entity, validation errors
+          description: Unprocessable Entity, validation or business-rule errors
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -8192,7 +8192,7 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "422":
-          description: Unprocessable Entity, validation errors
+          description: Unprocessable Entity, validation or business-rule errors
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -8253,7 +8253,7 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "422":
-          description: Unprocessable Entity, validation errors
+          description: Unprocessable Entity, validation or business-rule errors
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -8390,7 +8390,7 @@ paths:
           schema:
             $ref: '#/definitions/Error'
         "422":
-          description: Unprocessable Entity, validation errors
+          description: Unprocessable Entity, validation or business-rule errors
           schema:
             $ref: '#/definitions/Error'
         "500":

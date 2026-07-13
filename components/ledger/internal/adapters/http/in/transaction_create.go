@@ -334,10 +334,15 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 
 		actionCache, ok := cache.Actions[resolvedAction]
 		if !ok {
-			// No entries for this action — e.g. route defines only Direct
-			// and the companion wants Overdraft. Leave RouteCode nil; the
-			// primary op still resolves correctly, and the companion
-			// simply carries no accounting rubric.
+			// Defensive only. When route validation is enabled, the
+			// ValidateAccountingRules gate rejects any overdraft companion whose
+			// route lacks a direction-specific overdraft rubric with
+			// ErrOverdraftRouteNotConfigured, so a companion reaching here is
+			// guaranteed to have its overdraft action present. For block/unblock
+			// this branch is also unreachable, since resolvedAction only switches
+			// to Block/Unblock after blockEntryConfigured confirms the action
+			// exists. Leaving RouteCode nil keeps the primary op resolving
+			// correctly for any residual unreachable state.
 			continue
 		}
 

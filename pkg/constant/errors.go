@@ -215,6 +215,11 @@ var (
 	// system-managed (e.g. overdraft companions) and cannot be modified
 	// through the public API.
 	ErrUpdateOfInternalBalance = errors.New("0175")
+	// ErrOverdraftRouteNotConfigured is returned when route validation is
+	// enabled but the accounting route applied to an overdraft companion
+	// operation does not define an overdraft entry carrying the rubric for
+	// the direction actually posted (debit = usage, credit = repayment).
+	ErrOverdraftRouteNotConfigured = errors.New("0176")
 )
 
 // List of CRM errors.
