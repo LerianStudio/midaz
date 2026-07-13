@@ -10,7 +10,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
-	github.com/gofiber/fiber/v2 v2.52.13
+	github.com/gofiber/fiber/v2 v2.52.14
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/lib/pq v1.12.3
 	github.com/rabbitmq/amqp091-go v1.11.0
@@ -99,7 +99,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.8.0
+	github.com/LerianStudio/lib-commons/v5 v5.9.0
 	github.com/LerianStudio/lib-observability v1.1.0
 	github.com/LerianStudio/lib-service-discovery v0.6.0
 	github.com/LerianStudio/lib-streaming v1.8.0

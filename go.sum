@@ -20,8 +20,8 @@ github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/LerianStudio/lib-auth/v2 v2.9.0 h1:HB9eOtgn+deX4blOjsbb2qNCNoib3T0iIZIf24t15y8=
 github.com/LerianStudio/lib-auth/v2 v2.9.0/go.mod h1:rRMBaO19OYcNLxXULTQm+uj49/lpf9BU4TAQyvgvTJk=
-github.com/LerianStudio/lib-commons/v5 v5.8.0 h1:u0AK2HbbP3l4B+MxZOBBmnEF9bk6HHDjq6JYTXKZHyE=
-github.com/LerianStudio/lib-commons/v5 v5.8.0/go.mod h1:QFluaXHnCTWzHhVvh568JFoBn64pCH8roeIurBRZNC4=
+github.com/LerianStudio/lib-commons/v5 v5.9.0 h1:SGtF73m7NYC81MsxcnrfGglWyZce9/45RuUlwYu5k7U=
+github.com/LerianStudio/lib-commons/v5 v5.9.0/go.mod h1:UuSDee6DZ1n2yMAsYgZyOjhBY0zGqMFNAQpZxLQLzVc=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
 github.com/LerianStudio/lib-observability v1.1.0/go.mod h1:PBtmXygWXmcsTnyNLBetyYb/OtsWq6WT9fSJvoppeUQ=
 github.com/LerianStudio/lib-service-discovery v0.6.0 h1:24om6ckDkgQbvdz0AK2rkhCX285o4tMMLmVuoAEWbNw=
@@ -197,8 +197,8 @@ github.com/go-test/deep v1.1.1/go.mod h1:5C2ZWiW0ErCdrYzpqxLbTX7MG14M9iiw8DgHncV
 github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
 github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/gofiber/fiber/v2 v2.32.0/go.mod h1:CMy5ZLiXkn6qwthrl03YMyW1NLfj0rhxz2LKl4t7ZTY=
-github.com/gofiber/fiber/v2 v2.52.13 h1:TOKP64iqC9b5P49VrBW5tHhUOvDyrtJ0xePEfzJbCbk=
-github.com/gofiber/fiber/v2 v2.52.13/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
+github.com/gofiber/fiber/v2 v2.52.14 h1:Of3L+9qVFaQNwPlcmEdl5IIodHz8BSE0j37R7rWu4pE=
+github.com/gofiber/fiber/v2 v2.52.14/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
