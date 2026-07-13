@@ -236,7 +236,7 @@ func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span,
 // whitespace-only values with a missing-field business error, since a
 // generated ID would defeat the deterministic external-account addressing.
 func (uc *UseCase) resolveAccountAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, generatedID string, isExternal bool) (*string, error) {
-	hasAlias := cai.Alias != nil && strings.TrimSpace(*cai.Alias) != ""
+	hasAlias := !libCommons.IsNilOrEmpty(cai.Alias)
 
 	if isExternal && !hasAlias {
 		return nil, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityAccount, "alias")
@@ -284,7 +284,7 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	}
 
 	// External accounts bypass all accounting validations.
-	if strings.ToLower(accountType) == "external" {
+	if strings.EqualFold(accountType, constant.ExternalAccountType) {
 		return nil
 	}
 

@@ -95,11 +95,12 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			},
 		},
 		{
-			name: "success returns 201 with user-created external account",
+			name: "success returns 201 with user-created external account with custom alias",
 			payload: &mmodel.CreateAccountInput{
 				Name:      "User External Account",
 				AssetCode: "BRL",
 				Type:      "external",
+				Alias:     ptr("@pi"),
 				Status: mmodel.Status{
 					Code: "ACTIVE",
 				},
@@ -108,6 +109,13 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "BRL").
 					Return(true, nil).
+					Times(1)
+
+				// External account requires a user-provided alias; its uniqueness
+				// is checked via FindByAlias before Create runs.
+				accountRepo.EXPECT().
+					FindByAlias(gomock.Any(), orgID, ledgerID, "@pi").
+					Return(false, nil).
 					Times(1)
 
 				accountRepo.EXPECT().
@@ -140,6 +148,36 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 
 				assert.Equal(t, "external", result["type"], "user-created external account type should be accepted")
 				assert.Equal(t, "BRL", result["assetCode"])
+				assert.Equal(t, "@pi", result["alias"], "external account alias should be persisted verbatim")
+			},
+		},
+		{
+			name: "external account without alias returns 400 missing field",
+			payload: &mmodel.CreateAccountInput{
+				Name:      "User External Account",
+				AssetCode: "BRL",
+				Type:      "external",
+				Status: mmodel.Status{
+					Code: "ACTIVE",
+				},
+			},
+			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
+				assetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "BRL").
+					Return(true, nil).
+					Times(1)
+
+				// A missing external alias is rejected before persistence, so
+				// neither the account nor its balance must be created.
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Equal(t, cn.ErrMissingFieldsInRequest.Error(), errResp["code"],
+					"missing external alias should surface the missing-fields error code")
 			},
 		},
 		{

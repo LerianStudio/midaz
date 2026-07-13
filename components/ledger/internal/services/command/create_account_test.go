@@ -1094,6 +1094,8 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 	externalAlias := "@external/USD"
 	blankAlias := "   "
 	emptyAlias := ""
+	nullSentinelAlias := "null"
+	duplicateAlias := "@pi"
 
 	tests := []struct {
 		name string
@@ -1102,10 +1104,18 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 		// expectedType/expectedBalanceType assert the persisted canonical value.
 		expectedType        string
 		expectedBalanceType string
+		// expectedAlias, when set, locks that the alias is persisted verbatim.
+		expectedAlias string
 		// expectAliasIsID asserts the alias fell back to the generated account ID.
 		expectAliasIsID bool
-		expectError     bool
-		expectedErr     string
+		// findByAliasErr, when set, makes FindByAlias fail (duplicate-alias path).
+		findByAliasErr error
+		expectError    bool
+		// expectedErr is the substring; expectedCode pins the typed business code.
+		expectedErr  string
+		expectedCode string
+		// expectCreate asserts whether AccountRepo.Create must run.
+		expectCreate bool
 	}{
 		{
 			name: "external with valid custom alias persists lowercase external",
@@ -1117,6 +1127,8 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 			},
 			expectedType:        "external",
 			expectedBalanceType: "external",
+			expectedAlias:       "@external/USD",
+			expectCreate:        true,
 		},
 		{
 			name: "external mixed-case normalizes to lowercase external",
@@ -1128,6 +1140,8 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 			},
 			expectedType:        "external",
 			expectedBalanceType: "external",
+			expectedAlias:       "@external/USD",
+			expectCreate:        true,
 		},
 		{
 			name: "external with nil alias returns missing-field error",
@@ -1136,8 +1150,9 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 				Type:      "external",
 				AssetCode: "USD",
 			},
-			expectError: true,
-			expectedErr: "alias",
+			expectError:  true,
+			expectedErr:  "alias",
+			expectedCode: constant.ErrMissingFieldsInRequest.Error(),
 		},
 		{
 			name: "external with empty alias returns missing-field error",
@@ -1147,8 +1162,9 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 				AssetCode: "USD",
 				Alias:     &emptyAlias,
 			},
-			expectError: true,
-			expectedErr: "alias",
+			expectError:  true,
+			expectedErr:  "alias",
+			expectedCode: constant.ErrMissingFieldsInRequest.Error(),
 		},
 		{
 			name: "external with whitespace alias returns missing-field error",
@@ -1158,8 +1174,33 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 				AssetCode: "USD",
 				Alias:     &blankAlias,
 			},
-			expectError: true,
-			expectedErr: "alias",
+			expectError:  true,
+			expectedErr:  "alias",
+			expectedCode: constant.ErrMissingFieldsInRequest.Error(),
+		},
+		{
+			name: "external with 'null' sentinel alias is treated as absent",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+				Alias:     &nullSentinelAlias,
+			},
+			expectError:  true,
+			expectedErr:  "alias",
+			expectedCode: constant.ErrMissingFieldsInRequest.Error(),
+		},
+		{
+			name: "external with unavailable alias surfaces the unavailability error and skips Create",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+				Alias:     &duplicateAlias,
+			},
+			findByAliasErr: pkg.ValidateBusinessError(constant.ErrAliasUnavailability, constant.EntityAccount),
+			expectError:    true,
+			expectedCode:   constant.ErrAliasUnavailability.Error(),
 		},
 		{
 			name: "non-external without alias falls back to generated ID",
@@ -1170,6 +1211,7 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 			},
 			expectedType:    "deposit",
 			expectAliasIsID: true,
+			expectCreate:    true,
 		},
 	}
 
@@ -1190,17 +1232,23 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 
 			mockAccountRepo.EXPECT().
 				FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(false, nil).AnyTimes()
+				Return(tt.findByAliasErr != nil, tt.findByAliasErr).AnyTimes()
 
 			var createdAccount *mmodel.Account
 
-			mockAccountRepo.EXPECT().
+			createCall := mockAccountRepo.EXPECT().
 				Create(gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 					out := *in
 					createdAccount = &out
 					return &out, nil
-				}).AnyTimes()
+				})
+
+			if tt.expectCreate {
+				createCall.Times(1)
+			} else {
+				createCall.Times(0)
+			}
 
 			mockMetadataRepo.EXPECT().
 				Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1224,8 +1272,16 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
 				assert.Nil(t, acc)
+
+				if tt.expectedErr != "" {
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
+
+				if tt.expectedCode != "" {
+					assertBusinessErrorCode(t, err, tt.expectedCode)
+				}
+
 				return
 			}
 
@@ -1237,12 +1293,44 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 				assert.Equal(t, tt.expectedBalanceType, balanceType)
 			}
 
+			if tt.expectedAlias != "" {
+				assert.NotNil(t, createdAccount)
+				assert.NotNil(t, createdAccount.Alias)
+				assert.Equal(t, tt.expectedAlias, *createdAccount.Alias,
+					"alias must be persisted verbatim; only the account type is lowercased")
+			}
+
 			if tt.expectAliasIsID {
 				assert.NotNil(t, createdAccount)
 				assert.NotNil(t, createdAccount.Alias)
 				assert.Equal(t, createdAccount.ID, *createdAccount.Alias)
 			}
 		})
+	}
+}
+
+// assertBusinessErrorCode pins the typed business error code carried by err,
+// rather than relying on a substring of the formatted message. Business errors
+// in pkg surface as ValidationError / EntityConflictError / etc.; each exposes a
+// Code field. This helper matches whichever concrete type carries the code.
+func assertBusinessErrorCode(t *testing.T, err error, wantCode string) {
+	t.Helper()
+
+	var (
+		valErr  pkg.ValidationError
+		conErr  pkg.EntityConflictError
+		unprErr pkg.UnprocessableOperationError
+	)
+
+	switch {
+	case errors.As(err, &valErr):
+		assert.Equal(t, wantCode, valErr.Code)
+	case errors.As(err, &conErr):
+		assert.Equal(t, wantCode, conErr.Code)
+	case errors.As(err, &unprErr):
+		assert.Equal(t, wantCode, unprErr.Code)
+	default:
+		t.Fatalf("error %v does not carry a typed business error code", err)
 	}
 }
 
