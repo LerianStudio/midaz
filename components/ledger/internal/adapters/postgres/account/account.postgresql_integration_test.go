@@ -693,6 +693,116 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 }
 
 // ============================================================================
+// Custom External Account Tests
+// ============================================================================
+// A "custom external account" is an external-type account created with a
+// user-provided, non-canonical alias (i.e. NOT the @external/<asset> form the
+// ledger auto-provisions). These tests prove such an account is a first-class
+// account through the standard fetch/list APIs, and that the canonical
+// @external/<asset> external-by-code lookup still behaves as before.
+
+// TestIntegration_AccountRepository_CustomExternal_FetchableAndListable proves
+// a custom external account (Type=external, non-canonical alias) is fetchable
+// by ID, by alias, and appears in the paginated listing exactly like any other
+// account.
+func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	customAlias := "@pi"
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "User External Account"
+	params.Alias = customAlias
+	params.AssetCode = "BRL"
+	params.Type = constant.ExternalAccountType
+	accountID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	// Act & Assert: fetch by ID.
+	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	require.NoError(t, err, "custom external account must be fetchable by ID")
+	require.NotNil(t, byID)
+	assert.Equal(t, accountID.String(), byID.ID)
+	assert.Equal(t, constant.ExternalAccountType, byID.Type, "type should be external")
+	assert.Equal(t, customAlias, *byID.Alias, "custom alias should be persisted verbatim")
+
+	// Act & Assert: fetch by alias (the generic alias lookup, not external-by-code).
+	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias)
+	require.NoError(t, err, "custom external account must be fetchable by its custom alias")
+	require.NotNil(t, byAlias)
+	assert.Equal(t, accountID.String(), byAlias.ID)
+	assert.Equal(t, constant.ExternalAccountType, byAlias.Type)
+
+	// Act & Assert: appears in the paginated listing.
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	require.NoError(t, err, "FindAll should not error")
+
+	var found *mmodel.Account
+	for _, acc := range listed {
+		if acc.ID == accountID.String() {
+			found = acc
+			break
+		}
+	}
+	require.NotNil(t, found, "custom external account must appear in the account listing")
+	assert.Equal(t, constant.ExternalAccountType, found.Type)
+	assert.Equal(t, customAlias, *found.Alias)
+}
+
+// TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible
+// proves the canonical @external/<asset> external-by-code path is unchanged:
+// an account created with the canonical alias is resolvable via FindAlias using
+// the @external/<asset> alias (the same lookup GetAccountExternalByCode drives).
+func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	canonicalAlias := constant.DefaultExternalAccountAliasPrefix + "USD" // "@external/USD"
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "External USD Account"
+	params.Alias = canonicalAlias
+	params.AssetCode = "USD"
+	params.Type = constant.ExternalAccountType
+	accountID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	// Act: GetAccountExternalByCode resolves "@external/<code>" via FindAlias.
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias)
+
+	// Assert
+	require.NoError(t, err, "canonical external-by-code alias must resolve")
+	require.NotNil(t, account)
+	assert.Equal(t, accountID.String(), account.ID)
+	assert.Equal(t, canonicalAlias, *account.Alias, "canonical alias should be returned unchanged")
+	assert.Equal(t, constant.ExternalAccountType, account.Type)
+
+	// A code with no provisioned external account still yields not-found,
+	// preserving the pre-existing 404 behavior.
+	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR")
+	require.Error(t, err, "unprovisioned external code must remain not-found")
+	assert.Nil(t, missing)
+}
+
+// ============================================================================
 // FindByAlias Tests
 // ============================================================================
 

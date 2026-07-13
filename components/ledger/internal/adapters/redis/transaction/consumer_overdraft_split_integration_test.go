@@ -298,3 +298,80 @@ func TestIntegration_Overdraft_ExternalAccount_BypassesOverdraft(t *testing.T) {
 	assert.True(t, result.After[0].OverdraftUsed.IsZero(),
 		"overdraft logic must not trigger for external accounts")
 }
+
+// TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable proves
+// the "correct debit movement" half of the custom-external contract: a DEBIT
+// against a CUSTOM external account (non-canonical alias, Type=external,
+// default balance Direction=debit) increases Available — matching the
+// overdraft-proven direction math where DEBIT on a debit-direction balance
+// adds to Available (balance_atomic_operation.lua:450-455). No overdraft
+// settings are present, so no OverdraftUsed accrues.
+func TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Custom external account: a user-provided, non-canonical alias (NOT the
+	// @external/<asset> canonical form) with the external type and a
+	// debit-direction default balance.
+	op := overdraftOp(orgID, ledgerID, "@pi-custom-external", constant.ExternalAccountType, "debit",
+		decimal.NewFromInt(100), decimal.Zero, 1, nil,
+		constant.DEBIT, decimal.NewFromInt(200))
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+
+	require.NoError(t, err, "DEBIT on a debit-direction custom external must succeed")
+	require.Len(t, result.After, 1)
+
+	assert.True(t, result.After[0].Available.Equal(decimal.NewFromInt(300)),
+		"DEBIT increases Available on a debit-direction balance (100+200=300), got %s",
+		result.After[0].Available)
+	assert.True(t, result.After[0].OverdraftUsed.IsZero(),
+		"overdraft logic must not trigger for external accounts, got %s",
+		result.After[0].OverdraftUsed)
+}
+
+// TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds
+// proves the "insufficient-funds bypass" half of the custom-external contract.
+// A CREDIT on a debit-direction balance SUBTRACTS from Available
+// (balance_atomic_operation.lua:456-461), driving it negative. For a NON-external
+// balance that negative result is rejected with 0018 (line 564-566); for an
+// external balance the type guard at line 526 (balance.AccountType ~= "external")
+// short-circuits the rejection and the negative Available is accepted. This is
+// the type-based no-balance-validation the task requires proving end-to-end.
+func TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	// A CREDIT of 200 on a debit-direction balance with only 100 available
+	// yields -100. Without the external type guard this is a 0018 rejection.
+	op := overdraftOp(orgID, ledgerID, "@pi-custom-external", constant.ExternalAccountType, "debit",
+		decimal.NewFromInt(100), decimal.Zero, 1, nil,
+		constant.CREDIT, decimal.NewFromInt(200))
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+
+	require.NoError(t, err,
+		"external type must bypass the 0018 insufficient-funds rejection even when Available goes negative")
+	require.Len(t, result.After, 1)
+
+	assert.True(t, result.After[0].Available.Equal(decimal.NewFromInt(-100)),
+		"CREDIT subtracts on a debit-direction balance (100-200=-100), got %s",
+		result.After[0].Available)
+	assert.True(t, result.After[0].OverdraftUsed.IsZero(),
+		"overdraft accrual must not trigger for external accounts, got %s",
+		result.After[0].OverdraftUsed)
+}
