@@ -160,6 +160,17 @@ func indexModels() []mongo.IndexModel {
 	}
 }
 
+// ensureIndexes ensures indexes exist for the alias collection.
+// Uses per-collection tracking to handle multi-tenant/per-org collections correctly.
+// Retries on failure — indexes are only marked as done after successful creation.
+func ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
+	key := collection.Database().Name() + ":" + collection.Name()
+
+	return globalIndexTracker.ensureOnce(key, func() error {
+		return createIndexes(ctx, collection)
+	})
+}
+
 // createIndexes creates indexes for specific fields, if it not exists.
 func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

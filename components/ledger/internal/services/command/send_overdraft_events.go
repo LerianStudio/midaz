@@ -42,6 +42,19 @@ const (
 	OverdraftActionCleared = "overdraft.cleared"
 )
 
+// Environment variable names read by the overdraft-event flow. Extracted to
+// constants so the names have a single source of truth instead of being
+// repeated as inline string literals across the file.
+const (
+	// envOverdraftEventsEnabled toggles overdraft-event emission. Enabled unless
+	// explicitly set to "false".
+	envOverdraftEventsEnabled = "RABBITMQ_OVERDRAFT_EVENTS_ENABLED"
+
+	// envOverdraftEventsExchange is the RabbitMQ exchange the legacy overdraft
+	// events are published to.
+	envOverdraftEventsExchange = "RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE"
+)
+
 // OverdraftEventPayload carries the business fields for an overdraft
 // lifecycle event. It is marshalled as the Payload field inside mmodel.Event.
 type OverdraftEventPayload struct {
@@ -99,7 +112,7 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 
 	if !isOverdraftEventEnabled() {
 		logger.Log(ctx, libLog.LevelDebug, "Overdraft events not enabled",
-			libLog.String("rabbitmq_overdraft_events_enabled", os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")))
+			libLog.String(envOverdraftEventsEnabled, os.Getenv(envOverdraftEventsEnabled)))
 
 		return
 	}
@@ -112,7 +125,7 @@ func (uc *UseCase) SendOverdraftEvents(ctx context.Context, tran *transaction.Tr
 	ctxSend, span := tracer.Start(ctx, "command.send_overdraft_events_async")
 	defer span.End()
 
-	exchange := os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE")
+	exchange := os.Getenv(envOverdraftEventsExchange)
 
 	for _, ep := range payloads {
 		raw, err := json.Marshal(ep.payload)
@@ -354,6 +367,6 @@ func overdraftBalanceAfter(op *operation.Operation) decimal.Decimal {
 // Unset or any other value means enabled — consistent with the transaction
 // event flag pattern.
 func isOverdraftEventEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_OVERDRAFT_EVENTS_ENABLED")))
+	envValue := strings.ToLower(strings.TrimSpace(os.Getenv(envOverdraftEventsEnabled)))
 	return envValue != "false"
 }

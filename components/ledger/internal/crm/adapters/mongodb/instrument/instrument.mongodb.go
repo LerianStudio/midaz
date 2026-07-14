@@ -107,7 +107,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	err = createIndexes(ctx, coll)
+	err = ensureIndexes(ctx, coll)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
@@ -134,12 +134,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	spanInsert.SetAttributes(
-		attribute.Bool("app.request.repository_input.has_metadata", len(record.Metadata) > 0),
-		attribute.Bool("app.request.repository_input.has_banking_details", record.BankingDetails != nil),
-		attribute.Bool("app.request.repository_input.has_regulatory_fields", record.RegulatoryFields != nil),
-		attribute.Int("app.request.repository_input.related_parties_count", len(record.RelatedParties)),
-	)
+	spanInsert.SetAttributes(repositoryInputAttributes(record)...)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
@@ -265,13 +260,6 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	spanUpdate.SetAttributes(
-		attribute.Bool("app.request.repository_input.has_metadata", len(instrument.Metadata) > 0),
-		attribute.Bool("app.request.repository_input.has_banking_details", instrument.BankingDetails != nil),
-		attribute.Bool("app.request.repository_input.has_regulatory_fields", instrument.RegulatoryFields != nil),
-		attribute.Int("app.request.repository_input.related_parties_count", len(instrument.RelatedParties)),
-	)
-
 	// Build encryption context for this instrument
 	encryptionCtx := encryption.EncryptionContext{
 		TenantID:       encryption.ExtractTenantID(ctx),
@@ -286,6 +274,8 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 		return nil, err
 	}
+
+	spanUpdate.SetAttributes(repositoryInputAttributes(instrumentToUpdate)...)
 
 	bsonData, err := bson.Marshal(instrumentToUpdate)
 	if err != nil {
@@ -423,4 +413,17 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	}
 
 	return nil
+}
+
+// repositoryInputAttributes returns non-sensitive presence/count span attributes
+// derived from the encrypted alias model. It emits only structural indicators
+// (never field values), so it is safe to attach to spans on both Create and
+// Update paths.
+func repositoryInputAttributes(m *MongoDBModel) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.Bool("app.request.repository_input.has_metadata", len(m.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_banking_details", m.BankingDetails != nil),
+		attribute.Bool("app.request.repository_input.has_regulatory_fields", m.RegulatoryFields != nil),
+		attribute.Int("app.request.repository_input.related_parties_count", len(m.RelatedParties)),
+	}
 }

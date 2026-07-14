@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -20,7 +21,9 @@ import (
 
 // CreateDefaultBalance creates the default balance for a newly-created
 // account or asset. The balance key is hardcoded to
-// constant.DefaultBalanceKey and the direction to constant.DirectionCredit.
+// constant.DefaultBalanceKey and the direction is derived from the account
+// type: external accounts get constant.DirectionDebit, all others get
+// constant.DirectionCredit.
 //
 // Additional (non-default) balances are created via CreateAdditionalBalance,
 // which is exposed through the POST /balances HTTP endpoint and applies
@@ -70,12 +73,12 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		return nil, err
 	}
 
-	// Default balances always use the "credit" direction. The migration
-	// defines direction as NOT NULL with a CHECK constraint (credit|debit),
-	// so we set the value explicitly rather than relying on the DB default —
-	// the INSERT column list includes "direction" and would otherwise send
-	// an empty string and fail the CHECK. Setting it here also keeps the
-	// Go model consistent with the persisted row returned by RETURNING.
+	// The migration defines direction as NOT NULL with a CHECK constraint
+	// (credit|debit), so we set the value explicitly rather than relying on
+	// the DB default — the INSERT column list includes "direction" and would
+	// otherwise send an empty string and fail the CHECK. Setting it here also
+	// keeps the Go model consistent with the persisted row returned by
+	// RETURNING.
 	now := time.Now()
 
 	newBalance := &mmodel.Balance{
@@ -89,7 +92,7 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
-		Direction:      constant.DirectionCredit,
+		Direction:      defaultBalanceDirection(input.AccountType),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -103,4 +106,14 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 	}
 
 	return created, nil
+}
+
+// defaultBalanceDirection returns the balance direction implied by an account
+// type: debit for external accounts, credit for everything else.
+func defaultBalanceDirection(accountType string) string {
+	if strings.EqualFold(accountType, constant.ExternalAccountType) {
+		return constant.DirectionDebit
+	}
+
+	return constant.DirectionCredit
 }

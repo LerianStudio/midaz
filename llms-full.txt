@@ -768,7 +768,7 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming v1.6.2 / Kafka)
+#### Streaming (lib-streaming v1.8.0 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
 loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
 mode on Kafka.
@@ -787,6 +787,24 @@ mode on Kafka.
 | STREAMING_SASL_PASSWORD | — | SASL password |
 | STREAMING_ALLOW_PLAINTEXT_SASL | — | Allow SASL over plaintext |
 | STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on direct IMPORTANT-event emit latency |
+
+#### Service Discovery (opt-in; no-op when SD_ENABLED=false)
+Consul-backed registration + host resolution. Read by `libsd.ConfigFromEnv()`.
+Disabled by default: a no-op Manager is wired and `Resolve` returns the static
+fallback host. When `SD_ENABLED=true`, `SD_ADVERTISE_ADDRESS` is required —
+enabling discovery with an empty advertise address aborts boot
+(`ErrEmptyAdvertiseAddr`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SD_ENABLED | false | Enable Consul-backed discovery (no-op when false) |
+| SD_ADDRESS | localhost:8500 | Consul HTTPS API (host:port); :8501 on central agents |
+| SD_ADVERTISE_ADDRESS | — | Required when enabled; hostname or full URL. Empty + enabled aborts boot |
+| SD_ADVERTISE_PORT | 0 | Advertised port override; 0 = use Register port (SERVER_ADDRESS) |
+| SD_WORKLOAD | — | Workload scope for tag-based isolation per environment |
+| SD_TLS | false | Enable HTTPS to the discovery server |
+| SD_TLS_SKIP_VERIFY | false | Skip discovery-server cert verification (dev/self-signed) |
+| SD_TOKEN | — | ACL token sent to the discovery server |
 
 #### Tracer Client (ledger → tracer)
 | Variable | Default | Description |

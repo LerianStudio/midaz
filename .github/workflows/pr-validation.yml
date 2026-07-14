@@ -15,8 +15,11 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.36.6
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.46.1
     with:
+      enforce_source_branches: true
+      allowed_source_branches: 'hotfix/*|release-candidate'
+      target_branches_for_source_check: 'main'
       # crm and fees are valid commit scopes even though both now live inside the
       # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
@@ -33,7 +36,7 @@ jobs:
         ci
         docs
         tests
-      go_version: "1.26.4"
+      go_version: "1.26.5"
       golangci_lint_version: "v2.12.2"
       app_name_prefix: "midaz"
       # Analysis-class filter: every component dir with in-tree Go code. CRM rolls

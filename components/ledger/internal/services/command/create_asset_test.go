@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -104,7 +105,17 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, nil).
+					DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
+						// The canonical external account created during asset
+						// creation must get a default balance with debit
+						// direction (external accounts hold the mirror side of
+						// the ledger). Guard against vacuity by also pinning the
+						// account type the direction is derived from.
+						assert.Equal(t, constant.ExternalAccountType, b.AccountType)
+						assert.Equal(t, constant.DirectionDebit, b.Direction)
+
+						return b, nil
+					}).
 					Times(1)
 			},
 			expectedErr: nil,

@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	encryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -29,8 +31,12 @@ import (
 // Test Helpers
 // ============================================================================
 
-// createRepository creates a MongoDBRepository for integration testing.
-func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *MongoDBRepository {
+// createRepository creates a MongoDBRepository for integration testing and resets the
+// process-global index tracker for the given org's collection. The tracker is a process-global;
+// a prior test that already built indexes for the same "dbName:collection" key would leave
+// done=true and cause the guard to skip creation. Resetting the exact key the collection will
+// produce keeps each fresh container deterministic.
+func createRepository(t *testing.T, container *mongotestutil.ContainerResult, organizationID string) *MongoDBRepository {
 	t.Helper()
 
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
@@ -46,6 +52,8 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	repo, err := NewMongoDBRepository(conn, fe)
 	require.NoError(t, err)
 
+	globalIndexTracker.reset(container.DBName + ":" + strings.ToLower("aliases_"+organizationID))
+
 	return repo
 }
 
@@ -56,10 +64,9 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 func TestIntegration_AliasRepo_Create(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	originalDocument := "12345678901"
 
@@ -83,10 +90,9 @@ func TestIntegration_AliasRepo_Create(t *testing.T) {
 func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-encrypt-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	originalDocument := "99988877766"
 
@@ -125,10 +131,9 @@ func TestIntegration_AliasRepo_Create_EncryptsData(t *testing.T) {
 func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-dup-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	sharedAccountID := "account-duplicate-test"
 
@@ -155,10 +160,9 @@ func TestIntegration_AliasRepo_Create_DuplicateAccount(t *testing.T) {
 func TestIntegration_AliasRepo_Find(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-find-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	originalDocument := "44455566677"
 
@@ -181,10 +185,9 @@ func TestIntegration_AliasRepo_Find(t *testing.T) {
 func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-notfound-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	nonExistentID := uuid.New()
 
@@ -200,10 +203,9 @@ func TestIntegration_AliasRepo_Find_NotFound(t *testing.T) {
 func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-deleted-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-deleted-1", "77788899900")
@@ -226,10 +228,9 @@ func TestIntegration_AliasRepo_Find_ExcludesDeleted(t *testing.T) {
 func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-incldel-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-incldel-1", "66655544433")
@@ -256,10 +257,9 @@ func TestIntegration_AliasRepo_Find_IncludesDeleted(t *testing.T) {
 func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-findall-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Create multiple aliases
@@ -283,10 +283,9 @@ func TestIntegration_AliasRepo_FindAll(t *testing.T) {
 func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-page-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Create 5 aliases
@@ -327,10 +326,9 @@ func TestIntegration_AliasRepo_FindAll_Pagination(t *testing.T) {
 func TestIntegration_AliasRepo_FindAll_FilterByDocument(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-filterdoc-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	targetDocument := "33344455566"
 
@@ -360,10 +358,9 @@ func TestIntegration_AliasRepo_FindAll_FilterByDocument(t *testing.T) {
 func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-filteracc-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	targetAccountID := "account-target-xyz"
 
@@ -393,10 +390,9 @@ func TestIntegration_AliasRepo_FindAll_FilterByAccountID(t *testing.T) {
 func TestIntegration_AliasRepo_FindAll_ReturnsEmpty(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-empty-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Act - Query empty collection
@@ -415,10 +411,9 @@ func TestIntegration_AliasRepo_FindAll_ReturnsEmpty(t *testing.T) {
 func TestIntegration_AliasRepo_Update(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-update-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-update-1", "88899900011")
@@ -442,10 +437,9 @@ func TestIntegration_AliasRepo_Update(t *testing.T) {
 func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-upnotfound-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	nonExistentID := uuid.New()
 
@@ -462,10 +456,9 @@ func TestIntegration_AliasRepo_Update_NotFound(t *testing.T) {
 func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-remove-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentWithBanking(t, holderID, "account-remove-1", "77766655544")
@@ -490,10 +483,9 @@ func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 func TestIntegration_AliasRepo_Delete_Soft(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-softdel-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-softdel-1", "55544433322")
@@ -516,10 +508,9 @@ func TestIntegration_AliasRepo_Delete_Soft(t *testing.T) {
 func TestIntegration_AliasRepo_Delete_Hard(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-harddel-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-harddel-1", "22211100099")
@@ -541,10 +532,9 @@ func TestIntegration_AliasRepo_Delete_Hard(t *testing.T) {
 func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-delnotfound-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	nonExistentID := uuid.New()
 
@@ -563,10 +553,9 @@ func TestIntegration_AliasRepo_Delete_NotFound(t *testing.T) {
 func TestIntegration_AliasRepo_Count(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-count-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Create 3 aliases
@@ -589,10 +578,9 @@ func TestIntegration_AliasRepo_Count(t *testing.T) {
 func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-countdel-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Create 3 aliases
@@ -621,10 +609,9 @@ func TestIntegration_AliasRepo_Count_ExcludesDeleted(t *testing.T) {
 func TestIntegration_AliasRepo_Count_ReturnsZero(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-countzero-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 
 	// Act - Count empty collection
@@ -642,10 +629,9 @@ func TestIntegration_AliasRepo_Count_ReturnsZero(t *testing.T) {
 func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupContainer(t)
-	repo := createRepository(t, container)
-	ctx := context.Background()
-
 	organizationID := "org-roundtrip-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
 	holderID := uuid.New()
 	relatedPartyID := uuid.New()
 
@@ -694,4 +680,89 @@ func TestIntegration_AliasRepo_EncryptionRoundTrip(t *testing.T) {
 	assert.Equal(t, originalRelatedPartyDoc, result.RelatedParties[0].Document, "related party document should decrypt correctly")
 	assert.Equal(t, "Test Related Party", result.RelatedParties[0].Name)
 	assert.Equal(t, "PRIMARY_HOLDER", result.RelatedParties[0].Role)
+}
+
+// ============================================================================
+// Concurrent Index-Build Guard Tests
+// ============================================================================
+
+// TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild reproduces the production symptom:
+// a concurrent burst of Create() calls against a brand-new aliases_<orgID> collection used to
+// storm collection.Indexes().CreateMany() on every insert, serializing on MongoDB's index build
+// and producing context-deadline-exceeded 500s. With the ensureOnce guard the build collapses to
+// one execution, so the whole burst succeeds well within the per-call 5s budget and the collection
+// ends up correctly indexed.
+func TestAliasRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
+	// Arrange - fresh container, one new org, tracker reset for that exact collection key.
+	container := mongotestutil.SetupContainer(t)
+
+	organizationID := "org-burst-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+
+	const goroutines = 10
+
+	var wg sync.WaitGroup
+
+	// Buffered so no goroutine blocks on send; sized to the worst case (every goroutine errors).
+	errCh := make(chan error, goroutines)
+
+	// Act - launch the burst. Each goroutine gets its OWN context.Background() so one failure
+	// cannot cancel siblings, and DISTINCT _id (fresh per fixture), holder_id, account_id, and
+	// ledger_id (fresh per DefaultAliasParams) so the three unique partial indexes —
+	// (_id, holder_id), account_id, and (ledger_id, account_id) — are never the source of an error.
+	start := time.Now().UTC()
+
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(i int) {
+			defer wg.Done()
+
+			ctx := context.Background()
+
+			holderID := uuid.New()
+
+			alias := mongotestutil.CreateTestAliasSimple(
+				t,
+				holderID,
+				fmt.Sprintf("account-burst-%02d", i),
+				fmt.Sprintf("900000000%02d", i),
+			)
+
+			if _, err := repo.Create(ctx, organizationID, alias); err != nil {
+				errCh <- err
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	elapsed := time.Since(start)
+
+	// Assert - every Create() succeeded (no context-deadline-exceeded).
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+
+	require.Empty(t, errs, "all concurrent Create() calls must succeed; got errors: %v", errs)
+
+	// Coarse wall-clock ceiling: a regression to serialized per-insert index builds would blow
+	// past the per-call 5s budget. This is intentionally generous to stay machine-independent.
+	assert.Less(t, elapsed, 5*time.Second,
+		"concurrent burst must complete well under the per-call 5s index-build budget")
+
+	// The guard must have built the full index set exactly once for the collection.
+	collName := strings.ToLower("aliases_" + organizationID)
+
+	cursor, err := container.Database.Collection(collName).Indexes().List(context.Background())
+	require.NoError(t, err)
+
+	var indexes []bson.M
+	require.NoError(t, cursor.All(context.Background(), &indexes))
+
+	// indexModels() defines 11 indexes; MongoDB adds the implicit _id_ index, for 12 total.
+	assert.Len(t, indexes, len(indexModels())+1,
+		"collection should have the 11 modeled indexes plus the implicit _id_ index")
 }

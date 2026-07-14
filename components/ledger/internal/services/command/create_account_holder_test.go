@@ -136,6 +136,9 @@ func TestCreateAccountSelfHolderDefault(t *testing.T) {
 	ledgerID := uuid.New()
 	expectedSelf := deriveSelfHolderID(organizationID).String()
 	explicitHolder := uuid.New().String()
+	// External accounts require an addressable alias (require-external-alias rule);
+	// the ownership assertions below are unaffected by the alias value.
+	extAlias := "@external/usd"
 
 	tests := []struct {
 		name           string
@@ -149,12 +152,12 @@ func TestCreateAccountSelfHolderDefault(t *testing.T) {
 		},
 		{
 			name:           "external stays unowned",
-			input:          &mmodel.CreateAccountInput{Name: "B", Type: "external", AssetCode: "USD"},
+			input:          &mmodel.CreateAccountInput{Name: "B", Type: "external", AssetCode: "USD", Alias: &extAlias},
 			expectedHolder: nil,
 		},
 		{
 			name:           "EXTERNAL is case-insensitive and stays unowned",
-			input:          &mmodel.CreateAccountInput{Name: "C", Type: "EXTERNAL", AssetCode: "USD"},
+			input:          &mmodel.CreateAccountInput{Name: "C", Type: "EXTERNAL", AssetCode: "USD", Alias: &extAlias},
 			expectedHolder: nil,
 		},
 		{

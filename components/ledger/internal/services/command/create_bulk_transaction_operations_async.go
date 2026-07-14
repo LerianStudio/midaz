@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability"
@@ -571,13 +572,35 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
-		// Send events asynchronously with context that preserves trace but survives parent cancellation
+		// Send events asynchronously with context that preserves trace but survives parent cancellation.
+		// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 		go func(phase string) {
-			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-			defer cancel()
+			base := context.WithoutCancel(ctx)
 
-			uc.SendTransactionEvents(opCtx, tx, phase)
-			uc.SendOverdraftEvents(opCtx, tx)
+			runWithTimeout := func(fn func(context.Context)) {
+				emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+				defer cancel()
+
+				fn(emitCtx)
+			}
+
+			var wg sync.WaitGroup
+
+			wg.Add(3)
+
+			go func() {
+				defer wg.Done()
+
+				runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
+			}()
+			go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) }) }()
+			go func() {
+				defer wg.Done()
+
+				runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			}()
+
+			wg.Wait()
 		}(phase)
 	}
 }

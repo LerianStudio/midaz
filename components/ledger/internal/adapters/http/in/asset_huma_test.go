@@ -396,7 +396,7 @@ func TestHuma_DeleteAsset_204Empty(t *testing.T) {
 	// (none -> no account Delete), then delete the asset.
 	assetRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, assetID).
 		Return(&mmodel.Asset{ID: assetID.String(), Code: "TST"}, nil).Times(1)
-	accountRepo.EXPECT().ListAccountsByAlias(gomock.Any(), orgID, ledgerID, gomock.Any()).Return([]*mmodel.Account{}, nil).Times(1)
+	accountRepo.EXPECT().ListExternalAccountsByAssetCode(gomock.Any(), orgID, ledgerID, "TST").Return([]*mmodel.Account{}, nil).Times(1)
 	assetRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, assetID).Return(nil).Times(1)
 
 	handler := &AssetHandler{Command: &command.UseCase{

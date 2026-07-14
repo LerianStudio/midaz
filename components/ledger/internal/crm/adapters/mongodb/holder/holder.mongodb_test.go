@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // ============================================================================
@@ -732,4 +733,87 @@ func TestBuildHolderFilter_MultiTokenKeyRotation_SingleToken(t *testing.T) {
 
 	require.Len(t, foundTokens, 1, "should work with single token (no rotation)")
 	assert.Equal(t, "single-active-key-token", foundTokens[0])
+}
+
+// allowedRepositoryInputKeys is the exact, closed set of span attribute keys the
+// presence-attribute helper is permitted to emit. It is the regression guard that
+// prevents the helper from ever leaking a serialized-value key such as
+// "app.request.repository_input.document".
+var allowedRepositoryInputKeys = map[attribute.Key]struct{}{
+	"app.request.repository_input.has_metadata":       {},
+	"app.request.repository_input.has_external_id":    {},
+	"app.request.repository_input.has_contact":        {},
+	"app.request.repository_input.has_addresses":      {},
+	"app.request.repository_input.has_natural_person": {},
+	"app.request.repository_input.has_legal_person":   {},
+}
+
+func TestRepositoryInputAttributes(t *testing.T) {
+	externalID := "ext-123"
+
+	tests := []struct {
+		name     string
+		model    *MongoDBModel
+		expected map[attribute.Key]bool
+	}{
+		{
+			name: "fully populated model yields all true",
+			model: &MongoDBModel{
+				Metadata:      map[string]any{"k": "v"},
+				ExternalID:    &externalID,
+				Contact:       &ContactMongoDBModel{},
+				Addresses:     &AddressesMongoDBModel{},
+				NaturalPerson: &NaturalPersonMongoDBModel{},
+				LegalPerson:   &LegalPersonMongoDBModel{},
+			},
+			expected: map[attribute.Key]bool{
+				"app.request.repository_input.has_metadata":       true,
+				"app.request.repository_input.has_external_id":    true,
+				"app.request.repository_input.has_contact":        true,
+				"app.request.repository_input.has_addresses":      true,
+				"app.request.repository_input.has_natural_person": true,
+				"app.request.repository_input.has_legal_person":   true,
+			},
+		},
+		{
+			name:  "zero-value model yields all false",
+			model: &MongoDBModel{},
+			expected: map[attribute.Key]bool{
+				"app.request.repository_input.has_metadata":       false,
+				"app.request.repository_input.has_external_id":    false,
+				"app.request.repository_input.has_contact":        false,
+				"app.request.repository_input.has_addresses":      false,
+				"app.request.repository_input.has_natural_person": false,
+				"app.request.repository_input.has_legal_person":   false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := repositoryInputAttributes(tt.model)
+
+			// Regression guard: the returned key set is exactly the six allowed
+			// presence keys — nothing more, nothing less. A serialized-value leak
+			// would introduce an unexpected key and fail here.
+			seen := make(map[attribute.Key]struct{}, len(attrs))
+
+			for _, a := range attrs {
+				_, allowed := allowedRepositoryInputKeys[a.Key]
+				assert.Truef(t, allowed, "unexpected span attribute key emitted: %q", a.Key)
+
+				_, dup := seen[a.Key]
+				assert.Falsef(t, dup, "duplicate span attribute key emitted: %q", a.Key)
+
+				seen[a.Key] = struct{}{}
+
+				want, ok := tt.expected[a.Key]
+				assert.Truef(t, ok, "key not in expected map: %q", a.Key)
+				assert.Equalf(t, want, a.Value.AsBool(), "value mismatch for key %q", a.Key)
+			}
+
+			assert.Len(t, attrs, len(allowedRepositoryInputKeys), "helper must emit exactly the allowed key count")
+			assert.Len(t, seen, len(allowedRepositoryInputKeys), "helper must emit each allowed key exactly once")
+		})
+	}
 }

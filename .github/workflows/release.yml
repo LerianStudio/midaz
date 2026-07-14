@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.40.3
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.1
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
@@ -31,6 +31,9 @@ jobs:
         pkg/
         Makefile
       enable_gitops_artifacts: true
+      enable_ungoliant_release_diff: true
+      ungoliant_env_type: chaos
+      ungoliant_tenancy: st
       enable_helm_dispatch: true
       helm_chart: "midaz"
       # Maps each midaz-* image to its Helm value-block key (bare keys). The midaz

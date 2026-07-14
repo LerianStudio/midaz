@@ -237,6 +237,21 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, p
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, portfolioID, segmentID, ids)
 }
 
+// ListExternalAccountsByAssetCode mocks base method.
+func (m *MockRepository) ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListExternalAccountsByAssetCode", ctx, organizationID, ledgerID, assetCode)
+	ret0, _ := ret[0].([]*mmodel.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListExternalAccountsByAssetCode indicates an expected call of ListExternalAccountsByAssetCode.
+func (mr *MockRepositoryMockRecorder) ListExternalAccountsByAssetCode(ctx, organizationID, ledgerID, assetCode any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExternalAccountsByAssetCode", reflect.TypeOf((*MockRepository)(nil).ListExternalAccountsByAssetCode), ctx, organizationID, ledgerID, assetCode)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 	m.ctrl.T.Helper()

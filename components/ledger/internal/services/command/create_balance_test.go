@@ -83,6 +83,74 @@ func TestCreateDefaultBalance(t *testing.T) {
 		assert.Equal(t, "test-alias", result.Alias)
 	})
 
+	t.Run("derives debit direction for external account type", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "external-alias",
+			Key:            constant.DefaultBalanceKey,
+			AssetCode:      "USD",
+			AccountType:    constant.ExternalAccountType,
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
+			Return(false, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
+				assert.Equal(t, constant.DirectionDebit, b.Direction)
+				return b, nil
+			}).
+			Times(1)
+
+		result, err := uc.CreateDefaultBalance(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("derives debit direction for mixed-case external account type", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "external-alias",
+			Key:            constant.DefaultBalanceKey,
+			AssetCode:      "USD",
+			AccountType:    "EXTERNAL",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
+			Return(false, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) {
+				assert.Equal(t, constant.DirectionDebit, b.Direction)
+				return b, nil
+			}).
+			Times(1)
+
+		result, err := uc.CreateDefaultBalance(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
 	t.Run("ignores caller-supplied non-default key and always writes default", func(t *testing.T) {
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 

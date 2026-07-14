@@ -162,7 +162,8 @@ func BuildStreamingEmitter(
 			}
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, "Streaming emitter constructed",
+		logger.Log(
+			ctx, libLog.LevelInfo, "Streaming emitter constructed",
 			libLog.String("brokers", strings.Join(streamingCfg.Brokers, ",")),
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", streamingCfg.CloudEventsSource),
@@ -207,7 +208,8 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 	if user == "" || pass == "" {
 		return nil, "", fmt.Errorf(
 			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
-			mechanism)
+			mechanism,
+		)
 	}
 
 	switch mechanism {
@@ -220,7 +222,8 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 	default:
 		return nil, "", fmt.Errorf(
 			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
-			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512)
+			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512,
+		)
 	}
 }
 
@@ -258,6 +261,7 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionRouteUpdatedDefinition,
 		events.TransactionRouteDeletedDefinition,
 		events.BalanceCreatedDefinition,
+		events.BalanceChangedDefinition,
 		events.BalanceConfigChangedDefinition,
 		events.BalanceDeletedDefinition,
 		events.BalanceOverdraftDrawnDefinition,
