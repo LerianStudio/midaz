@@ -99,7 +99,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v5 v5.9.0
+	github.com/LerianStudio/lib-commons/v5 v5.10.0
 	github.com/LerianStudio/lib-observability v1.1.0
 	github.com/LerianStudio/lib-service-discovery v0.6.0
 	github.com/LerianStudio/lib-streaming v1.8.0
