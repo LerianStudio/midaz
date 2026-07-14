@@ -41,7 +41,7 @@ type TransactionHandler struct {
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
@@ -210,7 +210,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
@@ -248,7 +248,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
@@ -286,7 +286,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {

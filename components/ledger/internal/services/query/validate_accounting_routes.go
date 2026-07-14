@@ -139,7 +139,93 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
+	if err := validateOverdraftRoutes(ctx, transactionRouteCache, validate, operations); err != nil {
+		return nil, err
+	}
+
 	return &transactionRouteCache, nil
+}
+
+// validateOverdraftRoutes enforces that every overdraft companion operation is
+// covered by an `overdraft` accounting entry carrying the rubric for the
+// direction actually posted (debit = usage, credit = repayment). Companions are
+// system-generated legs on the reserved overdraft balance; their route is the
+// primary's route mirrored under the companion's concat-form alias into
+// validate.OperationRoutesFrom for usage/cancel companions
+// (registerCompanionInValidate) or validate.OperationRoutesTo for
+// refund/repayment companions (registerCompanionInValidateTo). When a
+// companion draws overdraft through a route that lacks a valid direction-specific
+// overdraft rubric, the leg would post with no GL classification — so this
+// rejects with ErrOverdraftRouteNotConfigured instead. Non-overdraft
+// transactions never enter the per-companion loop, so behavior is unchanged.
+func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "usecase.validate_overdraft_routes")
+	defer span.End()
+
+	for _, op := range operations {
+		if op.Balance == nil || op.Balance.Key != constant.OverdraftBalanceKey {
+			continue
+		}
+
+		// Resolve the companion's route from BOTH sides, mirroring
+		// validateAccountRules. Usage and cancel companions register into
+		// OperationRoutesFrom (registerCompanionInValidate); refund/repayment
+		// companions register EXCLUSIVELY into OperationRoutesTo
+		// (registerCompanionInValidateTo). Reading only From would miss the
+		// repayment route and wrongly reject a correctly-configured Overdraft.Credit.
+		routeID := validate.OperationRoutesFrom[op.Alias]
+		if routeID == "" {
+			routeID = validate.OperationRoutesTo[op.Alias]
+		}
+
+		if !overdraftRubricConfigured(cache, routeID, op.Amount.Direction) {
+			err := pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, constant.EntityOperationRoute)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft route not configured", err)
+
+			logger.Log(ctx, libLog.LevelWarn, "Overdraft companion route lacks a valid overdraft accounting entry",
+				libLog.String("route_id", routeID),
+				libLog.String("alias", op.Alias),
+				libLog.String("direction", op.Amount.Direction))
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// overdraftRubricConfigured reports whether the route identified by routeID
+// defines an `overdraft` accounting entry carrying the rubric for the given
+// posted direction. Direction selection mirrors resolveAccountingRubric
+// (debit -> Overdraft.Debit, credit -> Overdraft.Credit). A rubric with an
+// empty Code counts as missing, matching how GL stamping treats it.
+func overdraftRubricConfigured(cache mmodel.TransactionRouteCache, routeID, direction string) bool {
+	actionCache, ok := cache.Actions[constant.ActionOverdraft]
+	if !ok {
+		return false
+	}
+
+	rc, ok := actionCache.FindRoute(routeID)
+	if !ok || rc.AccountingEntries == nil || rc.AccountingEntries.Overdraft == nil {
+		return false
+	}
+
+	entry := rc.AccountingEntries.Overdraft
+
+	var rubric *mmodel.AccountingRubric
+
+	switch strings.ToLower(direction) {
+	case constant.DirectionDebit:
+		rubric = entry.Debit
+	case constant.DirectionCredit:
+		rubric = entry.Credit
+	default:
+		return false
+	}
+
+	return rubric != nil && rubric.Code != ""
 }
 
 // validateRouteCountAndCounterparts verifies that the number of unique operation
