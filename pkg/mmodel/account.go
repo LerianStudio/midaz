@@ -78,7 +78,7 @@ type CreateAccountInput struct {
 	// required: true
 	// example: deposit
 	// maxLength: 256
-	Type string `json:"type" validate:"required,max=256,invalidstrings=external" example:"deposit"`
+	Type string `json:"type" validate:"required,max=256" example:"deposit"`
 
 	// Whether the account should start blocked
 	// required: false
