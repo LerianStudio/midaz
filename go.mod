@@ -85,7 +85,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-commons/v5 v5.9.0
+	github.com/LerianStudio/lib-commons/v5 v5.10.0
 	github.com/LerianStudio/lib-observability v1.1.0
 	github.com/LerianStudio/lib-streaming v1.8.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
