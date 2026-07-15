@@ -6,7 +6,7 @@ on:
 
 jobs:
   notify:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release-notification.yml@v1.36.6
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release-notification.yml@v1.46.2
     with:
       product_name: "Midaz"
       slack_channel: "lerian-product-release"
