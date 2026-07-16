@@ -182,7 +182,7 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	}
 
 	require.NotNil(t, hyphenatedRoute, "route for %q must exist", hyphenatedKey)
-	assert.Equal(t, "lerian.streaming.alias.related-party-deleted", hyphenatedRoute.Destination.Name)
+	assert.Equal(t, "midaz.alias.related-party-deleted", hyphenatedRoute.Destination.Name)
 
 	// The canonical set must match the events.*Definition vars the helpers use,
 	// so a Definition var mis-keyed away from the literal above is also caught.
