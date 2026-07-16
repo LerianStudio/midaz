@@ -15,7 +15,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** Ledger (`components/ledger`).
 - **CloudEvents source (`ce-source`):** `lerian.midaz.ledger`.
-- **Posture:** all 38 events are **IMPORTANT** — direct-emit, synchronous, via
+- **Posture:** all 35 events are **IMPORTANT** — direct-emit, synchronous, via
   `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
   the command use case: a build/emit failure logs a Warn and is recorded on the
   span, but **never fails the HTTP request**. Durability of the mutation itself
@@ -40,14 +40,14 @@ which feeds both the Catalog and the route table:
 - **Event key** = `<resourceType>.<eventType>` (e.g. `balance.changed`).
 - **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
 - **Kafka topic** = `midaz.<key>`.
-- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Two exceptions
-  carry a composite idempotency key instead — see [ce-subject](#ce-subject).
+- **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Five exceptions
+  exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
 
 ## Event summary
 
-All 38 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
+All 35 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
@@ -101,7 +101,7 @@ balance's ID in the `overdraft_enabled` branch, not the parent's.
 
 ## ce-subject
 
-Most events carry their own record ID as `ce-subject`. Four exceptions:
+Most events carry their own record ID as `ce-subject`. Five exceptions:
 
 - **`balance.changed`** and the three **`balance.overdraft-*`** events carry the
   composite idempotency key `transactionId:operationId` — NOT the balance ID.
@@ -396,7 +396,7 @@ Source: `pkg/streaming/events/transaction_route_deleted.go`.
 
 ### Balance
 
-#### `balance.created` — 15 fields
+#### `balance.created` — 15 (or 16 with settings)
 
 Source: `pkg/streaming/events/balance_created.go`. Trigger: `CreateAdditionalBalance`
 (POST `.../accounts/:account_id/balances`).
@@ -606,8 +606,11 @@ status discriminator selects the Definition:
 ## Excluded by design
 
 Ledger payloads carry financial identifiers (IDs, asset codes, amounts,
-aliases), not human PII. The deliberate exclusions are structural, not
-privacy-driven:
+aliases). Some payloads do include fields that may contain human-identifying
+data — `organization.created` carries `legalDocument` (CPF/CNPJ), and
+`transaction.*` carries free-form `description` and `metadata`. Midaz does not
+apply producer-level redaction on these fields today; the exclusions below are
+structural choices, not a privacy guarantee.
 
 - **`scale`** — omitted from every `balance.*` and `transaction.*` payload
   (asset-level property; consumers join against `asset.created`).
