@@ -42,9 +42,9 @@ const DeregisterTimeout = 5 * time.Second
 // Returns an error (fail-fast) when discovery is enabled but misconfigured, e.g.
 // no advertise address is set. The advertise address is read from the canonical
 // SD_EXTERNAL_ADDRESS (legacy SD_ADVERTISE_ADDRESS / SERVICE_ADVERTISE_ADDR still
-// honored). lib-service-discovery v1.0.0 moved advertise validation out of New
-// into Register, so the guard below re-asserts fail-fast at boot rather than
-// deferring the failure to the first register attempt.
+// honored). lib-service-discovery moved advertise validation out of New into
+// Register, so the guard below re-asserts fail-fast at boot rather than deferring
+// the failure to the first register attempt.
 func BuildManager(logger libLog.Logger) (*libsd.Manager, bool, error) {
 	sdCfg := libsd.ConfigFromEnv()
 

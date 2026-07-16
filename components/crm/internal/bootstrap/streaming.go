@@ -11,7 +11,6 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libsd "github.com/LerianStudio/lib-service-discovery"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/twmb/franz-go/pkg/sasl"
@@ -51,27 +50,6 @@ func closeStreamingOnBootFailure(logger libLog.Logger, cleanup func() error) {
 		logger.Log(
 			context.Background(), libLog.LevelWarn,
 			"Failed to close streaming emitter during bootstrap cleanup",
-			libLog.Err(err),
-		)
-	}
-}
-
-// closeManagerOnBootFailure closes the service-discovery manager during a
-// partial-boot cleanup and logs a Warn if the close fails, so a leaked boot-time
-// watcher goroutine is torn down and any close error is visible rather than
-// silently dropped. It never propagates. It is a no-op on a nil manager, and
-// libsd.Manager.Close is idempotent, so it is safe on any error path. On a
-// successful boot the caller disarms it (managerCleanup=nil) and the launcher's
-// Runnable owns the graceful close instead. Twins closeStreamingOnBootFailure.
-func closeManagerOnBootFailure(logger libLog.Logger, manager *libsd.Manager) {
-	if manager == nil {
-		return
-	}
-
-	if err := manager.Close(); err != nil && logger != nil {
-		logger.Log(
-			context.Background(), libLog.LevelWarn,
-			"Failed to close service discovery manager during bootstrap cleanup",
 			libLog.Err(err),
 		)
 	}

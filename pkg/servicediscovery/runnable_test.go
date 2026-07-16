@@ -296,9 +296,10 @@ func TestRunnable_NilManagerNoOp(t *testing.T) {
 }
 
 // TestRunnable_ClosesManagerAfterDeregister proves the graceful-shutdown path
-// closes the manager exactly once and only after deregistering, stopping the
-// background watcher goroutine that Resolve lazy-spawns. goleak guards that no
-// goroutine survives Run.
+// closes the manager exactly once and only after deregistering (deregister
+// before close). goleak guards that the RegisterAsync goroutine is torn down and
+// no goroutine survives Run. This test never calls Resolve, so no watcher is
+// spawned; the boot-time watcher teardown is covered in boot_closer_test.go.
 func TestRunnable_ClosesManagerAfterDeregister(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

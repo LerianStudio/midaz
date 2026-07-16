@@ -738,15 +738,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
 	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
 	// the launcher's Runnable never runs, so that watcher would leak. On success the
-	// defer is disarmed (bootOK=true) and the Runnable owns the graceful close. The
-	// manager is NOT in doCleanup, so this defer and doCleanup close disjoint resources.
-	bootOK := false
-
-	defer func() {
-		if !bootOK {
-			closeManagerOnBootFailure(logger, sd.manager)
-		}
-	}()
+	// closer is disarmed and the Runnable owns the graceful close. The manager is NOT
+	// in doCleanup, so this defer and doCleanup close disjoint resources.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+	defer sdBootCloser.CloseOnBootFailure()
 
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
@@ -822,7 +817,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("server_address", cfg.ServerAddress),
 	)
 
-	bootOK = true
+	sdBootCloser.Disarm()
 
 	return &Service{
 		UnifiedServer:            unifiedServer,
@@ -911,27 +906,6 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *met
 		authHost:   authHost,
 		recorder:   recorder,
 	}, nil
-}
-
-// closeManagerOnBootFailure closes the service-discovery manager during a
-// partial-boot cleanup and logs a Warn if the close fails, so a leaked boot-time
-// watcher goroutine is torn down and any close error is visible rather than
-// silently dropped. It never propagates. It is a no-op on a nil manager, and
-// libsd.Manager.Close is idempotent, so it is safe on any error path. On a
-// successful boot the caller disarms it (bootOK=true) and the launcher's Runnable
-// owns the graceful close instead.
-func closeManagerOnBootFailure(logger libLog.Logger, manager *libsd.Manager) {
-	if manager == nil {
-		return
-	}
-
-	if err := manager.Close(); err != nil && logger != nil {
-		logger.Log(
-			context.Background(), libLog.LevelWarn,
-			"Failed to close service discovery manager during bootstrap cleanup",
-			libLog.Err(err),
-		)
-	}
 }
 
 // resolveLoggerEnvironment maps an env name to a libZap environment constant.
