@@ -29,6 +29,8 @@ func TestBuildManager_DisabledReturnsNoopManager(t *testing.T) {
 
 func TestBuildManager_EnabledWithoutAdvertiseAddrFailsFast(t *testing.T) {
 	t.Setenv("SD_ENABLED", "true")
+	t.Setenv("SD_EXTERNAL_ADDRESS", "")
+	t.Setenv("SD_INTERNAL_ADDRESS", "")
 	t.Setenv("SD_ADVERTISE_ADDRESS", "")
 	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
 
@@ -37,7 +39,21 @@ func TestBuildManager_EnabledWithoutAdvertiseAddrFailsFast(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, manager)
 	require.True(t, enabled)
-	require.True(t, errors.Is(err, libsd.ErrEmptyAdvertiseAddr))
+	require.True(t, errors.Is(err, libsd.ErrNoEndpoint))
+}
+
+func TestBuildManager_EnabledWithInternalOnlyAdvertisePasses(t *testing.T) {
+	t.Setenv("SD_ENABLED", "true")
+	t.Setenv("SD_INTERNAL_ADDRESS", "internal-host:9000")
+	t.Setenv("SD_EXTERNAL_ADDRESS", "")
+	t.Setenv("SD_ADVERTISE_ADDRESS", "")
+	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
+
+	manager, enabled, err := BuildManager(libLog.NewNop())
+
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	require.True(t, enabled)
 }
 
 func TestParseServerPort(t *testing.T) {
@@ -115,7 +131,7 @@ func TestBuildServiceDescriptor(t *testing.T) {
 			require.NotNil(t, svc.HealthCheck)
 			assert.Equal(t, "30s", svc.HealthCheck.TTL)
 			// Address/Scheme are left empty: Manager.Register fills them from
-			// SD_ADVERTISE_ADDRESS.
+			// SD_EXTERNAL_ADDRESS.
 			assert.Empty(t, svc.Address)
 			assert.Empty(t, svc.Scheme)
 		})

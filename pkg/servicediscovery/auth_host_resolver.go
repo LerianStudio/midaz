@@ -6,7 +6,6 @@ package servicediscovery
 
 import (
 	"context"
-	"strings"
 	"time"
 )
 
@@ -19,10 +18,11 @@ const authServiceName = "plugin-auth"
 // production uses time.Since.
 var sinceFn = time.Since
 
-// AuthHostResolver resolves a service host, returning the fallback verbatim when
-// discovery is disabled or fails. *libsd.Manager satisfies this contract.
+// AuthHostResolver resolves a service to a preferred, scheme-complete URL,
+// returning the fallback verbatim when discovery is disabled or fails.
+// *libsd.Manager satisfies this contract via ResolvePreferredURL.
 type AuthHostResolver interface {
-	Resolve(ctx context.Context, name, fallback string) (string, error)
+	ResolvePreferredURL(ctx context.Context, name, fallback string) (string, error)
 }
 
 // ResolveAuthHost picks the plugin-auth host to feed into the auth client.
@@ -30,19 +30,20 @@ type AuthHostResolver interface {
 // won't call) and always degrades to the static host on resolve error so a
 // discovery outage never fails boot.
 //
-// It passes an EMPTY fallback to r.Resolve so the return distinguishes a
-// consul-resolved host from a fell-back one: on error libsd returns the error
-// rather than swallowing it into the fallback, letting this function label the
-// resolve outcome (resolved/fallback/error) for the metric. The returned host is
-// byte-identical to feeding the static host as the fallback: on success it is the
-// same consul value scheme-normalized; on error it is the static host verbatim.
+// It resolves the SD_PREFER_VIEW view via ResolvePreferredURL, which returns a
+// scheme-complete URL. It passes an EMPTY fallback so the return distinguishes a
+// discovery-resolved URL from a fell-back one: on a miss, disabled discovery, or
+// unavailable view the resolver returns an error rather than swallowing it into
+// the fallback, letting this function label the resolve outcome
+// (resolved/fallback/error) for the metric. On success the resolved URL is
+// returned verbatim; on error it degrades to the static host verbatim.
 func ResolveAuthHost(ctx context.Context, r AuthHostResolver, authEnabled bool, staticHost string, recorder MetricsRecorder) string {
 	if !authEnabled {
 		return staticHost
 	}
 
 	start := time.Now()
-	resolved, err := r.Resolve(ctx, authServiceName, "")
+	resolved, err := r.ResolvePreferredURL(ctx, authServiceName, "")
 	durationMs := sinceFn(start).Milliseconds()
 
 	var (
@@ -53,7 +54,7 @@ func ResolveAuthHost(ctx context.Context, r AuthHostResolver, authEnabled bool, 
 	switch {
 	case err == nil:
 		result = ResultResolved
-		authHost = withFallbackScheme(resolved, staticHost)
+		authHost = resolved
 	case staticHost != "":
 		result = ResultFallback
 		authHost = staticHost
@@ -65,20 +66,4 @@ func ResolveAuthHost(ctx context.Context, r AuthHostResolver, authEnabled bool, 
 	orNop(recorder).ResolveResult(ctx, authServiceName, result, durationMs)
 
 	return authHost
-}
-
-// withFallbackScheme returns resolved unchanged if it already carries a scheme
-// (contains "://"); otherwise, if staticHost carries a scheme, it prepends that
-// scheme to resolved so the auth client can reach it over the intended protocol.
-// Discovery returns a bare host:port; the static fallback carries the scheme.
-func withFallbackScheme(resolved, staticHost string) string {
-	if strings.Contains(resolved, "://") {
-		return resolved
-	}
-
-	if i := strings.Index(staticHost, "://"); i != -1 {
-		return staticHost[:i+len("://")] + resolved
-	}
-
-	return resolved
 }

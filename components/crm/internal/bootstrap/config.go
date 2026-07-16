@@ -191,6 +191,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD wiring.
+	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
+	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
+	// the launcher's Runnable never runs, so that watcher would leak. On success the
+	// closer is disarmed because the Runnable then owns the graceful close. Twins the
+	// streamingCleanup disarm-defer directly below.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+
+	defer sdBootCloser.CloseOnBootFailure()
+
 	mongoConnection, err := initMongoConnection(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -262,6 +272,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	streamingCleanup = noopStreamingCloser
+
+	sdBootCloser.Disarm()
 
 	return &Service{
 		Server:                  serverAPI,

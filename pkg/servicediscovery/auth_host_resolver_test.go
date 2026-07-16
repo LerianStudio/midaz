@@ -13,19 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubAuthHostResolver mimics the libsd Manager.Resolve fallback contract so tests
-// exercise the same source-classification the production resolver relies on:
-// on a consul error it returns the caller-supplied fallback verbatim (nil err)
-// when that fallback is non-empty, and the consul error otherwise. This is what
-// lets ResolveAuthHost distinguish resolved-from-consul from fell-back once it
-// starts passing an EMPTY fallback.
+// stubAuthHostResolver mimics the libsd Manager.ResolvePreferredURL fallback
+// contract so tests exercise the same source-classification the production
+// resolver relies on: on a consul error it returns the caller-supplied fallback
+// verbatim (nil err) when that fallback is non-empty, and the consul error
+// otherwise. This is what lets ResolveAuthHost distinguish resolved-from-consul
+// from fell-back given it passes an EMPTY fallback.
 type stubAuthHostResolver struct {
 	calls     int
 	resolved  string
 	consulErr error
 }
 
-func (s *stubAuthHostResolver) Resolve(_ context.Context, _, fallback string) (string, error) {
+func (s *stubAuthHostResolver) ResolvePreferredURL(_ context.Context, _, fallback string) (string, error) {
 	s.calls++
 
 	if s.consulErr == nil {
@@ -76,11 +76,11 @@ func TestResolveAuthHost(t *testing.T) {
 			expectRecorded: false,
 		},
 		{
-			name:           "auth enabled uses resolved host on success and records resolved",
+			name:           "auth enabled uses resolved url on success and records resolved",
 			authEnabled:    true,
-			stubResolved:   "consul-host:4000",
+			stubResolved:   "http://consul-host:4000",
 			stubConsulErr:  nil,
-			expectedHost:   "consul-host:4000",
+			expectedHost:   "http://consul-host:4000",
 			expectedCalls:  1,
 			expectRecorded: true,
 			expectedResult: ResultResolved,
@@ -117,34 +117,12 @@ func TestResolveAuthHost(t *testing.T) {
 			expectedResult: ResultError,
 		},
 		{
-			name:           "auth enabled borrows fallback scheme when resolved host lacks one",
+			name:           "auth enabled returns scheme-complete resolved url verbatim without mutation",
 			authEnabled:    true,
 			staticHost:     "http://plugin-auth:4000",
-			stubResolved:   "plugin-auth:4000",
+			stubResolved:   "https://consul-host:5000",
 			stubConsulErr:  nil,
-			expectedHost:   "http://plugin-auth:4000",
-			expectedCalls:  1,
-			expectRecorded: true,
-			expectedResult: ResultResolved,
-		},
-		{
-			name:           "auth enabled keeps resolved scheme without double-prefixing",
-			authEnabled:    true,
-			staticHost:     "http://x:4000",
-			stubResolved:   "https://x:4000",
-			stubConsulErr:  nil,
-			expectedHost:   "https://x:4000",
-			expectedCalls:  1,
-			expectRecorded: true,
-			expectedResult: ResultResolved,
-		},
-		{
-			name:           "auth enabled leaves scheme-less resolved host untouched when fallback has none",
-			authEnabled:    true,
-			staticHost:     "x:4000",
-			stubResolved:   "x:4000",
-			stubConsulErr:  nil,
-			expectedHost:   "x:4000",
+			expectedHost:   "https://consul-host:5000",
 			expectedCalls:  1,
 			expectRecorded: true,
 			expectedResult: ResultResolved,
@@ -190,54 +168,10 @@ func TestResolveAuthHostNilRecorderDoesNotPanic(t *testing.T) {
 	restore := stubElapsed(5 * time.Millisecond)
 	defer restore()
 
-	stub := &stubAuthHostResolver{resolved: "consul-host:4000"}
+	stub := &stubAuthHostResolver{resolved: "http://consul-host:4000"}
 
 	require.NotPanics(t, func() {
 		host := ResolveAuthHost(context.Background(), stub, true, "plugin-auth:4000", nil)
-		require.Equal(t, "consul-host:4000", host)
+		require.Equal(t, "http://consul-host:4000", host)
 	})
-}
-
-func TestWithFallbackScheme(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		resolved   string
-		staticHost string
-		expected   string
-	}{
-		{
-			name:       "resolved already has scheme wins over fallback",
-			resolved:   "https://x:4000",
-			staticHost: "http://x:4000",
-			expected:   "https://x:4000",
-		},
-		{
-			name:       "resolved lacks scheme borrows fallback scheme",
-			resolved:   "plugin-auth:4000",
-			staticHost: "http://plugin-auth:4000",
-			expected:   "http://plugin-auth:4000",
-		},
-		{
-			name:       "neither has scheme returns resolved unchanged",
-			resolved:   "x:4000",
-			staticHost: "x:4000",
-			expected:   "x:4000",
-		},
-		{
-			name:       "fallback with scheme applied to scheme-less resolved host",
-			resolved:   "consul-host:4000",
-			staticHost: "https://plugin-auth:4000",
-			expected:   "https://consul-host:4000",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			require.Equal(t, tc.expected, withFallbackScheme(tc.resolved, tc.staticHost))
-		})
-	}
 }

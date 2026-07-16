@@ -734,6 +734,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD wiring.
+	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
+	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
+	// the launcher's Runnable never runs, so that watcher would leak. On success the
+	// closer is disarmed and the Runnable owns the graceful close. The manager is NOT
+	// in doCleanup, so this defer and doCleanup close disjoint resources.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+	defer sdBootCloser.CloseOnBootFailure()
+
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
@@ -807,6 +816,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
+
+	sdBootCloser.Disarm()
 
 	return &Service{
 		UnifiedServer:            unifiedServer,
