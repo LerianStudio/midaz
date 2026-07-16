@@ -24,8 +24,8 @@ github.com/LerianStudio/lib-commons/v5 v5.10.0 h1:Z/91NMWfdYCb1B5xwChIlTC7f7aIr2
 github.com/LerianStudio/lib-commons/v5 v5.10.0/go.mod h1:UuSDee6DZ1n2yMAsYgZyOjhBY0zGqMFNAQpZxLQLzVc=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
 github.com/LerianStudio/lib-observability v1.1.0/go.mod h1:PBtmXygWXmcsTnyNLBetyYb/OtsWq6WT9fSJvoppeUQ=
-github.com/LerianStudio/lib-service-discovery v0.6.0 h1:24om6ckDkgQbvdz0AK2rkhCX285o4tMMLmVuoAEWbNw=
-github.com/LerianStudio/lib-service-discovery v0.6.0/go.mod h1:SB8TAfQEfhG4PJKJgzNsrQ6a/BPhswlTRmFc9YTGTq4=
+github.com/LerianStudio/lib-service-discovery v1.0.0 h1:uRQ+43hO/LUEKctICYA9p5NjEdU8YtNeIXQfpeAhqhk=
+github.com/LerianStudio/lib-service-discovery v1.0.0/go.mod h1:d6pW/QMo1hYzLgzcxiTg3updjSs6m5sZkuOG3L4gwxo=
 github.com/LerianStudio/lib-streaming v1.8.0 h1:b/xkNuIZQueC2dfRVXHZpuQ311eoN7fLnA9m+oLTK9Y=
 github.com/LerianStudio/lib-streaming v1.8.0/go.mod h1:UnwYshbihsneUHsBjjDOqzHrF/Iq7u6Vv1IhFv4e8pM=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=

@@ -101,7 +101,7 @@ require (
 require (
 	github.com/LerianStudio/lib-commons/v5 v5.10.0
 	github.com/LerianStudio/lib-observability v1.1.0
-	github.com/LerianStudio/lib-service-discovery v0.6.0
+	github.com/LerianStudio/lib-service-discovery v1.0.0
 	github.com/LerianStudio/lib-streaming v1.8.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/go-connections v0.7.0
