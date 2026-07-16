@@ -5,13 +5,18 @@
 package bootstrap
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // launcherAppNames extracts the ordered display names from the service's
@@ -144,4 +149,89 @@ func TestWireServiceDiscovery_EnabledNilFactoryDegradesToNop(t *testing.T) {
 
 	_, isNop := sd.recorder.(pkgsd.NopMetricsRecorder)
 	assert.True(t, isNop, "nil factory must degrade to a NopMetricsRecorder")
+}
+
+// closeStubRegistry is a minimal in-memory libsd.Registry whose Watch returns a
+// live channel so a Resolve lazy-spawns a background watcher goroutine that only
+// dies when the manager's base context is cancelled by Close. It records Close via
+// the optional Close() seam that libsd.Manager.Close delegates to, so a test can
+// assert closeManagerOnBootFailure actually closed the manager.
+type closeStubRegistry struct {
+	mu         sync.Mutex
+	closeCalls int
+	watchCh    chan libsd.Event
+}
+
+func newCloseStubRegistry() *closeStubRegistry {
+	return &closeStubRegistry{watchCh: make(chan libsd.Event)}
+}
+
+func (s *closeStubRegistry) Register(_ context.Context, _ libsd.Service) error { return nil }
+func (s *closeStubRegistry) Deregister(_ context.Context, _ string) error      { return nil }
+func (s *closeStubRegistry) Resolve(_ context.Context, _, _ string) (libsd.Service, error) {
+	return libsd.Service{}, errors.New("no healthy instances")
+}
+
+// Watch returns the shared live channel; the watcher goroutine blocks on it until
+// the manager's base context is cancelled by Close.
+func (s *closeStubRegistry) Watch(_ context.Context, _ string) (<-chan libsd.Event, error) {
+	return s.watchCh, nil
+}
+
+// Close satisfies the optional seam libsd.Manager.Close delegates to.
+func (s *closeStubRegistry) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.closeCalls++
+
+	return nil
+}
+
+func (s *closeStubRegistry) closeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.closeCalls
+}
+
+// TestCloseManagerOnBootFailure_ClosesManagerAndStopsWatcher proves the boot-failure
+// helper tears down the boot-time watcher goroutine (goleak-guarded) and closes the
+// manager exactly once. It builds an enabled manager over a stub registry, triggers
+// a Resolve to lazy-spawn the watcher, then asserts closeManagerOnBootFailure leaves
+// no leaked goroutine and Close was invoked once.
+func TestCloseManagerOnBootFailure_ClosesManagerAndStopsWatcher(t *testing.T) {
+	// Ignore the lib-commons tenant-manager in-memory cache cleanup loop: sibling
+	// tests in this package spawn it and it is not torn down by this test. The SD
+	// watcher this test is responsible for still surfaces if it leaks, so the
+	// assertion stays binding on the code under test.
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"))
+
+	stub := newCloseStubRegistry()
+
+	mgr, err := libsd.New(
+		libsd.Config{Enabled: true, ConsulAddr: "consul:8500", AdvertiseAddr: "svc.test:4003"},
+		libsd.WithLogger(libLog.NewNop()),
+		libsd.WithRegistry(stub),
+	)
+	require.NoError(t, err)
+
+	// Resolve lazy-spawns the managed watcher goroutine (Watch returns a live
+	// channel) that only exits when Close cancels the manager base context.
+	_, _ = mgr.Resolve(context.Background(), "plugin-auth", "fallback:4000")
+
+	closeManagerOnBootFailure(libLog.NewNop(), mgr)
+
+	assert.Equal(t, 1, stub.closeCount(), "boot-failure close must close the manager exactly once")
+}
+
+// TestCloseManagerOnBootFailure_NilManagerNoOp confirms the helper is nil-safe: it
+// neither panics nor closes anything when handed a nil manager.
+func TestCloseManagerOnBootFailure_NilManagerNoOp(t *testing.T) {
+	t.Parallel()
+
+	require.NotPanics(t, func() {
+		closeManagerOnBootFailure(libLog.NewNop(), nil)
+	})
 }
