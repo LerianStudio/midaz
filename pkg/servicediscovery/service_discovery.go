@@ -40,9 +40,17 @@ const DeregisterTimeout = 5 * time.Second
 // invoke Register/Resolve unconditionally. The returned bool mirrors SD_ENABLED
 // so the caller can decide whether to wire a register/deregister runnable.
 // Returns an error (fail-fast) when discovery is enabled but misconfigured, e.g.
-// an empty advertise address.
+// no advertise address is set. The advertise address is read from the canonical
+// SD_EXTERNAL_ADDRESS (legacy SD_ADVERTISE_ADDRESS / SERVICE_ADVERTISE_ADDR still
+// honored). lib-service-discovery v1.0.0 moved advertise validation out of New
+// into Register, so the guard below re-asserts fail-fast at boot rather than
+// deferring the failure to the first register attempt.
 func BuildManager(logger libLog.Logger) (*libsd.Manager, bool, error) {
 	sdCfg := libsd.ConfigFromEnv()
+
+	if sdCfg.Enabled && sdCfg.AdvertiseAddr == "" && sdCfg.AdvertiseInternalAddr == "" {
+		return nil, sdCfg.Enabled, fmt.Errorf("initializing service discovery: %w", libsd.ErrNoEndpoint)
+	}
 
 	m, err := libsd.New(sdCfg, libsd.WithLogger(logger))
 	if err != nil {
@@ -67,7 +75,8 @@ func ParseServerPort(serverAddress string) (int, error) {
 
 // BuildServiceDescriptor builds the registry descriptor advertised by a service
 // instance. Address and Scheme are intentionally left unset: Manager.Register
-// fills them from SD_ADVERTISE_ADDRESS. The TTL health check needs no reachable
+// fills them from SD_EXTERNAL_ADDRESS (legacy SD_ADVERTISE_ADDRESS still honored).
+// The TTL health check needs no reachable
 // HTTP endpoint — the registry heartbeats from inside the process. name is the
 // registry service name (e.g. "midaz-ledger", "midaz-crm") and stays stable —
 // consumers resolve by it.

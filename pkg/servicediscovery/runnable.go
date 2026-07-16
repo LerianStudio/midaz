@@ -85,5 +85,18 @@ func (r *Runnable) Run(_ *libCommons.Launcher) error {
 
 	metrics.DeregisterResult(ctx, result)
 
+	// Close after deregister (the library requires Deregister-before-Close and
+	// Close does not deregister). Close stops the background watcher goroutine
+	// lazy-spawned by Resolve. A close error is logged at Warn but not propagated:
+	// the Launcher cannot meaningfully react at shutdown, mirroring the
+	// deregister-failure handling above.
+	if err := r.manager.Close(); err != nil && r.logger != nil {
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
+			"service discovery manager close returned error",
+			libLog.Err(err),
+		)
+	}
+
 	return nil
 }

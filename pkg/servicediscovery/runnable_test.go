@@ -16,6 +16,7 @@ import (
 	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // stubRegistry is an in-memory libsd.Registry that records Register/Deregister
@@ -27,6 +28,12 @@ type stubRegistry struct {
 	deregistered  []string
 	registerErr   error
 	deregisterErr error
+
+	// events records the order of "deregister" and "close" calls so a test can
+	// assert Manager.Close runs after Deregister. Manager.Close delegates to the
+	// registry's optional Close() seam, so a Close entry here proves Run closed
+	// the manager.
+	events []string
 
 	// registeredCh receives once on the first Register call so a test can wait
 	// for the async RegisterAsync goroutine to land before simulating SIGTERM.
@@ -52,8 +59,21 @@ func (s *stubRegistry) Deregister(_ context.Context, serviceID string) error {
 	defer s.mu.Unlock()
 
 	s.deregistered = append(s.deregistered, serviceID)
+	s.events = append(s.events, "deregister")
 
 	return s.deregisterErr
+}
+
+// Close satisfies the optional Close() seam that libsd.Manager.Close delegates
+// to, so a test can observe that Run closed the manager and its ordering
+// relative to Deregister.
+func (s *stubRegistry) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.events = append(s.events, "close")
+
+	return nil
 }
 
 func (s *stubRegistry) Resolve(_ context.Context, _, _ string) (libsd.Service, error) {
@@ -82,6 +102,30 @@ func (s *stubRegistry) deregisteredIDs() []string {
 	copy(out, s.deregistered)
 
 	return out
+}
+
+func (s *stubRegistry) orderedEvents() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]string, len(s.events))
+	copy(out, s.events)
+
+	return out
+}
+
+func (s *stubRegistry) closeCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	n := 0
+	for _, e := range s.events {
+		if e == "close" {
+			n++
+		}
+	}
+
+	return n
 }
 
 // newStubManager builds an enabled libsd.Manager backed by stub so Register /
@@ -249,6 +293,87 @@ func TestRunnable_NilManagerNoOp(t *testing.T) {
 	r := &Runnable{manager: nil, logger: libLog.NewNop()}
 
 	require.NoError(t, r.Run(nil))
+}
+
+// TestRunnable_ClosesManagerAfterDeregister proves the graceful-shutdown path
+// closes the manager exactly once and only after deregistering, stopping the
+// background watcher goroutine that Resolve lazy-spawns. goleak guards that no
+// goroutine survives Run.
+func TestRunnable_ClosesManagerAfterDeregister(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	stub := &stubRegistry{registeredCh: make(chan struct{}, 1)}
+	mgr := newStubManager(t, stub)
+	svc := BuildServiceDescriptor("midaz-ledger", 3002)
+	recorder := &stubRecorder{}
+
+	// An already-cancelled signal context simulates SIGTERM: Run registers, then
+	// immediately unblocks from <-sigCtx.Done(), deregisters, and closes.
+	sigCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	r := &Runnable{
+		manager: mgr,
+		svc:     svc,
+		logger:  libLog.NewNop(),
+		metrics: recorder,
+		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+			return sigCtx, func() {}
+		},
+	}
+
+	require.NoError(t, r.Run(nil))
+
+	assert.Equal(t, 1, stub.closeCalls(), "manager must be closed exactly once")
+	assert.Equal(t, []string{"deregister", "close"}, stub.orderedEvents(),
+		"Close must run after Deregister")
+}
+
+// TestRunnable_ClosesManagerEvenWhenDeregisterFails proves a deregister error
+// does not skip the manager Close: the leak-fix must still run on the error
+// branch. The close error path is exercised via the logger being non-nil.
+func TestRunnable_ClosesManagerEvenWhenDeregisterFails(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	stub := &stubRegistry{
+		deregisterErr: errors.New("consul unreachable"),
+		registeredCh:  make(chan struct{}, 1),
+	}
+	mgr := newStubManager(t, stub)
+	svc := BuildServiceDescriptor("midaz-crm", 4003)
+	recorder := &stubRecorder{}
+
+	sigCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	r := &Runnable{
+		manager: mgr,
+		svc:     svc,
+		logger:  libLog.NewNop(),
+		metrics: recorder,
+		notifyContext: func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+			return sigCtx, func() {}
+		},
+	}
+
+	require.NoError(t, r.Run(nil), "deregister error must not be propagated")
+
+	assert.Equal(t, 1, stub.closeCalls(), "Close must run even when Deregister fails")
+	assert.Equal(t, []string{"deregister", "close"}, stub.orderedEvents(),
+		"Close must run after Deregister on the error branch")
+}
+
+// TestRunnable_NilManagerDoesNotClose confirms the nil-manager guard returns
+// before any Close, so nothing is closed and no goroutine is spawned.
+func TestRunnable_NilManagerDoesNotClose(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	stub := &stubRegistry{}
+
+	r := &Runnable{manager: nil, logger: libLog.NewNop()}
+
+	require.NoError(t, r.Run(nil))
+	assert.Equal(t, 0, stub.closeCalls(), "nil-manager Run must not close anything")
 }
 
 // TestNewRunnable verifies the constructor wires the manager, descriptor,
