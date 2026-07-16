@@ -22,8 +22,8 @@ import (
 const streamingPrimaryTargetName = "primary"
 
 // streamingTopicPrefix is the canonical prefix every topic name uses.
-// Topic names take the shape "lerian.streaming.<resource>.<event>".
-const streamingTopicPrefix = "lerian.streaming."
+// Topic names take the shape "midaz.<resource>.<event>".
+const streamingTopicPrefix = "midaz."
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -101,7 +101,7 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<resource>.<event>" topic name.
+	// canonical "midaz.<resource>.<event>" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -224,7 +224,7 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<resource>.<event>".
+// "midaz.<resource>.<event>".
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "account.created.primary") — Route.Key must match a lower-case

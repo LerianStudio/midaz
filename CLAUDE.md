@@ -166,7 +166,7 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 ## Streaming (lib-streaming events)
 
-Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<resource>.<event>`. ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
+Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `midaz.<resource>.<event>`. ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
 
 ### Producer conventions
 

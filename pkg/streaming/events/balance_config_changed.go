@@ -63,7 +63,7 @@ const (
 // EventType uses the HYPHEN form `config-changed` because the
 // lib-streaming route-key regex `^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`
 // rejects underscores. The wire topic is
-// `lerian.streaming.balance.config-changed`. Payload field VALUES
+// `midaz.balance.config-changed`. Payload field VALUES
 // (e.g. changeType="settings_updated") may keep snake_case because
 // they are payload data, not routing identifiers.
 var BalanceConfigChangedDefinition = Definition{
