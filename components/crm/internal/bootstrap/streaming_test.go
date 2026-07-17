@@ -6,10 +6,12 @@ package bootstrap
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,8 +95,8 @@ func TestCRMCatalogRoutesAssembly(t *testing.T) {
 	// shared primary target so the wiring stays consistent once events land.
 	for _, r := range routes {
 		assert.Equal(t, streamingPrimaryTargetName, r.Target)
-		assert.True(t, strings.HasPrefix(r.Destination.Name, streamingTopicPrefix),
-			"route destination %q must start with %q", r.Destination.Name, streamingTopicPrefix)
+		assert.True(t, strings.HasPrefix(r.Destination.Name, pkgStreaming.TopicPrefix),
+			"route destination %q must start with %q", r.Destination.Name, pkgStreaming.TopicPrefix)
 	}
 }
 
@@ -158,8 +160,9 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 		assert.False(t, dup, "duplicate route for DefinitionKey %q", r.DefinitionKey)
 		routeKeys[r.DefinitionKey] = struct{}{}
 
-		assert.Equal(t, streamingTopicPrefix+r.DefinitionKey, r.Destination.Name,
-			"route for %q must target topic %q", r.DefinitionKey, streamingTopicPrefix+r.DefinitionKey)
+		expectedTopic := pkgStreaming.TopicName("crm", r.DefinitionKey)
+		assert.Equal(t, expectedTopic, r.Destination.Name,
+			"route for %q must target topic %q", r.DefinitionKey, expectedTopic)
 	}
 
 	// Bijection both directions: every emitted key has a route, every route has
@@ -182,11 +185,28 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	}
 
 	require.NotNil(t, hyphenatedRoute, "route for %q must exist", hyphenatedKey)
-	assert.Equal(t, "midaz.alias.related-party-deleted", hyphenatedRoute.Destination.Name)
+	assert.Equal(t, "lerian.streaming.crm_alias.related_party_deleted", hyphenatedRoute.Destination.Name)
 
 	// The canonical set must match the events.*Definition vars the helpers use,
 	// so a Definition var mis-keyed away from the literal above is also caught.
 	assert.Equal(t, "alias.related-party-deleted", events.AliasRelatedPartyDeletedDefinition.Key())
+}
+
+// TestBuildRoutes_TopicsMatchConsumerRegex asserts every CRM route destination
+// stays inside the streaming-hub ingest consumer's subscription grammar
+// (^lerian.streaming.<seg>.<seg>(\.vN)?$ over [a-z0-9_]) and carries no hyphen —
+// a hyphen on the wire topic would silently fall outside the consumer regex.
+func TestBuildRoutes_TopicsMatchConsumerRegex(t *testing.T) {
+	t.Parallel()
+
+	consumerRegex := regexp.MustCompile(`^lerian\.streaming\.[a-z0-9_]+\.[a-z0-9_]+(\.v[0-9]+)?$`)
+
+	for _, r := range buildRoutes(streamingPrimaryTargetName) {
+		assert.Regexp(t, consumerRegex, r.Destination.Name,
+			"topic %q must match the streaming-hub consumer regex", r.Destination.Name)
+		assert.NotContains(t, r.Destination.Name, "-",
+			"topic %q must not contain a hyphen (folded to underscore on the wire)", r.Destination.Name)
+	}
 }
 
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed locks the security

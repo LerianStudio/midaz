@@ -12,6 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 )
 
@@ -21,9 +22,9 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingTopicPrefix is the canonical prefix every topic name uses.
-// Topic names take the shape "midaz.<resource>.<event>".
-const streamingTopicPrefix = "midaz."
+// streamingServiceName is the component service segment embedded in every
+// topic name (e.g. "ledger" -> lerian.streaming.ledger_<resource>.<event>).
+const streamingServiceName = "ledger"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -101,7 +102,7 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "midaz.<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -224,7 +225,10 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "midaz.<resource>.<event>".
+// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route
+// key are converted to underscores in the topic name ONLY; the route Key
+// and DefinitionKey stay hyphenated (the lib-streaming route-key regex
+// rejects underscores).
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "account.created.primary") — Route.Key must match a lower-case
@@ -241,7 +245,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(streamingTopicPrefix + key),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}
