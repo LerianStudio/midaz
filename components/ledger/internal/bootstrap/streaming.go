@@ -12,6 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
 	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 )
 
@@ -20,13 +21,6 @@ import (
 // RouteDefinition.Target field, and the route-key suffix all stay in
 // sync.
 const streamingPrimaryTargetName = "primary"
-
-// streamingTopicPrefix is the canonical prefix every topic name uses.
-// Topic names take the shape "lerian.streaming.<service>_<resource>.<event>",
-// where <service> is streamingServiceName and hyphens in the
-// <resource>.<event> route key are converted to underscores in the topic
-// name only (the route key and ce-type stay hyphenated).
-const streamingTopicPrefix = "lerian.streaming."
 
 // streamingServiceName is the component service segment embedded in every
 // topic name (e.g. "ledger" -> lerian.streaming.ledger_<resource>.<event>).
@@ -251,25 +245,10 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(streamingTopicName(key)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}
 
 	return routes
-}
-
-// streamingTopicName renders the consumer-facing Kafka topic name for a
-// definition key ("<resource>.<event>").
-//
-// The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
-// ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
-// segments, no hyphen. To satisfy that grammar while still namespacing topics by
-// producing service, the service is folded into the first segment
-// ("<service>_<resource>") and hyphens are normalized to underscores. The route
-// Key and the CloudEvents type keep their hyphens: lib-streaming's route-key
-// grammar requires hyphens and rejects "_", so the underscore form lives ONLY on
-// the wire topic name, not on the event identity.
-func streamingTopicName(key string) string {
-	return streamingTopicPrefix + streamingServiceName + "_" + strings.ReplaceAll(key, "-", "_")
 }
