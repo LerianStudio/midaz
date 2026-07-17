@@ -21,11 +21,11 @@ import (
 // @description				The CRM API provides a set of endpoints for managing holder data, including information related to their ledger accounts.
 // @host						localhost:4003
 // @BasePath					/
+// @schemes					http
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
 // @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
-// @Security					BearerAuth
 func main() {
 	libCommons.InitLocalEnvConfig()
 

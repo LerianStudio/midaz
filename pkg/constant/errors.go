@@ -215,6 +215,11 @@ var (
 	// system-managed (e.g. overdraft companions) and cannot be modified
 	// through the public API.
 	ErrUpdateOfInternalBalance = errors.New("0175")
+	// ErrOverdraftRouteNotConfigured is returned when route validation is
+	// enabled but the accounting route applied to an overdraft companion
+	// operation does not define an overdraft entry carrying the rubric for
+	// the direction actually posted (debit = usage, credit = repayment).
+	ErrOverdraftRouteNotConfigured = errors.New("0176")
 )
 
 // List of CRM errors.
@@ -249,4 +254,19 @@ var (
 	ErrRelatedPartyNameRequired        = errors.New("CRM-0027")
 	ErrRelatedPartyStartDateRequired   = errors.New("CRM-0028")
 	ErrRelatedPartyEndDateInvalid      = errors.New("CRM-0029")
+)
+
+// Encryption and keyset management errors.
+var (
+	ErrKeysetNotFound               = errors.New("ENC-0001")
+	ErrKeysetAlreadyExists          = errors.New("ENC-0002")
+	ErrKeysetRevisionConflict       = errors.New("ENC-0003")
+	ErrRegistryNotFound             = errors.New("ENC-0004")
+	ErrRegistryAlreadyExists        = errors.New("ENC-0005")
+	ErrRegistryRevisionConflict     = errors.New("ENC-0006")
+	ErrOrganizationEncryptionFailed = errors.New("ENC-0008")
+	ErrProvisioningFailed           = errors.New("ENC-0010")
+	ErrAuditEventRequired           = errors.New("ENC-0011")
+	ErrAuditWriteFailed             = errors.New("ENC-0012")
+	ErrReservedTenantID             = errors.New("ENC-0013")
 )

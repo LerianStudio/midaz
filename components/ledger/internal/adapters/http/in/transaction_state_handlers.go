@@ -34,7 +34,7 @@ import (
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -92,7 +92,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -150,7 +150,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -297,7 +297,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
@@ -363,6 +363,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	return http.OK(c, trans)
 }
 
+//nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
 func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)

@@ -13,12 +13,11 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -31,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var accountColumnList = []string{
@@ -55,6 +55,8 @@ var accountColumnList = []string{
 
 // Repository provides an interface for operations related to account entities.
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=account.postgresql_mock.go --package=account . Repository
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error)
@@ -68,6 +70,9 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
+	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
+	// type external for the given asset code within the organization and ledger.
+	ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
@@ -118,7 +123,7 @@ func (r *AccountPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
 	defer span.End()
@@ -232,8 +237,10 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 }
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
+//
+//nolint:gocyclo // Query builder with optional filters per parameter; refactor candidate.
 func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
 	defer span.End()
@@ -307,9 +314,13 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		)
 	}
 
-	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder))
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
 
 	findAll = findAll.Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
@@ -380,7 +391,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // Find retrieves an Account entity from the database using the provided ID.
 func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
 	defer span.End()
@@ -466,7 +477,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
 func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
 	defer span.End()
@@ -551,7 +562,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 // FindAlias retrieves an Account entity from the database using the provided Alias.
 func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_alias")
 	defer span.End()
@@ -637,7 +648,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
 	defer span.End()
@@ -701,7 +712,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
@@ -801,7 +812,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 // ListByAlias retrieves Accounts entities from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
@@ -918,7 +929,7 @@ func applyNullableFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, re
 
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
 	defer span.End()
@@ -1025,7 +1036,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete an Account entity from the database (soft delete) using the provided ID.
 func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
 	defer span.End()
@@ -1077,7 +1088,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
@@ -1169,7 +1180,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 // ListAccountsByAlias list Accounts entity from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
@@ -1259,9 +1270,113 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	return accounts, nil
 }
 
+func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_external_accounts_by_asset_code")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.asset_code", assetCode),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
+
+		return nil, err
+	}
+
+	var accounts []*mmodel.Account
+
+	findAll := squirrel.Select(accountColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"asset_code": assetCode}).
+		Where(squirrel.Eq{"type": constant.ExternalAccountType}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
+
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Executing query", libLog.String("query", query))
+
+	_, spanQuery := tracer.Start(ctx, "postgres.list_external_accounts_by_asset_code.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
+
+		spanQuery.End()
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var acc AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.AssetCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.SegmentID,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+			&acc.Blocked,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err))
+
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to iterate rows", libLog.Err(err))
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(accounts)))
+
+	return accounts, nil
+}
+
 // Count retrieves the count of accounts from the database.
 func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
 	defer span.End()

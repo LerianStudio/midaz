@@ -14,13 +14,12 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -48,6 +47,8 @@ var assetRateColumnList = []string{
 
 // Repository provides an interface for asset_rate template entities.
 // It defines methods for creating, finding, and updating asset rates.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=assetrate.postgresql_mock.go --package=assetrate . Repository
 type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
@@ -103,7 +104,7 @@ func (r *AssetRatePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.D
 
 // Create a new AssetRate entity into Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset_rate")
 	defer span.End()
@@ -175,7 +176,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 // FindByExternalID an AssetRate entity by its external ID in Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*AssetRate, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_external_id")
 	defer span.End()
@@ -252,7 +253,7 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 // FindByCurrencyPair an AssetRate entity by its currency pair in Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_currency_pair")
 	defer span.End()
@@ -326,7 +327,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 // FindAllByAssetCodes returns all asset rates by asset codes.
 func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
 	defer span.End()
@@ -365,9 +366,13 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
 
 	if toAssetCodes != nil {
 		findAll.Where(squirrel.Eq{`"to"`: toAssetCodes})
@@ -458,7 +463,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 // Update an AssetRate entity into Postgresql and returns the AssetRate updated.
 func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset_rate")
 	defer span.End()

@@ -11,9 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
@@ -43,7 +42,7 @@ type TransactionIdempotencyResult struct {
 //
 // InternalKey is always populated so the caller can clean up on error.
 func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*TransactionIdempotencyResult, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
@@ -101,7 +100,7 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 
 // SetTransactionIdempotencyValue func that set value on idempotency key to return to user.
 func (uc *UseCase) SetTransactionIdempotencyValue(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.set_value_idempotency_key")
 	defer span.End()

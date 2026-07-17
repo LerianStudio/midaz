@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
@@ -40,7 +39,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating transaction on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on repo by id", err)
 
@@ -54,7 +53,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String(), uti.Metadata)
+	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransaction, transactionID.String(), uti.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
@@ -91,7 +90,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating status transaction on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update status transaction on repo by id", err)
 

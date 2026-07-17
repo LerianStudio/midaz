@@ -90,7 +90,9 @@ generate_openapi_spec() {
     local out_log="${LOG_DIR}/${component}_swag.out"
     local err_log="${LOG_DIR}/${component}_swag.err"
 
-    if (cd "${component_dir}" && "${SWAG_BIN}" init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "${component}" > "${out_log}" 2> "${err_log}"); then
+    local swag_args=(init -g cmd/app/main.go -o api --parseDependency --parseInternal --outputTypes go,json,yaml)
+
+    if (cd "${component_dir}" && "${SWAG_BIN}" "${swag_args[@]}" > "${out_log}" 2> "${err_log}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"
@@ -113,7 +115,7 @@ generate_openapi_yaml() {
 
     local out_log="${LOG_DIR}/${component}_openapi.out"
     local err_log="${LOG_DIR}/${component}_openapi.err"
-    local swagger_file="${component}_swagger.json"
+    local swagger_file="swagger.json"
 
     if (cd "${component_dir}" && \
         docker run --rm -v ./:/workspace --user "$(id -u):$(id -g)" \
@@ -244,27 +246,6 @@ main() {
                 break
             fi
         done
-    fi
-
-    # Run ledger merge-swagger to produce the unified docs.go and swagger.json
-    if [ "$overall_success" = true ]; then
-        if [ -f "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" ]; then
-            print_step "Generating ledger unified swagger" "PROCESSING"
-            local ledger_out="${LOG_DIR}/ledger_merge.out"
-            local ledger_err="${LOG_DIR}/ledger_merge.err"
-            local start_time=$(date +%s.%N)
-
-            if "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" > "${ledger_out}" 2> "${ledger_err}"; then
-                local end_time=$(date +%s.%N)
-                local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
-                print_step "Generated ledger unified swagger" "SUCCESS" "${elapsed}"
-            else
-                print_step "Generate ledger unified swagger" "FAILED"
-                echo -e "      ${RED}Error details:${NC}"
-                head -5 "${ledger_err}" | sed 's/^/        /'
-                overall_success=false
-            fi
-        fi
     fi
 
     # If OpenAPI generation succeeded, install dependencies and convert to Postman

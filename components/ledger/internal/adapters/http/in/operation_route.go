@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -39,7 +38,7 @@ type OperationRouteHandler struct {
 //	@Tags			Operation Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
@@ -118,8 +117,6 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 		libOpentelemetry.HandleSpanError(span, "Failed to record operation route created metric", err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created operation route")
-
 	return http.Created(c, operationRoute)
 }
 
@@ -129,7 +126,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Returns detailed information about an operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
@@ -160,18 +157,13 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Operation Route with Operation Route ID: %s", id.String()))
-
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operation Route on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve operation route on query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Operation Route with Operation Route ID: %s", id.String()))
 
 	return http.OK(c, operationRoute)
 }
@@ -183,7 +175,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 //	@Tags			Operation Route
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization		header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization		header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id		header		string								false	"Request ID for tracing"
 //	@Param			organization_id		path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id			path		string								true	"Ledger ID in UUID format"
@@ -219,8 +211,6 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	if err != nil {
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Operation Route with Operation Route ID: %s", id.String()))
 
 	payload := i.(*mmodel.UpdateOperationRouteInput)
 	logSafePayload(ctx, logger, "Request to update an operation route", payload)
@@ -284,27 +274,19 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
+	operationRoute, err := handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation Route on command", err)
 
 		return http.WithError(c, err)
 	}
 
-	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operation Route on query", err)
-
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Operation Route with Operation Route ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully updated operation route", libLog.String("operation_route_id", id.String()))
 
 	if payload.Account != nil {
 		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to reload operation route cache", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to reload operation route cache: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to reload operation route cache", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 		}
 	}
 
@@ -317,7 +299,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 //	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization		header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization		header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id		header	string	false	"Request ID for tracing"
 //	@Param			organization_id		path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id			path	string	true	"Ledger ID in UUID format"
@@ -350,17 +332,14 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating deletion of Operation Route with Operation Route ID: %s", id.String()))
-
 	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Operation Route on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete operation route on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route", libLog.Err(err), libLog.String("operation_route_id", id.String()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted Operation Route with Operation Route ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, "Successfully deleted operation route", libLog.String("operation_route_id", id.String()))
 
 	return http.NoContent(c)
 }
@@ -371,7 +350,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 //	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
 //	@Tags			Operation Route
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
@@ -408,8 +387,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
@@ -424,18 +402,13 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Operation Routes by metadata")
-
 		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operation Routes by metadata", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Operation Routes, Error: %s", err.Error()))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
 
 			return http.WithError(c, err)
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Operation Routes by metadata")
 
 		pagination.SetItems(operationRoutes)
 		pagination.SetCursor(cur.Next, cur.Prev)
@@ -443,20 +416,15 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Operation Routes")
-
 	headerParams.Metadata = &bson.M{}
 
 	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operation Routes on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Operation Routes, Error: %s", err.Error()))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes on query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Operation Routes")
 
 	pagination.SetItems(operationRoutes)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -479,7 +447,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	}
 
 	if account.RuleType != "" && account.ValidIf == nil {
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.validIf")
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.validIf")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
 
@@ -489,7 +457,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	}
 
 	if account.RuleType == "" && account.ValidIf != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.ruleType")
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.ruleType")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
 
@@ -502,7 +470,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 		switch strings.ToLower(account.RuleType) {
 		case constant.AccountRuleTypeAlias:
 			if _, ok := account.ValidIf.(string); !ok {
-				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
 
@@ -516,7 +484,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			case []any:
 				for _, item := range v {
 					if _, ok := item.(string); !ok {
-						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
 						libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
 
@@ -526,7 +494,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 					}
 				}
 			default:
-				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
 
@@ -535,7 +503,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 				return err
 			}
 		default:
-			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
 
@@ -564,7 +532,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		return nil
 	}
 
-	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
+	entityName := constant.EntityOperationRoute
 
 	// newScenarios are validated with ErrAccountingEntryFieldRequired (0166 —
 	// UnprocessableOperationError) instead of ErrMissingFieldsInRequest (0009 —
@@ -581,6 +549,8 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 		{constant.ActionCancel, entries.Cancel, constant.ErrMissingFieldsInRequest},
 		{constant.ActionRevert, entries.Revert, constant.ErrMissingFieldsInRequest},
 		{constant.ActionOverdraft, entries.Overdraft, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionBlock, entries.Block, constant.ErrAccountingEntryFieldRequired},
+		{constant.ActionUnblock, entries.Unblock, constant.ErrAccountingEntryFieldRequired},
 	}
 
 	for _, action := range actions {
@@ -666,6 +636,8 @@ var validAccountingEntryKeys = map[string]struct{}{
 	constant.ActionCancel:    {},
 	constant.ActionRevert:    {},
 	constant.ActionOverdraft: {},
+	constant.ActionBlock:     {},
+	constant.ActionUnblock:   {},
 }
 
 // findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
@@ -728,8 +700,9 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// Source direction requirements
 	if operationType == constant.OperationRouteTypeSource {
 		switch scenario {
-		case constant.ActionDirect, constant.ActionCommit:
-			// Unilateral operations at origin - only debit
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at origin - only debit.
+			// block/unblock are direct available↔available movements and mirror direct.
 			return fieldRequirement{debitRequired: true, creditRequired: false}
 		case constant.ActionHold, constant.ActionCancel:
 			// Move between available ↔ on_hold in same account - both required
@@ -740,8 +713,9 @@ func getFieldRequirements(operationType, scenario string) fieldRequirement {
 	// Destination direction requirements
 	if operationType == constant.OperationRouteTypeDestination {
 		switch scenario {
-		case constant.ActionDirect, constant.ActionCommit:
-			// Unilateral operations at destination - only credit
+		case constant.ActionDirect, constant.ActionCommit, constant.ActionBlock, constant.ActionUnblock:
+			// Unilateral operations at destination - only credit.
+			// block/unblock are direct available↔available movements and mirror direct.
 			return fieldRequirement{debitRequired: false, creditRequired: true}
 		}
 	}
@@ -782,7 +756,7 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 		return nil
 	}
 
-	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
+	entityName := constant.EntityOperationRoute
 
 	// Check direction × scenario matrix (which scenarios are allowed)
 	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
@@ -1019,6 +993,8 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 		{constant.ActionCancel, entries.Cancel},
 		{constant.ActionRevert, entries.Revert},
 		{constant.ActionOverdraft, entries.Overdraft},
+		{constant.ActionBlock, entries.Block},
+		{constant.ActionUnblock, entries.Unblock},
 	}
 
 	for _, action := range actions {

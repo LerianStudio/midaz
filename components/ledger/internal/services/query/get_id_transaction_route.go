@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
@@ -37,7 +36,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction route on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
 
@@ -52,7 +51,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 	}
 
 	if transactionRoute != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRoute.ID.String())
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransactionRoute, transactionRoute.ID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb transaction route", err)
 

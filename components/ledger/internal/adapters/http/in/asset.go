@@ -33,7 +33,7 @@ type AssetHandler struct {
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
@@ -94,7 +94,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string															true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string															false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string															false	"Request ID for tracing"
 //	@Param			organization_id	path		string															true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string															true	"Ledger ID in UUID format"
@@ -196,7 +196,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an asset identified by its UUID within the specified ledger
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -253,7 +253,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
 //	@Param			organization_id	path		string					true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
@@ -297,19 +297,11 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload); err != nil {
+	asset, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Asset on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get update Asset on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -324,7 +316,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Summary		Delete an asset
 //	@Description	Permanently removes an asset from the specified ledger. This operation cannot be undone.
 //	@Tags			Assets
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -379,7 +371,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 //	@Summary		Count total assets
 //	@Description	Returns the total count of assets for a specific ledger in an organization as a header without a response body
 //	@Tags			Assets
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"

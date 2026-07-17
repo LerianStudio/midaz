@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
@@ -123,4 +124,84 @@ func (c *NAChecker) Check(_ context.Context) DependencyCheck {
 		Status: StatusNA,
 		Reason: c.reason,
 	}
+}
+
+// VaultHealthChecker is the interface for checking Vault health status.
+// This allows testing without a real vault.Client.
+type VaultHealthChecker interface {
+	// HealthCheck verifies Vault server availability via sys/health endpoint.
+	// Returns nil if Vault is healthy, error otherwise.
+	HealthCheck(ctx context.Context) error
+}
+
+// VaultChecker probes Vault availability using the sys/health endpoint.
+// This is consistent with other checkers (Mongo, Postgres, Redis) that make network calls.
+type VaultChecker struct {
+	name       string
+	client     VaultHealthChecker
+	addr       string
+	tlsEnabled bool
+}
+
+// NewVaultChecker creates a new Vault health checker using a real vault.Client.
+// The addr parameter is used for TLS detection.
+func NewVaultChecker(name string, client VaultHealthChecker, addr string) *VaultChecker {
+	return &VaultChecker{
+		name:       name,
+		client:     client,
+		addr:       addr,
+		tlsEnabled: detectVaultTLS(addr),
+	}
+}
+
+// NewVaultCheckerWithClient creates a new Vault health checker with a custom health checker.
+// This is useful for testing.
+func NewVaultCheckerWithClient(name string, client VaultHealthChecker, addr string) *VaultChecker {
+	return NewVaultChecker(name, client, addr)
+}
+
+// Name returns the checker identifier.
+func (c *VaultChecker) Name() string {
+	return c.name
+}
+
+// TLSEnabled returns whether TLS is enabled for this connection.
+func (c *VaultChecker) TLSEnabled() bool {
+	return c.tlsEnabled
+}
+
+// Check probes Vault availability via the sys/health endpoint.
+// This is consistent with other checkers (Mongo, Postgres, Redis) that make network calls.
+func (c *VaultChecker) Check(ctx context.Context) DependencyCheck {
+	if c.client == nil {
+		return DependencyCheck{
+			Status: StatusSkipped,
+			Reason: "Vault client not configured",
+		}
+	}
+
+	start := time.Now()
+
+	err := c.client.HealthCheck(ctx)
+	latencyMs := time.Since(start).Milliseconds()
+
+	if err != nil {
+		return DependencyCheck{
+			Status:    StatusDown,
+			LatencyMs: &latencyMs,
+			Error:     fmt.Sprintf("health check failed: %v", err),
+		}
+	}
+
+	return DependencyCheck{
+		Status:    StatusUp,
+		LatencyMs: &latencyMs,
+	}
+}
+
+// detectVaultTLS determines if the Vault address uses TLS.
+func detectVaultTLS(addr string) bool {
+	addr = strings.TrimSpace(addr)
+
+	return strings.HasPrefix(strings.ToLower(addr), "https://")
 }

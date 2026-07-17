@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
@@ -108,7 +109,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
 				"Legacy payload detected (no Version field) for transaction %s, calling UpdateBalances",
-				p.Transaction.ID))
+				p.Transaction.ID,
+			))
 
 			if err := uc.UpdateBalances(ctx, orgID, ledgerID, *p.Validate, p.Balances, p.BalancesAfter); err != nil {
 				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances for legacy payload %s: %v", p.Transaction.ID, err))
@@ -542,20 +544,66 @@ func (uc *UseCase) processMetadataAndEvents(
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
 				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping events for duplicate transaction %s", tx.ID))
+					"Skipping events for duplicate transaction %s", tx.ID,
+				))
 
 				continue
 			}
 		}
 
-		// Send events asynchronously with context that preserves trace but survives parent cancellation
-		go func() {
-			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
-			defer cancel()
+		// Determine the lifecycle phase for this payload. The bulk
+		// consumer dispatches BOTH freshly-inserted transactions (the
+		// "created" phase consumed by transaction.posted /
+		// transaction.reverted) AND status-update payloads queued by
+		// /commit and /cancel HTTP handlers (the "updated" phase
+		// consumed by transaction.committed / transaction.canceled).
+		//
+		// Discrimination:
+		//   - insertedTxIDs is populated: the INSERT ... ON CONFLICT
+		//     bulk path ran. tx.ID present in the map means a fresh
+		//     insert; absent means it was a duplicate (already
+		//     handled by the L541 skip above) — so reaching here with
+		//     populated insertedTxIDs means phase=created.
+		//   - insertedTxIDs is empty: status-update or fallback
+		//     scenario. The sync UpdateTransactionStatus at the
+		//     handler already mutated PG; we're emitting the
+		//     post-commit notification → phase=updated.
+		phase := TransactionLifecyclePhaseUpdated
 
-			uc.SendTransactionEvents(opCtx, tx)
-			uc.SendOverdraftEvents(opCtx, tx)
-		}()
+		if len(insertedTxIDs) > 0 {
+			if _, wasInserted := insertedTxIDs[tx.ID]; wasInserted {
+				phase = TransactionLifecyclePhaseCreated
+			}
+		}
+
+		// Send events asynchronously with context that preserves trace but survives parent cancellation.
+		// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
+		go func(phase string) {
+			base := context.WithoutCancel(ctx)
+
+			runWithTimeout := func(fn func(context.Context)) {
+				emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
+				defer cancel()
+
+				fn(emitCtx)
+			}
+
+			var wg sync.WaitGroup
+
+			wg.Add(3)
+
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tx, phase) })
+			}()
+			go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tx) }) }()
+			go func() {
+				defer wg.Done()
+				runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tx) })
+			}()
+
+			wg.Wait()
+		}(phase)
 	}
 }
 

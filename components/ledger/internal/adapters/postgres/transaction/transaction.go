@@ -295,10 +295,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		return mtransaction.Transaction{}
 	}
 
-	froms := make([]mtransaction.FromTo, 0)
-	tos := make([]mtransaction.FromTo, 0)
-	fromByAlias := make(map[string]int)
-	toByAlias := make(map[string]int)
+	froms, tos, fromByAlias, toByAlias := t.buildReversalLegs()
 
 	addCompanionAmount := func(entries []mtransaction.FromTo, indexByAlias map[string]int, op *operation.Operation) []mtransaction.FromTo {
 		idx, ok := indexByAlias[op.AccountAlias]
@@ -313,59 +310,6 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		entries[idx].Amount.Value = decimal.Min(entries[idx].Amount.Value.Add(*op.Amount.Value), *t.Amount)
 
 		return entries
-	}
-
-	for _, op := range t.Operations {
-		if op.Amount.Value == nil {
-			continue
-		}
-
-		switch op.Type {
-		case constant.CREDIT:
-			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
-				continue
-			}
-
-			balanceKey := op.BalanceKey
-			if balanceKey == "" {
-				balanceKey = pkgConstant.DefaultBalanceKey
-			}
-
-			froms = append(froms, mtransaction.FromTo{
-				IsFrom:          true,
-				AccountAlias:    op.AccountAlias,
-				BalanceKey:      balanceKey,
-				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
-				Description:     op.Description,
-				ChartOfAccounts: op.ChartOfAccounts,
-				Metadata:        op.Metadata,
-				Route:           op.Route,
-				RouteID:         op.RouteID,
-			})
-			fromByAlias[op.AccountAlias] = len(froms) - 1
-		case constant.DEBIT:
-			if op.BalanceKey == pkgConstant.OverdraftBalanceKey {
-				continue
-			}
-
-			balanceKey := op.BalanceKey
-			if balanceKey == "" {
-				balanceKey = pkgConstant.DefaultBalanceKey
-			}
-
-			tos = append(tos, mtransaction.FromTo{
-				IsFrom:          false,
-				AccountAlias:    op.AccountAlias,
-				BalanceKey:      balanceKey,
-				Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
-				Description:     op.Description,
-				ChartOfAccounts: op.ChartOfAccounts,
-				Metadata:        op.Metadata,
-				Route:           op.Route,
-				RouteID:         op.RouteID,
-			})
-			toByAlias[op.AccountAlias] = len(tos) - 1
-		}
 	}
 
 	for _, op := range t.Operations {
@@ -403,6 +347,73 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 	}
 
 	return transaction
+}
+
+// reversalLegSide reports whether an operation reconstructs as a reversal source
+// (from) or destination (to). CREDIT and credit-direction BLOCK/UNBLOCK legs
+// become sources; DEBIT and debit-direction BLOCK/UNBLOCK legs become
+// destinations. Classification mirrors the read-path derivation: the accounting
+// Direction is the real signal, and BLOCK/UNBLOCK are routed by it exactly as
+// DEBIT/CREDIT are.
+func reversalLegSide(op *operation.Operation) (isFrom, isTo bool) {
+	switch op.Type {
+	case constant.CREDIT:
+		return true, false
+	case constant.DEBIT:
+		return false, true
+	case pkgConstant.BLOCK, pkgConstant.UNBLOCK:
+		return op.Direction == pkgConstant.DirectionCredit, op.Direction == pkgConstant.DirectionDebit
+	default:
+		return false, false
+	}
+}
+
+// reversalLeg builds a single reversed FromTo entry for op. isFrom selects the
+// source side (IsFrom=true) versus the destination side (IsFrom=false).
+func (t Transaction) reversalLeg(op *operation.Operation, isFrom bool) mtransaction.FromTo {
+	balanceKey := op.BalanceKey
+	if balanceKey == "" {
+		balanceKey = pkgConstant.DefaultBalanceKey
+	}
+
+	return mtransaction.FromTo{
+		IsFrom:          isFrom,
+		AccountAlias:    op.AccountAlias,
+		BalanceKey:      balanceKey,
+		Amount:          &mtransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
+		Description:     op.Description,
+		ChartOfAccounts: op.ChartOfAccounts,
+		Metadata:        op.Metadata,
+		Route:           op.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+		RouteID:         op.RouteID,
+	}
+}
+
+// buildReversalLegs classifies every non-overdraft operation into reversal
+// sources (froms) and destinations (tos), returning the entries plus the
+// alias->index maps used to fold overdraft companion amounts back in.
+func (t Transaction) buildReversalLegs() (froms, tos []mtransaction.FromTo, fromByAlias, toByAlias map[string]int) {
+	froms = make([]mtransaction.FromTo, 0)
+	tos = make([]mtransaction.FromTo, 0)
+	fromByAlias = make(map[string]int)
+	toByAlias = make(map[string]int)
+
+	for _, op := range t.Operations {
+		if op.Amount.Value == nil || op.BalanceKey == pkgConstant.OverdraftBalanceKey {
+			continue
+		}
+
+		switch isFrom, isTo := reversalLegSide(op); {
+		case isFrom:
+			froms = append(froms, t.reversalLeg(op, true))
+			fromByAlias[op.AccountAlias] = len(froms) - 1
+		case isTo:
+			tos = append(tos, t.reversalLeg(op, false))
+			toByAlias[op.AccountAlias] = len(tos) - 1
+		}
+	}
+
+	return froms, tos, fromByAlias, toByAlias
 }
 
 // TransactionProcessingPayload contains all data needed to process a transaction

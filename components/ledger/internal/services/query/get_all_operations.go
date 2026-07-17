@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
@@ -36,7 +35,7 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting all operations on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get all operations on repo", err)
 
@@ -59,9 +58,9 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		operationIDs[i] = o.ID
 	}
 
-	metadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	metadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
 

@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	libMid "github.com/LerianStudio/lib-observability/middleware"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
@@ -36,11 +36,11 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		},
 	})
 
-	tlMid := libMid.NewTelemetryMiddleware(tl)
+	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(libMid.WithHTTPLogging(libMid.WithCustomLogger(lg)))
+	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
 	// Register metadata index routes
 	RegisterMetadataRoutesToApp(f, auth, mdi, nil)
 
@@ -51,8 +51,11 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 
 	// Doc
+	f.Get("/swagger", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+	})
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("ledger"),
+		fiberSwagger.InstanceName("swagger"),
 	))
 
 	f.Use(tlMid.EndTracingSpans)
@@ -165,6 +168,8 @@ func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient,
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInflowInput), th.CreateTransactionInflow))...)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionOutflowInput), th.CreateTransactionOutflow))...)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionAnnotation))...)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionBlock))...)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionUnblock))...)
 
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CommitTransaction)...)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CancelTransaction)...)

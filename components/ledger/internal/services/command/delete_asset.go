@@ -9,16 +9,21 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteAssetByID deletes an asset from the repository by IDs.
@@ -49,20 +54,17 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		return err
 	}
 
-	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
-
-	acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+	externalAccounts, err := uc.AccountRepo.ListExternalAccountsByAssetCode(ctx, organizationID, ledgerID, asset.Code)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external accounts", err)
 
-		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external account")
+		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external accounts")
 
 		return err
 	}
 
-	if len(acc) > 0 {
-		err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(acc[0].ID))
-		if err != nil {
+	for _, extAccount := range externalAccounts {
+		if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(extAccount.ID)); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset external account", err)
 
 			logger.Log(ctx, libLog.LevelError, "Error deleting asset external account")
@@ -89,5 +91,32 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		return err
 	}
 
+	uc.emitAssetDeletedEvent(ctx, span, logger, asset, time.Now())
+
 	return nil
+}
+
+// emitAssetDeletedEvent publishes the asset.deleted event for a
+// successfully soft-deleted asset. IMPORTANT posture: build and emit
+// failures are span-recorded and logged at Warn, never returned.
+// Durability of the event is owned by PG and (follow-up task) the
+// outbox subsystem + DLQ, not by the synchronous Emit call.
+//
+// Anchor: invoked immediately after AssetRepo.Delete succeeds.
+// AssetRepo.Delete does not return the post-delete record, so the
+// payload sources identity from the pre-delete record (asset) and
+// stamps deletedAt with the wall-clock instant captured by the caller.
+// The PG deleted_at column is set by the same wall clock at row-update
+// time, so the values are effectively identical up to clock skew.
+//
+// The asset.deleted event below is the single user-visible signal for this
+// operation; the external-account soft-deletes above are internal cleanup.
+//
+// Wire-format mapping lives in pkg/streaming/events/asset_deleted.go;
+// changes to the payload contract belong there, not here.
+func (uc *UseCase) emitAssetDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Asset, deletedAt time.Time) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AssetDeletedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAssetDeleted(a.ID, a.OrganizationID, a.LedgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
+		})
 }

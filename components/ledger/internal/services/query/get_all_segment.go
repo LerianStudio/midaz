@@ -8,10 +8,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -19,10 +19,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
-
-	// GetAllSegments fetch all Segment from the repository
-	libLog "github.com/LerianStudio/lib-observability/log"
 )
+
+// GetAllSegments fetch all Segment from the repository
 
 func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
@@ -37,7 +36,7 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting segments on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo", err)
 
@@ -60,9 +59,9 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 		segmentIDs[i] = s.ID
 	}
 
-	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), segmentIDs)
+	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntitySegment, segmentIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
 

@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
@@ -32,7 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-//nolint:gocognit // Will be refactored into smaller functions.
+//nolint:gocognit,gocyclo // Will be refactored into smaller functions.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -51,7 +50,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 	var preBalances []*mmodel.Balance
 
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction_operations")
 	defer span.End()
@@ -265,7 +264,7 @@ func (handler *TransactionHandler) BuildOperations(
 		operations[idx].BalanceAfter.OverdraftUsed = a.balanceAfterOverdraftUsed
 	}
 
-	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
+	resolveRouteCodesFromCache(operations, transactionRouteCache, action, transactionInput.OperationTypeOverride)
 
 	return operations, preBalances, nil
 }
@@ -279,7 +278,7 @@ func (handler *TransactionHandler) BuildOperations(
 // Both RouteCode and RouteDescription are resolved from the AccountingRubric
 // that matches the operation's action and direction (debit → Debit rubric,
 // credit → Credit rubric).
-func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action string) {
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action, operationTypeOverride string) {
 	if cache == nil {
 		return
 	}
@@ -306,22 +305,50 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// without special-casing here.
 		resolvedAction := action
 
+		// Block/unblock operations carry the base action (direct) but a
+		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
+		// configures a dedicated Block/Unblock AccountingEntry, route the
+		// rubric lookup to it; otherwise leave resolvedAction unchanged so
+		// block/unblock keep resolving via the Direct rubric (Phase 1 parity).
+		switch operationTypeOverride {
+		case constant.BLOCK:
+			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Block != nil
+			}) {
+				resolvedAction = constant.ActionBlock
+			}
+		case constant.UNBLOCK:
+			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Unblock != nil
+			}) {
+				resolvedAction = constant.ActionUnblock
+			}
+		}
+
+		// The Overdraft BalanceKey override takes precedence: companion
+		// operations on the overdraft balance always resolve their rubric
+		// through the Overdraft AccountingEntry, regardless of block/unblock.
 		if op.BalanceKey == constant.OverdraftBalanceKey {
 			resolvedAction = constant.ActionOverdraft
 		}
 
 		actionCache, ok := cache.Actions[resolvedAction]
 		if !ok {
-			// No entries for this action — e.g. route defines only Direct
-			// and the companion wants Overdraft. Leave RouteCode nil; the
-			// primary op still resolves correctly, and the companion
-			// simply carries no accounting rubric.
+			// Defensive only. When route validation is enabled, the
+			// ValidateAccountingRules gate rejects any overdraft companion whose
+			// route lacks a direction-specific overdraft rubric with
+			// ErrOverdraftRouteNotConfigured, so a companion reaching here is
+			// guaranteed to have its overdraft action present. For block/unblock
+			// this branch is also unreachable, since resolvedAction only switches
+			// to Block/Unblock after blockEntryConfigured confirms the action
+			// exists. Leaving RouteCode nil keeps the primary op resolving
+			// correctly for any residual unreachable state.
 			continue
 		}
 
 		routeID := *op.RouteID
 
-		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+		if rc, ok := actionCache.FindRoute(routeID); ok {
 			if rubric := resolveAccountingRubric(rc.AccountingEntries, resolvedAction, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
@@ -333,6 +360,24 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			}
 		}
 	}
+}
+
+// blockEntryConfigured reports whether the route identified by routeID — looked up
+// under the given base action in the cache — has the block/unblock AccountingEntry
+// satisfied by the supplied predicate. Used to decide whether a BLOCK/UNBLOCK
+// operation should resolve via its dedicated rubric or fall back to Direct.
+func blockEntryConfigured(cache *mmodel.TransactionRouteCache, action, routeID string, has func(*mmodel.AccountingEntries) bool) bool {
+	actionCache, ok := cache.Actions[action]
+	if !ok {
+		return false
+	}
+
+	rc, ok := actionCache.FindRoute(routeID)
+	if !ok || rc.AccountingEntries == nil {
+		return false
+	}
+
+	return has(rc.AccountingEntries)
 }
 
 // resolveAccountingRubric selects the appropriate AccountingRubric from the given
@@ -358,6 +403,10 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 		entry = entries.Revert
 	case constant.ActionOverdraft:
 		entry = entries.Overdraft
+	case constant.ActionBlock:
+		entry = entries.Block
+	case constant.ActionUnblock:
+		entry = entries.Unblock
 	}
 
 	if entry == nil {
@@ -372,24 +421,6 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 	}
 
 	return nil
-}
-
-// findRouteInActionCache searches for a routeID across Source, Destination, and
-// Bidirectional maps of an ActionRouteCache.
-func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
-	if rc, ok := actionCache.Source[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Destination[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Bidirectional[routeID]; ok {
-		return rc, true
-	}
-
-	return mmodel.OperationRouteCache{}, false
 }
 
 // effectiveOperationAmount returns the amount that should be recorded on a
@@ -562,7 +593,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
@@ -633,7 +664,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -683,7 +714,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -709,7 +740,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
@@ -766,7 +797,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -818,7 +849,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -926,6 +957,11 @@ func (handler *TransactionHandler) buildStandardOp(
 	opType := amt.Operation
 	if blc.Key == constant.OverdraftBalanceKey {
 		opType = constant.OVERDRAFT
+	} else if transactionInput.OperationTypeOverride != "" {
+		// Block/unblock paths set a semantic Type label (BLOCK/UNBLOCK). It
+		// overrides only the Type, never Direction or amount. Overdraft
+		// companion rows keep their OVERDRAFT label and are excluded above.
+		opType = transactionInput.OperationTypeOverride
 	}
 
 	return &operation.Operation{
@@ -946,7 +982,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		LedgerID:        blc.LedgerID,
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
-		Route:           ft.Route,
+		Route:           ft.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
@@ -966,9 +1002,10 @@ func (handler *TransactionHandler) createRevertTransaction(c *fiber.Ctx, transac
 	return handler.executeCreateTransaction(c, transactionInput, transactionStatus, true)
 }
 
+//nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
 func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool) error {
 	ctx := c.UserContext()
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
 	defer span.End()
@@ -1198,7 +1235,7 @@ func (handler *TransactionHandler) executeCreateTransaction(c *fiber.Ctx, transa
 		ChartOfAccountsGroupName: transactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
-		Route:                    transactionInput.Route,
+		Route:                    transactionInput.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  transactionInput.RouteID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{

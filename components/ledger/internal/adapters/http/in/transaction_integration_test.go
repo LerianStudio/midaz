@@ -24,11 +24,10 @@ import (
 	"testing"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -503,7 +502,7 @@ func (mq *testMultiQueueConsumer) run() error {
 // handlerBTOQueue processes messages from the balance transaction operation queue.
 // This mirrors the logic in bootstrap.MultiQueueConsumer.handlerBTOQueue.
 func (mq *testMultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()

@@ -13,10 +13,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// createIndexes creates indexes for specific fields, if it not exists.
-func createIndexes(ctx context.Context, collection *mongo.Collection) error {
-	indexModels := []mongo.IndexModel{
+// indexModels returns the index definitions for the holder collection.
+func indexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
 		{
+			// Document uniqueness is enforced on the active-primary search token; it holds within a
+			// single keyset version. Cross-version uniqueness after PRF key rotation is a rotation-time
+			// concern (rotation is currently out of scope).
 			Keys: bson.D{{Key: "search.document", Value: 1}},
 			Options: options.Index().
 				SetUnique(true).
@@ -48,11 +51,25 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 			},
 		},
 	}
+}
 
+// ensureIndexes ensures indexes exist for the holder collection.
+// Uses per-collection tracking to handle multi-tenant/per-org collections correctly.
+// Retries on failure — indexes are only marked as done after successful creation.
+func ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
+	key := collection.Database().Name() + ":" + collection.Name()
+
+	return globalIndexTracker.ensureOnce(key, func() error {
+		return createIndexes(ctx, collection)
+	})
+}
+
+// createIndexes creates indexes for specific fields, if it not exists.
+func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := collection.Indexes().CreateMany(ctx, indexModels)
+	_, err := collection.Indexes().CreateMany(ctx, indexModels())
 
 	return err
 }

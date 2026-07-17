@@ -190,7 +190,6 @@ func TestHandler_UpdateLedger(t *testing.T) {
 				Name: "Updated Ledger Name",
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				// Update succeeds
 				ledgerRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(&mmodel.Ledger{
@@ -203,29 +202,9 @@ func TestHandler_UpdateLedger(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// UpdateMetadata is called
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), "Ledger", ledgerID.String(), gomock.Any()).
 					Return(nil).
-					Times(1)
-
-				// Retrieval after update
-				ledgerRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID).
-					Return(&mmodel.Ledger{
-						ID:             ledgerID.String(),
-						OrganizationID: orgID.String(),
-						Name:           "Updated Ledger Name",
-						Status:         mmodel.Status{Code: "ACTIVE"},
-						CreatedAt:      time.Now(),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetLedgerByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Ledger", ledgerID.String()).
-					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -258,39 +237,6 @@ func TestHandler_UpdateLedger(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrLedgerIDNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdateLedgerInput{
-				Name: "Updated Name",
-			},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
-				// Update succeeds
-				ledgerRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
-					Return(&mmodel.Ledger{ID: ledgerID.String()}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "Ledger", ledgerID.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				ledgerRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{

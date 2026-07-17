@@ -36,7 +36,7 @@ type LedgerHandler struct {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger details including name, status, and optional metadata"
@@ -83,7 +83,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 //	@Description	Returns detailed information about a ledger identified by its UUID within the specified organization
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -133,7 +133,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string																true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			metadata		query		string																false	"JSON string to filter ledgers by metadata fields"
@@ -247,7 +247,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -284,19 +284,11 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload); err != nil {
+	ledger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
-	}
-
-	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve ledger on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -311,7 +303,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 //	@Summary		Delete a ledger
 //	@Description	Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Ledgers
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -370,7 +362,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 //	@Summary		Count total ledgers
 //	@Description	Returns the total count of ledgers for a specific organization as a header without a response body
 //	@Tags			Ledgers
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Success		204				"No content with X-Total-Count header containing the count"
@@ -417,7 +409,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 //	@Description	Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
@@ -473,7 +465,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"

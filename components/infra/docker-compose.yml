@@ -178,6 +178,74 @@ services:
     networks:
       - infra-network
 
+  # HashiCorp Vault for KMS/Transit secrets engine (OPTIONAL)
+  # Used by components that need envelope encryption (e.g., CRM with KMS_VENDOR=hashicorp-vault)
+  # Start with: docker compose up midaz-hc-vault midaz-hc-vault-init -d
+  midaz-hc-vault:
+    container_name: midaz-hc-vault
+    image: hashicorp/vault:1.15
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-root}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - infra-network
+
+  # Vault initialization service - enables Transit secrets engine
+  # Runs once after Vault is healthy, then exits
+  midaz-hc-vault-init:
+    container_name: midaz-hc-vault-init
+    image: hashicorp/vault:1.15
+    depends_on:
+      midaz-hc-vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: "http://midaz-hc-vault:8200"
+      VAULT_TOKEN: ${VAULT_DEV_TOKEN:-root}
+      # Surfaced from components/crm/.env by the infra `up` target. Selects the
+      # single shared transit engine for the mode: transit-mt vs transit-st.
+      # Tenant isolation is handled by the app via the transit key name, not by
+      # per-tenant mounts.
+      MULTI_TENANT_ENABLED: ${MULTI_TENANT_ENABLED:-false}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+        if [ "$${MULTI_TENANT_ENABLED}" = "true" ]; then
+          MOUNT="transit-mt"
+        else
+          MOUNT="transit-st"
+        fi
+        echo "Checking if Transit is already enabled at $${MOUNT}..."
+        EXISTING_TYPE=$$(vault secrets list | awk -v m="$${MOUNT}/" '$$1 == m { print $$2 }')
+        if [ -n "$${EXISTING_TYPE}" ]; then
+          if [ "$${EXISTING_TYPE}" != "transit" ]; then
+            echo "ERROR: $${MOUNT}/ exists but is type '$${EXISTING_TYPE}', not 'transit'" >&2
+            exit 1
+          fi
+          echo "Transit already enabled at $${MOUNT}"
+        else
+          echo "Enabling Transit secrets engine at $${MOUNT}..."
+          vault secrets enable -path="$${MOUNT}" transit
+          echo "Transit enabled successfully"
+        fi
+        echo "Vault initialization complete"
+    networks:
+      - infra-network
+    restart: "no"
+
 volumes:
   postgres-data:
   postgres-replica-data:

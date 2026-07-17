@@ -7,9 +7,8 @@ package in
 import (
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -37,7 +36,7 @@ type AccountHandler struct {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -53,7 +52,7 @@ type AccountHandler struct {
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -106,7 +105,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string																true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
 //	@Param			organization_id	path		string																true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string																true	"Ledger ID in UUID format"
@@ -136,7 +135,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
@@ -243,7 +242,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -257,7 +256,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -299,7 +298,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its external code within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -313,7 +312,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
@@ -354,7 +353,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 //	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -368,7 +367,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
@@ -408,7 +407,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
 //	@Param			organization_id	path		string						true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
@@ -425,7 +424,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
@@ -479,7 +478,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Summary		Delete an account
 //	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
 //	@Tags			Accounts
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
@@ -494,7 +493,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -536,7 +535,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Summary		Count accounts
 //	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio
 //	@Tags			Accounts
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			Authorization	header	string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
 //	@Param			organization_id	path	string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
@@ -549,7 +548,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()

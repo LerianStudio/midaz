@@ -31,7 +31,7 @@ import (
 // Repository provides an interface for operations related on mongodb a metadata entities.
 // It is used to create, find, update and delete metadata entities.
 //
-//go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	CreateBulk(ctx context.Context, collection string, metadataList []*Metadata) (*repository.MongoDBBulkInsertResult, error)
@@ -178,7 +178,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	if filter.UseMetadata {
 		limit := int64(filter.Limit)
 		skip := int64(filter.Page*filter.Limit - filter.Limit)
-		opts = options.Find().SetLimit(limit).SetSkip(skip)
+		opts.SetLimit(limit).SetSkip(skip)
 	}
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")

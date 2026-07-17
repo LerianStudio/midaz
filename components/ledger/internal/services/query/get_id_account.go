@@ -34,8 +34,6 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by id: %v", err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
@@ -46,8 +44,6 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 	if account != nil {
 		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String())
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
-
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
 
 			return nil, err

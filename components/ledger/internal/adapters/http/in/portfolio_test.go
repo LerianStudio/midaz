@@ -173,7 +173,6 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 				Name: "Updated Portfolio Name",
 			},
 			setupMocks: func(portfolioRepo *portfolio.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, portfolioID uuid.UUID) {
-				// Update succeeds
 				portfolioRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
 					Return(&mmodel.Portfolio{
@@ -187,30 +186,9 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// UpdateMetadata is called
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), "Portfolio", portfolioID.String(), gomock.Any()).
 					Return(nil).
-					Times(1)
-
-				// Retrieval after update (GetPortfolioByID)
-				portfolioRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, portfolioID).
-					Return(&mmodel.Portfolio{
-						ID:             portfolioID.String(),
-						OrganizationID: orgID.String(),
-						LedgerID:       ledgerID.String(),
-						Name:           "Updated Portfolio Name",
-						Status:         mmodel.Status{Code: "ACTIVE"},
-						CreatedAt:      time.Now(),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetPortfolioByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Portfolio", portfolioID.String()).
-					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -261,39 +239,6 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrPortfolioIDNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdatePortfolioInput{
-				Name: "Updated Name",
-			},
-			setupMocks: func(portfolioRepo *portfolio.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, portfolioID uuid.UUID) {
-				// Update succeeds
-				portfolioRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
-					Return(&mmodel.Portfolio{ID: portfolioID.String()}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "Portfolio", portfolioID.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				portfolioRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, portfolioID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{

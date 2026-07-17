@@ -79,7 +79,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 					}).
 					Times(1)
 
-				// CreateBalanceSync uses BalanceRepo internally
+				// CreateDefaultBalance uses BalanceRepo internally
 				balanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(false, nil).Times(1)
@@ -183,7 +183,8 @@ func TestHandler_CreateAsset(t *testing.T) {
 			handler := &AssetHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -227,7 +228,6 @@ func TestHandler_UpdateAsset(t *testing.T) {
 				Name: "Updated Asset Name",
 			},
 			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, assetID uuid.UUID) {
-				// Update succeeds
 				assetRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
 					Return(&mmodel.Asset{
@@ -243,32 +243,9 @@ func TestHandler_UpdateAsset(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// UpdateMetadata is called
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), "Asset", assetID.String(), gomock.Any()).
 					Return(nil).
-					Times(1)
-
-				// Retrieval after update
-				assetRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, assetID).
-					Return(&mmodel.Asset{
-						ID:             assetID.String(),
-						OrganizationID: orgID.String(),
-						LedgerID:       ledgerID.String(),
-						Name:           "Updated Asset Name",
-						Code:           "TST",
-						Type:           "commodity",
-						Status:         mmodel.Status{Code: "ACTIVE"},
-						CreatedAt:      time.Now(),
-						UpdatedAt:      time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetAssetByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Asset", assetID.String()).
-					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -301,39 +278,6 @@ func TestHandler_UpdateAsset(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrAssetIDNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdateAssetInput{
-				Name: "Updated Name",
-			},
-			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, assetID uuid.UUID) {
-				// Update succeeds
-				assetRepo.EXPECT().
-					Update(gomock.Any(), orgID, ledgerID, assetID, gomock.Any()).
-					Return(&mmodel.Asset{ID: assetID.String()}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "Asset", assetID.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				assetRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, assetID).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{
@@ -391,7 +335,8 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -527,7 +472,8 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			handler := &AssetHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -809,7 +755,8 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			handler := &AssetHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -858,9 +805,9 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// ListAccountsByAlias to find external account
+				// List external accounts by asset code to cascade-delete them
 				accountRepo.EXPECT().
-					ListAccountsByAlias(gomock.Any(), orgID, ledgerID, []string{"@external/TST"}).
+					ListExternalAccountsByAssetCode(gomock.Any(), orgID, ledgerID, "TST").
 					Return([]*mmodel.Account{}, nil).
 					Times(1)
 
@@ -936,7 +883,8 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 			handler := &AssetHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -1013,7 +961,8 @@ func TestHandler_CountAssets(t *testing.T) {
 			handler := &AssetHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count",
+			app.Head(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)

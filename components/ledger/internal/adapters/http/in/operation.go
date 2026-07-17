@@ -32,7 +32,7 @@ type OperationHandler struct {
 //	@Description	Get all Operations with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -42,7 +42,7 @@ type OperationHandler struct {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Param			type			query		string	false	"DEBIT, CREDIT"
+//	@Param			type			query		string	false	"Filter by operation type"	Enums(DEBIT,CREDIT,ON_HOLD,RELEASE,OVERDRAFT,BLOCK,UNBLOCK)
 //	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
 //	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Param			route_code		query		string	false	"Filter by operation route code"
@@ -141,7 +141,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Description	Get an Operation with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -204,7 +204,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Tags			Operations
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"

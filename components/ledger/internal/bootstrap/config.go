@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
@@ -36,6 +37,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -203,6 +205,20 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+
+	// --- Streaming (lib-streaming producer) ---
+	// Default for all streaming knobs is OFF — a service with
+	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
+	// initialises the underlying transport. The pilot ships disabled-by-
+	// default so that existing deployments are not broken by the new
+	// dependency.
+	StreamingEnabled           bool   `env:"STREAMING_ENABLED"`
+	StreamingBrokers           string `env:"STREAMING_BROKERS"`
+	StreamingClientID          string `env:"STREAMING_CLIENT_ID"`
+	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
+	StreamingCompression       string `env:"STREAMING_COMPRESSION"`
+	StreamingRequiredAcks      string `env:"STREAMING_REQUIRED_ACKS"`
+	StreamingBatchLingerMs     int    `env:"STREAMING_BATCH_LINGER_MS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -275,7 +291,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("startup_id", startupID),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Starting unified ledger component",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 	)
@@ -573,11 +590,29 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
 			}
 
-			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+			logger.Log(
+				context.Background(), libLog.LevelInfo, "Tenant event listener configured",
 				libLog.String("redis_host", cfg.MultiTenantRedisHost),
 				libLog.String("service", tenantServiceName),
 			)
 		}
+	}
+
+	// === Streaming producer (lib-streaming) ===
+	// Built before the UseCase so the Emitter is available for injection.
+	// When STREAMING_ENABLED=false (the documented default for this pilot)
+	// the helper returns a NoopEmitter and a no-op closer, preserving full
+	// backward compatibility with existing deployments.
+
+	streamingEmitter, streamingClose, err := BuildStreamingEmitter(context.Background(), cfg, logger, telemetry)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize streaming emitter: %w", err)
+	}
+
+	if streamingClose != nil {
+		addCleanup(func() { _ = streamingClose() })
 	}
 
 	// === Use cases ===
@@ -603,6 +638,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Streaming
+		Streaming: streamingEmitter,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -661,8 +698,34 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
-	// Auth
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
+	// Extract the metrics factory ONCE (nil when telemetry disabled) so it can
+	// back both the service-discovery recorder below and the readyz handler.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
+	// Service discovery: build the Manager (no-op when disabled), parse the
+	// advertised port + descriptor (gated on enabled), and resolve plugin-auth
+	// through discovery — all in one helper mirrored on the CRM side. The recorder
+	// is a no-op unless discovery is enabled, so SD off emits zero SD metrics.
+	sd, err := wireServiceDiscovery(cfg, logger, metricsFactory)
+	if err != nil {
+		doCleanup()
+
+		return nil, err
+	}
+
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD wiring.
+	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
+	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
+	// the launcher's Runnable never runs, so that watcher would leak. On success the
+	// closer is disarmed and the Runnable owns the graceful close. The manager is NOT
+	// in doCleanup, so this defer and doCleanup close disjoint resources.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+	defer sdBootCloser.CloseOnBootFailure()
+
+	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
 
@@ -688,12 +751,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Readyz handler ===
 
-	// Get metricsFactory from telemetry (nil-safe: checked inside handler)
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
-	}
-
+	// metricsFactory was extracted above (nil-safe: checked inside handler).
 	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()
@@ -734,11 +792,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		PollIntervalMs: 1000,
 	})
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
+
+	sdBootCloser.Disarm()
 
 	return &Service{
 		UnifiedServer:            unifiedServer,
@@ -752,6 +813,80 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                   logger,
 		Telemetry:                telemetry,
 		metricsFactory:           rmq.metricsFactory,
+		StreamingClose:           streamingClose,
+		StreamingEnabled:         cfg.StreamingEnabled,
+		ServiceDiscovery:         sd.manager,
+		ServiceDiscoveryEnabled:  sd.enabled,
+		ServiceDescriptor:        sd.descriptor,
+		ServiceDiscoveryMetrics:  sd.recorder,
+	}, nil
+}
+
+// serviceDiscoveryWiring holds the service-discovery outputs consumed by the
+// composition root: the Manager, whether discovery is enabled, the descriptor to
+// register, the plugin-auth host resolved (or degraded) via discovery, and the
+// metrics recorder threaded through the SD call paths. The recorder is a no-op
+// unless discovery is enabled, upholding the invariant that SD off emits zero
+// SD metrics.
+type serviceDiscoveryWiring struct {
+	manager    *libsd.Manager
+	enabled    bool
+	descriptor libsd.Service
+	authHost   string
+	recorder   pkgsd.MetricsRecorder
+}
+
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration) and resolves the plugin-auth host — degrading to the static
+// PLUGIN_AUTH_HOST when auth is disabled or resolution fails so a discovery
+// outage never fails boot.
+//
+// The advertised port is parsed and the descriptor built ONLY when discovery is
+// enabled: the descriptor is consumed solely by the discovery runnable (wired
+// only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
+// discovery off. The resolve timeout is created only when auth is enabled, since
+// ResolveAuthHost returns the static host without touching the context otherwise.
+//
+// The metrics recorder is built AFTER BuildManager reports enabled so it is a
+// NopMetricsRecorder whenever discovery is disabled: with SD off, resolve (and
+// every downstream SD metric) emits nothing, even though metricsFactory is
+// non-nil. When enabled it is the OTel-backed recorder.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *metrics.MetricsFactory) (serviceDiscoveryWiring, error) {
+	manager, enabled, err := pkgsd.BuildManager(logger)
+	if err != nil {
+		return serviceDiscoveryWiring{}, err
+	}
+
+	recorder := pkgsd.MetricsRecorder(pkgsd.NopMetricsRecorder{})
+	if enabled {
+		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
+	}
+
+	var descriptor libsd.Service
+
+	if enabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			return serviceDiscoveryWiring{}, portErr
+		}
+
+		descriptor = pkgsd.BuildServiceDescriptor("midaz-ledger", serverPort)
+	}
+
+	authHost := cfg.AuthHost
+	if cfg.AuthEnabled {
+		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.AuthEnabled, cfg.AuthHost, recorder)
+
+		cancel()
+	}
+
+	return serviceDiscoveryWiring{
+		manager:    manager,
+		enabled:    enabled,
+		descriptor: descriptor,
+		authHost:   authHost,
+		recorder:   recorder,
 	}, nil
 }
 
@@ -859,7 +994,8 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 
 	// Log the effective config (after defaults applied by the constructor).
 	effectiveCfg := balanceSyncWorker.syncConfig
-	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
@@ -943,7 +1079,8 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
 		libLog.String("service", tenantServiceName),
 		libLog.Bool("tenant_manager_configured", true),
 	)
@@ -998,7 +1135,8 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("modules", "onboarding,transaction"),
 	)
 
@@ -1032,7 +1170,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	// Tenant suspended or purged → 403 (same semantics as tenant-manager /connections)
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
-		return midazhttp.Forbidden(c,
+		return midazhttp.Forbidden(
+			c,
 			constant.ErrTenantServiceSuspended.Error(),
 			"Service Suspended",
 			fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
@@ -1041,7 +1180,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not found → 404
 	if errors.Is(err, tmcore.ErrTenantNotFound) {
-		return midazhttp.NotFound(c,
+		return midazhttp.NotFound(
+			c,
 			constant.ErrTenantNotFound.Error(),
 			"Tenant Not Found",
 			fmt.Sprintf("tenant not found: %s", tenantID),
@@ -1050,7 +1190,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	// Tenant not provisioned → 422
 	if tmcore.IsTenantNotProvisionedError(err) {
-		return midazhttp.UnprocessableEntity(c,
+		return midazhttp.UnprocessableEntity(
+			c,
 			constant.ErrTenantNotProvisioned.Error(),
 			"Tenant Not Provisioned",
 			"Database schema not initialized for this tenant. Contact your administrator.",
@@ -1058,7 +1199,8 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	}
 
 	// Unknown error → 503
-	return midazhttp.ServiceUnavailable(c,
+	return midazhttp.ServiceUnavailable(
+		c,
 		constant.ErrTenantServiceUnavailable.Error(),
 		"Tenant Service Unavailable",
 		fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),

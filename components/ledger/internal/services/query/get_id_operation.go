@@ -7,12 +7,12 @@ package query
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 
 	// GetOperationByID gets data in the repository.
@@ -37,7 +37,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	}
 
 	if o != nil {
-		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityOperation, operationID.String())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb operation", err)
 

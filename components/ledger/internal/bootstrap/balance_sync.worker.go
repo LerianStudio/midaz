@@ -12,12 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
@@ -506,7 +505,7 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 	ctx, cancel := context.WithTimeout(ctx, syncBatchTimeout)
 	defer cancel()
 
-	_, tracer, _, metricFactory := libObs.NewTrackingFromContext(ctx)
+	_, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "balance.worker.process_batch")
 	defer span.End()

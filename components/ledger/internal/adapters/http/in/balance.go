@@ -7,9 +7,8 @@ package in
 import (
 	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
@@ -35,7 +34,7 @@ type BalanceHandler struct {
 //	@Description	Get all balances
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -53,7 +52,7 @@ type BalanceHandler struct {
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
 	defer span.End()
@@ -113,7 +112,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Description	Get all balances by account id
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -133,7 +132,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
 	defer span.End()
@@ -198,7 +197,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Description	Get a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -212,7 +211,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
 	defer span.End()
@@ -254,7 +253,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Description	Delete a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string			true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string			false	"Request ID"
 //	@Param			organization_id	path		string			true	"Organization ID"
 //	@Param			ledger_id		path		string			true	"Ledger ID"
@@ -269,7 +268,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
 	defer span.End()
@@ -312,7 +311,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
@@ -328,7 +327,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_balance")
 	defer span.End()
@@ -375,7 +374,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Description	Get Balances with alias
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -389,7 +388,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_by_alias")
 	defer span.End()
@@ -435,7 +434,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Description	Get External balances with code
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -449,7 +448,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balances_external_by_code")
 	defer span.End()
@@ -497,7 +496,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
@@ -513,7 +512,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -558,7 +557,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 //	@Description	Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -574,7 +573,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balance_at_timestamp")
 	defer span.End()
@@ -653,7 +652,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 //	@Description	Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -669,7 +668,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_balances_at_timestamp")
 	defer span.End()

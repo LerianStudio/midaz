@@ -18,14 +18,19 @@ import (
 
 // @title			Midaz Ledger API
 // @version		v3.7.0
-// @description	This is a swagger documentation for the Midaz Ledger API (unified onboarding + transaction)
+// @description	This is a swagger documentation for the Midaz Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community
 // @contact.url	https://discord.gg/DnhqKwkGv3
 // @license.name	Elastic License 2.0
 // @license.url	https://www.elastic.co/licensing/elastic-license
-// @host			localhost:3000
+// @host			localhost:3002
 // @BasePath		/
+// @schemes		http
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
+// @description				Bearer token authentication. Format: 'Bearer {access_token}'. Only required when auth plugin is enabled.
 func main() {
 	libCommons.InitLocalEnvConfig()
 

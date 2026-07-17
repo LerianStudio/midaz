@@ -243,6 +243,14 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 				assert.Contains(t, errResp, "code", "error response should contain code field")
 			},
 		},
+		{
+			name:        "invalid pagination returns 400 before repository calls",
+			queryParams: "?page=abc",
+			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
+			},
+			expectedStatus: 400,
+			validateBody:   assertInvalidQueryParameterResponse,
+		},
 	}
 
 	for _, tt := range tests {

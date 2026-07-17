@@ -270,7 +270,7 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-175 numeric codes (0001–0175) for ledger errors. 29 CRM errors prefixed with `CRM-`.
+176 numeric codes (0001–0176) for ledger errors. 29 CRM errors prefixed with `CRM-`.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -293,7 +293,7 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0160` ErrTenantNotFound — tenant does not exist
 - `0161` ErrTenantServiceUnavailable — tenant resolution failed
 
-#### Overdraft Feature Error Codes (0167–0175)
+#### Overdraft Feature Error Codes (0167–0176)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
 - `0168` ErrDirectOperationOnInternalBalance — user operation targets internal-scope balance
 - `0169` ErrDeletionOfInternalBalance — delete targets internal-scope balance
@@ -303,6 +303,7 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 - `0173` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
+- `0176` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
 #### CRM Error Codes (all 29)
 - `CRM-0001` ErrInvalidMetadataNestingCRM — nested metadata not allowed
@@ -561,6 +562,24 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | BALANCE_SYNC_MAX_WORKERS | (5) | Balance sync worker count |
 | SETTINGS_CACHE_TTL | (5m) | Settings cache duration (Go duration) |
+
+#### Service Discovery (opt-in; no-op when SD_ENABLED=false)
+Consul-backed registration + host resolution. Read by `libsd.ConfigFromEnv()`.
+Disabled by default: a no-op Manager is wired and `Resolve` returns the static
+fallback host. When `SD_ENABLED=true`, `SD_ADVERTISE_ADDRESS` is required —
+enabling discovery with an empty advertise address aborts boot
+(`ErrEmptyAdvertiseAddr`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SD_ENABLED | false | Enable Consul-backed discovery (no-op when false) |
+| SD_ADDRESS | localhost:8500 | Consul HTTPS API (host:port); :8501 on central agents |
+| SD_ADVERTISE_ADDRESS | — | Required when enabled; hostname or full URL. Empty + enabled aborts boot |
+| SD_ADVERTISE_PORT | 0 | Advertised port override; 0 = use Register port (SERVER_ADDRESS) |
+| SD_WORKLOAD | — | Workload scope for tag-based isolation per environment |
+| SD_TLS | false | Enable HTTPS to the discovery server |
+| SD_TLS_SKIP_VERIFY | false | Skip discovery-server cert verification (dev/self-signed) |
+| SD_TOKEN | — | ACL token sent to the discovery server |
 
 ### 6.2 CRM Component
 

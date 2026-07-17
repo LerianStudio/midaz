@@ -16,6 +16,7 @@ import (
 
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,41 @@ func TestValidateParameters_WithLimit(t *testing.T) {
 	assert.Equal(t, 50, result.Limit)
 }
 
+func TestValidateParameters_WithInvalidLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit string
+	}{
+		{
+			name:  "zero limit",
+			limit: "0",
+		},
+		{
+			name:  "negative limit",
+			limit: "-1",
+		},
+		{
+			name:  "non-numeric limit",
+			limit: "abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := map[string]string{
+				"limit": tt.limit,
+			}
+
+			result, err := ValidateParameters(params)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), cn.ErrInvalidQueryParameter.Error())
+			assert.Contains(t, err.Error(), "limit")
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func TestValidateParameters_WithPage(t *testing.T) {
 	params := map[string]string{
 		"page": "5",
@@ -58,6 +94,54 @@ func TestValidateParameters_WithPage(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 5, result.Page)
+}
+
+func TestValidateParameters_WithInvalidPage(t *testing.T) {
+	tests := []struct {
+		name string
+		page string
+	}{
+		{
+			name: "zero page",
+			page: "0",
+		},
+		{
+			name: "negative page",
+			page: "-1",
+		},
+		{
+			name: "non-numeric page",
+			page: "abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := map[string]string{
+				"page": tt.page,
+			}
+
+			result, err := ValidateParameters(params)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), cn.ErrInvalidQueryParameter.Error())
+			assert.Contains(t, err.Error(), "page")
+			assert.Nil(t, result)
+		})
+	}
+}
+
+func TestValidateParameters_IgnoresNonPaginationKeysContainingPaginationTerms(t *testing.T) {
+	params := map[string]string{
+		"homepage":   "abc",
+		"rate_limit": "abc",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Equal(t, 10, result.Limit)
+	assert.Equal(t, 1, result.Page)
 }
 
 func TestValidateParameters_WithCursor(t *testing.T) {
@@ -257,19 +341,13 @@ func TestValidateDates_BothZero(t *testing.T) {
 	startDate := time.Time{}
 	endDate := time.Time{}
 	err := validateDates(&startDate, &endDate)
+
+	// validateDates no longer fabricates a default window: when both dates are
+	// zero it returns nil and leaves the pointers untouched. The default window
+	// is applied separately via (*QueryHeader).ApplyDefaultDateRange.
 	require.NoError(t, err)
-	assert.False(t, startDate.IsZero())
-	assert.False(t, endDate.IsZero())
-
-	assert.Equal(t, 0, startDate.Hour())
-	assert.Equal(t, 0, startDate.Minute())
-	assert.Equal(t, 0, startDate.Second())
-
-	assert.Equal(t, 23, endDate.Hour())
-	assert.Equal(t, 59, endDate.Minute())
-	assert.Equal(t, 59, endDate.Second())
-
-	assert.True(t, endDate.After(startDate) || endDate.Equal(startDate))
+	assert.True(t, startDate.IsZero())
+	assert.True(t, endDate.IsZero())
 }
 
 func TestValidateDates_OnlyStartDateProvided(t *testing.T) {
@@ -308,17 +386,56 @@ func TestValidateDates_ValidDateRange(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidateDates_WithMaxDateRangeZero(t *testing.T) {
+func TestApplyDefaultDateRange_BothZeroAppliesWindow(t *testing.T) {
+	q := &QueryHeader{}
+
+	q.ApplyDefaultDateRange()
+
+	assert.False(t, q.StartDate.IsZero())
+	assert.False(t, q.EndDate.IsZero())
+	assert.True(t, q.EndDate.After(q.StartDate))
+}
+
+func TestApplyDefaultDateRange_WithMaxDateRangeZero(t *testing.T) {
 	t.Setenv("MAX_PAGINATION_MONTH_DATE_RANGE", "0")
 
-	startDate := time.Time{}
-	endDate := time.Time{}
+	q := &QueryHeader{}
 
-	err := validateDates(&startDate, &endDate)
+	q.ApplyDefaultDateRange()
 
-	require.NoError(t, err)
-	// When max is 0, startDate should be epoch
-	assert.Equal(t, int64(0), startDate.Unix())
+	// When max is 0, StartDate falls back to epoch (effectively unbounded start).
+	assert.Equal(t, int64(0), q.StartDate.Unix())
+	assert.False(t, q.EndDate.IsZero())
+}
+
+func TestApplyDefaultDateRange_ExplicitDatesNoOp(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)
+	q := &QueryHeader{StartDate: start, EndDate: end}
+
+	q.ApplyDefaultDateRange()
+
+	assert.Equal(t, start, q.StartDate)
+	assert.Equal(t, end, q.EndDate)
+}
+
+func TestApplyDefaultDateRange_OnlyStartProvidedNoOp(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	q := &QueryHeader{StartDate: start}
+
+	q.ApplyDefaultDateRange()
+
+	assert.Equal(t, start, q.StartDate)
+	assert.True(t, q.EndDate.IsZero())
+}
+
+func TestDefaultPaginationDateRange_UsesUTCDate(t *testing.T) {
+	localTime := time.Date(2026, time.April, 30, 23, 30, 0, 0, time.FixedZone("BRT", -3*60*60))
+
+	startDate, endDate := defaultPaginationDateRange(localTime, 1)
+
+	assert.Equal(t, time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC), startDate)
+	assert.Equal(t, time.Date(2026, time.May, 1, 23, 59, 59, 999999999, time.UTC), endDate)
 }
 
 func TestValidatePagination_ValidParams(t *testing.T) {
@@ -345,6 +462,30 @@ func TestValidatePagination_LimitExceeded(t *testing.T) {
 	_, err := validatePagination("", "asc", 150)
 
 	assert.Error(t, err)
+}
+
+func TestValidatePagination_InvalidLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit int
+	}{
+		{
+			name:  "zero limit",
+			limit: 0,
+		},
+		{
+			name:  "negative limit",
+			limit: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := validatePagination("", "asc", tt.limit)
+
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestValidatePagination_InvalidCursor(t *testing.T) {

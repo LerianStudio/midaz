@@ -12,6 +12,12 @@ const (
 	OVERDRAFT = "OVERDRAFT"
 	ONHOLD    = "ON_HOLD"
 	RELEASE   = "RELEASE"
+	// BLOCK is the public/persisted operation type for system-generated
+	// account-block companion rows. Direction still carries debit/credit semantics.
+	BLOCK = "BLOCK"
+	// UNBLOCK is the public/persisted operation type for system-generated
+	// account-unblock companion rows. Direction still carries debit/credit semantics.
+	UNBLOCK = "UNBLOCK"
 
 	DirectionDebit  = "debit"
 	DirectionCredit = "credit"

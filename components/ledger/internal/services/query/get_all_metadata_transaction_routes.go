@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
@@ -33,9 +32,9 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving transaction routes by metadata")
 
-	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), filter)
+	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransactionRoute, filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo by metadata", err)
 
@@ -55,7 +54,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
 

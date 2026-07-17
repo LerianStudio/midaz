@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
@@ -212,7 +211,7 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, operationRoute)
-	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name()), err)
+	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute), err)
 }
 
 // TestUpdateOperationRouteError tests updating an operation route with an error

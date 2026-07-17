@@ -9,9 +9,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
@@ -26,7 +25,7 @@ import (
 // pattern: checks Redis first, falls back to PostgreSQL for cache misses.
 // This is a pure read -- it does not mutate balances or execute any Lua scripts.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balances")
 	defer span.End()
@@ -52,7 +51,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 // the balances found in cache, and the aliases that were not found (cache misses)
 // which need to be fetched from the database.
 func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balances.cache_read")
 	defer span.End()

@@ -153,10 +153,20 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "metadata."):
 			metadata = &bson.M{key: value}
 			useMetadata = true
-		case strings.Contains(key, "limit"):
-			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "page"):
-			page, _ = strconv.Atoi(value)
+		case key == "limit":
+			parsedLimit, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+			}
+
+			limit = parsedLimit
+		case key == "page":
+			parsedPage, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
+			}
+
+			page = parsedPage
 		case strings.Contains(key, "cursor"):
 			cursor = value
 		case strings.Contains(key, "sort_order"):
@@ -267,6 +277,10 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
+	if page <= 0 {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "page")
+	}
+
 	cursor, err = validatePagination(cursor, sortOrder, limit)
 	if err != nil {
 		return nil, err
@@ -347,28 +361,15 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-// validateDates validates and normalizes start/end date range for pagination queries.
-// Mutates the provided pointers to apply defaults when both dates are zero.
-// Default range: last N months (via MAX_PAGINATION_MONTH_DATE_RANGE env var, default=1).
-// Set MAX_PAGINATION_MONTH_DATE_RANGE=0 for unlimited range (since epoch).
+// validateDates validates an explicit start/end date range for pagination queries.
+// It no longer applies any default window: when both dates are zero the caller
+// supplied neither, so it returns nil without mutating the pointers. The default
+// protection window is applied separately, and only for high-volume endpoints,
+// via (*QueryHeader).ApplyDefaultDateRange.
 // Enforces all-or-nothing: both dates required if any provided.
 // Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
-	// Limits query range to prevent expensive DB operations on large datasets
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
-
 	if startDate.IsZero() && endDate.IsZero() {
-		now := time.Now()
-
-		defaultStartDate := time.Unix(0, 0).UTC()
-
-		if maxDateRangeMonths != 0 {
-			defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
-		}
-
-		*startDate = defaultStartDate
-		*endDate = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
-
 		return nil
 	}
 
@@ -388,6 +389,38 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
+// ApplyDefaultDateRange fills StartDate/EndDate with the default protection
+// window (MAX_PAGINATION_MONTH_DATE_RANGE) when the caller provided neither
+// date. No-op when either date was supplied explicitly. Used only by
+// high-volume list endpoints (transactions, operations) to bound table scans.
+func (q *QueryHeader) ApplyDefaultDateRange() {
+	if !q.StartDate.IsZero() || !q.EndDate.IsZero() {
+		return
+	}
+
+	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	if maxDateRangeMonths < 0 {
+		// A negative configured value would push StartDate ahead of EndDate,
+		// silently yielding empty results. Treat it as 0 (unbounded start).
+		maxDateRangeMonths = 0
+	}
+
+	q.StartDate, q.EndDate = defaultPaginationDateRange(time.Now(), maxDateRangeMonths)
+}
+
+func defaultPaginationDateRange(now time.Time, maxDateRangeMonths int) (time.Time, time.Time) {
+	now = now.UTC()
+
+	defaultStartDate := time.Unix(0, 0).UTC()
+	if maxDateRangeMonths != 0 {
+		defaultStartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, -maxDateRangeMonths, 0)
+	}
+
+	defaultEndDate := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	return defaultStartDate, defaultEndDate
+}
+
 type legacyCursor struct {
 	ID         string `json:"id"`
 	PointsNext bool   `json:"points_next"`
@@ -396,6 +429,10 @@ type legacyCursor struct {
 // ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) (string, error) {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+
+	if limit <= 0 {
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "limit")
+	}
 
 	if limit > maxPaginationLimit {
 		return "", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)

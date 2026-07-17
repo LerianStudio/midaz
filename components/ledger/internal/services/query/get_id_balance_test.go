@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"reflect"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
@@ -230,7 +229,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		uc := UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}
 
-		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, notFoundErr)
 

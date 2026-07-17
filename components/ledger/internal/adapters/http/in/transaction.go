@@ -32,7 +32,7 @@ type TransactionHandler struct {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
@@ -41,7 +41,7 @@ type TransactionHandler struct {
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
@@ -63,6 +63,99 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
 }
 
+// buildOverriddenTransaction builds the transaction from the input, forces
+// Pending=false (so InitialStatus resolves to non-pending), and stamps the
+// given OperationTypeOverride.
+func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransaction.CreateTransactionInput, operationType string) mtransaction.Transaction {
+	transactionInput := input.BuildTransaction()
+	transactionInput.Pending = false
+	transactionInput.OperationTypeOverride = operationType
+
+	return *transactionInput
+}
+
+// CreateTransactionBlock method that creates a block transaction
+//
+//	@Summary		Create a Block Transaction
+//	@Description	Create a transaction whose resulting operations are typed BLOCK. Midaz is agnostic about the business reason for blocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — block transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
+//	@Success		201				{object}	Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Resource not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block [post]
+func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_block")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*mtransaction.CreateTransactionInput)
+	transactionInput := handler.buildOverriddenTransaction(input, constant.BLOCK)
+
+	logSafePayload(ctx, logger, "Request to create a block transaction", &transactionInput)
+	recordSafePayloadAttributes(span, &transactionInput)
+
+	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+}
+
+// CreateTransactionUnblock method that creates an unblock transaction
+//
+//	@Summary		Create an Unblock Transaction
+//	@Description	Create a transaction whose resulting operations are typed UNBLOCK. Midaz is agnostic about the business reason for unblocking funds — use the metadata field to record it. This endpoint always creates an immediately-posted, non-pending transaction; the `pending` field of the request body is IGNORED (overridden to false) — unblock transactions are never pending. The endpoint accepts the same body as the JSON create endpoint.
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
+//	@Param			X-Request-Id	header		string						false	"Request ID"
+//	@Param			X-Idempotency	header		string						false	"Idempotency key. Replays the original response for repeated requests carrying the same key."
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
+//	@Success		201				{object}	Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Resource not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict, duplicate idempotency key"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock [post]
+func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_unblock")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*mtransaction.CreateTransactionInput)
+	transactionInput := handler.buildOverriddenTransaction(input, constant.UNBLOCK)
+
+	logSafePayload(ctx, logger, "Request to create an unblock transaction", &transactionInput)
+	recordSafePayloadAttributes(span, &transactionInput)
+
+	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+}
+
 // CreateTransactionAnnotation method that create transaction using JSON
 //
 //	@Summary		Create a Transaction Annotation using JSON
@@ -70,7 +163,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
@@ -108,7 +201,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
@@ -117,7 +210,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
@@ -146,7 +239,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
@@ -155,7 +248,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
@@ -184,7 +277,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Tags			Transactions
 //	@Accept			mpfd
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -193,7 +286,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
+//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
@@ -212,7 +305,8 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		"/ledgers/"+c.Params("ledger_id")+
 		"/transactions/json>; rel=\"successor-version\"")
 
-	logger.Log(ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
+	logger.Log(
+		ctx, libLog.LevelWarn, "DEPRECATED ENDPOINT: POST /transactions/dsl called, use POST /transactions/json instead",
 		libLog.String("request_id", c.Get("X-Request-Id")),
 		libLog.String("sunset_date", "2026-08-01"),
 	)
@@ -266,7 +360,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Description	Get a Transaction with the input ID
 //	@Tags			Transactions
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
 //	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
@@ -288,6 +382,14 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	params, err := readPathParams(c)
 	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters", libLog.Err(err))
+
 		return http.WithError(c, err)
 	}
 
@@ -314,14 +416,6 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 	defer spanGetTransaction.End()
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to validate query parameters", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
 
 	headerParams.Metadata = &bson.M{}
 

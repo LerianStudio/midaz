@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 
 	libObs "github.com/LerianStudio/lib-observability"
 
@@ -33,9 +32,9 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operation routes by metadata")
 
-	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
+	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperationRoute, filter)
 	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo by metadata", err)
 
@@ -55,7 +54,7 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation routes on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
 

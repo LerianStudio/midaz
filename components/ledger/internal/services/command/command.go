@@ -5,6 +5,7 @@
 package command
 
 import (
+	libStreaming "github.com/LerianStudio/lib-streaming"
 	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
@@ -91,4 +92,16 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
+
+	// --- Streaming ---
+
+	// Streaming is the lib-streaming Emitter used to publish past-tense
+	// domain events (e.g. account.created) to external consumers as
+	// CloudEvents. The field accepts the Emitter interface, never
+	// *libStreaming.Producer directly, so unit tests can substitute
+	// pkgStreaming.NewMockEmitter() or libStreaming.NewNoopEmitter()
+	// without pulling in a broker. A nil value is treated as "streaming
+	// disabled" by every call site — never required for the request to
+	// succeed.
+	Streaming libStreaming.Emitter
 }

@@ -1,1 +1,5 @@
+# ---------------------------------------------------------------------------
+# CVE-2025-57319 — withdrawn npm advisory (fast-redact prototype pollution).
+# Not applicable to this Go repository; retained from prior configuration.
+# ---------------------------------------------------------------------------
 CVE-2025-57319

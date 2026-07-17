@@ -7,7 +7,6 @@ package alias
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -75,11 +73,11 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	}
 
 	if result.MatchedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrAliasNotFound, cn.EntityAlias)
 	}
 
 	if result.ModifiedCount == 0 {
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, cn.EntityRelatedParty)
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleted related party with id %s from alias %s", relatedPartyID.String(), aliasID.String()))
@@ -87,9 +85,9 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	return nil
 }
 
-// createIndexes creates indexes for specific fields, if it not exists.
-func createIndexes(ctx context.Context, collection *mongo.Collection) error {
-	indexModels := []mongo.IndexModel{
+// indexModels returns the index definitions for the alias collection.
+func indexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
 		{
 			Keys: bson.D{
 				{Key: "_id", Value: 1},
@@ -157,11 +155,25 @@ func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 				SetPartialFilterExpression(bson.D{{Key: "deleted_at", Value: nil}}),
 		},
 	}
+}
 
+// ensureIndexes ensures indexes exist for the alias collection.
+// Uses per-collection tracking to handle multi-tenant/per-org collections correctly.
+// Retries on failure — indexes are only marked as done after successful creation.
+func ensureIndexes(ctx context.Context, collection *mongo.Collection) error {
+	key := collection.Database().Name() + ":" + collection.Name()
+
+	return globalIndexTracker.ensureOnce(key, func() error {
+		return createIndexes(ctx, collection)
+	})
+}
+
+// createIndexes creates indexes for specific fields, if it not exists.
+func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := collection.Indexes().CreateMany(ctx, indexModels)
+	_, err := collection.Indexes().CreateMany(ctx, indexModels())
 
 	return err
 }

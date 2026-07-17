@@ -87,7 +87,6 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testi
 		assert.Empty(t, scripter.evalShaCalls, "GetBalanceSyncKeys must fail closed before EVALSHA")
 		assert.Empty(t, scripter.evalCalls, "GetBalanceSyncKeys must fail closed before EVAL")
 	})
-
 }
 
 // TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing is a regression test for the

@@ -96,6 +96,15 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 // idempotent: if a balance with key="overdraft" already exists for the
 // account, no new row is created.
 //
+// Returns the *persisted* companion balance whenever this call actually
+// materialized a new one (so the caller can publish
+// balance.config_changed{changeType=overdraft_enabled} for the companion
+// row that just came into being). Returns nil when nothing was created —
+// either because the transition was a no-op (overdraft already allowed,
+// or nextSettings.AllowOverdraft == false), because the companion
+// already exists, or because the concurrent-insert race resolved as
+// idempotent success (the peer request emitted the event).
+//
 // The auto-created balance is:
 //   - key        = "overdraft"
 //   - direction  = "debit"
@@ -116,9 +125,12 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 // When that happens we treat the race as benign — the peer request already
 // created the balance we were about to create — and re-fetch it so the
 // caller sees the same state it would have in the single-request case.
+// In the race-loser path we return nil for the created balance: the peer
+// request will have emitted balance.config_changed{overdraft_enabled},
+// and the loser must not double-emit for the same materialization.
 // Any other Create failure (connectivity, constraint violations we did not
 // trigger, etc.) is propagated unchanged.
-func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) error {
+func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) (*mmodel.Balance, error) {
 	// Concurrency model: auto-creation is idempotent. Two concurrent
 	// PATCH-enable requests on the same account will both attempt to
 	// create the overdraft companion balance. The partial unique index
@@ -129,16 +141,16 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	// and treats it as a no-op — the second caller proceeds with the
 	// companion that the first caller created.
 	if current == nil || nextSettings == nil {
-		return nil
+		return nil, nil
 	}
 
 	if !nextSettings.AllowOverdraft {
-		return nil
+		return nil, nil
 	}
 
 	// Only act on the false→true transition. Anything else is a no-op.
 	if current.Settings != nil && current.Settings.AllowOverdraft {
-		return nil
+		return nil, nil
 	}
 
 	// An empty AccountID can only occur in tests that seed a minimal
@@ -153,7 +165,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id on current balance", perr)
 			logger.Log(ctx, libLog.LevelError, "Failed to parse account ID", libLog.String("accountID", current.AccountID), libLog.Err(perr))
 
-			return perr
+			return nil, perr
 		}
 
 		accountID = parsed
@@ -172,7 +184,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check for existing overdraft balance", ferr)
 			logger.Log(ctx, libLog.LevelError, "Failed to check existing overdraft balance", libLog.Err(ferr))
 
-			return ferr
+			return nil, ferr
 		}
 
 		existing = nil
@@ -180,7 +192,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 
 	if existing != nil {
 		// Idempotent: the overdraft balance already exists.
-		return nil
+		return nil, nil
 	}
 
 	// The companion balance participates as BOTH a source (DEBIT grows the
@@ -196,7 +208,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for overdraft balance", uuidErr)
 		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for overdraft balance", libLog.Err(uuidErr))
 
-		return uuidErr
+		return nil, uuidErr
 	}
 
 	now := time.Now()
@@ -221,19 +233,23 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		UpdatedAt: now,
 	}
 
-	if _, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance); cerr != nil {
+	created, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance)
+	if cerr != nil {
 		// Benign race: a concurrent request won the Create. The partial
 		// UNIQUE index idx_unique_balance_account_key surfaces this as a
 		// PostgreSQL unique_violation (SQLSTATE 23505). Treat it as
 		// idempotent success — the peer request materialized the same row
 		// we were about to create. Verify with a follow-up Find so we
 		// never silently swallow a 23505 triggered by an unrelated index.
+		// The race-loser returns nil for the created balance so the caller
+		// does not publish a duplicate balance.config_changed event for the
+		// same companion row — the race-winner emits it.
 		if isUniqueViolation(cerr) {
 			reloaded, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
 			if reloadErr == nil && reloaded != nil {
 				logger.Log(ctx, libLog.LevelInfo, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("accountID", current.AccountID))
 
-				return nil
+				return nil, nil
 			}
 			// Fall through and surface the original Create error if the
 			// reload failed or still returned nil — that means the 23505
@@ -243,12 +259,12 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
 		logger.Log(ctx, libLog.LevelError, "Failed to auto-create overdraft balance", libLog.Err(cerr))
 
-		return cerr
+		return nil, cerr
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Auto-created overdraft balance", libLog.String("accountID", current.AccountID))
 
-	return nil
+	return created, nil
 }
 
 // isUniqueViolation reports whether err is a PostgreSQL unique_violation

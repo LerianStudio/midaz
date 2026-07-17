@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	"github.com/LerianStudio/lib-commons/v5/commons"
 	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -35,7 +34,7 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 		return now, nil
 	}
 
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	if transactionInput.TransactionDate.After(now) {
 		err := pkg.ValidateBusinessError(pkgConstant.ErrInvalidFutureTransactionDate, pkgConstant.EntityTransaction)
@@ -56,7 +55,7 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 
 // ValidateBalancesRules function with some validates in accounts operations
 func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, spanValidateBalances := tracer.Start(ctx, "transaction.validate_balances_rules")
 	defer spanValidateBalances.End()
@@ -378,7 +377,7 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) (st
 // Skipped for CREATED transactions because their balance operations (simple
 // DEBIT/CREDIT) do not branch on RouteValidationEnabled.
 func PropagateRouteValidation(ctx context.Context, validate *Responses, transactionStatus string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "transaction.propagate_route_validation")
 	defer span.End()
@@ -549,7 +548,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		destinationsTotal decimal.Decimal
 	)
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "transaction.validate_send_source_and_distribute")
 	defer span.End()

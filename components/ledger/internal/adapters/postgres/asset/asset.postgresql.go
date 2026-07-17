@@ -10,16 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
-
-	libObs "github.com/LerianStudio/lib-observability"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -50,6 +48,8 @@ var assetColumnList = []string{
 
 // Repository provides an interface for operations related to asset entities.
 // It defines methods for creating, finding, updating, and deleting assets in the database.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=asset.postgresql_mock.go --package=asset . Repository
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
@@ -108,7 +108,7 @@ func (r *AssetPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, e
 
 // Create a new asset entity into Postgresql and returns it.
 func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
 	defer span.End()
@@ -126,8 +126,13 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	record.FromEntity(asset)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `INSERT INTO asset VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+	insertQuery := `INSERT INTO asset VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ` + strings.Join(assetColumnList, ", ")
+
+	inserted := &AssetPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, insertQuery,
 		record.ID,
 		record.Name,
 		record.Type,
@@ -140,7 +145,19 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
-	if err != nil {
+	if err := row.Scan(
+		&inserted.ID,
+		&inserted.Name,
+		&inserted.Type,
+		&inserted.Code,
+		&inserted.Status,
+		&inserted.StatusDescription,
+		&inserted.LedgerID,
+		&inserted.OrganizationID,
+		&inserted.CreatedAt,
+		&inserted.UpdatedAt,
+		&inserted.DeletedAt,
+	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
@@ -155,31 +172,12 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		return nil, err
 	}
 
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return inserted.ToEntity(), nil
 }
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
@@ -241,7 +239,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 // FindAll retrieves Asset entities from the database with soft-deleted records.
 func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
 	defer span.End()
@@ -261,10 +259,15 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID))
+
+	if !filter.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+	}
+
+	findAll = findAll.OrderBy("id " + strings.ToUpper(filter.SortOrder)).
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
@@ -319,7 +322,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 // ListByIDs retrieves Assets entities from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
 	defer span.End()
@@ -395,7 +398,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 // Find retrieves an Asset entity from the database using the provided ID.
 func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
 	defer span.End()
@@ -451,7 +454,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 // Update an Asset entity into Postgresql and returns the Asset updated.
 func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
 	defer span.End()
@@ -468,39 +471,63 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	record := &AssetPostgreSQLModel{}
 	record.FromEntity(asset)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if asset.Name != "" {
-		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Name)
+		builder = builder.Set("name", record.Name)
 	}
 
 	if !asset.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	builder = builder.Suffix("RETURNING " + strings.Join(assetColumnList, ", "))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build update query: %v", err))
 
-	query := `UPDATE asset SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	updated := &AssetPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Type,
+		&updated.Code,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.LedgerID,
+		&updated.OrganizationID,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update asset. Rows affected is 0", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
@@ -519,31 +546,12 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update asset. Rows affected is 0", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 // Delete removes an Asset entity from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
 	defer span.End()
@@ -593,7 +601,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 // Count retrieves the total count of Asset entities from the database.
 func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_assets")
 	defer span.End()

@@ -1,0 +1,2 @@
+# Lerian libraries to exclude from automated dependency bumps.
+# Currently empty: no libs need pinning.

@@ -7,14 +7,12 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -58,7 +56,7 @@ func TestDeleteAccountTypeByIDNotFound(t *testing.T) {
 	ledgerID := uuid.New()
 	id := uuid.New()
 
-	expectedErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+	expectedErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
 	mockAccountTypeRepo.EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, id).

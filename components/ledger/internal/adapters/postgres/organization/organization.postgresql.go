@@ -14,12 +14,11 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -49,6 +48,8 @@ var organizationColumnList = []string{
 }
 
 // Repository defines the persistence operations for organization entities.
+//
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=organization.postgresql_mock.go --package=organization . Repository
 type Repository interface {
 	// Create inserts a new organization, generates its ID, and returns the persisted entity.
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
@@ -124,7 +125,7 @@ func (r *OrganizationPostgreSQLRepository) getDB(ctx context.Context) (dbresolve
 }
 
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_organization")
 	defer span.End()
@@ -212,7 +213,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 }
 
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")
 	defer span.End()
@@ -327,7 +328,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 }
 
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_organization")
 	defer span.End()
@@ -397,7 +398,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
 	defer span.End()
@@ -417,10 +418,15 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 	findAll := squirrel.Select(organizationColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)}).
-		OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Where(squirrel.Eq{"deleted_at": nil})
+
+	if !pagination.StartDate.IsZero() {
+		findAll = findAll.
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
+	}
+
+	findAll = findAll.OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
 		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
 		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
@@ -511,7 +517,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 }
 
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
 	defer span.End()
@@ -598,7 +604,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 }
 
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_organization")
 	defer span.End()
@@ -646,7 +652,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 }
 
 func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_organizations")
 	defer span.End()
