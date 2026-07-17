@@ -455,6 +455,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Overdraft Limit Exceeded Error",
 			Message:    "The transaction could not be completed because it would exceed the configured overdraft limit for the balance. Please reduce the amount or increase the overdraft limit and try again.",
 		},
+		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOverdraftRouteNotConfigured.Error(),
+			Title:      "Overdraft Route Not Configured Error",
+			Message:    "The transaction could not be completed because route validation is enabled but the accounting route applied to the overdraft operation does not define an overdraft entry for the required direction. Configure an overdraft accounting entry on the operation route and try again.",
+		},
 		constant.ErrDirectOperationOnInternalBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrDirectOperationOnInternalBalance.Error(),

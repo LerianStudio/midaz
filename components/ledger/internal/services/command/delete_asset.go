@@ -54,20 +54,17 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		return err
 	}
 
-	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
-
-	acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+	externalAccounts, err := uc.AccountRepo.ListExternalAccountsByAssetCode(ctx, organizationID, ledgerID, asset.Code)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external accounts", err)
 
-		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external account")
+		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external accounts")
 
 		return err
 	}
 
-	if len(acc) > 0 {
-		err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(acc[0].ID))
-		if err != nil {
+	for _, extAccount := range externalAccounts {
+		if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(extAccount.ID)); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset external account", err)
 
 			logger.Log(ctx, libLog.LevelError, "Error deleting asset external account")
@@ -112,9 +109,8 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 // The PG deleted_at column is set by the same wall clock at row-update
 // time, so the values are effectively identical up to clock skew.
 //
-// The cascade-delete of the implicit external account earlier in this
-// use case goes through AccountRepo directly — NOT through
-// UseCase.DeleteAccountByID — so it produces no account.deleted event.
+// The asset.deleted event below is the single user-visible signal for this
+// operation; the external-account soft-deletes above are internal cleanup.
 //
 // Wire-format mapping lives in pkg/streaming/events/asset_deleted.go;
 // changes to the payload contract belong there, not here.

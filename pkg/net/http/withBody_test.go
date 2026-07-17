@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -653,6 +654,103 @@ func TestMetadataValidation_Combined(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateCreateAccountInput_ExternalType exercises the real
+// mmodel.CreateAccountInput validation tags through ValidateStruct. It locks in
+// that user-supplied type:"external" is accepted (the input contract is open)
+// while the canonical @external/ alias prefix stays reserved and invalid alias
+// characters are still rejected.
+func TestValidateCreateAccountInput_ExternalType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   mmodel.CreateAccountInput
+		wantErr bool
+	}{
+		{
+			name: "valid - type external is accepted",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+				Type:      "external",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - type external mixed case is accepted",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+				Type:      "External",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - type deposit still accepted",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "USD",
+				Type:      "deposit",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - external type with normal alias",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+				Type:      "external",
+				Alias:     ptr("treasury_external"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid - reserved @external/ alias prefix rejected",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+				Type:      "external",
+				Alias:     ptr("@external/BRL"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid - reserved @external/ alias prefix rejected for non-external type",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "USD",
+				Type:      "deposit",
+				Alias:     ptr("@external/USD"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid - alias with illegal characters rejected",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+				Type:      "external",
+				Alias:     ptr("bad alias!"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid - missing required type",
+			input: mmodel.CreateAccountInput{
+				AssetCode: "BRL",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := tc.input
+			err := ValidateStruct(&input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

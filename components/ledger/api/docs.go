@@ -6961,7 +6961,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable Entity, validation or business-rule errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7051,7 +7051,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7141,7 +7141,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -7338,7 +7338,7 @@ const docTemplate = `{
                         }
                     },
                     "422": {
-                        "description": "Unprocessable Entity, validation errors",
+                        "description": "Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }

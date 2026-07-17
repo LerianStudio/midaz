@@ -693,6 +693,116 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 }
 
 // ============================================================================
+// Custom External Account Tests
+// ============================================================================
+// A "custom external account" is an external-type account created with a
+// user-provided, non-canonical alias (i.e. NOT the @external/<asset> form the
+// ledger auto-provisions). These tests prove such an account is a first-class
+// account through the standard fetch/list APIs, and that the canonical
+// @external/<asset> external-by-code lookup still behaves as before.
+
+// TestIntegration_AccountRepository_CustomExternal_FetchableAndListable proves
+// a custom external account (Type=external, non-canonical alias) is fetchable
+// by ID, by alias, and appears in the paginated listing exactly like any other
+// account.
+func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	customAlias := "@pi"
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "User External Account"
+	params.Alias = customAlias
+	params.AssetCode = "BRL"
+	params.Type = constant.ExternalAccountType
+	accountID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	// Act & Assert: fetch by ID.
+	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	require.NoError(t, err, "custom external account must be fetchable by ID")
+	require.NotNil(t, byID)
+	assert.Equal(t, accountID.String(), byID.ID)
+	assert.Equal(t, constant.ExternalAccountType, byID.Type, "type should be external")
+	assert.Equal(t, customAlias, *byID.Alias, "custom alias should be persisted verbatim")
+
+	// Act & Assert: fetch by alias (the generic alias lookup, not external-by-code).
+	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias)
+	require.NoError(t, err, "custom external account must be fetchable by its custom alias")
+	require.NotNil(t, byAlias)
+	assert.Equal(t, accountID.String(), byAlias.ID)
+	assert.Equal(t, constant.ExternalAccountType, byAlias.Type)
+
+	// Act & Assert: appears in the paginated listing. No date window is set
+	// (StartDate/EndDate left zero) so FindAll skips date filtering entirely and
+	// the fixture's real-time created_at is always included.
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+	}
+	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	require.NoError(t, err, "FindAll should not error")
+
+	var found *mmodel.Account
+	for _, acc := range listed {
+		if acc.ID == accountID.String() {
+			found = acc
+			break
+		}
+	}
+	require.NotNil(t, found, "custom external account must appear in the account listing")
+	assert.Equal(t, constant.ExternalAccountType, found.Type)
+	assert.Equal(t, customAlias, *found.Alias)
+}
+
+// TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible
+// proves the canonical @external/<asset> external-by-code path is unchanged:
+// an account created with the canonical alias is resolvable via FindAlias using
+// the @external/<asset> alias (the same lookup GetAccountExternalByCode drives).
+func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	canonicalAlias := constant.DefaultExternalAccountAliasPrefix + "USD" // "@external/USD"
+	params := pgtestutil.DefaultAccountParams()
+	params.Name = "External USD Account"
+	params.Alias = canonicalAlias
+	params.AssetCode = "USD"
+	params.Type = constant.ExternalAccountType
+	accountID := pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, params)
+
+	ctx := context.Background()
+
+	// Act: GetAccountExternalByCode resolves "@external/<code>" via FindAlias.
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias)
+
+	// Assert
+	require.NoError(t, err, "canonical external-by-code alias must resolve")
+	require.NotNil(t, account)
+	assert.Equal(t, accountID.String(), account.ID)
+	assert.Equal(t, canonicalAlias, *account.Alias, "canonical alias should be returned unchanged")
+	assert.Equal(t, constant.ExternalAccountType, account.Type)
+
+	// A code with no provisioned external account still yields not-found,
+	// preserving the pre-existing 404 behavior.
+	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR")
+	require.Error(t, err, "unprovisioned external code must remain not-found")
+	assert.Nil(t, missing)
+}
+
+// ============================================================================
 // FindByAlias Tests
 // ============================================================================
 
@@ -1180,6 +1290,100 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t
 	require.NoError(t, err)
 	assert.Len(t, accounts, 1, "should only return active account")
 	assert.Equal(t, alias1, *accounts[0].Alias)
+}
+
+// ============================================================================
+// ListExternalAccountsByAssetCode Tests
+// ============================================================================
+
+func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOnlyLiveExternals(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	deletedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Truncate(time.Microsecond)
+
+	newExternal := func(alias string, deleted *time.Time) uuid.UUID {
+		p := pgtestutil.DefaultAccountParams()
+		p.Name = "External " + alias
+		p.Alias = alias
+		p.AssetCode = "BRL"
+		p.Type = constant.ExternalAccountType
+		p.DeletedAt = deleted
+		return pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
+	}
+
+	// Live externals for the target asset (canonical + custom).
+	canonicalID := newExternal(constant.DefaultExternalAccountAliasPrefix+"BRL", nil)
+	customID := newExternal("@brl-external-custom", nil)
+
+	// Soft-deleted external for the same asset must be excluded.
+	newExternal("@brl-external-deleted", &deletedAt)
+
+	// Regular (non-external) account for the same asset must be excluded.
+	regularParams := pgtestutil.DefaultAccountParams()
+	regularParams.Name = "Regular BRL"
+	regularParams.Alias = "@brl-regular"
+	regularParams.AssetCode = "BRL"
+	regularParams.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, regularParams)
+
+	// External account for a different asset must be excluded.
+	otherAssetParams := pgtestutil.DefaultAccountParams()
+	otherAssetParams.Name = "External USD"
+	otherAssetParams.Alias = constant.DefaultExternalAccountAliasPrefix + "USD"
+	otherAssetParams.AssetCode = "USD"
+	otherAssetParams.Type = constant.ExternalAccountType
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, otherAssetParams)
+
+	ctx := context.Background()
+
+	// Act
+	accounts, err := repo.ListExternalAccountsByAssetCode(ctx, orgID, ledgerID, "BRL")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should return only the two live external accounts for BRL")
+
+	ids := make(map[string]bool)
+	for _, acc := range accounts {
+		ids[acc.ID] = true
+		assert.Equal(t, constant.ExternalAccountType, acc.Type, "returned account must be external")
+		assert.Equal(t, "BRL", acc.AssetCode, "returned account must match asset code")
+	}
+	assert.True(t, ids[canonicalID.String()], "canonical external account must be returned")
+	assert.True(t, ids[customID.String()], "custom external account must be returned")
+}
+
+func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsEmptyWhenNone(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Only a regular account exists for the asset.
+	p := pgtestutil.DefaultAccountParams()
+	p.Name = "Regular EUR"
+	p.Alias = "@eur-regular"
+	p.AssetCode = "EUR"
+	p.Type = "deposit"
+	pgtestutil.CreateTestAccountWithParams(t, container.DB, orgID, ledgerID, p)
+
+	ctx := context.Background()
+
+	// Act
+	accounts, err := repo.ListExternalAccountsByAssetCode(ctx, orgID, ledgerID, "EUR")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Empty(t, accounts, "should return no external accounts")
 }
 
 // ============================================================================

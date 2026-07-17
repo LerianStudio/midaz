@@ -206,8 +206,6 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 			case "singletransactiontype":
 				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
-			case "invalidstrings":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
 			case "invalidaliascharacters":
 				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
 			case "invalidaccounttype":
@@ -276,7 +274,6 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
 	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
-	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
@@ -344,13 +341,6 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("prohibitedexternalaccountprefix", formatErrorFieldName(fe.Namespace()))
 
-		return t
-	})
-
-	_ = v.RegisterTranslation("invalidstrings", trans, func(ut ut.Translator) error {
-		return ut.Add("invalidstrings", "{0} cannot contain any of these invalid strings: {1}", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("invalidstrings", formatErrorFieldName(fe.Namespace()), fe.Param())
 		return t
 	})
 
@@ -1008,21 +998,6 @@ func compareSlices(original, marshaled []any) []any {
 	}
 
 	return diff
-}
-
-// validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive)
-func validateInvalidStrings(fl validator.FieldLevel) bool {
-	f := strings.ToLower(fl.Field().Interface().(string))
-
-	invalidStrings := strings.Split(fl.Param(), ",")
-
-	for _, str := range invalidStrings {
-		if strings.Contains(f, strings.ToLower(str)) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // findNilFields recursively traverses the map and returns the paths

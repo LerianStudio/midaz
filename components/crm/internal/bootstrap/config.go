@@ -88,24 +88,6 @@ type Config struct {
 	// are consumed by libStreaming.LoadConfig() inside BuildStreamingEmitter, not
 	// from this struct — so they have no field here.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
-
-	// --- Streaming SASL/TLS auth ---
-	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
-	// without authentication, matching the existing behaviour for local/dev
-	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
-	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then
-	// required and BuildStreamingEmitter wires the matching franz-go
-	// sasl.Mechanism into the lib-streaming Builder.
-	//
-	// SASL without TLS is rejected by lib-streaming with
-	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
-	// explicit unsafe opt-in for local/dev brokers that do not terminate
-	// TLS. It must NOT be set in production: SASL credentials cross the
-	// network in cleartext.
-	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
-	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
-	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
-	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -191,6 +173,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD wiring.
+	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
+	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
+	// the launcher's Runnable never runs, so that watcher would leak. On success the
+	// closer is disarmed because the Runnable then owns the graceful close. Twins the
+	// streamingCleanup disarm-defer directly below.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+
+	defer sdBootCloser.CloseOnBootFailure()
+
 	mongoConnection, err := initMongoConnection(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -262,6 +254,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry, readyzHandler)
 
 	streamingCleanup = noopStreamingCloser
+
+	sdBootCloser.Disarm()
 
 	return &Service{
 		Server:                  serverAPI,

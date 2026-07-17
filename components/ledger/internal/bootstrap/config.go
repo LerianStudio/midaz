@@ -219,24 +219,6 @@ type Config struct {
 	StreamingCompression       string `env:"STREAMING_COMPRESSION"`
 	StreamingRequiredAcks      string `env:"STREAMING_REQUIRED_ACKS"`
 	StreamingBatchLingerMs     int    `env:"STREAMING_BATCH_LINGER_MS"`
-
-	// --- Streaming SASL/TLS auth ---
-	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
-	// without authentication, matching the existing behaviour for local/dev
-	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
-	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then
-	// required and BuildStreamingEmitter wires the matching franz-go
-	// sasl.Mechanism into the lib-streaming Builder.
-	//
-	// SASL without TLS is rejected by lib-streaming with
-	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
-	// explicit unsafe opt-in for local/dev brokers that do not terminate
-	// TLS. It must NOT be set in production: SASL credentials cross the
-	// network in cleartext.
-	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
-	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
-	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
-	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -734,6 +716,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD wiring.
+	// wireServiceDiscovery (when SD is enabled) lazy-spawns a background watcher via
+	// ResolveAuthHost; on a partial-boot failure below the Service is never built and
+	// the launcher's Runnable never runs, so that watcher would leak. On success the
+	// closer is disarmed and the Runnable owns the graceful close. The manager is NOT
+	// in doCleanup, so this defer and doCleanup close disjoint resources.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+	defer sdBootCloser.CloseOnBootFailure()
+
 	auth := middleware.NewAuthClient(sd.authHost, cfg.AuthEnabled, nil)
 
 	// === Multi-tenant middleware ===
@@ -807,6 +798,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
+
+	sdBootCloser.Disarm()
 
 	return &Service{
 		UnifiedServer:            unifiedServer,
