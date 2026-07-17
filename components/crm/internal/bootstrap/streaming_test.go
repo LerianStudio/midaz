@@ -158,8 +158,9 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 		assert.False(t, dup, "duplicate route for DefinitionKey %q", r.DefinitionKey)
 		routeKeys[r.DefinitionKey] = struct{}{}
 
-		assert.Equal(t, streamingTopicPrefix+r.DefinitionKey, r.Destination.Name,
-			"route for %q must target topic %q", r.DefinitionKey, streamingTopicPrefix+r.DefinitionKey)
+		expectedTopic := streamingTopicPrefix + "crm_" + strings.ReplaceAll(r.DefinitionKey, "-", "_")
+		assert.Equal(t, expectedTopic, r.Destination.Name,
+			"route for %q must target topic %q", r.DefinitionKey, expectedTopic)
 	}
 
 	// Bijection both directions: every emitted key has a route, every route has
@@ -182,7 +183,7 @@ func TestCRMCatalog_CoversAllEmittedEvents(t *testing.T) {
 	}
 
 	require.NotNil(t, hyphenatedRoute, "route for %q must exist", hyphenatedKey)
-	assert.Equal(t, "midaz.alias.related-party-deleted", hyphenatedRoute.Destination.Name)
+	assert.Equal(t, "lerian.streaming.crm_alias.related_party_deleted", hyphenatedRoute.Destination.Name)
 
 	// The canonical set must match the events.*Definition vars the helpers use,
 	// so a Definition var mis-keyed away from the literal above is also caught.
