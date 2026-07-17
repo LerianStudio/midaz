@@ -189,7 +189,7 @@ func streamingITExpectations() []streamingITExpectation {
 	return []streamingITExpectation{
 		{
 			name:       "holder.created",
-			topic:      streamingTopicPrefix + events.HolderCreatedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.HolderCreatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.HolderCreatedDefinition.Key(),
 			subject:    holderID.String(),
 			requireKey: []string{"id", "organizationId", "type", "createdAt", "updatedAt"},
@@ -199,7 +199,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "holder.updated",
-			topic:      streamingTopicPrefix + events.HolderUpdatedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.HolderUpdatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.HolderUpdatedDefinition.Key(),
 			subject:    holderID.String(),
 			requireKey: []string{"id", "organizationId", "type", "createdAt", "updatedAt"},
@@ -209,7 +209,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "holder.deleted",
-			topic:      streamingTopicPrefix + events.HolderDeletedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.HolderDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.HolderDeletedDefinition.Key(),
 			subject:    holderID.String(),
 			requireKey: []string{"id", "organizationId", "deletionType", "deletedAt"},
@@ -220,7 +220,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "alias.created",
-			topic:      streamingTopicPrefix + events.AliasCreatedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.AliasCreatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.AliasCreatedDefinition.Key(),
 			subject:    aliasID.String(),
 			requireKey: []string{"id", "holderId", "organizationId", "ledgerId", "accountId", "type", "relatedParties"},
@@ -230,7 +230,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "alias.updated",
-			topic:      streamingTopicPrefix + events.AliasUpdatedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.AliasUpdatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.AliasUpdatedDefinition.Key(),
 			subject:    aliasID.String(),
 			requireKey: []string{"id", "holderId", "organizationId", "ledgerId", "accountId", "type", "relatedParties"},
@@ -240,7 +240,7 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			name:       "alias.deleted",
-			topic:      streamingTopicPrefix + events.AliasDeletedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.AliasDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.AliasDeletedDefinition.Key(),
 			subject:    aliasID.String(),
 			requireKey: []string{"id", "holderId", "organizationId", "deletionType", "deletedAt"},
@@ -253,7 +253,7 @@ func streamingITExpectations() []streamingITExpectation {
 			// The hyphenated key AND the subject-is-alias-id subtlety live here:
 			// ce-subject MUST be the alias id, NOT the related-party id.
 			name:       "alias.related-party-deleted",
-			topic:      streamingTopicPrefix + events.AliasRelatedPartyDeletedDefinition.Key(),
+			topic:      pkgStreaming.TopicName(streamingServiceName, events.AliasRelatedPartyDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.AliasRelatedPartyDeletedDefinition.Key(),
 			subject:    aliasID.String(),
 			requireKey: []string{"aliasId", "holderId", "organizationId", "relatedPartyId", "deletedAt"},
