@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@feat/midaz-e2e-tests
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.4
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
@@ -36,12 +36,5 @@ jobs:
       helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
       gitops_yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       enable_apidog_e2e: true
-      enable_e2e_tests: true
-      e2e_modules: "midaz-ledger,midaz-crm"
-      e2e_tenancy: st
-      s3_uploads: >-
-        [
-          {"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},
-          {"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false}
-        ]
+      s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false}]'
     secrets: inherit
