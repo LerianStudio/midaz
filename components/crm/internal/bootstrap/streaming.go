@@ -21,8 +21,15 @@ import (
 const streamingPrimaryTargetName = "primary"
 
 // streamingTopicPrefix is the canonical prefix every topic name uses. Topic
-// names take the shape "midaz.<resource>.<event>".
-const streamingTopicPrefix = "midaz."
+// names take the shape "lerian.streaming.<service>_<resource>.<event>", where
+// <service> is streamingServiceName and hyphens in the <resource>.<event>
+// route key are converted to underscores in the topic name only (the route key
+// and ce-type stay hyphenated).
+const streamingTopicPrefix = "lerian.streaming."
+
+// streamingServiceName is the component service segment embedded in every topic
+// name (e.g. "crm" -> lerian.streaming.crm_<resource>.<event>).
+const streamingServiceName = "crm"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter when
 // streaming is disabled. It exists only so callers can append a single uniform
@@ -113,7 +120,7 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "midaz.<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -203,7 +210,10 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per CRM event, targeting the
 // single broker named targetName. Topic names are
-// "midaz.<resource>.<event>".
+// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route key
+// are converted to underscores in the topic name ONLY; the route Key and
+// DefinitionKey stay hyphenated (the lib-streaming route-key regex rejects
+// underscores).
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "holder.created.primary") — Route.Key must match a lower-case dot-delimited
@@ -215,11 +225,12 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 
 	for _, d := range defs {
 		key := d.Key()
+		topic := streamingTopicPrefix + streamingServiceName + "_" + strings.ReplaceAll(key, "-", "_")
 		routes = append(routes, libStreaming.RouteDefinition{
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(streamingTopicPrefix + key),
+			Destination:   libStreaming.KafkaTopic(topic),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

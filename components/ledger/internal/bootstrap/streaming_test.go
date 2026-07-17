@@ -63,7 +63,7 @@ func TestMidazEventDefinitions_IncludesBalanceChanged(t *testing.T) {
 }
 
 // TestBuildRoutes_BalanceChangedTopic asserts the balance.changed route
-// resolves to the canonical midaz.balance.changed Kafka topic.
+// resolves to the canonical lerian.streaming.ledger_balance.changed Kafka topic.
 func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +77,7 @@ func TestBuildRoutes_BalanceChangedTopic(t *testing.T) {
 			dest = r.Destination.Name
 		}
 	}
-	assert.Equal(t, "midaz.balance.changed", dest)
+	assert.Equal(t, "lerian.streaming.ledger_balance.changed", dest)
 }
 
 // TestBuildStreamingEmitter_SASLWithoutTLSFailsClosed locks the security

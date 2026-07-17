@@ -36,7 +36,10 @@ which feeds both the Catalog and the route table:
 
 - **Event key** = `<resourceType>.<eventType>` (e.g. `holder.created`).
 - **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `midaz.<key>`.
+- **Kafka topic** = `lerian.streaming.crm_<key>`, with hyphens in `<key>`
+  converted to underscores in the topic name only (e.g.
+  `lerian.streaming.crm_alias.related_party_deleted`). The event key and
+  `ce-type` keep the hyphen.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
@@ -47,17 +50,18 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `holder.created` | holder / created | `studio.lerian.holder.created` | `midaz.holder.created` | holder ID | `CreateHolder` |
-| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `midaz.holder.updated` | holder ID | `UpdateHolderByID` |
-| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `midaz.holder.deleted` | holder ID | `DeleteHolderByID` |
-| `alias.created` | alias / created | `studio.lerian.alias.created` | `midaz.alias.created` | alias ID | `CreateAlias` |
-| `alias.updated` | alias / updated | `studio.lerian.alias.updated` | `midaz.alias.updated` | alias ID | `UpdateAliasByID` |
-| `alias.deleted` | alias / deleted | `studio.lerian.alias.deleted` | `midaz.alias.deleted` | alias ID | `DeleteAliasByID` |
-| `alias.related-party-deleted` | alias / related-party-deleted | `studio.lerian.alias.related-party-deleted` | `midaz.alias.related-party-deleted` | **alias ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
+| `holder.created` | holder / created | `studio.lerian.holder.created` | `lerian.streaming.crm_holder.created` | holder ID | `CreateHolder` |
+| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `lerian.streaming.crm_holder.updated` | holder ID | `UpdateHolderByID` |
+| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `lerian.streaming.crm_holder.deleted` | holder ID | `DeleteHolderByID` |
+| `alias.created` | alias / created | `studio.lerian.alias.created` | `lerian.streaming.crm_alias.created` | alias ID | `CreateAlias` |
+| `alias.updated` | alias / updated | `studio.lerian.alias.updated` | `lerian.streaming.crm_alias.updated` | alias ID | `UpdateAliasByID` |
+| `alias.deleted` | alias / deleted | `studio.lerian.alias.deleted` | `lerian.streaming.crm_alias.deleted` | alias ID | `DeleteAliasByID` |
+| `alias.related-party-deleted` | alias / related-party-deleted | `studio.lerian.alias.related-party-deleted` | `lerian.streaming.crm_alias.related_party_deleted` | **alias ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
 
 > **Hyphen, not underscore.** The `alias.related-party-deleted` event type is
 > hyphenated. The lib-streaming route-key validator rejects underscores, so the
-> key, topic, and `ce-type` all keep the hyphen.
+> key and `ce-type` keep the hyphen. The Kafka topic is the only place hyphens
+> become underscores: `lerian.streaming.crm_alias.related_party_deleted`.
 
 > **`ce-subject` on `alias.related-party-deleted`.** The aggregate is the alias,
 > so `ce-subject` is the **alias ID**, and the removed party's ID travels in the
