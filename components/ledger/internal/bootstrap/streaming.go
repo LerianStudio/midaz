@@ -247,15 +247,29 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 
 	for _, d := range defs {
 		key := d.Key()
-		topic := streamingTopicPrefix + streamingServiceName + "_" + strings.ReplaceAll(key, "-", "_")
 		routes = append(routes, libStreaming.RouteDefinition{
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(topic),
+			Destination:   libStreaming.KafkaTopic(streamingTopicName(key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}
 
 	return routes
+}
+
+// streamingTopicName renders the consumer-facing Kafka topic name for a
+// definition key ("<resource>.<event>").
+//
+// The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
+// ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
+// segments, no hyphen. To satisfy that grammar while still namespacing topics by
+// producing service, the service is folded into the first segment
+// ("<service>_<resource>") and hyphens are normalized to underscores. The route
+// Key and the CloudEvents type keep their hyphens: lib-streaming's route-key
+// grammar requires hyphens and rejects "_", so the underscore form lives ONLY on
+// the wire topic name, not on the event identity.
+func streamingTopicName(key string) string {
+	return streamingTopicPrefix + streamingServiceName + "_" + strings.ReplaceAll(key, "-", "_")
 }
