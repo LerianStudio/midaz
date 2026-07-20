@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.46.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.46.5
     with:
       enforce_source_branches: true
       allowed_source_branches: 'hotfix/*|release-candidate'
