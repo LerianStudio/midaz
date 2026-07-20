@@ -36,7 +36,10 @@ which feeds both the Catalog and the route table:
 
 - **Event key** = `<resourceType>.<eventType>` (e.g. `holder.created`).
 - **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `lerian.streaming.<key>`.
+- **Kafka topic** = `lerian.streaming.ledger_<key>`, with hyphens in `<key>`
+  converted to underscores in the topic name only (e.g.
+  `lerian.streaming.ledger_instrument.related_party_deleted`). The event key and
+  `ce-type` keep the hyphen.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` (see [ce-tenantid](#ce-tenantid)).
@@ -47,17 +50,18 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `holder.created` | holder / created | `studio.lerian.holder.created` | `lerian.streaming.holder.created` | holder ID | `CreateHolder` |
-| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `lerian.streaming.holder.updated` | holder ID | `UpdateHolderByID` |
-| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `lerian.streaming.holder.deleted` | holder ID | `DeleteHolderByID` |
-| `instrument.created` | instrument / created | `studio.lerian.instrument.created` | `lerian.streaming.instrument.created` | instrument ID | `CreateInstrument` |
-| `instrument.updated` | instrument / updated | `studio.lerian.instrument.updated` | `lerian.streaming.instrument.updated` | instrument ID | `UpdateInstrumentByID` |
-| `instrument.deleted` | instrument / deleted | `studio.lerian.instrument.deleted` | `lerian.streaming.instrument.deleted` | instrument ID | `DeleteInstrumentByID` |
-| `instrument.related-party-deleted` | instrument / related-party-deleted | `studio.lerian.instrument.related-party-deleted` | `lerian.streaming.instrument.related-party-deleted` | **instrument ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
+| `holder.created` | holder / created | `studio.lerian.holder.created` | `lerian.streaming.ledger_holder.created` | holder ID | `CreateHolder` |
+| `holder.updated` | holder / updated | `studio.lerian.holder.updated` | `lerian.streaming.ledger_holder.updated` | holder ID | `UpdateHolderByID` |
+| `holder.deleted` | holder / deleted | `studio.lerian.holder.deleted` | `lerian.streaming.ledger_holder.deleted` | holder ID | `DeleteHolderByID` |
+| `instrument.created` | instrument / created | `studio.lerian.instrument.created` | `lerian.streaming.ledger_instrument.created` | instrument ID | `CreateInstrument` |
+| `instrument.updated` | instrument / updated | `studio.lerian.instrument.updated` | `lerian.streaming.ledger_instrument.updated` | instrument ID | `UpdateInstrumentByID` |
+| `instrument.deleted` | instrument / deleted | `studio.lerian.instrument.deleted` | `lerian.streaming.ledger_instrument.deleted` | instrument ID | `DeleteInstrumentByID` |
+| `instrument.related-party-deleted` | instrument / related-party-deleted | `studio.lerian.instrument.related-party-deleted` | `lerian.streaming.ledger_instrument.related_party_deleted` | **instrument ID** (not the related-party ID) | `DeleteRelatedPartyByID` |
 
 > **Hyphen, not underscore.** The `instrument.related-party-deleted` event type is
 > hyphenated. The lib-streaming route-key validator rejects underscores, so the
-> key, topic, and `ce-type` all keep the hyphen.
+> key and `ce-type` keep the hyphen. The Kafka topic is the only place hyphens
+> become underscores: `lerian.streaming.ledger_instrument.related_party_deleted`.
 
 > **`ce-subject` on `instrument.related-party-deleted`.** The aggregate is the instrument,
 > so `ce-subject` is the **instrument ID**, and the removed party's ID travels in the

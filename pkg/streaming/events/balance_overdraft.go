@@ -42,7 +42,8 @@ const (
 // IMPORTANT posture: emit failures MUST NOT fail the parent transaction.
 // EventType uses the HYPHEN form `overdraft-drawn` because the
 // lib-streaming route-key regex rejects underscores. Wire topic:
-// `lerian.streaming.balance.overdraft-drawn`. The Action payload field
+// `lerian.streaming.ledger_balance.overdraft_drawn` (hyphens in the route
+// key become underscores in the topic name only). The Action payload field
 // keeps the unsuffixed value "drawn" (consumers can match on either
 // the topic or the action field).
 var BalanceOverdraftDrawnDefinition = Definition{

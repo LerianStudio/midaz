@@ -12,18 +12,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
-	"github.com/twmb/franz-go/pkg/sasl"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
-	"github.com/twmb/franz-go/pkg/sasl/scram"
-)
-
-// SASL mechanism names accepted by STREAMING_SASL_MECHANISM. Compared
-// case-insensitively at parse time so operators can write any casing.
-const (
-	saslMechanismPlain    = "PLAIN"
-	saslMechanismScram256 = "SCRAM-SHA-256"
-	saslMechanismScram512 = "SCRAM-SHA-512"
 )
 
 // streamingPrimaryTargetName is the canonical name for midaz's single
@@ -32,9 +22,10 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingTopicPrefix is the canonical prefix every topic name uses.
-// Topic names take the shape "lerian.streaming.<resource>.<event>".
-const streamingTopicPrefix = "lerian.streaming."
+// streamingServiceName is the component service segment folded into every
+// topic name by pkgStreaming.TopicName, yielding
+// "lerian.streaming.<service>_<resource>.<event>".
+const streamingServiceName = "ledger"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -112,7 +103,7 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -125,26 +116,11 @@ func BuildStreamingEmitter(
 			Brokers: streamingCfg.Brokers,
 		})
 
-	// Apply SASL/TLS auth knobs from cfg. resolveSASLMechanism returns a
-	// nil mechanism (and an empty mechanism name) when SASL is disabled,
-	// in which case the Builder is left untouched and the producer dials
-	// the broker without authentication — matching the historical local/dev
-	// behaviour. When SASL is enabled but TLS is not, lib-streaming
-	// rejects construction with ErrPlaintextSASLNotAllowed unless the
-	// caller also opts into AllowPlaintextSASL — gated behind
-	// STREAMING_ALLOW_PLAINTEXT_SASL=true for dev brokers.
-	mechanism, mechanismName, err := resolveSASLMechanism(cfg)
-	if err != nil {
-		return nil, noopStreamingCloser, fmt.Errorf("failed to resolve streaming SASL mechanism: %w", err)
-	}
-
-	if mechanism != nil {
-		builder = builder.SASL(mechanism)
-
-		if cfg.StreamingAllowPlaintextSASL {
-			builder = builder.AllowPlaintextSASL()
-		}
-	}
+	// SASL/TLS are owned by lib-streaming: TLSFromConfig and SASLFromConfig
+	// read the STREAMING_TLS_* and STREAMING_SASL_* knobs already parsed by
+	// LoadConfig and wire the broker dial. midaz does not parse these itself.
+	builder = builder.TLSFromConfig(streamingCfg)
+	builder = builder.SASLFromConfig(streamingCfg)
 
 	emitter, err := builder.Build(ctx)
 	if err != nil {
@@ -155,9 +131,9 @@ func BuildStreamingEmitter(
 		// NOTE: only mechanism name is logged. Username and password are
 		// NEVER logged, even at debug level.
 		authMode := "none"
-		if mechanismName != "" {
-			authMode = mechanismName
-			if cfg.StreamingAllowPlaintextSASL {
+		if streamingCfg.SASLMechanism != "" {
+			authMode = streamingCfg.SASLMechanism
+			if streamingCfg.SASLAllowPlaintext {
 				authMode += " (plaintext)"
 			}
 		}
@@ -174,57 +150,6 @@ func BuildStreamingEmitter(
 	}
 
 	return emitter, emitter.Close, nil
-}
-
-// resolveSASLMechanism inspects the streaming SASL knobs on cfg and
-// returns the matching franz-go sasl.Mechanism plus its canonical name.
-//
-// Behaviour:
-//   - StreamingSASLMechanism empty (after trimming) → returns (nil, "", nil).
-//     The Builder stays unauthenticated, matching the existing local/dev
-//     default.
-//   - StreamingSASLMechanism set but USERNAME or PASSWORD empty → returns
-//     a config error. SASL with empty credentials would either be rejected
-//     by the broker after I/O (PLAIN) or panic inside franz-go's SCRAM
-//     handshake; failing closed at bootstrap is the safer contract.
-//   - StreamingSASLMechanism unrecognised → returns a config error
-//     enumerating the accepted values.
-//
-// The mechanism name returned is the canonical upper-case form
-// ("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512") — used for the bootstrap
-// log line. Username and password are NEVER returned to the caller and
-// never logged.
-func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
-	raw := strings.TrimSpace(cfg.StreamingSASLMechanism)
-	if raw == "" {
-		return nil, "", nil
-	}
-
-	mechanism := strings.ToUpper(raw)
-
-	user := cfg.StreamingSASLUsername
-	pass := cfg.StreamingSASLPassword
-
-	if user == "" || pass == "" {
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
-			mechanism,
-		)
-	}
-
-	switch mechanism {
-	case saslMechanismPlain:
-		return plain.Auth{User: user, Pass: pass}.AsMechanism(), saslMechanismPlain, nil
-	case saslMechanismScram256:
-		return scram.Auth{User: user, Pass: pass}.AsSha256Mechanism(), saslMechanismScram256, nil
-	case saslMechanismScram512:
-		return scram.Auth{User: user, Pass: pass}.AsSha512Mechanism(), saslMechanismScram512, nil
-	default:
-		return nil, "", fmt.Errorf(
-			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
-			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512,
-		)
-	}
 }
 
 // midazEventDefinitions returns the canonical, ordered list of midaz
@@ -312,7 +237,7 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<resource>.<event>".
+// "lerian.streaming.<service>_<resource>.<event>".
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "account.created.primary") — Route.Key must match a lower-case
@@ -329,7 +254,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(streamingTopicPrefix + key),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

@@ -179,7 +179,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 
 ## Streaming (lib-streaming events)
 
-Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<resource>.<event>`. ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
+Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<service>_<resource>.<event>` (service = component: `ledger` or `crm`; hyphens in the resource/event become underscores in the topic name only). ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The route key / DefinitionKey and ce-type stay hyphenated (e.g. `operation-route`, `related-party-deleted`); only the Kafka topic uses underscores. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
 
 ### Producer conventions
 

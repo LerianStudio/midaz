@@ -72,22 +72,22 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/text v0.37.0
+	golang.org/x/text v0.39.0
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/api v0.283.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-commons/v5 v5.10.0
 	github.com/LerianStudio/lib-observability v1.1.0
-	github.com/LerianStudio/lib-streaming v1.8.0
+	github.com/LerianStudio/lib-service-discovery v1.1.0
+	github.com/LerianStudio/lib-streaming v1.9.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1
@@ -114,7 +114,7 @@ require (
 	go.opentelemetry.io/otel/exporters/prometheus v0.66.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/goleak v1.3.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -195,12 +195,12 @@ require (
 	go.opentelemetry.io/contrib v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
+	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
 require (
-	github.com/LerianStudio/lib-service-discovery v0.6.0
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/google/uuid v1.6.0
@@ -212,6 +212,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.71.0
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )

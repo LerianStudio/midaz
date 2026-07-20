@@ -88,6 +88,25 @@ type ActionRouteCache struct {
 	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty" msgpack:"bidirectional"`
 }
 
+// FindRoute searches for routeID across the Source, Destination, and
+// Bidirectional maps, in that order, returning the first match. The boolean
+// reports whether a route was found.
+func (a ActionRouteCache) FindRoute(routeID string) (OperationRouteCache, bool) {
+	if rc, ok := a.Source[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := a.Destination[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := a.Bidirectional[routeID]; ok {
+		return rc, true
+	}
+
+	return OperationRouteCache{}, false
+}
+
 // TransactionRouteCache represents the cache structure for transaction routes in Redis
 type TransactionRouteCache struct {
 	Actions map[string]ActionRouteCache `json:"actions" msgpack:"actions"`

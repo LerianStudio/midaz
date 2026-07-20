@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@feat/midaz-e2e-tests
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
@@ -44,6 +44,9 @@ jobs:
       # values are full dotted YAML paths (.image.tag).
       gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag"}'
       enable_apidog_e2e: true
+      enable_e2e_tests: true
+      e2e_modules: "midaz-ledger,midaz-crm"
+      e2e_tenancy: st
       # Publish ledger (onboarding + transaction) and tracer migrations to S3 for the
       # managed-Postgres deploy pipeline. This S3 copy is additive: tracer still applies
       # its migrations in-cluster via its own bootstrap runner.

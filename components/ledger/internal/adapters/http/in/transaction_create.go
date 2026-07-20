@@ -331,16 +331,21 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 
 		actionCache, ok := cache.Actions[resolvedAction]
 		if !ok {
-			// No entries for this action — e.g. route defines only Direct
-			// and the companion wants Overdraft. Leave RouteCode nil; the
-			// primary op still resolves correctly, and the companion
-			// simply carries no accounting rubric.
+			// Defensive only. When route validation is enabled, the
+			// ValidateAccountingRules gate rejects any overdraft companion whose
+			// route lacks a direction-specific overdraft rubric with
+			// ErrOverdraftRouteNotConfigured, so a companion reaching here is
+			// guaranteed to have its overdraft action present. For block/unblock
+			// this branch is also unreachable, since resolvedAction only switches
+			// to Block/Unblock after blockEntryConfigured confirms the action
+			// exists. Leaving RouteCode nil keeps the primary op resolving
+			// correctly for any residual unreachable state.
 			continue
 		}
 
 		routeID := *op.RouteID
 
-		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+		if rc, ok := actionCache.FindRoute(routeID); ok {
 			if rubric := resolveAccountingRubric(rc.AccountingEntries, resolvedAction, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
@@ -364,7 +369,7 @@ func blockEntryConfigured(cache *mmodel.TransactionRouteCache, action, routeID s
 		return false
 	}
 
-	rc, ok := findRouteInActionCache(actionCache, routeID)
+	rc, ok := actionCache.FindRoute(routeID)
 	if !ok || rc.AccountingEntries == nil {
 		return false
 	}
@@ -413,24 +418,6 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 	}
 
 	return nil
-}
-
-// findRouteInActionCache searches for a routeID across Source, Destination, and
-// Bidirectional maps of an ActionRouteCache.
-func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
-	if rc, ok := actionCache.Source[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Destination[routeID]; ok {
-		return rc, true
-	}
-
-	if rc, ok := actionCache.Bidirectional[routeID]; ok {
-		return rc, true
-	}
-
-	return mmodel.OperationRouteCache{}, false
 }
 
 // effectiveOperationAmount returns the amount that should be recorded on a

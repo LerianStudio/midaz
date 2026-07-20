@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,8 +47,9 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	for _, r := range routes {
 		assert.Equal(t, libStreaming.RouteRequired, r.Requirement,
 			"route for %q must be RouteRequired", r.DefinitionKey)
-		assert.Equal(t, libStreaming.KafkaTopic(streamingTopicPrefix+r.DefinitionKey), r.Destination,
-			"route for %q must target topic %q", r.DefinitionKey, streamingTopicPrefix+r.DefinitionKey)
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, r.DefinitionKey))
+		assert.Equal(t, wantTopic, r.Destination,
+			"route for %q must target topic %q", r.DefinitionKey, wantTopic)
 
 		_, dup := seenRouteKeys[r.DefinitionKey]
 		assert.False(t, dup, "duplicate route for DefinitionKey %q", r.DefinitionKey)

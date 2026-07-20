@@ -497,6 +497,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOverdraftRouteNotConfigured.Error(),
+			Title:      "Overdraft Route Not Configured Error",
+			Message:    "The transaction could not be completed because route validation is enabled but the accounting route applied to the overdraft operation does not define an overdraft entry for the required direction. Configure an overdraft accounting entry on the operation route and try again.",
+		},
 		constant.ErrDirectOperationOnInternalBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrDirectOperationOnInternalBalance.Error(),

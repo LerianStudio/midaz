@@ -485,7 +485,7 @@ tuple.
 - `0160` ErrTenantNotFound — tenant does not exist
 - `0161` ErrTenantServiceUnavailable — tenant resolution failed
 
-#### Overdraft Feature Error Codes (0167–0175)
+#### Overdraft Feature Error Codes (0167–0176)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
 - `0168` ErrDirectOperationOnInternalBalance — user operation targets internal-scope balance
 - `0169` ErrDeletionOfInternalBalance — delete targets internal-scope balance
@@ -495,6 +495,7 @@ tuple.
 - `0173` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
+- `0176` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
 #### Settings / Reservation Error Codes (0176–0178)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation

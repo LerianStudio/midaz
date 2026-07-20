@@ -231,6 +231,11 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrOverdraftRouteNotConfigured is returned when route validation is
+	// enabled but the accounting route applied to an overdraft companion
+	// operation does not define an overdraft entry carrying the rubric for
+	// the direction actually posted (debit = usage, credit = repayment).
+	ErrOverdraftRouteNotConfigured = errors.New("0492")
 )
 
 // Fee platform codes (migrated from FEE-xxxx; see docs/plans/2026-06-07-error-code-migration.md).

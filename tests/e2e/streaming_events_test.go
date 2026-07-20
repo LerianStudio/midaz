@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
@@ -37,9 +38,10 @@ import (
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
 const strmDefaultBroker = "localhost:19092"
 
-// strmTopicPrefix matches bootstrap/streaming.go streamingTopicPrefix; topics
-// take the shape "lerian.streaming.<resource>.<event>".
-const strmTopicPrefix = "lerian.streaming."
+// strmServiceName mirrors bootstrap/streaming.go streamingServiceName; topics
+// are rendered via pkgStreaming.TopicName and take the shape
+// "lerian.streaming.<service>_<resource>.<event>".
+const strmServiceName = "ledger"
 
 // strmCEType is the reverse-DNS namespace prepended to every ce-type header by
 // lib-streaming (internal/cloudevents/cloudevents.go cloudEventsTypePrefix):
@@ -222,7 +224,7 @@ func strmCatalogTopics() []string {
 
 	for resource, events := range families {
 		for _, e := range events {
-			topics = append(topics, strmTopicPrefix+resource+"."+e)
+			topics = append(topics, pkgStreaming.TopicName(strmServiceName, resource+"."+e))
 		}
 	}
 
@@ -331,7 +333,7 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 
 	accID := str(t, acc, "id")
 
-	topic := strmTopicPrefix + "account.created"
+	topic := pkgStreaming.TopicName(strmServiceName, "account.created")
 
 	ceType, subject, payload, ok := strmConsumeMatch(t, topic, accID, 15*time.Second)
 	if !ok {
@@ -368,13 +370,14 @@ func TestStreamingAccountCreatedEmitted(t *testing.T) {
 //
 // FINDING (supervisor, live-verified): transaction lifecycle streaming events
 // have TWO preconditions beyond STREAMING_ENABLED, both off by default:
-//   1. RABBITMQ_TRANSACTION_EVENTS_ENABLED=true — a cutover master flag that
-//      short-circuits BOTH the legacy rabbit publish AND the lib-streaming Kafka
-//      emit together when false (send_transaction_events.go:58,71).
-//   2. the async balance-op path — SendTransactionEvents is called only from
-//      create_balance_transaction_operations_async.go:145 and the bulk async
-//      path, with NO synchronous caller, so the event fires only under
-//      RABBITMQ_TRANSACTION_ASYNC=true.
+//  1. RABBITMQ_TRANSACTION_EVENTS_ENABLED=true — a cutover master flag that
+//     short-circuits BOTH the legacy rabbit publish AND the lib-streaming Kafka
+//     emit together when false (send_transaction_events.go:58,71).
+//  2. the async balance-op path — SendTransactionEvents is called only from
+//     create_balance_transaction_operations_async.go:145 and the bulk async
+//     path, with NO synchronous caller, so the event fires only under
+//     RABBITMQ_TRANSACTION_ASYNC=true.
+//
 // Onboarding events (account/org/ledger) sit behind NEITHER gate — they emit
 // synchronously on STREAMING_ENABLED alone (verified: account.created lands in
 // the default sync stack). This test therefore needs the operator to enable
@@ -397,7 +400,7 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	txn := mustCreate(t, f.ledgers()+"/transactions/json", transferBody("@strm-src", "@strm-dst", "100", nil))
 	txnID := str(t, txn, "id")
 
-	topic := strmTopicPrefix + "transaction.posted"
+	topic := pkgStreaming.TopicName(strmServiceName, "transaction.posted")
 
 	ceType, subject, payload, ok := strmConsumeMatch(t, topic, txnID, 20*time.Second)
 	if !ok {
@@ -445,7 +448,7 @@ func TestStreamingHolderCreateEmitsNothing(t *testing.T) {
 	// keeps the test fast. If the broker auto-creates the topic, an empty log
 	// simply yields found=false.
 	for _, suffix := range []string{"created", "updated"} {
-		topic := strmTopicPrefix + "holder." + suffix
+		topic := pkgStreaming.TopicName(strmServiceName, "holder."+suffix)
 
 		_, _, _, found := strmConsumeMatch(t, topic, holderID, 4*time.Second)
 		if found {
