@@ -178,7 +178,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 				// Service should NOT be called when payload is too large
 				return mocks.NewMockValidationService(ctrl)
 			},
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusRequestEntityTooLarge,
 			expectedBody: func(t *testing.T, body []byte) {
 				// Verify standardized response format
 				assert.Contains(t, string(body), "0143")
@@ -347,7 +347,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 					Return(nil, constant.ErrValidationTimeout)
 				return mockService
 			},
-			expectedStatus: http.StatusServiceUnavailable,
+			expectedStatus: http.StatusGatewayTimeout,
 			expectedBody: func(t *testing.T, body []byte) {
 			},
 		},
@@ -517,7 +517,7 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 		{
 			name:           "payload over limit (100KB+1) is rejected",
 			payloadSize:    100*1024 + 1, // 100KB + 1 byte
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusRequestEntityTooLarge,
 		},
 	}
 

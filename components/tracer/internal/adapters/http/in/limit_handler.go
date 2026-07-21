@@ -482,6 +482,14 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 // field/status/code/type-identical envelopes. The errors.Is cascade and the
 // canonical mapping are preserved verbatim from the pre-Huma handler.
 func classifyLimitServiceError(span trace.Span, err error) error {
+	// Services pre-classify domain failures into typed business errors via
+	// pkg.ValidateBusinessError (leaving Err nil, so errors.Is on the raw
+	// sentinel below cannot re-match them). Pass those through unchanged so the
+	// service's status/code survives instead of collapsing to a 500.
+	if pkg.IsBusinessError(err) {
+		return err
+	}
+
 	switch {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)

@@ -106,7 +106,12 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 
 		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityValidationRequest)
+		return nil, pkg.PayloadTooLargeError{
+			EntityType: constant.EntityValidationRequest,
+			Code:       constant.ErrPayloadTooLarge.Error(),
+			Title:      "Payload Too Large",
+			Message:    "payload too large: exceeds 100KB limit",
+		}
 	}
 
 	var request model.ValidationRequest

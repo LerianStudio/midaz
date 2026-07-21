@@ -174,15 +174,18 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (_ 
 	// the post-commit cache update below.
 	program, err := s.expressionCompiler.Compile(ctx, rule.Expression)
 	if err != nil {
-		businessErr := pkg.ValidateBusinessError(constant.ErrExpressionSyntax, constant.EntityRule)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression compilation failed", businessErr)
+		// Propagate the raw compiler sentinel (ErrExpressionSyntax /
+		// ErrExpressionType) unchanged, mirroring create_rule.go. Collapsing it
+		// into a single fixed sentinel here loses the syntax-vs-type distinction
+		// (0340 vs 0341) that classifyServiceError maps to 400.
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression compilation failed", err)
 		logger.With(
 			libLog.String("operation", "service.rule.activate"),
 			libLog.String("rule.id", ruleID.String()),
 			libLog.String("error.message", err.Error()),
 		).Log(ctx, libLog.LevelWarn, "Expression validation failed")
 
-		return nil, businessErr
+		return nil, err
 	}
 
 	// Capture "before" state for audit AFTER idempotency / expression checks
