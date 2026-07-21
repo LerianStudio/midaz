@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
     -o /app/tracer components/tracer/cmd/app/main.go
 
 # Development image with Alpine (shell + wget for healthcheck)
-FROM alpine:3.23 AS dev
+FROM alpine:3.24 AS dev
 
 ARG SERVER_PORT=4020
 ENV SERVER_PORT=${SERVER_PORT}
