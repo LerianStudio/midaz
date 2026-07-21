@@ -249,8 +249,9 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 // emitFeesAppliedEvent emits fee-charge.applied for a posted transaction that
 // actually charged a fee. It fires only when feeApplied=true and a
 // packageAppliedID are present in metadata (charged-only, set by the fee
-// engine on the real-charge branch); pure exemptions carry neither. IMPORTANT
-// posture: EmitImportant swallows build/emit failures.
+// engine on the real-charge branch); pure exemptions still carry
+// packageAppliedID but omit feeApplied=true, so the feeApplied guard suppresses
+// the emit. IMPORTANT posture: EmitImportant swallows build/emit failures.
 func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
 	if applied, _ := tran.Metadata["feeApplied"].(string); applied != "true" {
 		return

@@ -180,8 +180,9 @@ Source: `pkg/streaming/events/fees_applied.go`.
 - **Charged only.** It is emitted only when a fee was actually **charged** —
   `emitFeesAppliedEvent` fires only when `feeApplied=true` and a non-empty
   `packageAppliedID` are present in the transaction metadata (set by the fee
-  engine on the real-charge branch). A pure exemption carries neither, so **no
-  event is emitted on exemption**.
+  engine on the real-charge branch). A pure exemption still sets
+  `packageAppliedID` but omits `feeApplied=true`, so the `feeApplied` guard
+  suppresses it — **no event is emitted on exemption**.
 - **Once.** It rides alongside `transaction.posted` only. Commit, cancel, and
   revert do NOT re-emit it — the fee charge happened once, at post.
 
