@@ -22,10 +22,24 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the component service segment folded into every
-// topic name by pkgStreaming.TopicName, yielding
-// "lerian.streaming.<service>_<resource>.<event>".
-const streamingServiceName = "ledger"
+// Per-product service segments folded into topic names by
+// pkgStreaming.TopicName, yielding "lerian.streaming.<service>_<resource>.<event>".
+// The monorepo binary emits events on behalf of three products, each keeping the
+// service segment it had before consolidation: ledger core, fees, and CRM.
+const (
+	serviceLedger = "ledger"
+	serviceFee    = "fee"
+	serviceCRM    = "crm"
+)
+
+// routedDefinition pairs an event's pure wire Definition with the producing
+// service that owns its topic segment. events.Definition is the wire contract
+// and carries no service; the service lives here in the bootstrap registry so
+// routing stays a composition-root concern.
+type routedDefinition struct {
+	def     events.Definition
+	service string
+}
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
 // when streaming is disabled. It exists only so callers can append a single
@@ -103,7 +117,8 @@ func BuildStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name,
+	// where <service> is the event's producing product (ledger/fee/crm).
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	builder := libStreaming.NewBuilder().
@@ -152,66 +167,66 @@ func BuildStreamingEmitter(
 	return emitter, emitter.Close, nil
 }
 
-// midazEventDefinitions returns the canonical, ordered list of midaz
-// event Definitions registered into both the Catalog and the Routes.
-// Kept as a single source of truth so adding a new event is a one-place
-// change.
-func midazEventDefinitions() []events.Definition {
-	return []events.Definition{
-		events.OrganizationCreatedDefinition,
-		events.OrganizationUpdatedDefinition,
-		events.OrganizationDeletedDefinition,
-		events.LedgerCreatedDefinition,
-		events.LedgerUpdatedDefinition,
-		events.LedgerDeletedDefinition,
-		events.AccountCreatedDefinition,
-		events.AccountUpdatedDefinition,
-		events.AccountDeletedDefinition,
-		events.AssetCreatedDefinition,
-		events.AssetUpdatedDefinition,
-		events.AssetDeletedDefinition,
-		events.PortfolioCreatedDefinition,
-		events.PortfolioUpdatedDefinition,
-		events.PortfolioDeletedDefinition,
-		events.SegmentCreatedDefinition,
-		events.SegmentUpdatedDefinition,
-		events.SegmentDeletedDefinition,
+// midazEventDefinitions returns the canonical, ordered list of midaz event
+// Definitions paired with their producing service, registered into both the
+// Catalog (service-agnostic) and the Routes (per-product topic). Kept as a
+// single source of truth so adding a new event is a one-place change.
+func midazEventDefinitions() []routedDefinition {
+	return []routedDefinition{
+		{events.OrganizationCreatedDefinition, serviceLedger},
+		{events.OrganizationUpdatedDefinition, serviceLedger},
+		{events.OrganizationDeletedDefinition, serviceLedger},
+		{events.LedgerCreatedDefinition, serviceLedger},
+		{events.LedgerUpdatedDefinition, serviceLedger},
+		{events.LedgerDeletedDefinition, serviceLedger},
+		{events.AccountCreatedDefinition, serviceLedger},
+		{events.AccountUpdatedDefinition, serviceLedger},
+		{events.AccountDeletedDefinition, serviceLedger},
+		{events.AssetCreatedDefinition, serviceLedger},
+		{events.AssetUpdatedDefinition, serviceLedger},
+		{events.AssetDeletedDefinition, serviceLedger},
+		{events.PortfolioCreatedDefinition, serviceLedger},
+		{events.PortfolioUpdatedDefinition, serviceLedger},
+		{events.PortfolioDeletedDefinition, serviceLedger},
+		{events.SegmentCreatedDefinition, serviceLedger},
+		{events.SegmentUpdatedDefinition, serviceLedger},
+		{events.SegmentDeletedDefinition, serviceLedger},
 		// account_type.* events are intentionally NOT registered:
 		// internal validation config, the type label flows through
 		// account.* events as a string field.
-		events.OperationRouteCreatedDefinition,
-		events.OperationRouteUpdatedDefinition,
-		events.OperationRouteDeletedDefinition,
-		events.TransactionRouteCreatedDefinition,
-		events.TransactionRouteUpdatedDefinition,
-		events.TransactionRouteDeletedDefinition,
-		events.BalanceCreatedDefinition,
-		events.BalanceChangedDefinition,
-		events.BalanceConfigChangedDefinition,
-		events.BalanceDeletedDefinition,
-		events.BalanceOverdraftDrawnDefinition,
-		events.BalanceOverdraftRepaidDefinition,
-		events.BalanceOverdraftClearedDefinition,
-		events.TransactionPostedDefinition,
-		events.TransactionCommittedDefinition,
-		events.TransactionCanceledDefinition,
-		events.TransactionRevertedDefinition,
+		{events.OperationRouteCreatedDefinition, serviceLedger},
+		{events.OperationRouteUpdatedDefinition, serviceLedger},
+		{events.OperationRouteDeletedDefinition, serviceLedger},
+		{events.TransactionRouteCreatedDefinition, serviceLedger},
+		{events.TransactionRouteUpdatedDefinition, serviceLedger},
+		{events.TransactionRouteDeletedDefinition, serviceLedger},
+		{events.BalanceCreatedDefinition, serviceLedger},
+		{events.BalanceChangedDefinition, serviceLedger},
+		{events.BalanceConfigChangedDefinition, serviceLedger},
+		{events.BalanceDeletedDefinition, serviceLedger},
+		{events.BalanceOverdraftDrawnDefinition, serviceLedger},
+		{events.BalanceOverdraftRepaidDefinition, serviceLedger},
+		{events.BalanceOverdraftClearedDefinition, serviceLedger},
+		{events.TransactionPostedDefinition, serviceLedger},
+		{events.TransactionCommittedDefinition, serviceLedger},
+		{events.TransactionCanceledDefinition, serviceLedger},
+		{events.TransactionRevertedDefinition, serviceLedger},
 		// Fees
-		events.FeesPackageCreatedDefinition,
-		events.FeesPackageUpdatedDefinition,
-		events.FeesPackageDeletedDefinition,
-		events.FeesBillingPackageCreatedDefinition,
-		events.FeesBillingPackageUpdatedDefinition,
-		events.FeesBillingPackageDeletedDefinition,
-		events.FeesAppliedDefinition,
+		{events.FeesPackageCreatedDefinition, serviceFee},
+		{events.FeesPackageUpdatedDefinition, serviceFee},
+		{events.FeesPackageDeletedDefinition, serviceFee},
+		{events.FeesBillingPackageCreatedDefinition, serviceFee},
+		{events.FeesBillingPackageUpdatedDefinition, serviceFee},
+		{events.FeesBillingPackageDeletedDefinition, serviceFee},
+		{events.FeesAppliedDefinition, serviceFee},
 		// CRM
-		events.HolderCreatedDefinition,
-		events.HolderUpdatedDefinition,
-		events.HolderDeletedDefinition,
-		events.InstrumentCreatedDefinition,
-		events.InstrumentUpdatedDefinition,
-		events.InstrumentDeletedDefinition,
-		events.InstrumentRelatedPartyDeletedDefinition,
+		{events.HolderCreatedDefinition, serviceCRM},
+		{events.HolderUpdatedDefinition, serviceCRM},
+		{events.HolderDeletedDefinition, serviceCRM},
+		{events.InstrumentCreatedDefinition, serviceCRM},
+		{events.InstrumentUpdatedDefinition, serviceCRM},
+		{events.InstrumentDeletedDefinition, serviceCRM},
+		{events.InstrumentRelatedPartyDeletedDefinition, serviceCRM},
 	}
 }
 
@@ -223,12 +238,12 @@ func buildCatalog() (libStreaming.Catalog, error) {
 	defs := midazEventDefinitions()
 	entries := make([]libStreaming.EventDefinition, 0, len(defs))
 
-	for _, d := range defs {
+	for _, rd := range defs {
 		entries = append(entries, libStreaming.EventDefinition{
-			Key:           d.Key(),
-			ResourceType:  d.ResourceType,
-			EventType:     d.EventType,
-			SchemaVersion: d.SchemaVersion,
+			Key:           rd.def.Key(),
+			ResourceType:  rd.def.ResourceType,
+			EventType:     rd.def.EventType,
+			SchemaVersion: rd.def.SchemaVersion,
 		})
 	}
 
@@ -237,7 +252,9 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>".
+// "lerian.streaming.<service>_<resource>.<event>", where the service segment
+// is the event's producing product (ledger core / fee / crm) from the
+// per-product registry — NOT a single shared segment.
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "account.created.primary") — Route.Key must match a lower-case
@@ -248,13 +265,13 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := midazEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
 
-	for _, d := range defs {
-		key := d.Key()
+	for _, rd := range defs {
+		key := rd.def.Key()
 		routes = append(routes, libStreaming.RouteDefinition{
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(rd.service, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}

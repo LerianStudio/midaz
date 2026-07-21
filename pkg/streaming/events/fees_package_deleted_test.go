@@ -14,8 +14,8 @@ import (
 )
 
 func TestFeesPackageDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fees-package.deleted", events.FeesPackageDeletedDefinition.Key())
-	assert.Equal(t, "fees-package", events.FeesPackageDeletedDefinition.ResourceType)
+	assert.Equal(t, "fee-packages.deleted", events.FeesPackageDeletedDefinition.Key())
+	assert.Equal(t, "fee-packages", events.FeesPackageDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.FeesPackageDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesPackageDeletedDefinition.SchemaVersion)
 }

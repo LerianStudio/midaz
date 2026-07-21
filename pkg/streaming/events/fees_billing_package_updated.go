@@ -13,16 +13,16 @@ import (
 )
 
 // FeesBillingPackageUpdatedDefinition is the routing contract for
-// fees-billing-package.updated. IMPORTANT posture: emit failures MUST NOT fail
+// fee-billing-packages.updated. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageUpdatedDefinition = Definition{
-	ResourceType:  "fees-billing-package",
+	ResourceType:  "fee-billing-packages",
 	EventType:     "updated",
 	SchemaVersion: "1.0.0",
 }
 
 // FeesBillingPackageUpdatedPayload is the wire payload for
-// fees-billing-package.updated. It mirrors the created payload: only
+// fee-billing-packages.updated. It mirrors the created payload: only
 // identifiers, scope, classifications, the enable flag, and timestamps cross
 // the wire. Fee-detail surface is DELIBERATELY ABSENT.
 type FeesBillingPackageUpdatedPayload struct {

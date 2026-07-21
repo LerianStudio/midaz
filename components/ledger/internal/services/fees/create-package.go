@@ -114,7 +114,7 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 	return resultPackModel, nil
 }
 
-// emitFeesPackageCreatedEvent publishes fees-package.created. IMPORTANT posture.
+// emitFeesPackageCreatedEvent publishes fee-packages.created. IMPORTANT posture.
 func (uc *UseCase) emitFeesPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *pack.Package, organizationID uuid.UUID) {
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {

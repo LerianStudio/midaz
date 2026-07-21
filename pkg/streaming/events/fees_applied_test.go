@@ -14,26 +14,26 @@ import (
 )
 
 // feesAppliedTransactionID is the deterministic aggregate ID reused across
-// fees.applied tests so Subject assertions are exact-match.
+// fee-charge.applied tests so Subject assertions are exact-match.
 const feesAppliedTransactionID = "0190d9e1-7c2a-7000-8000-0000000000a1"
 
-// feesAppliedOrgID is the deterministic organization scope for fees.applied
+// feesAppliedOrgID is the deterministic organization scope for fee-charge.applied
 // event tests.
 const feesAppliedOrgID = "0190d9e1-7c2a-7000-8000-0000000000a3"
 
-// feesAppliedLedgerID is the deterministic ledger scope for fees.applied event
+// feesAppliedLedgerID is the deterministic ledger scope for fee-charge.applied event
 // tests.
 const feesAppliedLedgerID = "0190d9e1-7c2a-7000-8000-0000000000a2"
 
 // feesAppliedPackageID is the deterministic fee package reference for
-// fees.applied event tests.
+// fee-charge.applied event tests.
 const feesAppliedPackageID = "0190d9e1-7c2a-7000-8000-0000000000a4"
 
 func TestFeesAppliedDefinition_Key(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "fees.applied", events.FeesAppliedDefinition.Key())
-	assert.Equal(t, "fees", events.FeesAppliedDefinition.ResourceType)
+	assert.Equal(t, "fee-charge.applied", events.FeesAppliedDefinition.Key())
+	assert.Equal(t, "fee-charge", events.FeesAppliedDefinition.ResourceType)
 	assert.Equal(t, "applied", events.FeesAppliedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesAppliedDefinition.SchemaVersion)
 }
