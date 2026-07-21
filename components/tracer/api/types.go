@@ -24,15 +24,23 @@ type ReadyzResponse struct {
 // concept (e.g. an in-process cache) — distinct from "tls=false" (configured
 // without TLS).
 //
-// Reason and BreakerState fields are intentionally absent. The struct
-// previously declared them, but no producer in the readyz pipeline ever
-// populated them — advertising fields in the OpenAPI spec that no code emits
-// is worse than not advertising them at all, because external SDK consumers
-// would build dashboards on data that never arrives. Re-add only when a
-// producer lands.
+// Reason carries a short, operator-facing explanation that has no natural home
+// in Error — it is populated on the non-failing branches where a bare Error
+// would be misleading: skipped probes (why the dependency was not checked, e.g.
+// "MULTI_TENANT_ENABLED=false") and degraded probes (why the dependency is
+// serving but impaired, e.g. "circuit breaker open"). The redis / tenant_manager
+// / streaming probes are the producers that made this field earn its place;
+// down probes still surface a canonical error code via Error, not Reason.
+//
+// BreakerState is intentionally still absent. No probe exposes a reliable
+// breaker-state signal — the tenant-manager client's circuit breaker is private
+// and lib-streaming does not surface one — so advertising the field in the
+// OpenAPI spec would mean SDK consumers building dashboards on data that never
+// arrives. Re-add only when a producer lands.
 type ReadyzCheck struct {
 	Status    string `json:"status" example:"up" enums:"up,down,degraded,skipped,n/a"`
 	LatencyMs int64  `json:"latency_ms,omitempty" example:"3"`
 	TLS       *bool  `json:"tls,omitempty" example:"true"`
+	Reason    string `json:"reason,omitempty" example:"MULTI_TENANT_ENABLED=false"`
 	Error     string `json:"error,omitempty"`
 }

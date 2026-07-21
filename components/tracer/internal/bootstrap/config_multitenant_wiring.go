@@ -15,6 +15,7 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
@@ -25,11 +26,13 @@ import (
 // them into Service and to write unit tests for the wiring helper without
 // standing up a real PostgreSQL pool.
 //
-// The /readyz cycle is single-tenant only — the redisClient and tmBaseURL
-// fields used to surface the Tenant Manager + Pub/Sub readyz adapters were
-// removed when the cycle scope was reduced to postgres + rule_cache.
+// redisClient is retained (not just handed to the tenant event listener) so
+// the /readyz redis probe can PING it directly. tmClient is likewise the
+// signal source for the /readyz tenant_manager probe. Both are wired into the
+// HealthChecker in the multi-tenant bootstrap path.
 type componentsMT struct {
 	tmClient      *tmclient.Client
+	redisClient   redis.UniversalClient
 	pgManager     *tmpostgres.Manager
 	supervisor    *workers.WorkerSupervisor
 	eventListener *tenantListenerApp
@@ -257,6 +260,7 @@ func buildComponentsMT(
 
 	return &componentsMT{
 		tmClient:      tmClient,
+		redisClient:   redisClient,
 		pgManager:     pgManager,
 		supervisor:    supervisor,
 		eventListener: listenerApp,
@@ -337,7 +341,8 @@ func buildTMClientOptions(cfg *Config, logger libLog.Logger) ([]tmclient.ClientO
 			return nil, fmt.Errorf(
 				"multi-tenant config: MULTI_TENANT_URL uses http:// but MULTI_TENANT_ALLOW_INSECURE_HTTP is false. " +
 					"Set MULTI_TENANT_ALLOW_INSECURE_HTTP=true to explicitly opt in (NOT for production — " +
-					"credentials travel in cleartext)")
+					"credentials travel in cleartext)",
+			)
 		}
 
 		logger.With(

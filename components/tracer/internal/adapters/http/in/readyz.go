@@ -41,11 +41,14 @@ func (h *HealthChecker) emitReadyzMetrics(ctx context.Context, dep, status strin
 
 // Status vocabulary — closed set per the canonical /readyz contract. Any
 // other value is non-compliant. Aggregation: top-level "healthy" iff every
-// check is in {up, skipped, n/a}; any "down" or "degraded" forces 503.
+// GATING check is in {up, skipped, n/a}; any "down" or "degraded" gating check
+// forces 503. Advisory checks (see advisoryChecks — currently streaming) are
+// excluded from the aggregate.
 //
-// StatusSkipped and StatusNA remain part of the package's public API even
-// though Tracer's single-tenant /readyz cycle never emits them — downstream
-// consumers depend on the canonical 5-value vocabulary.
+// StatusSkipped and StatusNA are emitted by the multi-tenant-gated probes
+// (redis / tenant_manager report "skipped" in single-tenant mode; rule_cache
+// reports "n/a" in multi-tenant mode) and streaming reports "skipped" when
+// disabled — downstream consumers depend on the canonical 5-value vocabulary.
 const (
 	StatusUp       = "up"
 	StatusDown     = "down"
@@ -67,6 +70,26 @@ const (
 	probeTimeoutPostgres = 2 * time.Second
 	// Rule cache is in-process; "0" timeout means we skip context.WithTimeout
 	// entirely. The cache health provider returns synchronously.
+
+	// probeTimeoutRedis bounds the multi-tenant Redis Pub/Sub PING. Tighter
+	// than the DB budget — a Pub/Sub PING is a single round-trip.
+	probeTimeoutRedis = 1 * time.Second
+	// probeTimeoutTenantManager bounds the tenant-manager functional probe
+	// (GetActiveTenantsByService), which is an outbound HTTP call.
+	probeTimeoutTenantManager = 2 * time.Second
+	// probeTimeoutStreaming bounds the streaming producer Healthy() call, which
+	// may touch the broker adapter.
+	probeTimeoutStreaming = 2 * time.Second
+)
+
+// Skip reasons surfaced in ReadyzCheck.Reason when a probe is short-circuited.
+// Mirror the exact env-var spelling so operators can grep the response straight
+// back to the toggle that produced it.
+const (
+	reasonMultiTenantDisabled = "MULTI_TENANT_ENABLED=false"
+	reasonStreamingDisabled   = "STREAMING_ENABLED=false"
+	reasonCircuitBreakerOpen  = "circuit breaker open"
+	reasonStreamingDegraded   = "streaming degraded"
 )
 
 // ReadyzHandler returns the canonical readiness handler per the Lerian
@@ -74,8 +97,10 @@ const (
 // timeout, aggregates results into ReadyzResponse, and returns 200 only
 // when every check is in {up, skipped, n/a}.
 //
-// The /readyz cycle for Tracer is intentionally single-tenant: postgres +
-// rule_cache only.
+// The /readyz cycle probes five dependencies: postgres and rule_cache always
+// run; redis and tenant_manager are multi-tenant-gated (report "skipped" in
+// single-tenant mode); streaming is advisory and gated by STREAMING_ENABLED.
+// All but streaming gate the top-level status.
 //
 // MUST be registered on the public path tree, BEFORE any auth middleware —
 // K8s probes are unauthenticated and a 401 here would be interpreted by
@@ -98,7 +123,7 @@ func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 		// to the non-drain path.
 		draining := h.IsDraining()
 
-		// Run the two probes concurrently. Each probe creates its own child
+		// Run the five probes concurrently. Each probe creates its own child
 		// span from the inherited ctx and enforces its own per-dep timeout via
 		// context.WithTimeout — parallelism is safe here. Worst-case latency
 		// drops from sum(timeouts) to max(timeouts) under partial outage.
@@ -110,11 +135,12 @@ func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 		// KeepRunning policy: a crashing probe MUST NOT crashloop the pod —
 		// the readiness signal recovers naturally via the next probe cycle.
 		var (
-			pgCheck, rcCheck api.ReadyzCheck
-			wg               sync.WaitGroup
+			pgCheck, rcCheck                 api.ReadyzCheck
+			redisCheck, tmCheck, streamCheck api.ReadyzCheck
+			wg                               sync.WaitGroup
 		)
 
-		wg.Add(2)
+		wg.Add(5)
 
 		libRuntime.SafeGoWithContextAndComponent(
 			ctx,
@@ -142,11 +168,53 @@ func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 			},
 		)
 
+		libRuntime.SafeGoWithContextAndComponent(
+			ctx,
+			logger,
+			"readyz",
+			"probe-redis",
+			libRuntime.KeepRunning,
+			func(probeCtx context.Context) {
+				defer wg.Done()
+
+				redisCheck = h.probeReadyzRedis(probeCtx)
+			},
+		)
+
+		libRuntime.SafeGoWithContextAndComponent(
+			ctx,
+			logger,
+			"readyz",
+			"probe-tenant_manager",
+			libRuntime.KeepRunning,
+			func(probeCtx context.Context) {
+				defer wg.Done()
+
+				tmCheck = h.probeReadyzTenantManager(probeCtx)
+			},
+		)
+
+		libRuntime.SafeGoWithContextAndComponent(
+			ctx,
+			logger,
+			"readyz",
+			"probe-streaming",
+			libRuntime.KeepRunning,
+			func(probeCtx context.Context) {
+				defer wg.Done()
+
+				streamCheck = h.probeReadyzStreaming(probeCtx)
+			},
+		)
+
 		wg.Wait()
 
 		checks := map[string]api.ReadyzCheck{
-			"postgres":   pgCheck,
-			"rule_cache": rcCheck,
+			"postgres":       pgCheck,
+			"rule_cache":     rcCheck,
+			"redis":          redisCheck,
+			"tenant_manager": tmCheck,
+			"streaming":      streamCheck,
 		}
 
 		response := api.ReadyzResponse{
@@ -180,17 +248,265 @@ func (h *HealthChecker) ReadyzHandler() fiber.Handler {
 	}
 }
 
-// aggregateStatus implements the canonical aggregation rule: top-level
-// "healthy" iff every check is in {up, skipped, n/a}. Any "down" or
-// "degraded" forces "unhealthy".
+// spanCause chooses the error recorded on a probe's span: the sanitized cause
+// from the boundary adapter when present, otherwise the canonical sentinel.
+// The wire-facing ReadyzCheck.Error always uses the sentinel — this only
+// enriches telemetry.
+func spanCause(cause, fallback error) error {
+	if cause != nil {
+		return cause
+	}
+
+	return fallback
+}
+
+// probeReadyzRedis pings the multi-tenant Redis Pub/Sub client within the
+// per-dep timeout. Redis is multi-tenant-only: in single-tenant mode the probe
+// reports "skipped" and never touches the pinger. On any ping failure it
+// returns "down" with a canonical sentinel code — the raw go-redis error is
+// never surfaced on the wire.
 //
-// Fails CLOSED on unknown probe states: a probe that returns a Status outside
-// the canonical 5-value vocabulary ("", "OK", "READY", a typo) is treated as
-// "unhealthy" and forces 503. Without this default, a buggy probe that
-// returned an empty string would silently aggregate to "healthy" — fail-OPEN,
-// which is the dangerous direction for a readiness signal.
+// The `tls` field is populated from the configured cfg.MultiTenantRedisTLS bool
+// (SetRedisTLS) — never by reflecting on the live connection (anti-pattern
+// N4/N5).
+func (h *HealthChecker) probeReadyzRedis(ctx context.Context) api.ReadyzCheck {
+	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "readyz.probe.redis")
+	defer span.End()
+
+	start := time.Now().UTC()
+
+	if !h.multiTenantEnabled {
+		elapsed := time.Since(start)
+
+		h.emitReadyzMetrics(ctx, "redis", StatusSkipped, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusSkipped,
+			LatencyMs: elapsed.Milliseconds(),
+			Reason:    reasonMultiTenantDisabled,
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, probeTimeoutRedis)
+	defer cancel()
+
+	if h.redisPinger == nil {
+		elapsed := time.Since(start)
+
+		libOtel.HandleSpanError(span, "redis readyz: connection not established", ErrRedisConnectionNotEstablished)
+		h.emitReadyzMetrics(ctx, "redis", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrRedisConnectionNotEstablished.Error(),
+		}
+	}
+
+	if err := h.redisPinger.Ping(ctx); err != nil {
+		elapsed := time.Since(start)
+
+		libOtel.HandleSpanError(span, "redis readyz: ping failed", ErrRedisPingFailed)
+		h.emitReadyzMetrics(ctx, "redis", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrRedisPingFailed.Error(),
+		}
+	}
+
+	elapsed := time.Since(start)
+
+	h.emitReadyzMetrics(ctx, "redis", StatusUp, elapsed)
+
+	return api.ReadyzCheck{
+		Status:    StatusUp,
+		LatencyMs: elapsed.Milliseconds(),
+		TLS:       h.redisTLSEnabled,
+	}
+}
+
+// probeReadyzTenantManager reports tenant-manager HTTP client readiness. The
+// tenant-manager client exposes no dedicated health signal, so the bootstrap
+// adapter runs a functional call and classifies its outcome into the tri-state
+// {up, degraded, down} — degraded specifically when the client's circuit
+// breaker is open. Tenant manager is multi-tenant-only: single-tenant reports
+// "skipped".
+func (h *HealthChecker) probeReadyzTenantManager(ctx context.Context) api.ReadyzCheck {
+	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "readyz.probe.tenant_manager")
+	defer span.End()
+
+	start := time.Now().UTC()
+
+	if !h.multiTenantEnabled {
+		elapsed := time.Since(start)
+
+		h.emitReadyzMetrics(ctx, "tenant_manager", StatusSkipped, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusSkipped,
+			LatencyMs: elapsed.Milliseconds(),
+			Reason:    reasonMultiTenantDisabled,
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, probeTimeoutTenantManager)
+	defer cancel()
+
+	if h.tenantManagerProber == nil {
+		elapsed := time.Since(start)
+
+		libOtel.HandleSpanError(span, "tenant_manager readyz: prober not configured", ErrTenantManagerUnavailable)
+		h.emitReadyzMetrics(ctx, "tenant_manager", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrTenantManagerUnavailable.Error(),
+		}
+	}
+
+	status, probeErr := h.tenantManagerProber.Probe(ctx)
+	elapsed := time.Since(start)
+
+	switch status {
+	case StatusUp:
+		h.emitReadyzMetrics(ctx, "tenant_manager", StatusUp, elapsed)
+
+		return api.ReadyzCheck{Status: StatusUp, LatencyMs: elapsed.Milliseconds()}
+	case StatusDegraded:
+		libOtel.HandleSpanError(span, "tenant_manager readyz: degraded",
+			spanCause(probeErr, ErrTenantManagerUnavailable))
+		h.emitReadyzMetrics(ctx, "tenant_manager", StatusDegraded, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDegraded,
+			LatencyMs: elapsed.Milliseconds(),
+			Reason:    reasonCircuitBreakerOpen,
+		}
+	default:
+		// Fail closed: StatusDown and any unexpected value collapse to "down".
+		libOtel.HandleSpanError(span, "tenant_manager readyz: down",
+			spanCause(probeErr, ErrTenantManagerUnavailable))
+		h.emitReadyzMetrics(ctx, "tenant_manager", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrTenantManagerUnavailable.Error(),
+		}
+	}
+}
+
+// probeReadyzStreaming reports streaming/RedPanda producer readiness via the
+// bootstrap adapter over lib-streaming's Emitter.Healthy tri-state. Independent
+// of multi-tenancy: gated by the STREAMING_ENABLED master flag, reporting
+// "skipped" when disabled (more honest than probing a NoopEmitter that always
+// reports healthy).
+func (h *HealthChecker) probeReadyzStreaming(ctx context.Context) api.ReadyzCheck {
+	//nolint:dogsled // tracker tuple unused in readyz probes; only the tracer is required for child spans
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "readyz.probe.streaming")
+	defer span.End()
+
+	start := time.Now().UTC()
+
+	if !h.streamingEnabled {
+		elapsed := time.Since(start)
+
+		h.emitReadyzMetrics(ctx, "streaming", StatusSkipped, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusSkipped,
+			LatencyMs: elapsed.Milliseconds(),
+			Reason:    reasonStreamingDisabled,
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, probeTimeoutStreaming)
+	defer cancel()
+
+	if h.streamingProber == nil {
+		elapsed := time.Since(start)
+
+		libOtel.HandleSpanError(span, "streaming readyz: prober not configured", ErrStreamingUnhealthy)
+		h.emitReadyzMetrics(ctx, "streaming", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrStreamingUnhealthy.Error(),
+		}
+	}
+
+	status, probeErr := h.streamingProber.Probe(ctx)
+	elapsed := time.Since(start)
+
+	switch status {
+	case StatusUp:
+		h.emitReadyzMetrics(ctx, "streaming", StatusUp, elapsed)
+
+		return api.ReadyzCheck{Status: StatusUp, LatencyMs: elapsed.Milliseconds()}
+	case StatusDegraded:
+		libOtel.HandleSpanError(span, "streaming readyz: degraded",
+			spanCause(probeErr, ErrStreamingUnhealthy))
+		h.emitReadyzMetrics(ctx, "streaming", StatusDegraded, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDegraded,
+			LatencyMs: elapsed.Milliseconds(),
+			Reason:    reasonStreamingDegraded,
+		}
+	default:
+		// Fail closed: StatusDown and any unexpected value collapse to "down".
+		libOtel.HandleSpanError(span, "streaming readyz: down",
+			spanCause(probeErr, ErrStreamingUnhealthy))
+		h.emitReadyzMetrics(ctx, "streaming", StatusDown, elapsed)
+
+		return api.ReadyzCheck{
+			Status:    StatusDown,
+			LatencyMs: elapsed.Milliseconds(),
+			Error:     ErrStreamingUnhealthy.Error(),
+		}
+	}
+}
+
+// advisoryChecks are checks that appear in the response `checks` map (with
+// their real status and metrics) but do NOT contribute to the top-level
+// aggregate / HTTP status. Streaming is IMPORTANT-posture and non-blocking: a
+// broker hiccup must never pull the pod from rotation, so its up/down/degraded
+// status is informational only.
+var advisoryChecks = map[string]struct{}{
+	"streaming": {},
+}
+
+// aggregateStatus implements the canonical aggregation rule: top-level
+// "healthy" iff every GATING check is in {up, skipped, n/a}. Any "down" or
+// "degraded" gating check forces "unhealthy".
+//
+// Advisory checks (see advisoryChecks) are skipped entirely: they still appear
+// verbatim in the response `checks` map, but their status never influences the
+// aggregate or the HTTP code.
+//
+// Fails CLOSED on unknown probe states: a gating probe that returns a Status
+// outside the canonical 5-value vocabulary ("", "OK", "READY", a typo) is
+// treated as "unhealthy" and forces 503. Without this default, a buggy probe
+// that returned an empty string would silently aggregate to "healthy" —
+// fail-OPEN, which is the dangerous direction for a readiness signal.
 func aggregateStatus(checks map[string]api.ReadyzCheck) string {
-	for _, c := range checks {
+	for name, c := range checks {
+		if _, advisory := advisoryChecks[name]; advisory {
+			continue
+		}
+
 		switch c.Status {
 		case StatusUp, StatusSkipped, StatusNA:
 			// Healthy contribution — keep walking.
