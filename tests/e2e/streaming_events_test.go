@@ -39,11 +39,8 @@ import (
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
 const strmDefaultBroker = "localhost:19092"
 
-// strmServiceName is the ledger-core producing service segment; topics are
-// rendered via pkgStreaming.TopicName and take the shape
-// "lerian.streaming.<service>_<resource>.<event>". Fees route under "fee" and
-// CRM under "crm" (see bootstrap/streaming.go per-product registry); those are
-// passed explicitly at their call sites, not via this const.
+// strmServiceName is the ledger-core service segment used to render topics of
+// the shape "lerian.streaming.<service>_<resource>.<event>".
 const strmServiceName = "ledger"
 
 // strmCEType is the reverse-DNS namespace prepended to every ce-type header by
@@ -96,20 +93,15 @@ var strmTransactionPostedCore = []string{
 }
 
 // strmHolderCreatedKeys is the exact 6-key top-level set of the holder.created
-// wire payload, copied from the JSONShape lock in
-// pkg/streaming/events/holder_created_test.go. Holder is a regulated entity;
-// only stable identifiers, the org scope, the person-type classification, the
-// nullable client externalId, and timestamps cross the wire. Asserted as an
-// exact set (fail-closed): an extra or missing key means wire drift.
+// wire payload, asserted as an exact set (fail-closed): an extra or missing key
+// means wire drift.
 var strmHolderCreatedKeys = map[string]struct{}{
 	"id": {}, "organizationId": {}, "type": {}, "externalId": {},
 	"createdAt": {}, "updatedAt": {},
 }
 
 // strmHolderCreatedForbidden is the PII key set that MUST NEVER appear on the
-// holder.created wire payload — mirrors the forbidden set in the JSONShape unit
-// test. The constructor (pkg/streaming/events/holder_created.go) redacts these
-// at the source; this asserts the redaction holds end-to-end on the broker.
+// holder.created wire payload.
 var strmHolderCreatedForbidden = []string{
 	"name", "document", "cpf", "cnpj",
 	"contact", "addresses", "address",
@@ -463,15 +455,11 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	}
 }
 
-// TestStreamingHolderCreateEmitsRedacted asserts the holder.created wire
-// contract: creating a holder DOES emit a CloudEvents record on
-// lerian.streaming.crm_holder.created whose ce-subject is the holder id and
-// ce-type is studio.lerian.holder.created. holder.created is a fully-modeled,
-// registered IMPORTANT-posture CRM event (pkg/streaming/events/
-// holder_created.go); the constructor redacts PII, so the payload MUST carry
-// only id/organizationId/type/externalId/timestamps and MUST NOT carry name,
-// document, or any other PII key. This mirrors the JSONShape unit lock in
-// holder_created_test.go end-to-end on the live broker.
+// TestStreamingHolderCreateEmitsRedacted asserts that creating a holder emits a
+// CloudEvents record on crm_holder.created whose ce-subject is the holder id and
+// ce-type is studio.lerian.holder.created, with PII redacted: the payload MUST
+// carry only id/organizationId/type/externalId/timestamps and MUST NOT carry
+// name, document, or any other PII key.
 func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	requireStack(t)
 	strmRequireBroker(t)
