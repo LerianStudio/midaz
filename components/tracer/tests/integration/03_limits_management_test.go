@@ -1930,7 +1930,7 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, body)
 	assert.Equal(t, "0009", errResp.Code, "Error code should be 0009 (missing fields in request)")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be 'Validation Error'")
-	assert.Equal(t, "scope at index 0 must have at least one field set", tracerProblemDetail(t, body), "Error detail should indicate scope validation failure")
+	assert.Equal(t, "scope at index 0 must have at least one field set", testutil.ParseErrorResponse(t, body).Detail, "Error detail should indicate scope validation failure")
 }
 
 // =============================================================================
@@ -2252,7 +2252,7 @@ func TestLimits_UpdateLimit_EmptyBody_ReturnsTRC0002(t *testing.T) {
 	// Code 0183 (Nothing to Update) for an empty object with no fields to update
 	assert.Equal(t, "0183", errResp.Code, "Expected 0183 for empty JSON body (no fields to update)")
 	assert.Equal(t, "Nothing to Update", errResp.Title, "Error title should be 'Nothing to Update'")
-	assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", tracerProblemDetail(t, respBody), "Error detail should indicate at least one field required")
+	assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should indicate at least one field required")
 
 	// Re-fetch the limit after the failed PATCH and verify state is unchanged
 	getReq2, err := http.NewRequest("GET", baseURL+"/v1/limits/"+limitID, nil)
@@ -3781,7 +3781,7 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 
 			// Assert error detail mentions the immutable field(s) that cannot be modified (case-insensitive).
 			// The detail lists all immutable fields (limitType, currency), so any target key is present.
-			detail := tracerProblemDetail(t, respBody)
+			detail := testutil.ParseErrorResponse(t, respBody).Detail
 			if len(tc.updateBody) > 1 {
 				// Check that detail contains at least one of the updateBody keys
 				detailLower := strings.ToLower(detail)

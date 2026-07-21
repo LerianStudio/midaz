@@ -887,9 +887,9 @@ func TestListTransactionValidations_InvalidSortBy_TRC0043(t *testing.T) {
 // - Error Title: "Gateway Timeout"
 // - Error Message: mentions "query" to distinguish from the POST validation timeout
 //
-// KNOWN BUG (not synced): the endpoint currently returns 503 "Service Unavailable"
-// with detail "internal error" instead of 504 "Gateway Timeout". Assertions are
-// left expecting the correct 504 contract.
+// The endpoint returns 504 "Gateway Timeout" with the human-readable text in the
+// top-level "message" field; the RFC 9457 "detail" is scrubbed to "internal error"
+// for >=500 responses, so the query-specific text is asserted against message.
 func TestListTransactionValidations_Timeout_ReturnsTRC0252(t *testing.T) {
 	// Use fault injection to simulate timeout scenario
 	resp, respBody := testutil.ListValidationsWithFaultInjection(t, "", testutil.FaultTimeout)
@@ -918,10 +918,9 @@ func TestListTransactionValidations_Timeout_ReturnsTRC0252(t *testing.T) {
 }
 
 // TestListTransactionValidations_Timeout_WithFilters_ReturnsTRC0252 verifies timeout handling
-// when complex filters are used (which might cause slower queries).
-//
-// Same KNOWN BUG as TestListTransactionValidations_Timeout_ReturnsTRC0252: the endpoint
-// currently returns 503 "Service Unavailable" instead of the expected 504 "Gateway Timeout".
+// when complex filters are used (which might cause slower queries). Like
+// TestListTransactionValidations_Timeout_ReturnsTRC0252, the endpoint returns 504
+// "Gateway Timeout" with code 0433.
 func TestListTransactionValidations_Timeout_WithFilters_ReturnsTRC0252(t *testing.T) {
 	// Use filters that might cause a complex query
 	queryParams := "decision=ALLOW&transaction_type=CARD&sort_by=processing_time_ms&sort_order=DESC"

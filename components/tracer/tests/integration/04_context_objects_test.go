@@ -206,7 +206,7 @@ func TestValidation_ContextObjects_MissingAccount_ReturnsError(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0420", errResp.Code, "Expected 0420 for missing account")
 	assert.Equal(t, "Validation Account Required", errResp.Title, "Error title should match the account error")
-	assert.Equal(t, "Account is required.", tracerProblemDetail(t, respBody), "Error detail should match exactly")
+	assert.Equal(t, "Account is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_SegmentContext_Structure verifies SegmentContext parsing.
@@ -579,7 +579,7 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 	errorResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0420", errorResp.Code, "Error code should be 0420")
 	assert.Equal(t, "Validation Account Required", errorResp.Title, "Error title should match the account error")
-	assert.Equal(t, "Account is required.", tracerProblemDetail(t, respBody), "Error detail should match exactly")
+	assert.Equal(t, "Account is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_SegmentContext_Minimal verifies segment with only segmentId (name optional).

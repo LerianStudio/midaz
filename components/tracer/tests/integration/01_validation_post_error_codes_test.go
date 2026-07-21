@@ -122,7 +122,7 @@ func TestValidation_MalformedJSON_ReturnsError(t *testing.T) {
 			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
 			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for malformed JSON", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -154,7 +154,7 @@ func TestValidation_BinaryData_ReturnsError(t *testing.T) {
 	// 0094 (ErrInvalidRequestBody): Bad Request for binary data
 	assert.Equal(t, "0094", errResp.Code, "Expected 0094 for binary data")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // TestValidation_EmptyBody_ReturnsError verifies that an empty request body returns an error.
@@ -211,7 +211,7 @@ func TestValidation_NullBody_ReturnsError(t *testing.T) {
 	// 0413 (ErrValidationRequestIDRequired); title is the humanized sentinel name.
 	assert.Equal(t, "0413", errResp.Code, "Expected 0413 for null body (requestId is required)")
 	assert.Equal(t, "Validation Request IDRequired", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "RequestId is required.", errResp.Detail)
 }
 
 // TestValidation_ArrayInsteadOfObject_ReturnsError verifies that a JSON array returns an error.
@@ -240,7 +240,7 @@ func TestValidation_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 	// 0094 (ErrInvalidRequestBody): fails to unmarshal array into struct
 	assert.Equal(t, "0094", errResp.Code, "Expected 0094 for array instead of object (body parsing error)")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // =============================================================================
@@ -289,7 +289,7 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 	// 0413 (ErrValidationRequestIDRequired): requestId is required
 	assert.Equal(t, "0413", errResp.Code, "Expected 0413 for missing requestId")
 	assert.Equal(t, "Validation Request IDRequired", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "RequestId is required.", errResp.Detail)
 }
 
 // TestValidation_InvalidTransactionType_ReturnsError verifies invalid transactionType returns an error.
@@ -360,7 +360,7 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 			// 0414 (ErrValidationInvalidTransactionType): transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
 			assert.Equal(t, "0414", errResp.Code, "Test case: %s - Expected 0414 for invalid transactionType", tc.description)
 			assert.Equal(t, "Validation Invalid Transaction Type", errResp.Title)
-			assert.Equal(t, "", errResp.Message)
+			assert.Equal(t, "Invalid transactionType.", errResp.Detail)
 		})
 	}
 }
@@ -428,7 +428,7 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 			// 0415 (ErrValidationAmountNonPositive): amount must be positive
 			assert.Equal(t, "0415", errResp.Code, "Test case: %s - Expected 0415 for non-positive amount", tc.description)
 			assert.Equal(t, "Validation Amount Non Positive", errResp.Title)
-			assert.Equal(t, "", errResp.Message)
+			assert.Equal(t, "Amount must be positive.", errResp.Detail)
 		})
 	}
 }
@@ -471,7 +471,7 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 	// 0416 (ErrValidationCurrencyRequired): currency is required
 	assert.Equal(t, "0416", errResp.Code, "Expected 0416 for missing currency")
 	assert.Equal(t, "Validation Currency Required", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Currency is required.", errResp.Detail)
 }
 
 // TestValidation_InvalidCurrency_ReturnsError verifies that invalid currency code returns an error.
@@ -547,7 +547,7 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 			// 0417 (ErrValidationInvalidCurrency): currency must be valid ISO 4217 code (e.g., BRL, USD)
 			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected 0417 for invalid currency", tc.description)
 			assert.Equal(t, "Validation Invalid Currency", errResp.Title)
-			assert.Equal(t, "", errResp.Message)
+			assert.Equal(t, "Currency must be valid ISO 4217.", errResp.Detail)
 		})
 	}
 }
@@ -590,7 +590,7 @@ func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 	// 0418 (ErrValidationTimestampRequired): transactionTimestamp is required
 	assert.Equal(t, "0418", errResp.Code, "Expected 0418 for missing timestamp")
 	assert.Equal(t, "Validation Timestamp Required", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Timestamp is required.", errResp.Detail)
 }
 
 // TestValidation_FutureTimestamp_ReturnsError verifies that future timestamp returns an error.
@@ -636,7 +636,7 @@ func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 	// 0419 (ErrValidationTimestampFuture): transactionTimestamp cannot be in the future
 	assert.Equal(t, "0419", errResp.Code, "Expected 0419 for future timestamp")
 	assert.Equal(t, "Validation Timestamp Future", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Timestamp cannot be in the future.", errResp.Detail)
 }
 
 // TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted verifies that small
@@ -724,7 +724,7 @@ func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 	// 0420 (ErrValidationAccountRequired): account is required
 	assert.Equal(t, "0420", errResp.Code, "Expected 0420 for missing account")
 	assert.Equal(t, "Validation Account Required", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Account is required.", errResp.Detail)
 }
 
 // TestValidation_EmptyAccountObject_ReturnsError verifies that empty account object returns an error.
@@ -764,7 +764,7 @@ func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 	// 0420 (ErrValidationAccountRequired): account is required
 	assert.Equal(t, "0420", errResp.Code, "Expected 0420 for empty account object")
 	assert.Equal(t, "Validation Account Required", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Account is required.", errResp.Detail)
 }
 
 // TestValidation_SubTypeTooLong_ReturnsError verifies that subType exceeding max length returns an error.
@@ -810,7 +810,7 @@ func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 	// 0425 (ErrValidationSubTypeTooLong): subType exceeds maximum length of 50 characters
 	assert.Equal(t, "0425", errResp.Code, "Expected 0425 for subType too long")
 	assert.Equal(t, "Validation Sub Type Too Long", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "SubType exceeds maximum length of 50 characters.", errResp.Detail)
 }
 
 // =============================================================================
@@ -920,7 +920,7 @@ func TestValidation_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 			// UUID parsing errors happen during body parsing → 0094 (ErrInvalidRequestBody)
 			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for invalid UUID (body parsing error)", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -992,7 +992,7 @@ func TestValidation_InvalidTimestampFormat_ReturnsError(t *testing.T) {
 			// Timestamp parsing errors happen during body parsing → 0094 (ErrInvalidRequestBody)
 			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for invalid timestamp (body parsing error)", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -1069,7 +1069,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 			// 0094 (ErrInvalidRequestBody) is returned for JSON type mismatch errors (bad request)
 			assert.Equal(t, "0094", errResp.Code, "Expected 0094 for type validation error")
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "", errResp.Message)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 }

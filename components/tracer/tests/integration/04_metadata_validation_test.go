@@ -147,7 +147,7 @@ func TestValidation_Metadata_ExceedsMaxEntries(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0335", errResp.Code, "Expected 0335 for metadata entries exceeded")
 	assert.Equal(t, "Metadata Entries Exceeded", errResp.Title, "Error title should match the metadata error")
-	assert.Equal(t, "Metadata entries exceed maximum of 50.", tracerProblemDetail(t, respBody), "Error detail should match exactly")
+	assert.Equal(t, "Metadata entries exceed maximum of 50.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_Metadata_KeyWithInvalidCharacters verifies invalid key chars are rejected.
@@ -230,7 +230,7 @@ func TestValidation_Metadata_KeyWithInvalidCharacters(t *testing.T) {
 			assert.Equal(t, "0336", errResp.Code,
 				"Test case: %s - Expected 0336 for invalid metadata key characters", tc.description)
 			assert.Equal(t, "Metadata Key Invalid Chars", errResp.Title, "Error title should match the metadata error")
-			assert.Equal(t, "Metadata key contains invalid characters.", tracerProblemDetail(t, respBody), "Error detail should match exactly")
+			assert.Equal(t, "Metadata key contains invalid characters.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 		})
 	}
 }
@@ -282,7 +282,7 @@ func TestValidation_Metadata_KeyExceedsMaxLength(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0050", errResp.Code, "Expected 0050 for metadata key length exceeded")
 	assert.Equal(t, "Metadata Key Length Exceeded", errResp.Title, "Error title should match the metadata error")
-	assert.Contains(t, tracerProblemDetail(t, respBody), "exceeds the maximum allowed length of", "Error detail should describe the key-length violation")
+	assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "exceeds the maximum allowed length of", "Error detail should describe the key-length violation")
 }
 
 // TestValidation_Metadata_KeyAtMaxLength_BoundaryValid verifies 64 chars is accepted.

@@ -36,23 +36,8 @@ import (
 //     sort order, date range)
 //
 // Error bodies are RFC 9457 problem+json: the human-readable text lives in the
-// "detail" member (not "message"), read via auditProblemDetail below.
+// "detail" member (not "message"), read via testutil.ParseErrorResponse().Detail.
 // =============================================================================
-
-// auditProblemDetail extracts the RFC 9457 "detail" member from a problem+json
-// error body. The shared testutil.ErrorResponse only surfaces code/title, so
-// detail assertions parse the body here.
-func auditProblemDetail(t *testing.T, body []byte) string {
-	t.Helper()
-
-	var p struct {
-		Detail string `json:"detail"`
-	}
-
-	require.NoError(t, json.Unmarshal(body, &p), "parse problem detail: %s", string(body))
-
-	return p.Detail
-}
 
 // =============================================================================
 // GET /v1/audit-events/{id} - Get Audit Event Error Code Tests
@@ -109,7 +94,7 @@ func TestGetAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected 0065 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
-			assert.Contains(t, auditProblemDetail(t, respBody), "path parameters are in an incorrect format", "Test case: %s", tc.desc)
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "path parameters are in an incorrect format", "Test case: %s", tc.desc)
 		})
 	}
 }
@@ -160,7 +145,7 @@ func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected 0381 for audit event not found", tc.desc)
 			assert.Equal(t, "Audit Event Not Found", errResp.Title, "Test case: %s", tc.desc)
-			assert.Contains(t, auditProblemDetail(t, respBody), "Audit event not found", "Test case: %s", tc.desc)
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "Audit event not found", "Test case: %s", tc.desc)
 		})
 	}
 }
@@ -534,7 +519,7 @@ func TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected 0065 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
-			assert.Contains(t, auditProblemDetail(t, respBody), "path parameters are in an incorrect format", "Test case: %s", tc.desc)
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "path parameters are in an incorrect format", "Test case: %s", tc.desc)
 		})
 	}
 }
@@ -580,7 +565,7 @@ func TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected 0381 for audit event not found", tc.desc)
 			assert.Equal(t, "Audit Event Not Found", errResp.Title, "Test case: %s", tc.desc)
-			assert.Contains(t, auditProblemDetail(t, respBody), "Audit event not found", "Test case: %s", tc.desc)
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "Audit event not found", "Test case: %s", tc.desc)
 		})
 	}
 }

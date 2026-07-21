@@ -307,8 +307,8 @@ func TestCreateRule_2_1_5_RejectsMissingName(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0353", errResp.Code, "Error code should be 0353 for name required")
 	assert.Equal(t, "Rule Name Required", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_6_RejectsMissingExpression verifies validation of required field 'expression'.
@@ -341,8 +341,8 @@ func TestCreateRule_2_1_6_RejectsMissingExpression(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0355", errResp.Code, "Error code should be 0355 for expression required")
 	assert.Equal(t, "Rule Expression Required", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule expression is required.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_7_RejectsMissingAction verifies validation of required field 'action'.
@@ -375,8 +375,8 @@ func TestCreateRule_2_1_7_RejectsMissingAction(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0357", errResp.Code, "Error code should be 0357 for action required/invalid")
 	assert.Equal(t, "Rule Invalid Action", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Action must be one of [ALLOW, DENY, REVIEW].", errResp.Detail)
 }
 
 // TestCreateRule_2_1_8_RejectsAllMissingRequiredFields verifies validation when multiple required fields are missing.
@@ -408,8 +408,8 @@ func TestCreateRule_2_1_8_RejectsAllMissingRequiredFields(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0353", errResp.Code, "Error code should be 0353 for name required (first missing field)")
 	assert.Equal(t, "Rule Name Required", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_9_RejectsEmptyName verifies validation of empty name string.
@@ -443,8 +443,8 @@ func TestCreateRule_2_1_9_RejectsEmptyName(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0353", errResp.Code, "Error code should be 0353 for empty name validation error")
 	assert.Equal(t, "Rule Name Required", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_10_RejectsNameExceedingMaxLength verifies validation of name field boundary (255 characters).
@@ -500,8 +500,8 @@ func TestCreateRule_2_1_10_RejectsNameExceedingMaxLength(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0354", errResp.Code)
 				assert.Equal(t, "Rule Name Too Long", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Rule name exceeds max length (255).", errResp.Detail)
 			}
 		})
 	}
@@ -538,8 +538,8 @@ func TestCreateRule_2_1_11_RejectsEmptyExpression(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0355", errResp.Code, "Error code should be 0355 for empty expression validation error")
 	assert.Equal(t, "Rule Expression Required", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule expression is required.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_12_RejectsExpressionExceedingMaxLength verifies validation of expression field boundary (5000 characters).
@@ -613,8 +613,8 @@ func TestCreateRule_2_1_12_RejectsExpressionExceedingMaxLength(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0356", errResp.Code)
 				assert.Equal(t, "Rule Expression Too Long", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Rule expression exceeds max length (5000).", errResp.Detail)
 			}
 		})
 	}
@@ -675,8 +675,8 @@ func TestCreateRule_2_1_13_RejectsDescriptionExceedingMaxLength(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0359", errResp.Code, "Error code should be 0359 for description too long")
 				assert.Equal(t, "Rule Description Too Long", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Rule description exceeds max length (1000).", errResp.Detail)
 			}
 		})
 	}
@@ -717,8 +717,8 @@ func TestCreateRule_2_1_14_RejectsInvalidActionEnum(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0357", errResp.Code, "Error code should be 0357 for invalid action enum")
 			assert.Equal(t, "Rule Invalid Action", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Action must be one of [ALLOW, DENY, REVIEW].", errResp.Detail)
 		})
 	}
 }
@@ -763,8 +763,8 @@ func TestCreateRule_2_1_15_RejectsInvalidCELExpressionSyntax(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0340", errResp.Code)
 			assert.Equal(t, "Expression Syntax", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Invalid CEL syntax.", errResp.Detail)
 		})
 	}
 }
@@ -807,8 +807,8 @@ func TestCreateRule_2_1_16_RejectsExpressionNotReturningBoolean(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0341", errResp.Code)
 			assert.Equal(t, "Expression Type", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Expression must return boolean.", errResp.Detail)
 		})
 	}
 }
@@ -881,8 +881,8 @@ func TestCreateRule_2_1_18_RejectsDuplicateRuleName(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody2)
 	assert.Equal(t, "0441", errResp.Code)
 	assert.Equal(t, "Rule Name Already Exists In Ctx", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule name already exists in this context.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_19_RejectsInvalidNameType verifies type validation for name field.
@@ -921,8 +921,8 @@ func TestCreateRule_2_1_19_RejectsInvalidNameType(t *testing.T) {
 			// JSON type mismatch is a body-parse error: code 0094 with a generic "Bad Request" title.
 			assert.Equal(t, "0094", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 
@@ -947,8 +947,8 @@ func TestCreateRule_2_1_19_RejectsInvalidNameType(t *testing.T) {
 		errResp := testutil.ParseErrorResponse(t, respBody)
 		assert.Equal(t, "0353", errResp.Code, "Error code should be 0353 for null name validation error")
 		assert.Equal(t, "Rule Name Required", errResp.Title)
-		// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-		assert.Equal(t, "", errResp.Message)
+		// Human-readable text lives in the RFC 9457 `detail`.
+		assert.Equal(t, "Rule name is required.", errResp.Detail)
 	})
 }
 
@@ -988,8 +988,8 @@ func TestCreateRule_2_1_20_RejectsInvalidExpressionType(t *testing.T) {
 			// JSON type mismatch is a body-parse error: code 0094 with a generic "Bad Request" title.
 			assert.Equal(t, "0094", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 
@@ -1014,8 +1014,8 @@ func TestCreateRule_2_1_20_RejectsInvalidExpressionType(t *testing.T) {
 		errResp := testutil.ParseErrorResponse(t, respBody)
 		assert.Equal(t, "0355", errResp.Code, "Error code should be 0355 for null expression validation error")
 		assert.Equal(t, "Rule Expression Required", errResp.Title)
-		// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-		assert.Equal(t, "", errResp.Message)
+		// Human-readable text lives in the RFC 9457 `detail`.
+		assert.Equal(t, "Rule expression is required.", errResp.Detail)
 	})
 }
 
@@ -1055,8 +1055,8 @@ func TestCreateRule_2_1_21_RejectsInvalidActionType(t *testing.T) {
 			// JSON type mismatch is a body-parse error: code 0094 with a generic "Bad Request" title.
 			assert.Equal(t, "0094", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 
@@ -1081,8 +1081,8 @@ func TestCreateRule_2_1_21_RejectsInvalidActionType(t *testing.T) {
 		errResp := testutil.ParseErrorResponse(t, respBody)
 		assert.Equal(t, "0357", errResp.Code, "Error code should be 0357 for null action validation error")
 		assert.Equal(t, "Rule Invalid Action", errResp.Title)
-		// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-		assert.Equal(t, "", errResp.Message)
+		// Human-readable text lives in the RFC 9457 `detail`.
+		assert.Equal(t, "Action must be one of [ALLOW, DENY, REVIEW].", errResp.Detail)
 	})
 }
 
@@ -1123,8 +1123,8 @@ func TestCreateRule_2_1_22_RejectsInvalidScopesType(t *testing.T) {
 			// JSON type mismatch is a body-parse error: code 0094 with a generic "Bad Request" title.
 			assert.Equal(t, "0094", errResp.Code)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 }
@@ -1163,8 +1163,8 @@ func TestCreateRule_2_1_23_RejectsScopeWithNoFieldsSet(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0358", errResp.Code, "Error code should be 0358 for empty scope")
 	assert.Equal(t, "Rule Invalid Scope", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Scope must have at least one field set.", errResp.Detail)
 }
 
 // TestCreateRule_2_1_24_RejectsScopeWithInvalidUUIDFormat verifies UUID format validation in scope fields.
@@ -1230,8 +1230,8 @@ func TestCreateRule_2_1_24_RejectsScopeWithInvalidUUIDFormat(t *testing.T) {
 				// Invalid UUID in a scope field is a body-parse error: code 0094 with a generic "Bad Request" title.
 				assert.Equal(t, "0094", errResp.Code)
 				assert.Equal(t, "Bad Request", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 			}
 		})
 	}
@@ -1296,8 +1296,8 @@ func TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum(t *testing
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0358", errResp.Code, "Error code should be 0358 for invalid transactionType enum")
 				assert.Equal(t, "Rule Invalid Scope", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Scope must have at least one field set.", errResp.Detail)
 			}
 		})
 	}
@@ -1362,8 +1362,8 @@ func TestCreateRule_2_1_26_RejectsSubTypeExceedingMaxLength(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0358", errResp.Code, "Error code should be 0358 for scope field validation")
 				assert.Equal(t, "Rule Invalid Scope", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Scope must have at least one field set.", errResp.Detail)
 			}
 		})
 	}
@@ -1426,8 +1426,8 @@ func TestCreateRule_2_1_27_RejectsScopesExceedingMaxCount(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0360", errResp.Code, "Error code should be 0360 for scopes exceeding max count")
 				assert.Equal(t, "Rule Scopes Too Many", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Rule scopes exceed maximum (100).", errResp.Detail)
 			}
 		})
 	}
@@ -1684,8 +1684,8 @@ func TestGetRule_2_2_3_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, getRespBody)
 	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestGetRule_2_2_4_RejectsInvalidUUIDFormatInPath verifies path parameter validation.
@@ -1717,8 +1717,8 @@ func TestGetRule_2_2_4_RejectsInvalidUUIDFormatInPath(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, getRespBody)
 			assert.Equal(t, "0065", errResp.Code)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 		})
 	}
 }
@@ -1752,8 +1752,8 @@ func TestGetRule_2_2_5_Returns404ForDeletedRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, getRespBody)
 	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestGetRule_2_2_6_WithoutAuthenticationReturns401 verifies authentication requirement for rule retrieval.
@@ -2082,8 +2082,8 @@ func TestListRules_2_3_5_RejectsDELETEDStatusFilter(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0082", errResp.Code)
 	assert.Equal(t, "Invalid Query Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "query parameters are in an incorrect format")
 }
 
 // TestListRules_2_3_6_FiltersByAction verifies action filter functionality.
@@ -2381,8 +2381,8 @@ func TestListRules_2_3_12_RejectsInvalidSortByValue(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0332", errResp.Code)
 			assert.Equal(t, "Invalid Sort Column", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Sort column not in allowed list.", errResp.Detail)
 		})
 	}
 }
@@ -2423,8 +2423,8 @@ func TestListRules_2_3_13_RejectsInvalidSortOrderValue(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0081", errResp.Code)
 				assert.Equal(t, "Invalid Sort Order", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "The 'sort_order' field must be 'asc' or 'desc'. Please provide a valid sort order and try again.", errResp.Detail)
 			}
 		})
 	}
@@ -2464,8 +2464,8 @@ func TestListRules_2_3_14_RejectsLimitBelowMinimum(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0331", errResp.Code)
 				assert.Equal(t, "Pagination Limit Invalid", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Pagination limit must be positive.", errResp.Detail)
 			}
 		})
 	}
@@ -2504,8 +2504,8 @@ func TestListRules_2_3_15_RejectsLimitAboveMaximum(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0080", errResp.Code)
 				assert.Equal(t, "Pagination Limit Exceeded", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Contains(t, errResp.Detail, "maximum allowed of")
 			}
 		})
 	}
@@ -2536,8 +2536,8 @@ func TestListRules_2_3_16_RejectsInvalidCursor(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0333", errResp.Code)
 			assert.Equal(t, "Invalid Cursor", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Invalid or corrupted pagination cursor.", errResp.Detail)
 		})
 	}
 }
@@ -2576,8 +2576,8 @@ func TestListRules_2_3_17_RejectsInvalidActionFilterValue(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0082", errResp.Code)
 				assert.Equal(t, "Invalid Query Parameter", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Contains(t, errResp.Detail, "query parameters are in an incorrect format")
 			}
 		})
 	}
@@ -2617,8 +2617,8 @@ func TestListRules_2_3_18_RejectsInvalidStatusFilterValue(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0082", errResp.Code)
 				assert.Equal(t, "Invalid Query Parameter", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Contains(t, errResp.Detail, "query parameters are in an incorrect format")
 			}
 		})
 	}
@@ -3002,8 +3002,8 @@ func TestUpdateRule_2_4_7_RejectsExpressionUpdateOnActiveRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0351", errResp.Code)
 	assert.Equal(t, "Expression Not Modifiable", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Expression cannot be modified for non-DRAFT rules.", errResp.Detail)
 
 	// Verify rule was not mutated
 	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
@@ -3063,8 +3063,8 @@ func TestUpdateRule_2_4_8_RejectsExpressionUpdateOnInactiveRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0351", errResp.Code)
 	assert.Equal(t, "Expression Not Modifiable", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Expression cannot be modified for non-DRAFT rules.", errResp.Detail)
 
 	// Verify rule was not mutated
 	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
@@ -3164,8 +3164,8 @@ func TestUpdateRule_2_4_10_RejectsEmptyUpdate(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0183", errResp.Code)
 	assert.Equal(t, "Nothing to Update", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", errResp.Detail)
 
 	// Verify rule was not mutated
 	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
@@ -3231,8 +3231,8 @@ func TestUpdateRule_2_4_11_RejectsDuplicateName(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0441", errResp.Code)
 	assert.Equal(t, "Rule Name Already Exists In Ctx", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule name already exists in this context.", errResp.Detail)
 }
 
 // TestUpdateRule_2_4_12_AllowsSameName verifies updating to the same name is allowed (idempotent).
@@ -3302,8 +3302,8 @@ func TestUpdateRule_2_4_13_RejectsInvalidUUIDInPath(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 }
 
 // TestUpdateRule_2_4_14_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -3335,8 +3335,8 @@ func TestUpdateRule_2_4_14_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestUpdateRule_2_4_15_RejectsNameExceedingMaxLength verifies validation of name field boundary on update.
@@ -3385,8 +3385,8 @@ func TestUpdateRule_2_4_15_RejectsNameExceedingMaxLength(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0354", errResp.Code)
 				assert.Equal(t, "Rule Name Too Long", errResp.Title)
-				// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-				assert.Equal(t, "", errResp.Message)
+				// Human-readable text lives in the RFC 9457 `detail`.
+				assert.Equal(t, "Rule name exceeds max length (255).", errResp.Detail)
 			} else if tc.expect == http.StatusOK {
 				var result map[string]any
 				err = json.Unmarshal(respBody, &result)
@@ -3433,8 +3433,8 @@ func TestUpdateRule_2_4_16_RejectsInvalidExpressionSyntaxOnUpdate(t *testing.T) 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0340", errResp.Code)
 	assert.Equal(t, "Expression Syntax", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Invalid CEL syntax.", errResp.Detail)
 }
 
 // TestUpdateRule_2_4_17_RejectsExpressionNotReturningBooleanOnUpdate verifies expression type validation on update.
@@ -3471,8 +3471,8 @@ func TestUpdateRule_2_4_17_RejectsExpressionNotReturningBooleanOnUpdate(t *testi
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0341", errResp.Code)
 	assert.Equal(t, "Expression Type", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Expression must return boolean.", errResp.Detail)
 }
 
 // TestUpdateRule_2_4_18_RejectsInvalidActionEnumOnUpdate verifies action validation on update.
@@ -3513,8 +3513,8 @@ func TestUpdateRule_2_4_18_RejectsInvalidActionEnumOnUpdate(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, "0357", errResp.Code)
 			assert.Equal(t, "Rule Invalid Action", errResp.Title)
-			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-			assert.Equal(t, "", errResp.Message)
+			// Human-readable text lives in the RFC 9457 `detail`.
+			assert.Equal(t, "Action must be one of [ALLOW, DENY, REVIEW].", errResp.Detail)
 		})
 	}
 }
@@ -3555,8 +3555,8 @@ func TestUpdateRule_2_4_19_RejectsInvalidScopeFormatOnUpdate(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0358", errResp.Code)
 	assert.Equal(t, "Rule Invalid Scope", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Scope must have at least one field set.", errResp.Detail)
 }
 
 // TestUpdateRule_2_4_20_WithoutAuthenticationReturns401 verifies authentication requirement for update.
@@ -3783,8 +3783,9 @@ func TestActivateRule_2_5_4_RevalidatesExpressionOnActivation(t *testing.T) {
 		"Expected 0340 or 0341 (expression syntax/type), got %s", errResp.Code)
 	assert.True(t, errResp.Title == "Expression Syntax" || errResp.Title == "Expression Type",
 		"Expected Expression Syntax/Type title, got %s", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.True(t, errResp.Detail == "Invalid CEL syntax." || errResp.Detail == "Expression must return boolean.",
+		"Expected CEL syntax/type detail, got %s", errResp.Detail)
 }
 
 // TestActivateRule_2_5_5_RejectsActivationOfDeletedRule verifies DELETED rules cannot be activated.
@@ -3812,8 +3813,8 @@ func TestActivateRule_2_5_5_RejectsActivationOfDeletedRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestActivateRule_2_5_6_RejectsInvalidUUIDInPath verifies path parameter validation.
@@ -3837,8 +3838,8 @@ func TestActivateRule_2_5_6_RejectsInvalidUUIDInPath(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 }
 
 // TestActivateRule_2_5_7_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -3862,8 +3863,8 @@ func TestActivateRule_2_5_7_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestActivateRule_2_5_8_WithoutAuthenticationReturns401 verifies authentication requirement for activation.
@@ -4049,8 +4050,8 @@ func TestDeactivateRule_2_6_4_RejectsDeactivationOfDeletedRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code)
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestDeactivateRule_2_6_5_RejectsInvalidUUIDInPath verifies path parameter validation.
@@ -4074,8 +4075,8 @@ func TestDeactivateRule_2_6_5_RejectsInvalidUUIDInPath(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 }
 
 // TestDeactivateRule_2_6_6_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -4099,8 +4100,8 @@ func TestDeactivateRule_2_6_6_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestDeactivateRule_2_6_7_WithoutAuthenticationReturns401 verifies authentication requirement for deactivation.
@@ -4215,8 +4216,8 @@ func TestDeleteRule_2_7_3_RejectsDeletionOfActiveRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0349", errResp.Code)
 	assert.Equal(t, "Rule Invalid Status", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Invalid rule status transition.", errResp.Detail)
 }
 
 // TestDeleteRule_2_7_4_RejectsDeletionOfAlreadyDeletedRule verifies already-deleted rules return 404.
@@ -4245,8 +4246,8 @@ func TestDeleteRule_2_7_4_RejectsDeletionOfAlreadyDeletedRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestDeleteRule_2_7_5_RejectsInvalidUUIDInPath verifies path parameter validation.
@@ -4270,8 +4271,8 @@ func TestDeleteRule_2_7_5_RejectsInvalidUUIDInPath(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 }
 
 // TestDeleteRule_2_7_6_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -4295,8 +4296,8 @@ func TestDeleteRule_2_7_6_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestDeleteRule_2_7_7_WithoutAuthenticationReturns401 verifies authentication requirement for deletion.
@@ -4481,8 +4482,8 @@ func TestDraftRule_2_8_4_RejectsInvalidUUIDInPath(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0065", errResp.Code) // Invalid path parameter (UUID format)
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Contains(t, errResp.Detail, "path parameters are in an incorrect format")
 }
 
 // TestDraftRule_2_8_5_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -4506,8 +4507,8 @@ func TestDraftRule_2_8_5_Returns404ForNonExistentRuleID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }
 
 // TestDraftRule_2_8_6_WithoutAuthenticationReturns401 verifies authentication requirement for draft.
@@ -4566,6 +4567,6 @@ func TestDraftRule_2_8_7_RejectsDraftOfDeletedRule(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0347", errResp.Code) // Rule not found
 	assert.Equal(t, "Rule Not Found", errResp.Title)
-	// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
-	assert.Equal(t, "", errResp.Message)
+	// Human-readable text lives in the RFC 9457 `detail`.
+	assert.Equal(t, "Rule not found by ID.", errResp.Detail)
 }

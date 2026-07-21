@@ -299,7 +299,7 @@ func TestListLimits_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectCode, errResp.Code, "Error code mismatch")
-			assert.Contains(t, tracerProblemDetail(t, respBody), tc.expectMsg, "Error detail should reference the invalid query parameters")
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, tc.expectMsg, "Error detail should reference the invalid query parameters")
 		})
 	}
 }

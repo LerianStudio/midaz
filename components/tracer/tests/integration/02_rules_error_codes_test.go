@@ -103,7 +103,7 @@ func TestCreateRule_MalformedJSON_ReturnsError(t *testing.T) {
 
 			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -161,7 +161,7 @@ func TestCreateRule_NullBody_ReturnsError(t *testing.T) {
 	// With specific error codes, the first missing required field error is returned
 	assert.Equal(t, "0353", errResp.Code, "Expected 0353 (ErrRuleNameRequired) for null body")
 	assert.Equal(t, "Rule Name Required", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
 }
 
 // TestCreateRule_ArrayInsteadOfObject_ReturnsError verifies that a JSON array instead of object returns an error.
@@ -189,7 +189,7 @@ func TestCreateRule_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 
 	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for array instead of object")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // TestCreateRule_BinaryData_ReturnsError verifies that binary data returns an error.
@@ -218,7 +218,7 @@ func TestCreateRule_BinaryData_ReturnsError(t *testing.T) {
 
 	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for binary data")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // =============================================================================
@@ -292,7 +292,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 				errResp := testutil.ParseErrorResponse(t, respBody)
 				assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
 				assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-				assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
+				assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 			})
 		}
 	})
@@ -319,7 +319,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 		// 0183 (ErrNothingToUpdate) for empty object (no fields to update)
 		assert.Equal(t, "0183", errResp.Code, "Expected 0183 (ErrNothingToUpdate) for empty object")
 		assert.Equal(t, "Nothing to Update", errResp.Title)
-		assert.Equal(t, "", errResp.Message)
+		assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", errResp.Detail)
 	})
 }
 
@@ -509,7 +509,7 @@ func TestListRules_InvalidCursor_ReturnsError(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
 			assert.Equal(t, "Invalid Cursor", errResp.Title, "Test case: %s", tc.description)
-			assert.Empty(t, errResp.Message, "Test case: %s - message field retired; human text is in RFC 9457 detail", tc.description)
+			assert.Equal(t, "Invalid or corrupted pagination cursor.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -532,7 +532,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 			queryParams:     "sort_by=invalid_column",
 			expectedCode:    "0332",
 			expectedTitle:   "Invalid Sort Column",
-			expectedMessage: "",
+			expectedMessage: "Sort column not in allowed list.",
 			description:     "Invalid sort column",
 		},
 		{
@@ -540,7 +540,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 			queryParams:     "sort_order=INVALID",
 			expectedCode:    "0081",
 			expectedTitle:   "Invalid Sort Order",
-			expectedMessage: "",
+			expectedMessage: "The 'sort_order' field must be 'asc' or 'desc'. Please provide a valid sort order and try again.",
 			description:     "Invalid sort order",
 		},
 		// NOTE: lowercase sort orders (asc, desc) are accepted and normalized by the API,
@@ -565,7 +565,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
 			assert.Equal(t, tc.expectedTitle, errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, tc.expectedMessage, errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, tc.expectedMessage, errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -642,7 +642,7 @@ func TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest(t *testing.T) {
 			// 0094 (ErrInvalidRequestBody) is returned for JSON type mismatch errors (bad request)
 			assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for type validation error")
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "", errResp.Message)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 }
@@ -683,5 +683,5 @@ func TestCreateRule_LargePayload_HandlesCorrectly(t *testing.T) {
 	// Validation error for name exceeding max length
 	assert.Equal(t, "0354", errResp.Code, "Expected 0354 (ErrRuleNameTooLong) for name too long")
 	assert.Equal(t, "Rule Name Too Long", errResp.Title)
-	assert.Empty(t, errResp.Message)
+	assert.Equal(t, "Rule name exceeds max length (255).", errResp.Detail)
 }

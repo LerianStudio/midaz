@@ -770,6 +770,7 @@ func ListValidationsWithoutAuth(t *testing.T, queryParams string) (*http.Respons
 type ErrorResponse struct {
 	Code    string `json:"code"`
 	Title   string `json:"title"`
+	Detail  string `json:"detail"`
 	Message string `json:"message"`
 }
 
