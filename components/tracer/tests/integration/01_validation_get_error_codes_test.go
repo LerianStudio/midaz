@@ -21,19 +21,20 @@ import (
 // Error Code Tests for Transaction Validation Handler
 // =============================================================================
 //
-// These tests document the current error handling behavior for the transaction
+// These tests document the error handling behavior for the transaction
 // validation endpoints (GET /v1/validations and GET /v1/validations/{id}).
 //
-// Current Behavior:
-// - Invalid path parameter (UUID) returns TRC-0007 (ErrInvalidPathParameter)
-//   with title "Invalid Path Parameter"
-// - Invalid query parameter (non-numeric, malformed) returns TRC-0006
-//   (ErrInvalidQueryParameter) with title "Invalid Query Parameter"
-// - Invalid filter values (out of range, invalid enum) returns TRC-0250
-//   (ErrInvalidTransactionValidationFilters) with title "Invalid Transaction Validation Filters"
-//
-// NOTE: These tests document CURRENT behavior to establish a baseline for
-// future error code improvements. Update expected codes when the handler is fixed.
+// Errors follow the RFC 9457 (application/problem+json) envelope with a numeric
+// `code`, a specific `title`, and a `detail`. Each error code carries its own
+// title:
+// - Invalid path parameter (UUID): code 0065, title "Invalid Path Parameter".
+// - Invalid query parameter (non-numeric, malformed): code 0082, title
+//   "Invalid Query Parameter".
+// - Pagination/sort/filter validation: per-error codes and titles, e.g. 0331
+//   "Pagination Limit Invalid", 0080 "Pagination Limit Exceeded", 0332 "Invalid
+//   Sort Column", 0081 "Invalid Sort Order", 0334 "Cursor With Sort Params",
+//   0077 "Invalid Date Format Error", 0083 "Invalid Date Range Error", 0431
+//   "Invalid Transaction Validation Filters".
 // =============================================================================
 
 // =============================================================================
@@ -41,7 +42,7 @@ import (
 // =============================================================================
 
 // TestGetTransactionValidation_InvalidID_ReturnsError verifies invalid UUID handling in path parameter.
-// Returns TRC-0007 for invalid path parameters
+// Returns code 0065 (title "Invalid Path Parameter") for invalid path parameters.
 func TestGetTransactionValidation_InvalidID_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -56,37 +57,37 @@ func TestGetTransactionValidation_InvalidID_ReturnsError(t *testing.T) {
 			name:     "not-a-uuid",
 			id:       "not-a-uuid",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 		{
 			name:     "numeric-id",
 			id:       "12345",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 		{
 			name:     "partial-uuid",
 			id:       "550e8400-e29b-41d4",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 		{
 			name:     "uuid-with-extra-chars",
 			id:       "550e8400-e29b-41d4-a716-446655440000-extra",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 		{
 			name:     "uppercase-invalid-uuid",
 			id:       "NOT-A-UUID-FORMAT",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 		{
 			name:     "malformed-uuid-bad-chars",
 			id:       "550e8400-e29b-41d4-a716-44665544000g",
 			wantCode: "0065",
-			wantMsg:  "Invalid transaction validation ID format",
+			wantMsg:  "",
 		},
 	}
 
@@ -118,7 +119,8 @@ func TestGetTransactionValidation_InvalidID_ReturnsError(t *testing.T) {
 // =============================================================================
 
 // TestListTransactionValidations_InvalidLimit_ReturnsError verifies invalid limit parameter handling.
-// Returns TRC-0006 for invalid query parameters (non-numeric limit, decimal)
+// Returns 0331 "Pagination Limit Invalid" / 0080 "Pagination Limit Exceeded" for out-of-range limits
+// and 0082 "Invalid Query Parameter" for non-numeric/decimal limits.
 func TestListTransactionValidations_InvalidLimit_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -134,36 +136,36 @@ func TestListTransactionValidations_InvalidLimit_ReturnsError(t *testing.T) {
 			name:      "limit-zero",
 			query:     "limit=0",
 			wantCode:  "0331",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "limit must be at least 1",
+			wantTitle: "Pagination Limit Invalid",
+			wantMsg:   "",
 		},
 		{
 			name:      "limit-negative",
 			query:     "limit=-1",
 			wantCode:  "0331",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "limit must be at least 1",
+			wantTitle: "Pagination Limit Invalid",
+			wantMsg:   "",
 		},
 		{
 			name:      "limit-exceeds-max",
 			query:     "limit=1001",
 			wantCode:  "0080",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "limit must not exceed 1000",
+			wantTitle: "Pagination Limit Exceeded",
+			wantMsg:   "",
 		},
 		{
 			name:      "limit-non-numeric",
 			query:     "limit=abc",
 			wantCode:  "0082",
 			wantTitle: "Invalid Query Parameter",
-			wantMsg:   "Invalid query parameters",
+			wantMsg:   "",
 		},
 		{
 			name:      "limit-decimal",
 			query:     "limit=10.5",
 			wantCode:  "0082",
 			wantTitle: "Invalid Query Parameter",
-			wantMsg:   "Invalid query parameters",
+			wantMsg:   "",
 		},
 	}
 
@@ -191,7 +193,7 @@ func TestListTransactionValidations_InvalidLimit_ReturnsError(t *testing.T) {
 }
 
 // TestListTransactionValidations_InvalidSortParams_ReturnsError verifies invalid sort parameter handling.
-// Returns TRC-0043 for invalid sort_by field and TRC-0042 for invalid sort_order value.
+// Returns 0332 (title "Invalid Sort Column") for invalid sort_by and 0081 (title "Invalid Sort Order") for invalid sort_order.
 func TestListTransactionValidations_InvalidSortParams_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -207,29 +209,29 @@ func TestListTransactionValidations_InvalidSortParams_ReturnsError(t *testing.T)
 			name:      "invalid-sortBy-field",
 			query:     "sort_by=invalidField",
 			wantCode:  "0332",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "sort_by must be one of [created_at processing_time_ms]",
+			wantTitle: "Invalid Sort Column",
+			wantMsg:   "",
 		},
 		{
 			name:      "invalid-sortOrder-value",
 			query:     "sort_order=INVALID",
 			wantCode:  "0081",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "sort_order must be ASC or DESC",
+			wantTitle: "Invalid Sort Order",
+			wantMsg:   "",
 		},
 		{
 			name:      "sortOrder-lowercase-invalid",
 			query:     "sort_order=ascending",
 			wantCode:  "0081",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "sort_order must be ASC or DESC",
+			wantTitle: "Invalid Sort Order",
+			wantMsg:   "",
 		},
 		{
 			name:      "sortBy-numeric",
 			query:     "sort_by=123",
 			wantCode:  "0332",
-			wantTitle: "Invalid Transaction Validation Filters",
-			wantMsg:   "sort_by must be one of [created_at processing_time_ms]",
+			wantTitle: "Invalid Sort Column",
+			wantMsg:   "",
 		},
 	}
 
@@ -258,7 +260,7 @@ func TestListTransactionValidations_InvalidSortParams_ReturnsError(t *testing.T)
 
 // TestListTransactionValidations_SortParamsWithCursor_ReturnsError verifies that sort_by/sort_order
 // cannot be used together with cursor pagination.
-// Returns TRC-0045 when sort parameters are provided alongside a cursor.
+// Returns code 0334 (title "Cursor With Sort Params") when sort parameters are provided alongside a cursor.
 func TestListTransactionValidations_SortParamsWithCursor_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -277,19 +279,19 @@ func TestListTransactionValidations_SortParamsWithCursor_ReturnsError(t *testing
 			name:     "sortBy-with-cursor",
 			query:    "cursor=" + dummyCursor + "&sort_by=created_at",
 			wantCode: "0334",
-			wantMsg:  "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
+			wantMsg:  "",
 		},
 		{
 			name:     "sortOrder-with-cursor",
 			query:    "cursor=" + dummyCursor + "&sort_order=ASC",
 			wantCode: "0334",
-			wantMsg:  "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
+			wantMsg:  "",
 		},
 		{
 			name:     "both-sort-params-with-cursor",
 			query:    "cursor=" + dummyCursor + "&sort_by=created_at&sort_order=DESC",
 			wantCode: "0334",
-			wantMsg:  "sort_by and sort_order cannot be used with cursor; cursor already contains sort configuration",
+			wantMsg:  "",
 		},
 	}
 
@@ -310,7 +312,7 @@ func TestListTransactionValidations_SortParamsWithCursor_ReturnsError(t *testing
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.wantCode, errResp.Code, "Expected error code %s for query=%q", tc.wantCode, tc.query)
-			assert.Equal(t, "Invalid Transaction Validation Filters", errResp.Title)
+			assert.Equal(t, "Cursor With Sort Params", errResp.Title)
 			assert.Equal(t, tc.wantMsg, errResp.Message)
 		})
 	}
@@ -321,7 +323,7 @@ func TestListTransactionValidations_SortParamsWithCursor_ReturnsError(t *testing
 // =============================================================================
 
 // TestListTransactionValidations_InvalidDecision_ReturnsError verifies invalid decision filter handling.
-// Returns TRC-0250 for invalid transaction validation filters
+// Returns code 0431 (title "Invalid Transaction Validation Filters") for invalid filter values.
 func TestListTransactionValidations_InvalidDecision_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -336,25 +338,25 @@ func TestListTransactionValidations_InvalidDecision_ReturnsError(t *testing.T) {
 			name:     "invalid-decision-value",
 			query:    "decision=INVALID",
 			wantCode: "0431",
-			wantMsg:  "decision must be one of [ALLOW, DENY, REVIEW]",
+			wantMsg:  "",
 		},
 		{
 			name:     "decision-lowercase",
 			query:    "decision=allow",
 			wantCode: "0431",
-			wantMsg:  "decision must be one of [ALLOW, DENY, REVIEW]",
+			wantMsg:  "",
 		},
 		{
 			name:     "decision-approve",
 			query:    "decision=APPROVE",
 			wantCode: "0431",
-			wantMsg:  "decision must be one of [ALLOW, DENY, REVIEW]",
+			wantMsg:  "",
 		},
 		{
 			name:     "decision-numeric",
 			query:    "decision=123",
 			wantCode: "0431",
-			wantMsg:  "decision must be one of [ALLOW, DENY, REVIEW]",
+			wantMsg:  "",
 		},
 	}
 
@@ -382,7 +384,7 @@ func TestListTransactionValidations_InvalidDecision_ReturnsError(t *testing.T) {
 }
 
 // TestListTransactionValidations_InvalidTransactionType_ReturnsError verifies invalid transactionType filter handling.
-// Returns TRC-0250 for invalid transaction validation filters
+// Returns code 0431 (title "Invalid Transaction Validation Filters") for invalid filter values.
 func TestListTransactionValidations_InvalidTransactionType_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -397,25 +399,25 @@ func TestListTransactionValidations_InvalidTransactionType_ReturnsError(t *testi
 			name:     "invalid-transactionType-value",
 			query:    "transaction_type=INVALID",
 			wantCode: "0431",
-			wantMsg:  "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
+			wantMsg:  "",
 		},
 		{
 			name:     "transactionType-lowercase",
 			query:    "transaction_type=card",
 			wantCode: "0431",
-			wantMsg:  "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
+			wantMsg:  "",
 		},
 		{
 			name:     "transactionType-cash",
 			query:    "transaction_type=CASH",
 			wantCode: "0431",
-			wantMsg:  "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
+			wantMsg:  "",
 		},
 		{
 			name:     "transactionType-numeric",
 			query:    "transaction_type=123",
 			wantCode: "0431",
-			wantMsg:  "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
+			wantMsg:  "",
 		},
 	}
 
@@ -443,7 +445,7 @@ func TestListTransactionValidations_InvalidTransactionType_ReturnsError(t *testi
 }
 
 // TestListTransactionValidations_InvalidUUIDFilters_ReturnsError verifies invalid UUID filter handling.
-// Returns TRC-0250 for invalid transaction validation filters
+// Returns code 0431 (title "Invalid Transaction Validation Filters") for invalid filter values.
 func TestListTransactionValidations_InvalidUUIDFilters_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -458,31 +460,31 @@ func TestListTransactionValidations_InvalidUUIDFilters_ReturnsError(t *testing.T
 			name:     "invalid-accountId-uuid",
 			query:    "account_id=not-a-uuid",
 			wantCode: "0431",
-			wantMsg:  "account_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		{
 			name:     "invalid-matchedRuleId-uuid",
 			query:    "matched_rule_id=invalid-uuid",
 			wantCode: "0431",
-			wantMsg:  "matched_rule_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		{
 			name:     "invalid-exceededLimitId-uuid",
 			query:    "exceeded_limit_id=12345",
 			wantCode: "0431",
-			wantMsg:  "exceeded_limit_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		{
 			name:     "invalid-segmentId-uuid",
 			query:    "segment_id=abc",
 			wantCode: "0431",
-			wantMsg:  "segment_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		{
 			name:     "invalid-portfolioId-uuid",
 			query:    "portfolio_id=not-valid",
 			wantCode: "0431",
-			wantMsg:  "portfolio_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		// NOTE: "uuid-without-dashes" is actually a valid UUID format accepted by google/uuid
 		// so it won't fail validation. We test with a truly invalid format instead.
@@ -490,13 +492,13 @@ func TestListTransactionValidations_InvalidUUIDFilters_ReturnsError(t *testing.T
 			name:     "malformed-uuid-bad-hex",
 			query:    "account_id=550e8400-e29b-41d4-a716-44665544000g",
 			wantCode: "0431",
-			wantMsg:  "account_id must be a valid UUID",
+			wantMsg:  "",
 		},
 		{
 			name:     "partial-uuid",
 			query:    "account_id=550e8400-e29b",
 			wantCode: "0431",
-			wantMsg:  "account_id must be a valid UUID",
+			wantMsg:  "",
 		},
 	}
 
@@ -524,46 +526,53 @@ func TestListTransactionValidations_InvalidUUIDFilters_ReturnsError(t *testing.T
 }
 
 // TestListTransactionValidations_InvalidDateFilters_ReturnsError verifies invalid date filter handling.
-// Returns TRC-0250 for invalid transaction validation filters
+// Returns 0077 (title "Invalid Date Format Error") for malformed dates and 0083
+// (title "Invalid Date Range Error") when start_date is after end_date.
 func TestListTransactionValidations_InvalidDateFilters_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
 	tests := []struct {
-		name     string
-		query    string
-		wantCode string
-		wantMsg  string
+		name      string
+		query     string
+		wantCode  string
+		wantTitle string
+		wantMsg   string
 	}{
 		{
-			name:     "invalid-startDate-format",
-			query:    "start_date=2024-01-01",
-			wantCode: "0077",
-			wantMsg:  `start_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z). Invalid value: "2024-01-01"`,
+			name:      "invalid-startDate-format",
+			query:     "start_date=2024-01-01",
+			wantCode:  "0077",
+			wantTitle: "Invalid Date Format Error",
+			wantMsg:   "",
 		},
 		{
-			name:     "invalid-endDate-format",
-			query:    "end_date=invalid-date",
-			wantCode: "0077",
-			wantMsg:  `end_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z). Invalid value: "invalid-date"`,
+			name:      "invalid-endDate-format",
+			query:     "end_date=invalid-date",
+			wantCode:  "0077",
+			wantTitle: "Invalid Date Format Error",
+			wantMsg:   "",
 		},
 		{
-			name:     "startDate-after-endDate",
-			query:    "start_date=2024-12-31T23:59:59Z&end_date=2024-01-01T00:00:00Z",
-			wantCode: "0083",
-			wantMsg:  "end_date must be on or after start_date",
+			name:      "startDate-after-endDate",
+			query:     "start_date=2024-12-31T23:59:59Z&end_date=2024-01-01T00:00:00Z",
+			wantCode:  "0083",
+			wantTitle: "Invalid Date Range Error",
+			wantMsg:   "",
 		},
 		{
-			name:     "date-without-timezone",
-			query:    "start_date=2024-01-01T12:00:00",
-			wantCode: "0077",
-			wantMsg:  `start_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z). Invalid value: "2024-01-01T12:00:00"`,
+			name:      "date-without-timezone",
+			query:     "start_date=2024-01-01T12:00:00",
+			wantCode:  "0077",
+			wantTitle: "Invalid Date Format Error",
+			wantMsg:   "",
 		},
 		{
-			name:     "date-numeric",
-			query:    "start_date=1704067200",
-			wantCode: "0077",
-			wantMsg:  `start_date must be in RFC3339 format with timezone (e.g., 2026-01-28T10:30:00Z). Invalid value: "1704067200"`,
+			name:      "date-numeric",
+			query:     "start_date=1704067200",
+			wantCode:  "0077",
+			wantTitle: "Invalid Date Format Error",
+			wantMsg:   "",
 		},
 	}
 
@@ -584,7 +593,7 @@ func TestListTransactionValidations_InvalidDateFilters_ReturnsError(t *testing.T
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.wantCode, errResp.Code, "Expected error code %s for query=%q", tc.wantCode, tc.query)
-			assert.Equal(t, "Invalid Transaction Validation Filters", errResp.Title)
+			assert.Equal(t, tc.wantTitle, errResp.Title, "Expected title %q for query=%q", tc.wantTitle, tc.query)
 			assert.Equal(t, tc.wantMsg, errResp.Message)
 		})
 	}
@@ -616,9 +625,9 @@ func TestListTransactionValidations_MultipleInvalidParams_ReturnsFirstError(t *t
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0331", errResp.Code)
-	assert.Equal(t, "Invalid Transaction Validation Filters", errResp.Title)
+	assert.Equal(t, "Pagination Limit Invalid", errResp.Title)
 	// First validation is limit (based on validation order in handler)
-	assert.Equal(t, "limit must be at least 1", errResp.Message)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // =============================================================================
@@ -649,8 +658,8 @@ func TestGetTransactionValidation_ValidUUIDButNotFound_Returns404(t *testing.T) 
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0432", errResp.Code)
-	assert.Equal(t, "Not Found", errResp.Title)
-	assert.Equal(t, "Transaction validation not found", errResp.Message)
+	assert.Equal(t, "Transaction Validation Not Found", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // =============================================================================
@@ -705,10 +714,10 @@ func TestListTransactionValidations_WithoutAuth_Returns401(t *testing.T) {
 // Pagination Validation Tests - Transaction Validations
 // =============================================================================
 // These tests verify that pagination parameters are properly validated according
-// to the standardized validation pattern (TRC-0040 through TRC-0045).
+// to the standardized validation pattern (codes 0080, 0081, 0331, 0332, 0334).
 // =============================================================================
 
-// TestListTransactionValidations_CursorWithSortBy_Rejected verifies TRC-0045: cursor cannot be used with sort_by.
+// TestListTransactionValidations_CursorWithSortBy_Rejected verifies code 0334: cursor cannot be used with sort_by.
 func TestListTransactionValidations_CursorWithSortBy_Rejected(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -727,10 +736,10 @@ func TestListTransactionValidations_CursorWithSortBy_Rejected(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0334", errResp.Code)
-	assert.Contains(t, errResp.Message, "sort_by and sort_order cannot be used with cursor")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_CursorWithSortOrder_Rejected verifies TRC-0045: cursor cannot be used with sort_order.
+// TestListTransactionValidations_CursorWithSortOrder_Rejected verifies code 0334: cursor cannot be used with sort_order.
 func TestListTransactionValidations_CursorWithSortOrder_Rejected(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -749,10 +758,10 @@ func TestListTransactionValidations_CursorWithSortOrder_Rejected(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0334", errResp.Code)
-	assert.Contains(t, errResp.Message, "sort_by and sort_order cannot be used with cursor")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_CursorWithBothSortParams_Rejected verifies TRC-0045: cursor cannot be used with both sort_by and sort_order.
+// TestListTransactionValidations_CursorWithBothSortParams_Rejected verifies code 0334: cursor cannot be used with both sort_by and sort_order.
 func TestListTransactionValidations_CursorWithBothSortParams_Rejected(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -771,10 +780,10 @@ func TestListTransactionValidations_CursorWithBothSortParams_Rejected(t *testing
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0334", errResp.Code)
-	assert.Contains(t, errResp.Message, "sort_by and sort_order cannot be used with cursor")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_LimitExceeded verifies TRC-0040: limit cannot exceed maximum.
+// TestListTransactionValidations_LimitExceeded verifies code 0080: limit cannot exceed maximum.
 func TestListTransactionValidations_LimitExceeded(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -793,10 +802,10 @@ func TestListTransactionValidations_LimitExceeded(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0080", errResp.Code)
-	assert.Contains(t, errResp.Message, "limit must not exceed 1000")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_InvalidLimit verifies TRC-0041: limit must be at least 1.
+// TestListTransactionValidations_InvalidLimit verifies code 0331: limit must be at least 1.
 func TestListTransactionValidations_InvalidLimit(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -815,10 +824,10 @@ func TestListTransactionValidations_InvalidLimit(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0331", errResp.Code)
-	assert.Contains(t, errResp.Message, "limit must be at least 1")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_InvalidSortOrder_TRC0042 verifies TRC-0042: sort_order must be ASC or DESC.
+// TestListTransactionValidations_InvalidSortOrder_TRC0042 verifies code 0081: sort_order must be ASC or DESC.
 func TestListTransactionValidations_InvalidSortOrder_TRC0042(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -837,10 +846,10 @@ func TestListTransactionValidations_InvalidSortOrder_TRC0042(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0081", errResp.Code)
-	assert.Contains(t, errResp.Message, "sort_order must be ASC or DESC")
+	assert.Empty(t, errResp.Message)
 }
 
-// TestListTransactionValidations_InvalidSortBy_TRC0043 verifies TRC-0043: sort_by must be in allowed list.
+// TestListTransactionValidations_InvalidSortBy_TRC0043 verifies code 0332: sort_by must be in allowed list.
 func TestListTransactionValidations_InvalidSortBy_TRC0043(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -859,24 +868,28 @@ func TestListTransactionValidations_InvalidSortBy_TRC0043(t *testing.T) {
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0332", errResp.Code)
-	assert.Contains(t, errResp.Message, "sort_by must be one of [created_at processing_time_ms]")
+	assert.Empty(t, errResp.Message)
 }
 
 // =============================================================================
-// 3.7 GET /v1/validations - Timeout/DeadlineExceeded Tests (TRC-0252)
+// 3.7 GET /v1/validations - Timeout/DeadlineExceeded Tests (code 0433)
 // =============================================================================
 
 // TestListTransactionValidations_Timeout_ReturnsTRC0252 verifies that when a query timeout occurs
-// (deadline exceeded), the API returns 504 Gateway Timeout with error code TRC-0252.
+// (deadline exceeded), the API returns 504 Gateway Timeout with error code 0433.
 //
 // Uses fault injection to simulate a timeout scenario. The fault injection middleware
-// intercepts requests with X-Test-Fault-Injection header and returns TRC-0252.
+// intercepts requests with X-Test-Fault-Injection header and returns code 0433.
 //
 // Expected response:
 // - HTTP Status: 504 Gateway Timeout
-// - Error Code: TRC-0252 (list query timeout)
+// - Error Code: 0433 (list query timeout)
 // - Error Title: "Gateway Timeout"
-// - Error Message: mentions "query" to distinguish from POST validation timeout (TRC-0229)
+// - Error Message: mentions "query" to distinguish from the POST validation timeout
+//
+// KNOWN BUG (not synced): the endpoint currently returns 503 "Service Unavailable"
+// with detail "internal error" instead of 504 "Gateway Timeout". Assertions are
+// left expecting the correct 504 contract.
 func TestListTransactionValidations_Timeout_ReturnsTRC0252(t *testing.T) {
 	// Use fault injection to simulate timeout scenario
 	resp, respBody := testutil.ListValidationsWithFaultInjection(t, "", testutil.FaultTimeout)
@@ -890,9 +903,9 @@ func TestListTransactionValidations_Timeout_ReturnsTRC0252(t *testing.T) {
 	// Parse the error response
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// Verify TRC-0252 for list query timeout (distinct from TRC-0229 for POST validation timeout)
+	// Verify code 0433 (ErrListValidationsTimeout) for list query timeout, distinct from the POST validation timeout
 	assert.Equal(t, "0433", errResp.Code,
-		"Expected error code TRC-0252 (CodeListValidationsTimeout) for list query timeout, got %s",
+		"Expected error code 0433 (ErrListValidationsTimeout) for list query timeout, got %s",
 		errResp.Code)
 
 	// Verify the title indicates a timeout
@@ -907,7 +920,8 @@ func TestListTransactionValidations_Timeout_ReturnsTRC0252(t *testing.T) {
 // TestListTransactionValidations_Timeout_WithFilters_ReturnsTRC0252 verifies timeout handling
 // when complex filters are used (which might cause slower queries).
 //
-// TDD RED Phase: Same failure expected as TestListTransactionValidations_Timeout_ReturnsTRC0252.
+// Same KNOWN BUG as TestListTransactionValidations_Timeout_ReturnsTRC0252: the endpoint
+// currently returns 503 "Service Unavailable" instead of the expected 504 "Gateway Timeout".
 func TestListTransactionValidations_Timeout_WithFilters_ReturnsTRC0252(t *testing.T) {
 	// Use filters that might cause a complex query
 	queryParams := "decision=ALLOW&transaction_type=CARD&sort_by=processing_time_ms&sort_order=DESC"
@@ -921,7 +935,6 @@ func TestListTransactionValidations_Timeout_WithFilters_ReturnsTRC0252(t *testin
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TDD RED Phase: Will fail - expecting TRC-0252, will get TRC-0229
 	assert.Equal(t, "0433", errResp.Code,
-		"Expected TRC-0252 for list query timeout, got %s", errResp.Code)
+		"Expected code 0433 for list query timeout, got %s", errResp.Code)
 }

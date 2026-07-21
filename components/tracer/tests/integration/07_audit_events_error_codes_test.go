@@ -23,20 +23,42 @@ import (
 // Error Code Tests for Audit Event Handler
 // =============================================================================
 // These tests verify the error codes returned by audit event handler operations.
+// Codes are the canonical numeric registry (pkg/constant/errors.go); the retired
+// TRC-* prefixed families no longer exist on the wire.
 //
 // Error code mapping:
-//   - TRC-0007: Invalid path parameter (invalid UUID for eventId)
-//   - TRC-0140: Audit event not found
-//   - TRC-0141: Invalid audit event filters
-//   - TRC-0043: Invalid sort column
-//   - TRC-0044: Invalid pagination cursor
+//   - 0065: Invalid path parameter (invalid UUID for eventId)
+//   - 0381: Audit event not found
+//   - 0332: Invalid sort column
+//   - 0333: Invalid pagination cursor
+//   - 0334: Cursor and sort parameters are mutually exclusive
+//   - 0009/0077/0080/0081/0331/0083: invalid list filters (enum, date, limit,
+//     sort order, date range)
+//
+// Error bodies are RFC 9457 problem+json: the human-readable text lives in the
+// "detail" member (not "message"), read via auditProblemDetail below.
 // =============================================================================
+
+// auditProblemDetail extracts the RFC 9457 "detail" member from a problem+json
+// error body. The shared testutil.ErrorResponse only surfaces code/title, so
+// detail assertions parse the body here.
+func auditProblemDetail(t *testing.T, body []byte) string {
+	t.Helper()
+
+	var p struct {
+		Detail string `json:"detail"`
+	}
+
+	require.NoError(t, json.Unmarshal(body, &p), "parse problem detail: %s", string(body))
+
+	return p.Detail
+}
 
 // =============================================================================
 // GET /v1/audit-events/{id} - Get Audit Event Error Code Tests
 // =============================================================================
 
-// TestGetAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that invalid UUID format returns TRC-0007.
+// TestGetAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that an invalid UUID format returns 0065.
 func TestGetAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -85,14 +107,14 @@ func TestGetAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
+			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected 0065 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
-			assert.Equal(t, "Invalid event ID format", errResp.Message, "Test case: %s", tc.desc)
+			assert.Contains(t, auditProblemDetail(t, respBody), "path parameters are in an incorrect format", "Test case: %s", tc.desc)
 		})
 	}
 }
 
-// TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140 verifies that non-existent UUID returns TRC-0140.
+// TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140 verifies that a non-existent UUID returns 0381.
 func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -136,9 +158,9 @@ func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
-			assert.Equal(t, "Not Found", errResp.Title, "Test case: %s", tc.desc)
-			assert.Equal(t, "Audit event not found", errResp.Message, "Test case: %s", tc.desc)
+			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected 0381 for audit event not found", tc.desc)
+			assert.Equal(t, "Audit Event Not Found", errResp.Title, "Test case: %s", tc.desc)
+			assert.Contains(t, auditProblemDetail(t, respBody), "Audit event not found", "Test case: %s", tc.desc)
 		})
 	}
 }
@@ -147,7 +169,7 @@ func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 // GET /v1/audit-events - List Audit Events Error Code Tests
 // =============================================================================
 
-// TestListAuditEvents_InvalidSortColumn_ReturnsTRC0043 verifies that invalid sortBy returns TRC-0043.
+// TestListAuditEvents_InvalidSortColumn_ReturnsTRC0043 verifies that an invalid sortBy returns 0332.
 func TestListAuditEvents_InvalidSortColumn_ReturnsTRC0043(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -186,13 +208,13 @@ func TestListAuditEvents_InvalidSortColumn_ReturnsTRC0043(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0332", errResp.Code, "Test case: %s - Expected TRC-0043 for invalid sort column", tc.desc)
-			assert.Equal(t, "Validation Error", errResp.Title, "Test case: %s", tc.desc)
+			assert.Equal(t, "0332", errResp.Code, "Test case: %s - Expected 0332 for invalid sort column", tc.desc)
+			assert.Equal(t, "Invalid Sort Column", errResp.Title, "Test case: %s", tc.desc)
 		})
 	}
 }
 
-// TestListAuditEvents_InvalidCursor_ReturnsTRC0044 verifies that invalid cursor returns TRC-0044.
+// TestListAuditEvents_InvalidCursor_ReturnsTRC0044 verifies that an invalid cursor returns 0333.
 func TestListAuditEvents_InvalidCursor_ReturnsTRC0044(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -230,15 +252,17 @@ func TestListAuditEvents_InvalidCursor_ReturnsTRC0044(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.desc, string(respBody))
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "0333", errResp.Code, "Test case: %s - Expected TRC-0044 for invalid cursor", tc.desc)
-			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.desc)
+			assert.Equal(t, "0333", errResp.Code, "Test case: %s - Expected 0333 for invalid cursor", tc.desc)
+			assert.Equal(t, "Invalid Cursor", errResp.Title, "Test case: %s", tc.desc)
 		})
 	}
 }
 
 // TestListAuditEvents_InvalidFilters_ReturnsValidationError verifies filter validation.
-// Note: TRC-0141 is returned by the service layer for invalid audit event filters,
-// while TRC-0001 is returned for input validation errors at the handler layer.
+// Note: invalid enum params (event_type/action/result/resource_type/transaction_type)
+// canonicalize to 0009 (Missing Fields in Request) — the go-playground validator's
+// default arm, empirically anchored to the pre-Huma Fiber handler; date/limit/sort
+// order params carry their own dedicated codes (0077/0331/0080/0081).
 func TestListAuditEvents_InvalidFilters_ReturnsValidationError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -253,78 +277,78 @@ func TestListAuditEvents_InvalidFilters_ReturnsValidationError(t *testing.T) {
 		{
 			name:          "invalid_event_type",
 			queryParams:   "event_type=INVALID_EVENT_TYPE",
-			expectedCode:  "0053",
-			expectedTitle: "Validation Error",
+			expectedCode:  "0009",
+			expectedTitle: "Missing Fields in Request",
 			desc:          "Invalid event type enum value",
 		},
 		{
 			name:          "invalid_action",
 			queryParams:   "action=INVALID_ACTION",
-			expectedCode:  "0053",
-			expectedTitle: "Validation Error",
+			expectedCode:  "0009",
+			expectedTitle: "Missing Fields in Request",
 			desc:          "Invalid action enum value",
 		},
 		{
 			name:          "invalid_result",
 			queryParams:   "result=INVALID_RESULT",
-			expectedCode:  "0053",
-			expectedTitle: "Validation Error",
+			expectedCode:  "0009",
+			expectedTitle: "Missing Fields in Request",
 			desc:          "Invalid result enum value",
 		},
 		{
 			name:          "invalid_resource_type",
 			queryParams:   "resource_type=invalid_type",
-			expectedCode:  "0053",
-			expectedTitle: "Validation Error",
+			expectedCode:  "0009",
+			expectedTitle: "Missing Fields in Request",
 			desc:          "Invalid resource type",
 		},
 		{
 			name:          "invalid_start_date_format",
 			queryParams:   "start_date=not-a-date",
 			expectedCode:  "0077",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Invalid Date Format Error",
 			desc:          "Invalid start date format",
 		},
 		{
 			name:          "invalid_end_date_format",
 			queryParams:   "end_date=2024-13-45",
 			expectedCode:  "0077",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Invalid Date Format Error",
 			desc:          "Invalid end date format",
 		},
 		{
 			name:          "limit_negative",
 			queryParams:   "limit=-5",
 			expectedCode:  "0331",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Pagination Limit Invalid",
 			desc:          "Negative limit is invalid",
 		},
 		{
 			name:          "limit_zero",
 			queryParams:   "limit=0",
 			expectedCode:  "0331",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Pagination Limit Invalid",
 			desc:          "Zero limit is invalid (must be at least 1)",
 		},
 		{
 			name:          "limit_exceeds_max",
 			queryParams:   "limit=2000",
 			expectedCode:  "0080",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Pagination Limit Exceeded",
 			desc:          "Limit exceeds maximum allowed (1000)",
 		},
 		{
 			name:          "invalid_transaction_type",
 			queryParams:   "transaction_type=INVALID_TYPE",
-			expectedCode:  "0053",
-			expectedTitle: "Validation Error",
+			expectedCode:  "0009",
+			expectedTitle: "Missing Fields in Request",
 			desc:          "Invalid transaction type enum value",
 		},
 		{
 			name:          "invalid_sort_order",
 			queryParams:   "sort_order=INVALID",
 			expectedCode:  "0081",
-			expectedTitle: "Validation Error",
+			expectedTitle: "Invalid Sort Order",
 			desc:          "Invalid sort order value (must be ASC or DESC)",
 		},
 	}
@@ -353,7 +377,7 @@ func TestListAuditEvents_InvalidFilters_ReturnsValidationError(t *testing.T) {
 }
 
 // TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045 verifies that providing
-// sortBy or sortOrder parameters when a cursor is present returns TRC-0045.
+// sortBy or sortOrder parameters when a cursor is present returns 0334.
 // Sort parameters are encoded in the cursor and cannot be changed mid-pagination.
 func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
@@ -413,8 +437,8 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with sortBy")
-		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
+		assert.Equal(t, "0334", errResp.Code, "Expected 0334 for cursor with sortBy")
+		assert.Equal(t, "Cursor With Sort Params", errResp.Title, "Expected 'Cursor With Sort Params' title")
 	})
 
 	// Step 3: Test cursor with sortOrder parameter
@@ -434,8 +458,8 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with sortOrder")
-		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
+		assert.Equal(t, "0334", errResp.Code, "Expected 0334 for cursor with sortOrder")
+		assert.Equal(t, "Cursor With Sort Params", errResp.Title, "Expected 'Cursor With Sort Params' title")
 	})
 
 	// Step 4: Test cursor with both sortBy and sortOrder parameters
@@ -455,8 +479,8 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
 
-		assert.Equal(t, "0334", errResp.Code, "Expected TRC-0045 for cursor with both sort params")
-		assert.Equal(t, "Validation Error", errResp.Title, "Expected 'Validation Error' title")
+		assert.Equal(t, "0334", errResp.Code, "Expected 0334 for cursor with both sort params")
+		assert.Equal(t, "Cursor With Sort Params", errResp.Title, "Expected 'Cursor With Sort Params' title")
 	})
 }
 
@@ -464,7 +488,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 // GET /v1/audit-events/{id}/verify - Verify Hash Chain Error Code Tests
 // =============================================================================
 
-// TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that invalid UUID format returns TRC-0007.
+// TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007 verifies that an invalid UUID format returns 0065.
 func TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -508,14 +532,14 @@ func TestVerifyAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected TRC-0007 for invalid UUID", tc.desc)
+			assert.Equal(t, "0065", errResp.Code, "Test case: %s - Expected 0065 for invalid UUID", tc.desc)
 			assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Test case: %s", tc.desc)
-			assert.Equal(t, "Invalid event ID format", errResp.Message, "Test case: %s", tc.desc)
+			assert.Contains(t, auditProblemDetail(t, respBody), "path parameters are in an incorrect format", "Test case: %s", tc.desc)
 		})
 	}
 }
 
-// TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140 verifies that non-existent UUID returns TRC-0140.
+// TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140 verifies that a non-existent UUID returns 0381.
 func TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -554,9 +578,9 @@ func TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected TRC-0140 for audit event not found", tc.desc)
-			assert.Equal(t, "Not Found", errResp.Title, "Test case: %s", tc.desc)
-			assert.Equal(t, "Audit event not found", errResp.Message, "Test case: %s", tc.desc)
+			assert.Equal(t, "0381", errResp.Code, "Test case: %s - Expected 0381 for audit event not found", tc.desc)
+			assert.Equal(t, "Audit Event Not Found", errResp.Title, "Test case: %s", tc.desc)
+			assert.Contains(t, auditProblemDetail(t, respBody), "Audit event not found", "Test case: %s", tc.desc)
 		})
 	}
 }
@@ -676,22 +700,22 @@ func TestDateRangeValidation_ConsistentAcrossEndpoints(t *testing.T) {
 	endDate := "2025-01-01T00:00:00Z"
 
 	endpoints := []struct {
-		name            string
-		url             string
-		expectedCode    string
-		expectedMessage string
+		name           string
+		url            string
+		expectedCode   string
+		expectedDetail string
 	}{
 		{
-			name:            "audit-events",
-			url:             fmt.Sprintf("%s/v1/audit-events?start_date=%s&end_date=%s", baseURL, startDate, endDate),
-			expectedCode:    "0083",
-			expectedMessage: "end_date must be on or after start_date",
+			name:           "audit-events",
+			url:            fmt.Sprintf("%s/v1/audit-events?start_date=%s&end_date=%s", baseURL, startDate, endDate),
+			expectedCode:   "0083",
+			expectedDetail: "Both 'initialDate' and 'finalDate' fields are required",
 		},
 		{
-			name:            "transaction-validations",
-			url:             fmt.Sprintf("%s/v1/validations?start_date=%s&end_date=%s", baseURL, startDate, endDate),
-			expectedCode:    "0083",
-			expectedMessage: "end_date must be on or after start_date",
+			name:           "transaction-validations",
+			url:            fmt.Sprintf("%s/v1/validations?start_date=%s&end_date=%s", baseURL, startDate, endDate),
+			expectedCode:   "0083",
+			expectedDetail: "Both 'initialDate' and 'finalDate' fields are required",
 		},
 	}
 
@@ -717,8 +741,10 @@ func TestDateRangeValidation_ConsistentAcrossEndpoints(t *testing.T) {
 
 			require.Equal(t, ep.expectedCode, errResp["code"],
 				"Endpoint %s should return error code %s", ep.name, ep.expectedCode)
-			require.Equal(t, ep.expectedMessage, errResp["message"],
-				"Endpoint %s should return expected error message", ep.name)
+
+			detail, _ := errResp["detail"].(string)
+			require.Contains(t, detail, ep.expectedDetail,
+				"Endpoint %s should return expected problem detail", ep.name)
 		})
 	}
 }

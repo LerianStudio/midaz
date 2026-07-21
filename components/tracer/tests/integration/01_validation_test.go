@@ -707,7 +707,7 @@ func TestValidation_1_1_9_PayloadTooLarge(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0143", errorResp.Code, "Error code should be TRC-0011 for payload too large")
+	assert.Equal(t, "0143", errorResp.Code, "Error code should be 0143 for payload too large")
 	assert.Equal(t, "Payload Too Large", errorResp.Title, "Error title should be Payload Too Large")
 	assert.Equal(t, "payload too large: exceeds 100KB limit", errorResp.Message, "Error message should indicate payload size limit")
 }
@@ -738,8 +738,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "requestId",
 			expectedCode:    "0413",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "requestId is required",
+			expectedTitle:   "Validation Request IDRequired",
+			expectedMessage: "",
 		},
 		{
 			name: "missing transactionType",
@@ -753,8 +753,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "transactionType",
 			expectedCode:    "0414",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]",
+			expectedTitle:   "Validation Invalid Transaction Type",
+			expectedMessage: "",
 		},
 		{
 			name: "missing amount (zero value)",
@@ -768,8 +768,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "amount",
 			expectedCode:    "0415",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "amount must be positive",
+			expectedTitle:   "Validation Amount Non Positive",
+			expectedMessage: "",
 		},
 		{
 			name: "missing currency",
@@ -783,8 +783,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "currency",
 			expectedCode:    "0416",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "currency is required",
+			expectedTitle:   "Validation Currency Required",
+			expectedMessage: "",
 		},
 		{
 			name: "missing timestamp",
@@ -798,8 +798,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "timestamp",
 			expectedCode:    "0418",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "transactionTimestamp is required",
+			expectedTitle:   "Validation Timestamp Required",
+			expectedMessage: "",
 		},
 		{
 			name: "missing account",
@@ -813,8 +813,8 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			},
 			missing:         "account",
 			expectedCode:    "0420",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "account is required",
+			expectedTitle:   "Validation Account Required",
+			expectedMessage: "",
 		},
 	}
 
@@ -860,9 +860,9 @@ func TestValidation_InvalidTransactionType(t *testing.T) {
 	// Verify error response structure per spec
 	errorResp := testutil.ParseErrorResponse(t, body)
 
-	assert.Equal(t, "0414", errorResp.Code, "Error code should be TRC-0221 for invalid transactionType")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]", errorResp.Message, "Error message should indicate valid transactionTypes")
+	assert.Equal(t, "0414", errorResp.Code, "Error code should be 0414 for invalid transactionType")
+	assert.Equal(t, "Validation Invalid Transaction Type", errorResp.Title, "Error title should be Validation Invalid Transaction Type")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.12: Validation rejects invalid amount
@@ -906,9 +906,9 @@ func TestValidation_InvalidAmount(t *testing.T) {
 			// Verify error response structure per spec
 			errorResp := testutil.ParseErrorResponse(t, body)
 
-			assert.Equal(t, "0415", errorResp.Code, "Error code should be TRC-0222 for non-positive amount")
-			assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-			assert.Equal(t, "amount must be positive", errorResp.Message, "Error message should indicate amount must be positive")
+			assert.Equal(t, "0415", errorResp.Code, "Error code should be 0415 for non-positive amount")
+			assert.Equal(t, "Validation Amount Non Positive", errorResp.Title, "Error title should be Validation Amount Non Positive")
+			assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 		})
 	}
 
@@ -985,15 +985,15 @@ func TestValidation_InvalidCurrency(t *testing.T) {
 			// Verify error response structure per spec
 			errorResp := testutil.ParseErrorResponse(t, body)
 
-			// Empty currency returns TRC-0223 (currency required), others return TRC-0224 (invalid currency)
+			// Empty currency returns 0416 (currency required), others return 0417 (invalid currency)
 			if tc.currency == "" {
-				assert.Equal(t, "0416", errorResp.Code, "Error code should be TRC-0223 for missing currency")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "currency is required", errorResp.Message, "Error message should indicate currency is required")
+				assert.Equal(t, "0416", errorResp.Code, "Error code should be 0416 for missing currency")
+				assert.Equal(t, "Validation Currency Required", errorResp.Title, "Error title should be Validation Currency Required")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			} else {
-				assert.Equal(t, "0417", errorResp.Code, "Error code should be TRC-0224 for invalid currency")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errorResp.Message, "Error message should indicate valid currency format")
+				assert.Equal(t, "0417", errorResp.Code, "Error code should be 0417 for invalid currency")
+				assert.Equal(t, "Validation Invalid Currency", errorResp.Title, "Error title should be Validation Invalid Currency")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			}
 		})
 	}
@@ -1026,9 +1026,9 @@ func TestValidation_1_1_14_FutureTimestamp(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0419", errorResp.Code, "Error code should be TRC-0226 for future timestamp")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "transactionTimestamp cannot be in the future", errorResp.Message, "Error message should indicate timestamp cannot be in the future")
+	assert.Equal(t, "0419", errorResp.Code, "Error code should be 0419 for future timestamp")
+	assert.Equal(t, "Validation Timestamp Future", errorResp.Title, "Error title should be Validation Timestamp Future")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.15: Validation requires authentication
@@ -1215,9 +1215,9 @@ func TestValidation_1_1_19_RejectsMetadataOverLimit(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0335", errorResp.Code, "Error code should be TRC-0063 for metadata entries exceeded")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "metadata exceeds maximum of 50 entries", errorResp.Message, "Error message should indicate metadata entry limit")
+	assert.Equal(t, "0335", errorResp.Code, "Error code should be 0335 for metadata entries exceeded")
+	assert.Equal(t, "Metadata Entries Exceeded", errorResp.Title, "Error title should be Metadata Entries Exceeded")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.20: Rejects metadata key >64 characters
@@ -1252,9 +1252,9 @@ func TestValidation_1_1_20_RejectsLongMetadataKey(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0050", errorResp.Code, "Error code should be TRC-0060 for metadata key length exceeded")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "metadata key exceeds maximum length of 64 characters", errorResp.Message, "Error message should indicate key length limit")
+	assert.Equal(t, "0050", errorResp.Code, "Error code should be 0050 for metadata key length exceeded")
+	assert.Equal(t, "Metadata Key Length Exceeded", errorResp.Title, "Error title should be Metadata Key Length Exceeded")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.21: Rejects metadata key with invalid characters
@@ -1317,9 +1317,9 @@ func TestValidation_1_1_21_RejectsInvalidMetadataKeyChars(t *testing.T) {
 
 			// Verify error response structure
 			errorResp := testutil.ParseErrorResponse(t, body)
-			assert.Equal(t, "0336", errorResp.Code, "Error code should be TRC-0064 for invalid metadata key characters")
-			assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-			assert.Equal(t, "metadata key contains invalid characters (only alphanumeric and underscore allowed)", errorResp.Message, "Error message should indicate valid key characters")
+			assert.Equal(t, "0336", errorResp.Code, "Error code should be 0336 for invalid metadata key characters")
+			assert.Equal(t, "Metadata Key Invalid Chars", errorResp.Title, "Error title should be Metadata Key Invalid Chars")
+			assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 		})
 	}
 }
@@ -1338,30 +1338,30 @@ func TestValidation_1_1_22_RejectsInvalidRequestIdUUID(t *testing.T) {
 		{
 			name:            "invalid UUID format",
 			requestID:       "invalid-uuid",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 		{
 			name:            "numeric string",
 			requestID:       "123",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 		{
 			name:            "empty string",
 			requestID:       "",
 			expectedCode:    "0413",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "requestId is required",
+			expectedTitle:   "Validation Request IDRequired",
+			expectedMessage: "",
 		},
 		{
 			name:            "partial UUID",
 			requestID:       "550e8400-e29b-41d4",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 	}
 
@@ -1408,30 +1408,30 @@ func TestValidation_1_1_23_RejectsInvalidAccountIdUUID(t *testing.T) {
 		{
 			name:            "invalid UUID format",
 			accountID:       "invalid-uuid",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 		{
 			name:            "numeric string",
 			accountID:       "12345",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 		{
 			name:            "empty string",
 			accountID:       "",
 			expectedCode:    "0420",
-			expectedTitle:   "Validation Error",
-			expectedMessage: "account is required",
+			expectedTitle:   "Validation Account Required",
+			expectedMessage: "",
 		},
 		{
 			name:            "malformed UUID",
 			accountID:       "not-a-valid-uuid-format",
-			expectedCode:    "0047",
+			expectedCode:    "0094",
 			expectedTitle:   "Bad Request",
-			expectedMessage: "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)",
+			expectedMessage: "",
 		},
 	}
 
@@ -1512,9 +1512,9 @@ func TestValidation_1_1_24_RejectsInvalidSegmentIdUUID(t *testing.T) {
 			// Verify error response structure per spec
 			errorResp := testutil.ParseErrorResponse(t, body)
 
-			assert.Equal(t, "0047", errorResp.Code, "Error code should be TRC-0003 for invalid UUID format")
+			assert.Equal(t, "0094", errorResp.Code, "Error code should be 0094 for invalid UUID format")
 			assert.Equal(t, "Bad Request", errorResp.Title, "Error title should be Bad Request")
-			assert.Equal(t, "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)", errorResp.Message, "Error message should match expected format")
+			assert.Equal(t, "", errorResp.Message, "Detail is empty for invalid request body")
 		})
 	}
 }
@@ -1567,9 +1567,9 @@ func TestValidation_1_1_25_RejectsInvalidPortfolioIdUUID(t *testing.T) {
 			// Verify error response structure per spec
 			errorResp := testutil.ParseErrorResponse(t, body)
 
-			assert.Equal(t, "0047", errorResp.Code, "Error code should be TRC-0003 for invalid UUID format")
+			assert.Equal(t, "0094", errorResp.Code, "Error code should be 0094 for invalid UUID format")
 			assert.Equal(t, "Bad Request", errorResp.Title, "Error title should be Bad Request")
-			assert.Equal(t, "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)", errorResp.Message, "Error message should match expected format")
+			assert.Equal(t, "", errorResp.Message, "Detail is empty for invalid request body")
 		})
 	}
 }
@@ -1624,9 +1624,9 @@ func TestValidation_1_1_26_RejectsInvalidMerchantIdUUID(t *testing.T) {
 			// Verify error response structure per spec
 			errorResp := testutil.ParseErrorResponse(t, body)
 
-			assert.Equal(t, "0047", errorResp.Code, "Error code should be TRC-0003 for invalid UUID format")
+			assert.Equal(t, "0094", errorResp.Code, "Error code should be 0094 for invalid UUID format")
 			assert.Equal(t, "Bad Request", errorResp.Title, "Error title should be Bad Request")
-			assert.Equal(t, "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)", errorResp.Message, "Error message should match expected format")
+			assert.Equal(t, "", errorResp.Message, "Detail is empty for invalid request body")
 		})
 	}
 }
@@ -1657,7 +1657,7 @@ func TestValidation_1_1_27_Returns504OnProcessingTimeout(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0422", errorResp.Code, "Error code should be TRC-0229 (DeadlineExceeded)")
+	assert.Equal(t, "0422", errorResp.Code, "Error code should be 0422 (ValidationTimeout)")
 	assert.Equal(t, "Gateway Timeout", errorResp.Title, "Error title should be Gateway Timeout")
 	assert.Equal(t, "validation timeout", errorResp.Message, "Error message should indicate validation timeout")
 }
@@ -1688,9 +1688,9 @@ func TestValidation_1_1_28_Returns503OnServiceUnavailable(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0330", errorResp.Code, "Error code should be TRC-0012 (ServiceUnavailable)")
+	assert.Equal(t, "0330", errorResp.Code, "Error code should be 0330 (ContextCancelled) for service unavailable")
 	assert.Equal(t, "Service Unavailable", errorResp.Title, "Error title should be Service Unavailable")
-	assert.Equal(t, "service temporarily unavailable", errorResp.Message, "Error message should indicate service unavailable")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.29: Validation accepts decimal amount values
@@ -1772,9 +1772,9 @@ func TestValidation_1_1_30_RejectsTimestampWithoutTimezone(t *testing.T) {
 			// Verify error response for invalid timestamps
 			if tc.expected == http.StatusBadRequest {
 				errorResp := testutil.ParseErrorResponse(t, body)
-				assert.Equal(t, "0047", errorResp.Code, "Error code should be TRC-0003 for invalid timestamp format")
+				assert.Equal(t, "0094", errorResp.Code, "Error code should be 0094 for invalid timestamp format")
 				assert.Equal(t, "Bad Request", errorResp.Title, "Error title should be Bad Request")
-				assert.Equal(t, "timestamp: invalid format (expected RFC3339)", errorResp.Message, "Error message should indicate RFC3339 format required")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty for invalid request body")
 			}
 		})
 	}
@@ -1895,9 +1895,9 @@ func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 			if tc.expected == http.StatusBadRequest {
 				errorResp := testutil.ParseErrorResponse(t, body)
 
-				assert.Equal(t, "0426", errorResp.Code, "Error code should be TRC-0233 for invalid account type")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "account.type must be one of: checking, savings, credit", errorResp.Message, "Error message should indicate valid account types")
+				assert.Equal(t, "0426", errorResp.Code, "Error code should be 0426 for invalid account type")
+				assert.Equal(t, "Validation Invalid Account Type", errorResp.Title, "Error title should be Validation Invalid Account Type")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			}
 		})
 	}
@@ -1971,9 +1971,9 @@ func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 			if tc.expected == http.StatusBadRequest {
 				errorResp := testutil.ParseErrorResponse(t, body)
 
-				assert.Equal(t, "0427", errorResp.Code, "Error code should be TRC-0234 for invalid account status")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "account.status must be one of: active, suspended, closed", errorResp.Message, "Error message should indicate valid account statuses")
+				assert.Equal(t, "0427", errorResp.Code, "Error code should be 0427 for invalid account status")
+				assert.Equal(t, "Validation Invalid Account Status", errorResp.Title, "Error title should be Validation Invalid Account Status")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			}
 		})
 	}
@@ -2051,9 +2051,9 @@ func TestValidation_1_1_34_RejectsInvalidMerchantCategory(t *testing.T) {
 			if tc.expected == http.StatusBadRequest {
 				errorResp := testutil.ParseErrorResponse(t, body)
 
-				assert.Equal(t, "0428", errorResp.Code, "Error code should be TRC-0235 for invalid merchant category")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "merchant.category must be a 4-digit MCC code", errorResp.Message, "Error message should indicate valid MCC format")
+				assert.Equal(t, "0428", errorResp.Code, "Error code should be 0428 for invalid merchant category")
+				assert.Equal(t, "Validation Invalid Merchant Category", errorResp.Title, "Error title should be Validation Invalid Merchant Category")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			}
 		})
 	}
@@ -2141,9 +2141,9 @@ func TestValidation_1_1_35_RejectsInvalidMerchantCountry(t *testing.T) {
 			if tc.expected == http.StatusBadRequest {
 				errorResp := testutil.ParseErrorResponse(t, body)
 
-				assert.Equal(t, "0429", errorResp.Code, "Error code should be TRC-0236 for invalid merchant country")
-				assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-				assert.Equal(t, "merchant.country must be ISO 3166-1 alpha-2 code (e.g., BR, US)", errorResp.Message, "Error message should indicate valid country format")
+				assert.Equal(t, "0429", errorResp.Code, "Error code should be 0429 for invalid merchant country")
+				assert.Equal(t, "Validation Invalid Merchant Country", errorResp.Title, "Error title should be Validation Invalid Merchant Country")
+				assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 			}
 		})
 	}
@@ -2359,9 +2359,9 @@ func TestValidation_1_1_39_RejectsMissingAccountId(t *testing.T) {
 	// Verify error response structure per spec
 	errorResp := testutil.ParseErrorResponse(t, body)
 
-	assert.Equal(t, "0420", errorResp.Code, "Error code should be TRC-0227 for missing accountId")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "account is required", errorResp.Message, "Error message should indicate account is required")
+	assert.Equal(t, "0420", errorResp.Code, "Error code should be 0420 for missing accountId")
+	assert.Equal(t, "Validation Account Required", errorResp.Title, "Error title should be Validation Account Required")
+	assert.Equal(t, "", errorResp.Message, "Detail is empty; the specific reason is carried by the title")
 }
 
 // Test 1.1.55: Deactivated rule is not evaluated
@@ -4256,7 +4256,7 @@ func TestValidation_1_3_14_CombinedFiltersAdvanced(t *testing.T) {
 
 // Test 1.3.15: Returns 504 on query timeout
 // Uses fault injection middleware to simulate query timeout scenario.
-// Note: GET /v1/validations (list) returns TRC-0252, POST /v1/validations returns TRC-0229.
+// Note: GET /v1/validations (list) returns code 0433 (ListValidationsTimeout); POST /v1/validations returns code 0422 (ValidationTimeout).
 func TestValidation_1_3_15_Returns504OnQueryTimeout(t *testing.T) {
 	// Use fault injection to simulate query timeout
 	resp, body := testutil.ListValidationsWithFaultInjection(t, "", testutil.FaultTimeout)
@@ -4267,7 +4267,7 @@ func TestValidation_1_3_15_Returns504OnQueryTimeout(t *testing.T) {
 
 	// Verify error response structure
 	errorResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0433", errorResp.Code, "Error code should be TRC-0252 (ListValidationsTimeout)")
+	assert.Equal(t, "0433", errorResp.Code, "Error code should be 0433 (ListValidationsTimeout)")
 	assert.Equal(t, "Gateway Timeout", errorResp.Title, "Error title should be Gateway Timeout")
 	assert.Equal(t, "query timeout exceeded", errorResp.Message, "Error message should indicate query timeout")
 }

@@ -35,7 +35,8 @@ import (
 //  1. The three PostgreSQL functions that migrations 000001-000003 install
 //     (calculate_audit_event_hash, verify_audit_hash_chain, prevent_truncate)
 //     exist in pg_proc.
-//  2. golang-migrate's schema_migrations table reports version = 17 and dirty = false.
+//  2. golang-migrate's schema_migrations table reports version = headVersion
+//     (the HEAD migration count; see 10_upgrade_path_test.go) and dirty = false.
 //  3. The legacy tracking table schema_migrations_functions does NOT exist.
 //     Either it was never created (single-runner layout) or migration 000016
 //     dropped it.
@@ -77,7 +78,8 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 		for _, fn := range requiredFunctions {
 			var count int
 
-			err := db.QueryRowContext(ctx,
+			err := db.QueryRowContext(
+				ctx,
 				`SELECT COUNT(*)
 				   FROM pg_proc p
 				   JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -93,7 +95,7 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 	})
 
 	// Shared suite DB; no t.Parallel() — see file-level note above.
-	t.Run("schema_migrations_reports_version_17", func(t *testing.T) {
+	t.Run("schema_migrations_reports_head_version", func(t *testing.T) {
 		var (
 			version int
 			dirty   bool
@@ -103,13 +105,14 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 		// applied row; golang-migrate only ever has a single row at HEAD, but
 		// ordering makes the query robust if a partial-history layout ever
 		// appears (e.g. mid-migration failure leaving multiple rows).
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(
+			ctx,
 			`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 		).Scan(&version, &dirty)
 
 		require.NoError(t, err, "query schema_migrations")
 		require.Equal(t, headVersion, version,
-			"migration 017 must be the final applied version after unified boot")
+			"the HEAD migration must be the final applied version after unified boot")
 		require.False(t, dirty, "schema_migrations must not be dirty after clean boot")
 	})
 
@@ -117,7 +120,8 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 	t.Run("legacy_schema_migrations_functions_table_is_absent", func(t *testing.T) {
 		var exists bool
 
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(
+			ctx,
 			`SELECT EXISTS (
 				SELECT 1 FROM information_schema.tables
 				WHERE table_schema = 'public'
@@ -171,20 +175,23 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 				}
 			}()
 
-			if _, execErr := conn.ExecContext(context.Background(),
+			if _, execErr := conn.ExecContext(
+				context.Background(),
 				`SET session_replication_role = replica`,
 			); execErr != nil {
 				t.Logf("SET session_replication_role = replica: %v", execErr)
 				return
 			}
 
-			if _, execErr := conn.ExecContext(context.Background(),
+			if _, execErr := conn.ExecContext(
+				context.Background(),
 				`DELETE FROM audit_events WHERE resource_id = $1`, resourceID,
 			); execErr != nil {
 				t.Logf("DELETE audit_events resource_id=%s: %v", resourceID, execErr)
 			}
 
-			if _, execErr := conn.ExecContext(context.Background(),
+			if _, execErr := conn.ExecContext(
+				context.Background(),
 				`SET session_replication_role = origin`,
 			); execErr != nil {
 				t.Logf("SET session_replication_role = origin: %v", execErr)
@@ -193,7 +200,8 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 
 		var hash string
 
-		err = db.QueryRowContext(ctx,
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT hash FROM audit_events WHERE resource_id = $1`, resourceID,
 		).Scan(&hash)
 
@@ -209,7 +217,7 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 		// a clean no-op. We build a brand-new libPostgres.NewMigrator against
 		// the same suite DSN (simulating a process restart) and assert:
 		//   - Up() returns nil
-		//   - schema_migrations.version still = 17, dirty still = false
+		//   - schema_migrations.version still = headVersion, dirty still = false
 		//   - the count of functions created by migrations 000001..000003 is
 		//     unchanged (proves no duplicate CREATE executed)
 		migrator, migErr := libPostgres.NewMigrator(libPostgres.MigrationConfig{
@@ -257,12 +265,13 @@ func TestBootstrapAppliesAllMigrations(t *testing.T) {
 			postDirty   bool
 		)
 
-		err = db.QueryRowContext(ctx,
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 		).Scan(&postVersion, &postDirty)
 		require.NoError(t, err, "read schema_migrations after idempotent replay")
 		require.Equal(t, headVersion, postVersion,
-			"schema_migrations.version must remain 17 after idempotent replay")
+			"schema_migrations.version must remain headVersion after idempotent replay")
 		require.False(t, postDirty,
 			"schema_migrations.dirty must remain false after idempotent replay")
 
@@ -359,7 +368,8 @@ func TestBootstrapMigrations_RefusesDirtyReapply(t *testing.T) {
 		preDirty   bool
 	)
 
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 	).Scan(&preVersion, &preDirty)
 	require.NoError(t, err, "read schema_migrations after clean apply")
@@ -373,7 +383,8 @@ func TestBootstrapMigrations_RefusesDirtyReapply(t *testing.T) {
 	// mid-apply. Rather than contriving a failing migration (fragile; couples
 	// the test to SQL implementation details), we directly flip the tracking
 	// flag — which is exactly the state golang-migrate would have recorded.
-	result, err := db.ExecContext(ctx,
+	result, err := db.ExecContext(
+		ctx,
 		`UPDATE schema_migrations SET dirty = true WHERE version = $1`, headVersion,
 	)
 	require.NoError(t, err, "force dirty flag on schema_migrations")
@@ -425,7 +436,8 @@ func TestBootstrapMigrations_RefusesDirtyReapply(t *testing.T) {
 	// by silently re-applying). Operator must explicitly resolve.
 	var postDirty bool
 
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT dirty FROM schema_migrations WHERE version = $1`, headVersion,
 	).Scan(&postDirty)
 	require.NoError(t, err, "re-read schema_migrations.dirty after refused Up")

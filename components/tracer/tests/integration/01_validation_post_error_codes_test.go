@@ -26,32 +26,34 @@ import (
 // =============================================================================
 //
 // These tests verify the error handling behavior for the validation
-// endpoint POST /v1/validations.
+// endpoint POST /v1/validations. Errors use the RFC 9457 problem+json
+// envelope with numeric codes from pkg/constant/errors.go; the `title` is the
+// humanized sentinel name and the human-readable text is carried in `detail`
+// (the retired `message` field is empty).
 //
-// Error Code Mapping:
-//   - BodyParser fails (malformed JSON) → TRC-0003 (Bad Request)
-//   - ErrValidationRequestIDRequired → TRC-0220
-//   - ErrValidationInvalidTransactionType → TRC-0221
-//   - ErrValidationAmountNonPositive → TRC-0222
-//   - ErrValidationCurrencyRequired → TRC-0223
-//   - ErrValidationInvalidCurrency → TRC-0224
-//   - ErrValidationTimestampRequired → TRC-0225
-//   - ErrValidationTimestampFuture → TRC-0226
-//   - ErrValidationAccountRequired → TRC-0227
-//   - ErrValidationSubTypeTooLong → TRC-0232
-//
-// Note: Valid JSON that fails field validation returns specific codes TRC-0220 through TRC-0232.
+// Error Code Mapping (numeric registry):
+//   - Body parse failure (malformed JSON / wrong type) → 0094 (ErrInvalidRequestBody), title "Bad Request"
+//   - Empty body → generic 400 with no code, title "Bad Request"
+//   - ErrValidationRequestIDRequired → 0413
+//   - ErrValidationInvalidTransactionType → 0414
+//   - ErrValidationAmountNonPositive → 0415
+//   - ErrValidationCurrencyRequired → 0416
+//   - ErrValidationInvalidCurrency → 0417
+//   - ErrValidationTimestampRequired → 0418
+//   - ErrValidationTimestampFuture → 0419
+//   - ErrValidationAccountRequired → 0420
+//   - ErrValidationSubTypeTooLong → 0425
 // =============================================================================
 
 // =============================================================================
 // 1. Malformed JSON Tests - POST /v1/validations
 // =============================================================================
 // These test cases verify behavior when the request body cannot be parsed as JSON.
-// Returns TRC-0003 "Bad Request" for malformed JSON.
+// Returns 0094 (ErrInvalidRequestBody) with title "Bad Request" for malformed JSON.
 // =============================================================================
 
 // TestValidation_MalformedJSON_ReturnsError verifies that completely malformed JSON returns an error.
-// TRC-0003: Bad Request for malformed JSON
+// 0094 (ErrInvalidRequestBody): Bad Request for malformed JSON
 func TestValidation_MalformedJSON_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -116,16 +118,17 @@ func TestValidation_MalformedJSON_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0003: Bad Request for malformed JSON
-			assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
+			// 0094 (ErrInvalidRequestBody): Bad Request for malformed JSON.
+			// Human-readable text lives in the RFC 9457 `detail`; the retired `message` field is empty.
+			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for malformed JSON", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, "invalid request body", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
 		})
 	}
 }
 
 // TestValidation_BinaryData_ReturnsError verifies that binary data returns an error.
-// TRC-0003: Bad Request for binary data
+// 0094 (ErrInvalidRequestBody): Bad Request for binary data
 func TestValidation_BinaryData_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -148,14 +151,14 @@ func TestValidation_BinaryData_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0003: Bad Request for binary data
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for binary data")
+	// 0094 (ErrInvalidRequestBody): Bad Request for binary data
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 for binary data")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "invalid request body", errResp.Message)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_EmptyBody_ReturnsError verifies that an empty request body returns an error.
-// TRC-0003: Bad Request for empty body
+// Empty body: generic 400 Bad Request with no domain error code
 func TestValidation_EmptyBody_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -176,10 +179,10 @@ func TestValidation_EmptyBody_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0003: Bad Request for empty body
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for empty body")
+	// Empty body: generic 400 Bad Request carrying no domain error code.
+	assert.Equal(t, "", errResp.Code, "Empty body returns a generic 400 with no domain error code")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "invalid request body", errResp.Message)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_NullBody_ReturnsError verifies that a null JSON body returns an error.
@@ -204,10 +207,11 @@ func TestValidation_NullBody_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// "null" is valid JSON but missing required fields - first validation fails on requestId
-	assert.Equal(t, "0413", errResp.Code, "Expected TRC-0220 for null body (requestId is required)")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "requestId is required", errResp.Message)
+	// "null" is valid JSON but missing required fields - first validation fails on requestId.
+	// 0413 (ErrValidationRequestIDRequired); title is the humanized sentinel name.
+	assert.Equal(t, "0413", errResp.Code, "Expected 0413 for null body (requestId is required)")
+	assert.Equal(t, "Validation Request IDRequired", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_ArrayInsteadOfObject_ReturnsError verifies that a JSON array returns an error.
@@ -233,21 +237,21 @@ func TestValidation_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0003: BodyParser fails to unmarshal array into struct
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for array instead of object (body parsing error)")
+	// 0094 (ErrInvalidRequestBody): fails to unmarshal array into struct
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 for array instead of object (body parsing error)")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "invalid request body", errResp.Message)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // =============================================================================
 // 2. Field Validation Tests - POST /v1/validations
 // =============================================================================
 // These test cases verify behavior when request has valid JSON but fails field validation.
-// Each field validation error uses a specific error code (TRC-0220 to TRC-0237).
+// Each field validation error uses a specific numeric error code (0413 to 0430).
 // =============================================================================
 
 // TestValidation_MissingRequestID_ReturnsError verifies that missing requestId returns an error.
-// TRC-0220: requestId is required
+// 0413: requestId is required
 func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -282,14 +286,14 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0220: requestId is required
-	assert.Equal(t, "0413", errResp.Code, "Expected TRC-0220 for missing requestId")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "requestId is required", errResp.Message)
+	// 0413 (ErrValidationRequestIDRequired): requestId is required
+	assert.Equal(t, "0413", errResp.Code, "Expected 0413 for missing requestId")
+	assert.Equal(t, "Validation Request IDRequired", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_InvalidTransactionType_ReturnsError verifies invalid transactionType returns an error.
-// TRC-0221: transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
+// 0414: transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
 func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -353,16 +357,16 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0221: transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
-			assert.Equal(t, "0414", errResp.Code, "Test case: %s - Expected TRC-0221 for invalid transactionType", tc.description)
-			assert.Equal(t, "Validation Error", errResp.Title)
-			assert.Equal(t, "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]", errResp.Message)
+			// 0414 (ErrValidationInvalidTransactionType): transactionType must be one of [CARD, WIRE, PIX, CRYPTO]
+			assert.Equal(t, "0414", errResp.Code, "Test case: %s - Expected 0414 for invalid transactionType", tc.description)
+			assert.Equal(t, "Validation Invalid Transaction Type", errResp.Title)
+			assert.Equal(t, "", errResp.Message)
 		})
 	}
 }
 
 // TestValidation_AmountNonPositive_ReturnsError verifies that zero or negative amount returns an error.
-// TRC-0222: amount must be positive
+// 0415: amount must be positive
 func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -421,16 +425,16 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0222: amount must be positive
-			assert.Equal(t, "0415", errResp.Code, "Test case: %s - Expected TRC-0222 for non-positive amount", tc.description)
-			assert.Equal(t, "Validation Error", errResp.Title)
-			assert.Equal(t, "amount must be positive", errResp.Message)
+			// 0415 (ErrValidationAmountNonPositive): amount must be positive
+			assert.Equal(t, "0415", errResp.Code, "Test case: %s - Expected 0415 for non-positive amount", tc.description)
+			assert.Equal(t, "Validation Amount Non Positive", errResp.Title)
+			assert.Equal(t, "", errResp.Message)
 		})
 	}
 }
 
 // TestValidation_MissingCurrency_ReturnsError verifies that missing currency returns an error.
-// TRC-0223: currency is required
+// 0416: currency is required
 func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -464,14 +468,14 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0223: currency is required
-	assert.Equal(t, "0416", errResp.Code, "Expected TRC-0223 for missing currency")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "currency is required", errResp.Message)
+	// 0416 (ErrValidationCurrencyRequired): currency is required
+	assert.Equal(t, "0416", errResp.Code, "Expected 0416 for missing currency")
+	assert.Equal(t, "Validation Currency Required", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_InvalidCurrency_ReturnsError verifies that invalid currency code returns an error.
-// TRC-0224: currency must be valid ISO 4217 code (e.g., BRL, USD)
+// 0417: currency must be valid ISO 4217 code (e.g., BRL, USD)
 func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -540,16 +544,16 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0224: currency must be valid ISO 4217 code (e.g., BRL, USD)
-			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected TRC-0224 for invalid currency", tc.description)
-			assert.Equal(t, "Validation Error", errResp.Title)
-			assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errResp.Message)
+			// 0417 (ErrValidationInvalidCurrency): currency must be valid ISO 4217 code (e.g., BRL, USD)
+			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected 0417 for invalid currency", tc.description)
+			assert.Equal(t, "Validation Invalid Currency", errResp.Title)
+			assert.Equal(t, "", errResp.Message)
 		})
 	}
 }
 
 // TestValidation_MissingTimestamp_ReturnsError verifies that missing timestamp returns an error.
-// TRC-0225: transactionTimestamp is required
+// 0418: transactionTimestamp is required
 func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -583,14 +587,14 @@ func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0225: transactionTimestamp is required
-	assert.Equal(t, "0418", errResp.Code, "Expected TRC-0225 for missing timestamp")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "transactionTimestamp is required", errResp.Message)
+	// 0418 (ErrValidationTimestampRequired): transactionTimestamp is required
+	assert.Equal(t, "0418", errResp.Code, "Expected 0418 for missing timestamp")
+	assert.Equal(t, "Validation Timestamp Required", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_FutureTimestamp_ReturnsError verifies that future timestamp returns an error.
-// TRC-0226: transactionTimestamp cannot be in the future
+// 0419: transactionTimestamp cannot be in the future
 func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -629,10 +633,10 @@ func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0226: transactionTimestamp cannot be in the future
-	assert.Equal(t, "0419", errResp.Code, "Expected TRC-0226 for future timestamp")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "transactionTimestamp cannot be in the future", errResp.Message)
+	// 0419 (ErrValidationTimestampFuture): transactionTimestamp cannot be in the future
+	assert.Equal(t, "0419", errResp.Code, "Expected 0419 for future timestamp")
+	assert.Equal(t, "Validation Timestamp Future", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted verifies that small
@@ -685,7 +689,7 @@ func TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted(t *testing.T) {
 }
 
 // TestValidation_MissingAccount_ReturnsError verifies that missing account object returns an error.
-// TRC-0227: account is required
+// 0420: account is required
 func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -717,14 +721,14 @@ func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0227: account is required
-	assert.Equal(t, "0420", errResp.Code, "Expected TRC-0227 for missing account")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "account is required", errResp.Message)
+	// 0420 (ErrValidationAccountRequired): account is required
+	assert.Equal(t, "0420", errResp.Code, "Expected 0420 for missing account")
+	assert.Equal(t, "Validation Account Required", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_EmptyAccountObject_ReturnsError verifies that empty account object returns an error.
-// TRC-0227: account is required
+// 0420: account is required
 func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -757,14 +761,14 @@ func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0227: account is required
-	assert.Equal(t, "0420", errResp.Code, "Expected TRC-0227 for empty account object")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "account is required", errResp.Message)
+	// 0420 (ErrValidationAccountRequired): account is required
+	assert.Equal(t, "0420", errResp.Code, "Expected 0420 for empty account object")
+	assert.Equal(t, "Validation Account Required", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestValidation_SubTypeTooLong_ReturnsError verifies that subType exceeding max length returns an error.
-// TRC-0232: subType exceeds maximum length of 50 characters
+// 0425: subType exceeds maximum length of 50 characters
 func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -803,10 +807,10 @@ func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0232: subType exceeds maximum length of 50 characters
-	assert.Equal(t, "0425", errResp.Code, "Expected TRC-0232 for subType too long")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "subType exceeds maximum length of 50 characters", errResp.Message)
+	// 0425 (ErrValidationSubTypeTooLong): subType exceeds maximum length of 50 characters
+	assert.Equal(t, "0425", errResp.Code, "Expected 0425 for subType too long")
+	assert.Equal(t, "Validation Sub Type Too Long", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // =============================================================================
@@ -913,10 +917,10 @@ func TestValidation_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// UUID parsing errors happen during body parsing (BodyParser fails)
-			assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for invalid UUID (body parsing error)", tc.description)
+			// UUID parsing errors happen during body parsing → 0094 (ErrInvalidRequestBody)
+			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for invalid UUID (body parsing error)", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "invalid UUID format in request (check requestId, account.id, segment.id, portfolio.id, merchant.id)", errResp.Message, "Test case: %s - Error message should match expected format", tc.description)
+			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -985,10 +989,10 @@ func TestValidation_InvalidTimestampFormat_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// Timestamp parsing errors happen during body parsing (BodyParser fails)
-			assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for invalid timestamp (body parsing error)", tc.description)
+			// Timestamp parsing errors happen during body parsing → 0094 (ErrInvalidRequestBody)
+			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 for invalid timestamp (body parsing error)", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "timestamp: invalid format (expected RFC3339)", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "", errResp.Message, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -1062,10 +1066,10 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for type validation error")
+			// 0094 (ErrInvalidRequestBody) is returned for JSON type mismatch errors (bad request)
+			assert.Equal(t, "0094", errResp.Code, "Expected 0094 for type validation error")
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "invalid request body", errResp.Message)
+			assert.Equal(t, "", errResp.Message)
 		})
 	}
 }
@@ -1074,29 +1078,28 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 // 5. Error Code Documentation
 // =============================================================================
 //
-// Error Code Mapping for Validation Handler:
+// Error Code Mapping for Validation Handler (numeric registry, pkg/constant/errors.go):
 // ------------------------------------------
-// TRC-0001: Validation Error - Post-parse validation errors (type mismatches, constraint violations after successful parse)
-// TRC-0003: Bad Request - Body parsing errors (malformed JSON, invalid syntax, unparseable request)
-// TRC-0220: ErrValidationRequestIDRequired - requestId is required
-// TRC-0221: ErrValidationInvalidTransactionType - transactionType invalid
-// TRC-0222: ErrValidationAmountNonPositive - amount must be positive
-// TRC-0223: ErrValidationCurrencyRequired - currency is required
-// TRC-0224: ErrValidationInvalidCurrency - currency invalid ISO 4217
-// TRC-0225: ErrValidationTimestampRequired - transactionTimestamp is required
-// TRC-0226: ErrValidationTimestampFuture - transactionTimestamp in future
-// TRC-0227: ErrValidationAccountRequired - account is required
-// TRC-0229: ErrValidationTimeout - validation timeout
-// TRC-0230: ErrValidationSegmentIDRequired - segment.id is required
-// TRC-0231: ErrValidationPortfolioIDRequired - portfolio.id is required
-// TRC-0232: ErrValidationSubTypeTooLong - subType exceeds 50 characters
-// TRC-0233: ErrValidationInvalidAccountType - account.type invalid
-// TRC-0234: ErrValidationInvalidAccountStatus - account.status invalid
-// TRC-0235: ErrValidationInvalidMerchantCategory - merchant.category invalid
-// TRC-0236: ErrValidationInvalidMerchantCountry - merchant.country invalid
-// TRC-0237: ErrValidationMerchantIDRequired - merchant.id is required
+// 0094: ErrInvalidRequestBody - Body parsing errors (malformed JSON, wrong type, unparseable request), title "Bad Request"
+// 0413: ErrValidationRequestIDRequired - requestId is required
+// 0414: ErrValidationInvalidTransactionType - transactionType invalid
+// 0415: ErrValidationAmountNonPositive - amount must be positive
+// 0416: ErrValidationCurrencyRequired - currency is required
+// 0417: ErrValidationInvalidCurrency - currency invalid ISO 4217
+// 0418: ErrValidationTimestampRequired - transactionTimestamp is required
+// 0419: ErrValidationTimestampFuture - transactionTimestamp in future
+// 0420: ErrValidationAccountRequired - account is required
+// 0422: ErrValidationTimeout - validation timeout
+// 0423: ErrValidationSegmentIDRequired - segment.id is required
+// 0424: ErrValidationPortfolioIDRequired - portfolio.id is required
+// 0425: ErrValidationSubTypeTooLong - subType exceeds 50 characters
+// 0426: ErrValidationInvalidAccountType - account.type invalid
+// 0427: ErrValidationInvalidAccountStatus - account.status invalid
+// 0428: ErrValidationInvalidMerchantCategory - merchant.category invalid
+// 0429: ErrValidationInvalidMerchantCountry - merchant.country invalid
+// 0430: ErrValidationMerchantIDRequired - merchant.id is required
 //
-// Metadata validation errors (TRC-006x range):
-// TRC-0060: ErrMetadataKeyLengthExceeded - metadata key > 64 chars
-// TRC-0063: ErrMetadataEntriesExceeded - metadata > 50 entries
-// TRC-0064: ErrMetadataKeyInvalidChars - metadata key invalid chars
+// Metadata validation errors:
+// 0050: ErrMetadataKeyLengthExceeded - metadata key too long
+// 0335: ErrMetadataEntriesExceeded - too many metadata entries
+// 0336: ErrMetadataKeyInvalidChars - metadata key invalid chars

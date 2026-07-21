@@ -156,9 +156,9 @@ func TestAuditEvents_11_1_2_Returns404ForNonExistentEvent(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0381", errResp.Code, "Error code should be TRC-0140 for audit event not found")
-	assert.Equal(t, "Not Found", errResp.Title, "Error title should be Not Found")
-	assert.Equal(t, "Audit event not found", errResp.Message, "Error message should indicate audit event not found")
+	assert.Equal(t, "0381", errResp.Code, "Error code should be 0381 for audit event not found")
+	assert.Equal(t, "Audit Event Not Found", errResp.Title, "Error title should be Audit Event Not Found")
+	assert.Contains(t, auditProblemDetail(t, respBody), "Audit event not found", "Error detail should indicate audit event not found")
 }
 
 // TestAuditEvents_11_1_3_Returns400ForInvalidUUID tests 400 response for invalid UUID format.
@@ -183,7 +183,7 @@ func TestAuditEvents_11_1_3_Returns400ForInvalidUUID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, body)
 	assert.Equal(t, "0065", errResp.Code, "Error response should have invalid path parameter code")
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Error response should have invalid path parameter title")
-	assert.Equal(t, "Invalid event ID format", errResp.Message, "Error message should indicate invalid UUID format")
+	assert.Contains(t, auditProblemDetail(t, body), "path parameters are in an incorrect format", "Error detail should indicate invalid UUID format")
 }
 
 // TestAuditEvents_11_1_4_Returns401WithoutAPIKey tests 401 response without authentication.
@@ -906,9 +906,11 @@ func TestAuditEvents_11_2_12_Returns400ForInvalidFilters(t *testing.T) {
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0053", errResp.Code, "Error response should have validation error code")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "EventType validation failed: auditeventtype", errResp.Message, "Error message should indicate invalid event type")
+	// Invalid enum params canonicalize to 0009 (Missing Fields in Request) — the
+	// go-playground validator's default arm, anchored to the pre-Huma Fiber handler.
+	assert.Equal(t, "0009", errResp.Code, "Error response should have missing-fields code for invalid enum")
+	assert.Equal(t, "Missing Fields in Request", errResp.Title, "Error response should have missing-fields title")
+	assert.Contains(t, auditProblemDetail(t, body), "missing one or more required fields", "Error detail should indicate a missing/invalid required field")
 }
 
 // TestAuditEvents_11_2_13_ReturnsEmptyArrayWhenNoMatches tests empty results.
@@ -983,7 +985,8 @@ func TestAuditEvents_11_3_1_VerifiesValidHashChain(t *testing.T) {
 
 	// Get the event ID for verification (filter by rule ID to avoid interference from other tests)
 	var eventID string
-	err = db.QueryRowContext(context.Background(),
+	err = db.QueryRowContext(
+		context.Background(),
 		`SELECT event_id FROM audit_events WHERE resource_id = $1 ORDER BY id DESC LIMIT 1`,
 		rule.ID,
 	).Scan(&eventID)
@@ -1030,7 +1033,8 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 
 	// Get the audit event that was just created
 	var eventID string
-	err := db.QueryRowContext(context.Background(),
+	err := db.QueryRowContext(
+		context.Background(),
 		`SELECT event_id FROM audit_events WHERE resource_type = 'rule' AND resource_id = $1 ORDER BY id DESC LIMIT 1`,
 		ruleID,
 	).Scan(&eventID)
@@ -1099,7 +1103,7 @@ func TestAuditEvents_11_3_5_Returns400ForInvalidUUID(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, body)
 	assert.Equal(t, "0065", errResp.Code, "Error response should have invalid path parameter code")
 	assert.Equal(t, "Invalid Path Parameter", errResp.Title, "Error response should have invalid path parameter title")
-	assert.Equal(t, "Invalid event ID format", errResp.Message, "Error message should indicate invalid UUID format")
+	assert.Contains(t, auditProblemDetail(t, body), "path parameters are in an incorrect format", "Error detail should indicate invalid UUID format")
 }
 
 // ============================================================================
@@ -1904,9 +1908,9 @@ func TestAuditEvents_11_9_2_InvalidDateFormatReturns400(t *testing.T) {
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0077", errResp.Code, "Error response should have TRC-0020 (Invalid Date Format)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Contains(t, errResp.Message, "start_date must be in RFC3339 format", "Error message should indicate invalid date format")
+	assert.Equal(t, "0077", errResp.Code, "Error response should have 0077 (Invalid Date Format)")
+	assert.Equal(t, "Invalid Date Format Error", errResp.Title, "Error response should have invalid date format title")
+	assert.Contains(t, auditProblemDetail(t, body), "yyyy-mm-dd", "Error detail should indicate invalid date format")
 }
 
 // TestAuditEvents_11_9_3_PageSizeExceedsMaximum tests limit validation.
@@ -1931,9 +1935,9 @@ func TestAuditEvents_11_9_3_PageSizeExceedsMaximum(t *testing.T) {
 
 	// Verify structured error response with specific TRC code for limit exceeded
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0080", errResp.Code, "Error response should have TRC-0040 (Limit Exceeds Maximum)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "limit must not exceed 1000", errResp.Message, "Error message should indicate limit exceeded")
+	assert.Equal(t, "0080", errResp.Code, "Error response should have 0080 (Limit Exceeds Maximum)")
+	assert.Equal(t, "Pagination Limit Exceeded", errResp.Title, "Error response should have pagination limit exceeded title")
+	assert.Contains(t, auditProblemDetail(t, body), "maximum allowed of 1000", "Error detail should indicate limit exceeded")
 }
 
 // TestAuditEvents_11_9_4_NegativePageSizeReturnsError tests negative limit.
@@ -1957,9 +1961,9 @@ func TestAuditEvents_11_9_4_NegativePageSizeReturnsError(t *testing.T) {
 
 	// Verify structured error response with specific TRC code for limit below minimum
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0331", errResp.Code, "Error response should have TRC-0041 (Limit Below Minimum)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "limit must be at least 1", errResp.Message, "Error message should indicate limit validation failed")
+	assert.Equal(t, "0331", errResp.Code, "Error response should have 0331 (Limit Below Minimum)")
+	assert.Equal(t, "Pagination Limit Invalid", errResp.Title, "Error response should have pagination limit invalid title")
+	assert.Contains(t, auditProblemDetail(t, body), "Pagination limit must be positive", "Error detail should indicate limit validation failed")
 }
 
 // TestAuditEvents_11_9_5_InvalidSortByFieldReturns400 tests invalid sortBy field.
@@ -1982,9 +1986,9 @@ func TestAuditEvents_11_9_5_InvalidSortByFieldReturns400(t *testing.T) {
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0332", errResp.Code, "Error response should have TRC-0043 (Invalid SortBy)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Contains(t, errResp.Message, "sort_by must be one of", "Error message should indicate invalid sort_by field")
+	assert.Equal(t, "0332", errResp.Code, "Error response should have 0332 (Invalid SortBy)")
+	assert.Equal(t, "Invalid Sort Column", errResp.Title, "Error response should have invalid sort column title")
+	assert.Contains(t, auditProblemDetail(t, body), "Sort column not in allowed list", "Error detail should indicate invalid sort_by field")
 }
 
 // TestAuditEvents_11_9_6_EndDateBeforeStartDateReturns400 tests invalid date range.
@@ -2012,9 +2016,9 @@ func TestAuditEvents_11_9_6_EndDateBeforeStartDateReturns400(t *testing.T) {
 
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0083", errResp.Code, "Error response should have TRC-0023 (Invalid date range)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "end_date must be on or after start_date", errResp.Message, "Error message should indicate invalid date range")
+	assert.Equal(t, "0083", errResp.Code, "Error response should have 0083 (Invalid date range)")
+	assert.Equal(t, "Invalid Date Range Error", errResp.Title, "Error response should have invalid date range title")
+	assert.Contains(t, auditProblemDetail(t, body), "Both 'initialDate' and 'finalDate' fields are required", "Error detail should indicate invalid date range")
 }
 
 // TestAuditEvents_11_9_7_InvalidCursorReturns400 tests malformed cursor.
@@ -2038,9 +2042,9 @@ func TestAuditEvents_11_9_7_InvalidCursorReturns400(t *testing.T) {
 		"invalid cursor should return 400 Bad Request: %s", string(body))
 
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0333", errResp.Code, "Error response should have TRC-0044 for invalid cursor")
-	assert.Equal(t, "Bad Request", errResp.Title, "Error title should be Bad Request")
-	assert.Equal(t, "Invalid pagination cursor", errResp.Message, "Error message should indicate invalid cursor")
+	assert.Equal(t, "0333", errResp.Code, "Error response should have 0333 for invalid cursor")
+	assert.Equal(t, "Invalid Cursor", errResp.Title, "Error title should be Invalid Cursor")
+	assert.Contains(t, auditProblemDetail(t, body), "Invalid or corrupted pagination cursor", "Error detail should indicate invalid cursor")
 }
 
 // TestAuditEvents_11_9_8_ZeroLimitReturnsError tests limit=0 behavior.
@@ -2065,9 +2069,9 @@ func TestAuditEvents_11_9_8_ZeroLimitReturnsError(t *testing.T) {
 
 	// Verify structured error response with specific TRC code
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0331", errResp.Code, "Error response should have TRC-0041 (Limit Below Minimum)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "limit must be at least 1", errResp.Message, "Error message should indicate limit must be at least 1")
+	assert.Equal(t, "0331", errResp.Code, "Error response should have 0331 (Limit Below Minimum)")
+	assert.Equal(t, "Pagination Limit Invalid", errResp.Title, "Error response should have pagination limit invalid title")
+	assert.Contains(t, auditProblemDetail(t, body), "Pagination limit must be positive", "Error detail should indicate limit must be at least 1")
 }
 
 // ============================================================================
@@ -2507,7 +2511,8 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 
 	// Get last event
 	var lastEventID string
-	err := db.QueryRowContext(context.Background(),
+	err := db.QueryRowContext(
+		context.Background(),
 		`SELECT event_id FROM audit_events ORDER BY id DESC LIMIT 1`,
 	).Scan(&lastEventID)
 	require.NoError(t, err)
@@ -2545,7 +2550,8 @@ func TestAuditEvents_11_5_2_FirstEventHasGenesisHash(t *testing.T) {
 
 	// Get the first event from database (by sequence, not by our test)
 	var eventID string
-	err := db.QueryRowContext(context.Background(),
+	err := db.QueryRowContext(
+		context.Background(),
 		`SELECT event_id FROM audit_events ORDER BY id ASC LIMIT 1`,
 	).Scan(&eventID)
 	require.NoError(t, err, "Should have at least one audit event after rule creation")

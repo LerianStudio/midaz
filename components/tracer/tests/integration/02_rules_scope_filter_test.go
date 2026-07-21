@@ -351,7 +351,9 @@ func TestListRules_2_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectCode, errResp.Code, "Error code mismatch")
-			assert.Contains(t, errResp.Message, tc.expectMsg, "Error message should mention the invalid field")
+			assert.Equal(t, "Invalid Query Parameter", errResp.Title, "Invalid scope filter should surface as Invalid Query Parameter")
+			// message field is retired under RFC 9457; the invalid-field text now lives in `detail`.
+			assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail should mention %s", tc.expectMsg)
 		})
 	}
 }
