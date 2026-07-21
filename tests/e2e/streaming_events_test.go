@@ -483,11 +483,11 @@ func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 
 	ceType, subject, payload, ok := strmConsumeMatch(t, topic, holderID, 15*time.Second)
 	if !ok {
-		t.Fatalf("no holder.created record with ce-subject=%s on %s within timeout", holderID, topic)
+		t.Fatalf("no holder.created record on %s within timeout", topic)
 	}
 
 	if subject != holderID {
-		t.Errorf("ce-subject = %q, want holder id %q", subject, holderID)
+		t.Errorf("ce-subject does not match the created holder")
 	}
 
 	if want := strmCETypePrefix + "holder.created"; ceType != want {
