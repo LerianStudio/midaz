@@ -60,7 +60,7 @@ func ValidateAccountType(t string) error {
 
 // ValidateType validate type values of currencies
 func ValidateType(t string) error {
-	types := []string{"crypto", "currency", "commodity", "others"}
+	types := []string{"crypto", "currency", "fiat", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
 		return constant.ErrInvalidType
