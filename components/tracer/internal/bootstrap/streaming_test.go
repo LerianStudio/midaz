@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -229,8 +230,8 @@ func TestBuildRoutes_CoversAllLifecycles(t *testing.T) {
 			"route Key must be <event>.<target>")
 		assert.Equal(t, streamingPrimaryTargetName, r.Target)
 		assert.Equal(t, libStreaming.RouteRequired, r.Requirement)
-		assert.Equal(t, libStreaming.KafkaTopic(streamingTopicPrefix+key), r.Destination,
-			"route Destination must be the canonical Kafka topic")
+		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", key)), r.Destination,
+			"route Destination must be the canonical tracer-namespaced Kafka topic")
 	}
 }
 
@@ -288,8 +289,8 @@ func TestTracerCatalog_CoversAllEmittedEvents(t *testing.T) {
 			"route %q points at an unregistered event (ghost topic)", r.DefinitionKey)
 
 		// (d) destination topic derives from the definition key.
-		assert.Equal(t, libStreaming.KafkaTopic(streamingTopicPrefix+r.DefinitionKey), r.Destination,
-			"route Destination must be lerian.streaming.<key>")
+		assert.Equal(t, libStreaming.KafkaTopic(pkgStreaming.TopicName("tracer", r.DefinitionKey)), r.Destination,
+			"route Destination must be lerian.streaming.tracer_<resource>.<event>")
 	}
 
 	assert.Equal(t, defKeys, routeKeys,

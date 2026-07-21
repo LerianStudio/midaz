@@ -17,6 +17,7 @@ import (
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -284,13 +285,14 @@ func fencedScope() model.Scope {
 }
 
 // smokeTopics maps each event's ce-type back to its canonical topic name
-// "lerian.streaming.<resource>.<event>".
+// "lerian.streaming.tracer_<resource>.<event>" (service segment folded into
+// the first topic segment, hyphens normalized to underscores).
 func smokeTopics(evs []smokeEvent) []string {
 	out := make([]string, 0, len(evs))
 
 	for _, e := range evs {
 		key := strings.TrimPrefix(e.wantCEType, "studio.lerian.")
-		out = append(out, "lerian.streaming."+key)
+		out = append(out, pkgStreaming.TopicName("tracer", key))
 	}
 
 	return out

@@ -54,8 +54,8 @@ func TestMidazEventDefinitions_IncludesBalanceChanged(t *testing.T) {
 	defs := midazEventDefinitions()
 
 	found := false
-	for _, d := range defs {
-		if d.Key() == "balance.changed" {
+	for _, rd := range defs {
+		if rd.def.Key() == "balance.changed" {
 			found = true
 			break
 		}

@@ -25,9 +25,10 @@ import (
 
 // Epic 3.1 — streaming events. These tests consume the live Kafka-compatible
 // broker that the ledger emits CloudEvents to and assert the on-wire contract
-// (topic, ce-* headers, payload key set) for account.created and
-// transaction.posted, plus two negative contracts: holder.created emits
-// nothing, and an IMPORTANT-posture emit failure never fails the HTTP request.
+// (topic, ce-* headers, payload key set) for account.created,
+// transaction.posted, and holder.created (a PII-redacted CRM event), plus one
+// negative contract: an IMPORTANT-posture emit failure never fails the HTTP
+// request.
 //
 // The suite self-gates: requireStack skips when the ledger is down,
 // strmRequireBroker skips when no broker is reachable at STREAMING_BROKERS.
@@ -38,9 +39,8 @@ import (
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
 const strmDefaultBroker = "localhost:19092"
 
-// strmServiceName mirrors bootstrap/streaming.go streamingServiceName; topics
-// are rendered via pkgStreaming.TopicName and take the shape
-// "lerian.streaming.<service>_<resource>.<event>".
+// strmServiceName is the ledger-core service segment used to render topics of
+// the shape "lerian.streaming.<service>_<resource>.<event>".
 const strmServiceName = "ledger"
 
 // strmCEType is the reverse-DNS namespace prepended to every ce-type header by
@@ -90,6 +90,23 @@ var strmTransactionPostedKeys = map[string]struct{}{
 // freshly-posted transaction created via the inflow/JSON paths.
 var strmTransactionPostedCore = []string{
 	"id", "organizationId", "ledgerId", "status", "operations", "createdAt", "updatedAt",
+}
+
+// strmHolderCreatedKeys is the exact 6-key top-level set of the holder.created
+// wire payload, asserted as an exact set (fail-closed): an extra or missing key
+// means wire drift.
+var strmHolderCreatedKeys = map[string]struct{}{
+	"id": {}, "organizationId": {}, "type": {}, "externalId": {},
+	"createdAt": {}, "updatedAt": {},
+}
+
+// strmHolderCreatedForbidden is the PII key set that MUST NEVER appear on the
+// holder.created wire payload.
+var strmHolderCreatedForbidden = []string{
+	"name", "document", "cpf", "cnpj",
+	"contact", "addresses", "address",
+	"naturalPerson", "legalPerson", "representative",
+	"metadata", "deletedAt",
 }
 
 // strmBrokers returns the broker address list from STREAMING_BROKERS (comma
@@ -226,6 +243,14 @@ func strmCatalogTopics() []string {
 		for _, e := range events {
 			topics = append(topics, pkgStreaming.TopicName(strmServiceName, resource+"."+e))
 		}
+	}
+
+	// CRM resources (holder/instrument) are folded into the ledger binary but
+	// emit under the "crm" service segment, so their topics carry the "crm_"
+	// prefix. Provision them too so a holder create's IMPORTANT-posture emit has
+	// a live destination and never trips the producer circuit breaker.
+	for _, e := range []string{"created", "updated", "deleted"} {
+		topics = append(topics, pkgStreaming.TopicName("crm", "holder."+e))
 	}
 
 	return topics
@@ -430,29 +455,50 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 	}
 }
 
-// TestStreamingHolderCreateEmitsNothing pins the negative contract: holder
-// creation has NO streaming emit (components/ledger/internal/crm/services/
-// create-holder.go contains no Emit call). We create a holder and confirm no
-// record carrying its id surfaces on any lerian.streaming.holder.* topic
-// within a short window. The holder-created and holder-updated topics are
-// probed explicitly; both must stay silent. A non-empty match is a regression
-// (an emit was added without a wire-contract event).
-func TestStreamingHolderCreateEmitsNothing(t *testing.T) {
+// TestStreamingHolderCreateEmitsRedacted asserts that creating a holder emits a
+// CloudEvents record on crm_holder.created whose ce-subject is the holder id and
+// ce-type is studio.lerian.holder.created, with PII redacted: the payload MUST
+// carry only id/organizationId/type/externalId/timestamps and MUST NOT carry
+// name, document, or any other PII key.
+func TestStreamingHolderCreateEmitsRedacted(t *testing.T) {
 	requireStack(t)
 	strmRequireBroker(t)
 
 	orgID := createOrg(t)
 	holderID := createHolder(t, orgID)
 
-	// Short window — we are proving ABSENCE, so a brief poll is sufficient and
-	// keeps the test fast. If the broker auto-creates the topic, an empty log
-	// simply yields found=false.
-	for _, suffix := range []string{"created", "updated"} {
-		topic := pkgStreaming.TopicName(strmServiceName, "holder."+suffix)
+	topic := pkgStreaming.TopicName("crm", "holder.created")
 
-		_, _, _, found := strmConsumeMatch(t, topic, holderID, 4*time.Second)
-		if found {
-			t.Errorf("holder create emitted an unexpected record on %s (ce-subject=%s); holder.* has no wire-contract event", topic, holderID)
+	ceType, subject, payload, ok := strmConsumeMatch(t, topic, holderID, 15*time.Second)
+	if !ok {
+		t.Fatalf("no holder.created record on %s within timeout", topic)
+	}
+
+	if subject != holderID {
+		t.Errorf("ce-subject does not match the created holder")
+	}
+
+	if want := strmCETypePrefix + "holder.created"; ceType != want {
+		t.Errorf("ce-type = %q, want %q", ceType, want)
+	}
+
+	// Exact-set lock (fail-closed) + count, mirroring the JSONShape unit test.
+	strmAssertKeySet(t, "holder.created", payload, strmHolderCreatedKeys)
+
+	for k := range strmHolderCreatedKeys {
+		if _, present := payload[k]; !present {
+			t.Errorf("holder.created payload missing key %q", k)
+		}
+	}
+
+	if len(payload) != len(strmHolderCreatedKeys) {
+		t.Errorf("holder.created payload has %d top-level keys, want %d", len(payload), len(strmHolderCreatedKeys))
+	}
+
+	// PII redaction is the point of this event: no PII key may reach the wire.
+	for _, forbidden := range strmHolderCreatedForbidden {
+		if _, present := payload[forbidden]; present {
+			t.Errorf("holder.created payload leaked PII key %q (must be redacted)", forbidden)
 		}
 	}
 }

@@ -13,16 +13,16 @@ import (
 )
 
 // FeesBillingPackageCreatedDefinition is the routing contract for
-// fees-billing-package.created. IMPORTANT posture: emit failures MUST NOT fail
+// fee-billing-packages.created. IMPORTANT posture: emit failures MUST NOT fail
 // the request.
 var FeesBillingPackageCreatedDefinition = Definition{
-	ResourceType:  "fees-billing-package",
+	ResourceType:  "fee-billing-packages",
 	EventType:     "created",
 	SchemaVersion: "1.0.0",
 }
 
 // FeesBillingPackageCreatedPayload is the wire payload for
-// fees-billing-package.created. Only stable identifiers, the org/ledger scope,
+// fee-billing-packages.created. Only stable identifiers, the org/ledger scope,
 // the type/pricing/count classification, the enable flag, and timestamps cross
 // the wire. Fee-detail surface (label, description, assetCode, feeAmount, tiers,
 // discountTiers, freeQuota, eventFilter, accountTarget, account aliases) is

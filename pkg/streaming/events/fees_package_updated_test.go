@@ -14,8 +14,8 @@ import (
 )
 
 func TestFeesPackageUpdatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fees-package.updated", events.FeesPackageUpdatedDefinition.Key())
-	assert.Equal(t, "fees-package", events.FeesPackageUpdatedDefinition.ResourceType)
+	assert.Equal(t, "fee-packages.updated", events.FeesPackageUpdatedDefinition.Key())
+	assert.Equal(t, "fee-packages", events.FeesPackageUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.FeesPackageUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesPackageUpdatedDefinition.SchemaVersion)
 }

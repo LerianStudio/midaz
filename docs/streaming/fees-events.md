@@ -38,9 +38,15 @@ in `midazEventDefinitions()`
 Catalog (`buildCatalog`) and the route table (`buildRoutes`):
 
 - **Event key** = `<resourceType>.<eventType>` via `Definition.Key()` (e.g.
-  `fees-package.created`).
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `streamingTopicPrefix` + key = `lerian.streaming.<key>`.
+  `fee-packages.created`).
+- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`
+  (stays hyphenated, e.g. `studio.lerian.fee-packages.created`).
+- **Kafka topic** = `pkgStreaming.TopicName("fee", key)` =
+  `lerian.streaming.<service>_<resource>.<event>` — the producing-service
+  segment (`fee`) is folded in and hyphens in the resource/event become
+  underscores in the topic name only (e.g. `lerian.streaming.fee_packages.created`).
+  The service segment is `fee` even though fees ride the ledger binary; the
+  process-wide `ce-source` stays `lerian.midaz.ledger`.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
   `pkgStreaming.ResolveTenantID(ctx)` inside `EmitImportant` (see
@@ -52,19 +58,21 @@ All 7 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
 |-----------|------------------|-----------|-------------|--------------|--------------------|
-| `fees-package.created` | fees-package / created | `studio.lerian.fees-package.created` | `lerian.streaming.fees-package.created` | package ID | create fee package |
-| `fees-package.updated` | fees-package / updated | `studio.lerian.fees-package.updated` | `lerian.streaming.fees-package.updated` | package ID | update fee package |
-| `fees-package.deleted` | fees-package / deleted | `studio.lerian.fees-package.deleted` | `lerian.streaming.fees-package.deleted` | package ID | delete fee package |
-| `fees-billing-package.created` | fees-billing-package / created | `studio.lerian.fees-billing-package.created` | `lerian.streaming.fees-billing-package.created` | billing package ID | create billing package |
-| `fees-billing-package.updated` | fees-billing-package / updated | `studio.lerian.fees-billing-package.updated` | `lerian.streaming.fees-billing-package.updated` | billing package ID | update billing package |
-| `fees-billing-package.deleted` | fees-billing-package / deleted | `studio.lerian.fees-billing-package.deleted` | `lerian.streaming.fees-billing-package.deleted` | billing package ID | delete billing package |
-| `fees.applied` | fees / applied | `studio.lerian.fees.applied` | `lerian.streaming.fees.applied` | **transaction ID** | fee charged on a posted transaction |
+| `fee-packages.created` | fee-packages / created | `studio.lerian.fee-packages.created` | `lerian.streaming.fee_packages.created` | package ID | create fee package |
+| `fee-packages.updated` | fee-packages / updated | `studio.lerian.fee-packages.updated` | `lerian.streaming.fee_packages.updated` | package ID | update fee package |
+| `fee-packages.deleted` | fee-packages / deleted | `studio.lerian.fee-packages.deleted` | `lerian.streaming.fee_packages.deleted` | package ID | delete fee package |
+| `fee-billing-packages.created` | fee-billing-packages / created | `studio.lerian.fee-billing-packages.created` | `lerian.streaming.fee_billing_packages.created` | billing package ID | create billing package |
+| `fee-billing-packages.updated` | fee-billing-packages / updated | `studio.lerian.fee-billing-packages.updated` | `lerian.streaming.fee_billing_packages.updated` | billing package ID | update billing package |
+| `fee-billing-packages.deleted` | fee-billing-packages / deleted | `studio.lerian.fee-billing-packages.deleted` | `lerian.streaming.fee_billing_packages.deleted` | billing package ID | delete billing package |
+| `fee-charge.applied` | fee-charge / applied | `studio.lerian.fee-charge.applied` | `lerian.streaming.fee_charge.applied` | **transaction ID** | fee charged on a posted transaction |
 
-> **Hyphen, not underscore.** The `fees-package` and `fees-billing-package`
-> resource types are hyphenated. The lib-streaming route-key validator rejects
-> underscores, so the key, topic, and `ce-type` all keep the hyphen.
+> **Hyphen in the key/ce-type, underscore in the topic.** The `fee-packages`
+> and `fee-billing-packages` resource types are hyphenated. The lib-streaming
+> route-key validator rejects underscores, so the event **key** and **`ce-type`**
+> keep the hyphen; only the derived **Kafka topic** name substitutes underscores
+> for hyphens (and folds in the `fee` service segment).
 
-> **`ce-subject` on `fees.applied`.** The aggregate is the transaction the fee
+> **`ce-subject` on `fee-charge.applied`.** The aggregate is the transaction the fee
 > was charged against, so `ce-subject` is the **transaction ID**, and the
 > charged fee package's ID travels in the body as `feePackageId`. The
 > package/billing-package events use their own record ID as subject.
@@ -75,7 +83,7 @@ The wire keys below are the exact JSON field set produced by the Payload structs
 in `pkg/streaming/events/`. The "field count" is the number the JSONShape test
 locks.
 
-### `fees-package.created` / `fees-package.updated` — 8 fields
+### `fee-packages.created` / `fee-packages.updated` — 8 fields
 
 Source: `pkg/streaming/events/fees_package_created.go`,
 `fees_package_updated.go`.
@@ -95,7 +103,7 @@ Source: `pkg/streaming/events/fees_package_created.go`,
 `feeGroupLabel`, `description`, `minimumAmount`, `maximumAmount`, `fees`,
 `waivedAccounts`.
 
-### `fees-package.deleted` — 4 fields
+### `fee-packages.deleted` — 4 fields
 
 Source: `pkg/streaming/events/fees_package_deleted.go`.
 
@@ -110,7 +118,7 @@ Source: `pkg/streaming/events/fees_package_deleted.go`.
 `feeGroupLabel`, `description`, `minimumAmount`, `maximumAmount`, `fees`,
 `waivedAccounts`, `segmentId`, `transactionRoute`, `enable`.
 
-### `fees-billing-package.created` / `fees-billing-package.updated` — 9 fields
+### `fee-billing-packages.created` / `fee-billing-packages.updated` — 9 fields
 
 Source: `pkg/streaming/events/fees_billing_package_created.go`,
 `fees_billing_package_updated.go`.
@@ -132,7 +140,7 @@ Source: `pkg/streaming/events/fees_billing_package_created.go`,
 `freeQuota`, `eventFilter`, `accountTarget`, `debitAccountAlias`,
 `creditAccountAlias`, `maintenanceCreditAccount`.
 
-### `fees-billing-package.deleted` — 4 fields
+### `fee-billing-packages.deleted` — 4 fields
 
 Source: `pkg/streaming/events/fees_billing_package_deleted.go`.
 
@@ -149,7 +157,7 @@ Source: `pkg/streaming/events/fees_billing_package_deleted.go`.
 `creditAccountAlias`, `maintenanceCreditAccount`, `type`, `pricingModel`,
 `countMode`, `enable`, `createdAt`, `updatedAt`.
 
-### `fees.applied` — 5 fields
+### `fee-charge.applied` — 5 fields
 
 Source: `pkg/streaming/events/fees_applied.go`.
 
@@ -165,15 +173,16 @@ Source: `pkg/streaming/events/fees_applied.go`.
 `amount`, `assetCode`, `source`, `destination`, `metadata`, `operations`,
 `description`, `fees`, `waivedAccounts`.
 
-## `fees.applied` semantics
+## `fee-charge.applied` semantics
 
-`fees.applied` is a charge signal, not a transaction signal:
+`fee-charge.applied` is a charge signal, not a transaction signal:
 
 - **Charged only.** It is emitted only when a fee was actually **charged** —
   `emitFeesAppliedEvent` fires only when `feeApplied=true` and a non-empty
   `packageAppliedID` are present in the transaction metadata (set by the fee
-  engine on the real-charge branch). A pure exemption carries neither, so **no
-  event is emitted on exemption**.
+  engine on the real-charge branch). A pure exemption still sets
+  `packageAppliedID` but omits `feeApplied=true`, so the `feeApplied` guard
+  suppresses it — **no event is emitted on exemption**.
 - **Once.** It rides alongside `transaction.posted` only. Commit, cancel, and
   revert do NOT re-emit it — the fee charge happened once, at post.
 

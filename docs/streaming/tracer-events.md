@@ -42,8 +42,11 @@ Catalog (`buildCatalog`) and the route table (`buildRoutes`):
 - **Event key** = `<resourceType>.<eventType>` via `Definition.Key()` (e.g.
   `rule.created`). `resource` ∈ {`rule`, `limit`}; `event` ∈ {`created`,
   `updated`, `activated`, `deactivated`, `drafted`, `deleted`}.
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `streamingTopicPrefix` + key = `lerian.streaming.<key>`.
+- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`
+  (resource unchanged, e.g. `studio.lerian.rule.created`).
+- **Kafka topic** = `pkgStreaming.TopicName("tracer", key)` =
+  `lerian.streaming.tracer_<resource>.<event>` — the producing-service segment
+  (`tracer`) is folded in (e.g. `lerian.streaming.tracer_rule.created`).
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`) — the rule UUID or
   limit UUID.
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
@@ -54,7 +57,7 @@ Catalog (`buildCatalog`) and the route table (`buildRoutes`):
 | Aspect | Rule |
 |--------|------|
 | Event key | `<resource>.<event>`, lowercase; tokens are single words (no separator); underscores are rejected by the route-key validator |
-| Kafka topic | `lerian.streaming.<resource>.<event>` |
+| Kafka topic | `lerian.streaming.tracer_<resource>.<event>` |
 | `ce-type` | `studio.lerian.<resource>.<event>` (auto-prefixed by lib-streaming) |
 | `ce-source` | `lerian.midaz.tracer` |
 | `ce-subject` | aggregate ID — rule UUID or limit UUID |
@@ -67,18 +70,18 @@ All 12 events carry `SchemaVersion = 1.0.0`.
 
 | Event key | `ce-type` | Kafka topic | `ce-subject` | Schema version |
 |-----------|-----------|-------------|--------------|----------------|
-| `rule.created` | `studio.lerian.rule.created` | `lerian.streaming.rule.created` | rule ID | `1.0.0` |
-| `rule.updated` | `studio.lerian.rule.updated` | `lerian.streaming.rule.updated` | rule ID | `1.0.0` |
-| `rule.activated` | `studio.lerian.rule.activated` | `lerian.streaming.rule.activated` | rule ID | `1.0.0` |
-| `rule.deactivated` | `studio.lerian.rule.deactivated` | `lerian.streaming.rule.deactivated` | rule ID | `1.0.0` |
-| `rule.drafted` | `studio.lerian.rule.drafted` | `lerian.streaming.rule.drafted` | rule ID | `1.0.0` |
-| `rule.deleted` | `studio.lerian.rule.deleted` | `lerian.streaming.rule.deleted` | rule ID | `1.0.0` |
-| `limit.created` | `studio.lerian.limit.created` | `lerian.streaming.limit.created` | limit ID | `1.0.0` |
-| `limit.updated` | `studio.lerian.limit.updated` | `lerian.streaming.limit.updated` | limit ID | `1.0.0` |
-| `limit.activated` | `studio.lerian.limit.activated` | `lerian.streaming.limit.activated` | limit ID | `1.0.0` |
-| `limit.deactivated` | `studio.lerian.limit.deactivated` | `lerian.streaming.limit.deactivated` | limit ID | `1.0.0` |
-| `limit.drafted` | `studio.lerian.limit.drafted` | `lerian.streaming.limit.drafted` | limit ID | `1.0.0` |
-| `limit.deleted` | `studio.lerian.limit.deleted` | `lerian.streaming.limit.deleted` | limit ID | `1.0.0` |
+| `rule.created` | `studio.lerian.rule.created` | `lerian.streaming.tracer_rule.created` | rule ID | `1.0.0` |
+| `rule.updated` | `studio.lerian.rule.updated` | `lerian.streaming.tracer_rule.updated` | rule ID | `1.0.0` |
+| `rule.activated` | `studio.lerian.rule.activated` | `lerian.streaming.tracer_rule.activated` | rule ID | `1.0.0` |
+| `rule.deactivated` | `studio.lerian.rule.deactivated` | `lerian.streaming.tracer_rule.deactivated` | rule ID | `1.0.0` |
+| `rule.drafted` | `studio.lerian.rule.drafted` | `lerian.streaming.tracer_rule.drafted` | rule ID | `1.0.0` |
+| `rule.deleted` | `studio.lerian.rule.deleted` | `lerian.streaming.tracer_rule.deleted` | rule ID | `1.0.0` |
+| `limit.created` | `studio.lerian.limit.created` | `lerian.streaming.tracer_limit.created` | limit ID | `1.0.0` |
+| `limit.updated` | `studio.lerian.limit.updated` | `lerian.streaming.tracer_limit.updated` | limit ID | `1.0.0` |
+| `limit.activated` | `studio.lerian.limit.activated` | `lerian.streaming.tracer_limit.activated` | limit ID | `1.0.0` |
+| `limit.deactivated` | `studio.lerian.limit.deactivated` | `lerian.streaming.tracer_limit.deactivated` | limit ID | `1.0.0` |
+| `limit.drafted` | `studio.lerian.limit.drafted` | `lerian.streaming.tracer_limit.drafted` | limit ID | `1.0.0` |
+| `limit.deleted` | `studio.lerian.limit.deleted` | `lerian.streaming.tracer_limit.deleted` | limit ID | `1.0.0` |
 
 ## Shared `scopes[]` nested shape
 
@@ -395,8 +398,22 @@ point tracer at it:
   from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Set `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, and
   `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.tracer`.
-- Pre-provision the 12 `lerian.streaming.{rule,limit}.*` topics explicitly; do
-  not rely on auto-create.
+- Pre-provision these 12 topics explicitly; do not rely on auto-create:
+
+  ```
+  lerian.streaming.tracer_rule.created
+  lerian.streaming.tracer_rule.updated
+  lerian.streaming.tracer_rule.activated
+  lerian.streaming.tracer_rule.deactivated
+  lerian.streaming.tracer_rule.drafted
+  lerian.streaming.tracer_rule.deleted
+  lerian.streaming.tracer_limit.created
+  lerian.streaming.tracer_limit.updated
+  lerian.streaming.tracer_limit.activated
+  lerian.streaming.tracer_limit.deactivated
+  lerian.streaming.tracer_limit.drafted
+  lerian.streaming.tracer_limit.deleted
+  ```
 
 The default unit suite never touches a broker — the JSONShape and mapping tests
 in `pkg/streaming/events/` marshal payloads in memory. See the `CLAUDE.md`

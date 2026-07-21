@@ -434,7 +434,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 	return nil
 }
 
-// emitBillingPackageCreatedEvent publishes fees-billing-package.created. IMPORTANT posture.
+// emitBillingPackageCreatedEvent publishes fee-billing-packages.created. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
 	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -451,7 +451,7 @@ func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Conte
 		})
 }
 
-// emitBillingPackageUpdatedEvent publishes fees-billing-package.updated. IMPORTANT posture.
+// emitBillingPackageUpdatedEvent publishes fee-billing-packages.updated. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
 	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -468,7 +468,7 @@ func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Conte
 		})
 }
 
-// emitBillingPackageDeletedEvent publishes fees-billing-package.deleted. IMPORTANT posture.
+// emitBillingPackageDeletedEvent publishes fee-billing-packages.deleted. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
 	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
