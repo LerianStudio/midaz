@@ -297,6 +297,36 @@ func TestMetrics_HistogramBuckets(t *testing.T) {
 		"histogram bucket boundaries must match the canonical contract")
 }
 
+// TestEmitMetrics_AcceptsNewDependencyLabels asserts that the three deps added
+// by the five-probe /readyz fan-out (redis, tenant_manager, streaming) are in
+// the bounded-cardinality allow-list, so EmitCheckDuration / EmitCheckStatus
+// actually record instead of being silently dropped by isValidDep.
+func TestEmitMetrics_AcceptsNewDependencyLabels(t *testing.T) {
+	newDeps := []string{"redis", "tenant_manager", "streaming"}
+
+	for _, dep := range newDeps {
+		t.Run(dep, func(t *testing.T) {
+			r, reg := newRecorderWithRegistry(t)
+			ctx := context.Background()
+
+			r.EmitCheckDuration(ctx, dep, "up", 3*time.Millisecond)
+			r.EmitCheckStatus(ctx, dep, "up")
+
+			families := gather(t, reg)
+
+			histMF, ok := families["readyz_check_duration_ms"]
+			require.Truef(t, ok, "%s: duration histogram missing — dep dropped by isValidDep", dep)
+			assert.EqualValuesf(t, 1, findHistogramSampleCount(histMF, dep, "up"),
+				"%s: duration observation must be recorded, not dropped", dep)
+
+			statusMF, ok := families["readyz_check_status"]
+			require.Truef(t, ok, "%s: status counter missing — dep dropped by isValidDep", dep)
+			assert.EqualValuesf(t, 1, findCounterValue(statusMF, dep, "up"),
+				"%s: status counter must be incremented, not dropped", dep)
+		})
+	}
+}
+
 // TestNilRecorder_NoOps verifies that a nil-receiver Recorder silently
 // drops every emission. This is the contract the call sites depend on:
 // HealthChecker / RunSelfProbe can be exercised in unit tests without

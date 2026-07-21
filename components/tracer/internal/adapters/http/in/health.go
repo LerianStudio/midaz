@@ -32,6 +32,11 @@ var (
 	ErrDependenciesUnhealthy    = constant.ErrReadyzDependenciesUnhealthy
 	ErrCacheNotReady            = constant.ErrReadyzCacheNotReady
 	ErrCacheStale               = constant.ErrReadyzCacheStale
+
+	ErrRedisConnectionNotEstablished = constant.ErrReadyzRedisConnectionNotEstablished
+	ErrRedisPingFailed               = constant.ErrReadyzRedisPingFailed
+	ErrTenantManagerUnavailable      = constant.ErrReadyzTenantManagerUnavailable
+	ErrStreamingUnhealthy            = constant.ErrReadyzStreamingUnhealthy
 )
 
 // Default health check configuration values.
@@ -55,6 +60,41 @@ type RuleCacheHealthProvider interface {
 type PostgresDBProvider interface {
 	GetDB(ctx context.Context) (*sql.DB, error)
 	IsConnected() bool
+}
+
+// RedisPinger probes the multi-tenant Redis Pub/Sub client for the /readyz
+// redis check. It is a binary liveness signal (ping works or it does not), so
+// unlike the tenant-manager / streaming probers it returns a raw error and the
+// probe owns the up/down mapping — mirroring PostgresDBProvider. The bootstrap
+// adapter wraps the raw go-redis UniversalClient so this package stays free of
+// the go-redis import.
+type RedisPinger interface {
+	Ping(ctx context.Context) error
+}
+
+// TenantManagerProber reports tenant-manager HTTP client readiness for the
+// /readyz tenant_manager check. The tenant-manager client exposes no
+// Ping/HealthCheck and its circuit breaker is private, so the only viable
+// signal is a functional call whose error must be classified against the
+// tenant-manager circuit-breaker-open sentinel. That classification needs the
+// concrete lib-commons error type, so it is done in the bootstrap adapter and
+// this interface returns a status already in the closed /readyz vocabulary
+// (StatusUp / StatusDegraded / StatusDown) plus the sanitized cause for span
+// attribution. Returning the pre-classified status keeps this package free of
+// the tenant-manager import.
+type TenantManagerProber interface {
+	Probe(ctx context.Context) (status string, err error)
+}
+
+// StreamingHealthProber reports streaming / RedPanda producer readiness for the
+// /readyz streaming check. lib-streaming's Emitter.Healthy returns a tri-state
+// HealthError whose .State() distinguishes healthy / degraded / down; decoding
+// it needs the concrete lib-streaming type, so — same rationale as
+// TenantManagerProber — the bootstrap adapter classifies at the boundary and
+// this interface returns a status already in the closed /readyz vocabulary plus
+// the sanitized cause for span attribution.
+type StreamingHealthProber interface {
+	Probe(ctx context.Context) (status string, err error)
 }
 
 // postgresConnectionAdapter adapts *libPostgres.Client to PostgresDBProvider.
@@ -163,6 +203,28 @@ type HealthChecker struct {
 	// series surface on /metrics that the legacy raw-Prometheus emitter
 	// produced (preserving the canonical contract).
 	readyzRecorder *observability.Recorder
+
+	// redisPinger + tenantManagerProber probe the multi-tenant-only deps. They
+	// stay nil in single-tenant mode (bootstrap only wires them when
+	// mtComponents is non-nil), so the corresponding probes report StatusSkipped
+	// rather than dereferencing a nil provider. Set once at bootstrap before the
+	// HTTP server accepts traffic — no race with /readyz reads.
+	redisPinger         RedisPinger
+	tenantManagerProber TenantManagerProber
+
+	// redisTLSEnabled mirrors cfg.MultiTenantRedisTLS. A *bool so "not wired"
+	// (single-tenant) is distinct from an explicit false; when set, the redis
+	// probe echoes it into ReadyzCheck.TLS. Populated from config (no reflection
+	// on the live connection — anti-pattern N4/N5).
+	redisTLSEnabled *bool
+
+	// streamingProber probes the streaming/RedPanda producer. Always wired at
+	// bootstrap (the emitter is a NoopEmitter when streaming is disabled), but
+	// the probe short-circuits to StatusSkipped when streamingEnabled is false —
+	// reporting "skipped" is more honest than probing a Noop that always
+	// reports healthy.
+	streamingProber  StreamingHealthProber
+	streamingEnabled bool
 }
 
 // NewHealthChecker creates a new HealthChecker instance with connection pools.
@@ -241,6 +303,60 @@ func (h *HealthChecker) SetReadyzRecorder(r *observability.Recorder) {
 	}
 
 	h.readyzRecorder = r
+}
+
+// SetRedisPinger wires the multi-tenant Redis Pub/Sub pinger used by the redis
+// /readyz probe. Bootstrap calls this only in multi-tenant mode; in
+// single-tenant mode it is never called and the probe reports StatusSkipped.
+func (h *HealthChecker) SetRedisPinger(p RedisPinger) {
+	if h == nil {
+		return
+	}
+
+	h.redisPinger = p
+}
+
+// SetRedisTLS records the configured Redis TLS posture (cfg.MultiTenantRedisTLS)
+// so the redis probe can populate ReadyzCheck.TLS without reflecting on the live
+// connection. Bootstrap calls this only in multi-tenant mode.
+func (h *HealthChecker) SetRedisTLS(enabled bool) {
+	if h == nil {
+		return
+	}
+
+	h.redisTLSEnabled = &enabled
+}
+
+// SetTenantManagerProber wires the tenant-manager readiness prober used by the
+// tenant_manager /readyz probe. Bootstrap calls this only in multi-tenant mode;
+// in single-tenant mode the probe reports StatusSkipped.
+func (h *HealthChecker) SetTenantManagerProber(p TenantManagerProber) {
+	if h == nil {
+		return
+	}
+
+	h.tenantManagerProber = p
+}
+
+// SetStreamingProber wires the streaming/RedPanda readiness prober used by the
+// streaming /readyz probe. Always wired at bootstrap; the probe still reports
+// StatusSkipped when SetStreamingEnabled(false).
+func (h *HealthChecker) SetStreamingProber(p StreamingHealthProber) {
+	if h == nil {
+		return
+	}
+
+	h.streamingProber = p
+}
+
+// SetStreamingEnabled records the master streaming flag (cfg.StreamingEnabled)
+// so the streaming probe can report StatusSkipped when streaming is disabled.
+func (h *HealthChecker) SetStreamingEnabled(enabled bool) {
+	if h == nil {
+		return
+	}
+
+	h.streamingEnabled = enabled
 }
 
 // ReadyzRecorder exposes the wired metrics recorder so the bootstrap-time

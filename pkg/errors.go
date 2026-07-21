@@ -2693,6 +2693,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Readyz Cache Stale",
 			Message:    "Rule_cache readyz: cache data stale.",
 		},
+		constant.ErrReadyzRedisConnectionNotEstablished: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzRedisConnectionNotEstablished.Error(),
+			Title:      "Readyz Redis Connection Not Established",
+			Message:    "Redis readyz: connection not established.",
+		},
+		constant.ErrReadyzRedisPingFailed: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzRedisPingFailed.Error(),
+			Title:      "Readyz Redis Ping Failed",
+			Message:    "Redis readyz: ping failed.",
+		},
+		constant.ErrReadyzTenantManagerUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzTenantManagerUnavailable.Error(),
+			Title:      "Readyz Tenant Manager Unavailable",
+			Message:    "Tenant_manager readyz: service unavailable.",
+		},
+		constant.ErrReadyzStreamingUnhealthy: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzStreamingUnhealthy.Error(),
+			Title:      "Readyz Streaming Unhealthy",
+			Message:    "Streaming readyz: producer unhealthy.",
+		},
 		constant.ErrSupervisorShuttingDown: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrSupervisorShuttingDown.Error(),

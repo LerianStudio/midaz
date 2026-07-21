@@ -80,8 +80,10 @@ func newReadyzCheckerWithDB(t *testing.T, version, deploymentMode string) (*Heal
 // healthy-shape contract: 200, top-level "healthy", every check has a status
 // from the closed vocabulary, and version + deployment_mode are echoed back.
 //
-// The single-tenant /readyz cycle returns exactly two checks: postgres +
-// rule_cache. tenant_manager/tenant_pubsub were stripped at Gate-strip.
+// The single-tenant /readyz cycle returns five checks: postgres + rule_cache
+// are live; redis + tenant_manager report "skipped" (multi-tenant-only) and
+// streaming reports "skipped" (STREAMING_ENABLED=false). tenant_pubsub is not
+// a probe. All in {up, skipped} ⇒ healthy.
 func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
@@ -116,8 +118,9 @@ func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	assert.Equal(t, "saas", response.DeploymentMode)
 	assert.False(t, response.Draining, "draining must be false (and omitted from JSON) in normal operation")
 
-	// Exactly two checks — postgres + rule_cache. No tenant_* checks.
-	assert.Len(t, response.Checks, 2, "single-tenant /readyz cycle returns exactly two checks")
+	// Five checks — postgres + rule_cache live, redis + tenant_manager +
+	// streaming skipped in single-tenant / streaming-off mode.
+	assert.Len(t, response.Checks, 5, "grown /readyz fan-out returns five checks")
 
 	// Postgres must be present and "up", with tls=true populated by the detector.
 	pg, ok := response.Checks["postgres"]
@@ -132,12 +135,26 @@ func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	assert.Equal(t, StatusUp, rc.Status)
 	assert.Nil(t, rc.TLS, "rule_cache has no TLS concept — field must be omitted")
 
-	// tenant_manager + tenant_pubsub must NOT appear in the response.
-	_, hasTM := response.Checks["tenant_manager"]
-	assert.False(t, hasTM, "tenant_manager check must not appear in single-tenant /readyz response")
+	// redis + tenant_manager are multi-tenant-only ⇒ skipped in single-tenant.
+	redis, ok := response.Checks["redis"]
+	require.True(t, ok, "redis check missing")
+	assert.Equal(t, StatusSkipped, redis.Status)
+	assert.Equal(t, reasonMultiTenantDisabled, redis.Reason)
 
+	tm, ok := response.Checks["tenant_manager"]
+	require.True(t, ok, "tenant_manager check missing")
+	assert.Equal(t, StatusSkipped, tm.Status)
+	assert.Equal(t, reasonMultiTenantDisabled, tm.Reason)
+
+	// streaming disabled (STREAMING_ENABLED unset) ⇒ skipped.
+	stream, ok := response.Checks["streaming"]
+	require.True(t, ok, "streaming check missing")
+	assert.Equal(t, StatusSkipped, stream.Status)
+	assert.Equal(t, reasonStreamingDisabled, stream.Reason)
+
+	// tenant_pubsub is not a probe and must never appear.
 	_, hasPS := response.Checks["tenant_pubsub"]
-	assert.False(t, hasPS, "tenant_pubsub check must not appear in single-tenant /readyz response")
+	assert.False(t, hasPS, "tenant_pubsub is not a /readyz probe")
 }
 
 // stubPostgresTLSDetector returns a function-form detector that ignores its
@@ -264,8 +281,8 @@ func TestReadyzHandler_Draining_Returns503EvenIfAllDepsUp(t *testing.T) {
 	// Canonical-shape preservation: the per-dep checks map must be populated
 	// during drain, NOT empty. Operators rely on this to see snapshot health
 	// at drain time.
-	assert.Len(t, response.Checks, 2,
-		"drain must preserve canonical checks shape (postgres + rule_cache)")
+	assert.Len(t, response.Checks, 5,
+		"drain must preserve canonical checks shape (all five probes)")
 
 	pg, ok := response.Checks["postgres"]
 	require.True(t, ok, "postgres check must be present during drain")
@@ -781,6 +798,17 @@ func TestReadyzHandler_MultiTenant_SkipsRuleCacheProbe(t *testing.T) {
 	hc.SetCacheHealthProvider(&mockCacheHealth{ready: false})
 	hc.SetMultiTenantEnabled(true)
 
+	// Wire the multi-tenant-only probes as up so this test isolates the
+	// rule_cache gate — redis/tenant_manager health is exercised elsewhere.
+	ctrl := gomock.NewController(t)
+	redis := NewMockRedisPinger(ctrl)
+	redis.EXPECT().Ping(gomock.Any()).Return(nil).AnyTimes()
+	hc.SetRedisPinger(redis)
+
+	tm := NewMockTenantManagerProber(ctrl)
+	tm.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil).AnyTimes()
+	hc.SetTenantManagerProber(tm)
+
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
@@ -903,4 +931,475 @@ func TestHealthChecker_SetCacheStalenessThreshold_NonPositiveIgnored(t *testing.
 	hc.SetCacheStalenessThreshold(2 * time.Minute)
 	assert.Equal(t, 2*time.Minute, hc.CacheStalenessThreshold(),
 		"positive override must land")
+}
+
+// readyzTracerCtx returns a context carrying a no-op tracer so the probe child
+// spans have something to start against, matching production middleware order.
+func readyzTracerCtx() context.Context {
+	return libObservability.ContextWithTracer(context.Background(), otel.Tracer("tracer-readyz-probe-test"))
+}
+
+// TestReadyzProbe_Redis covers the redis probe across up / down / skipped /
+// not-wired, and the TLS-posture echo. Redis is multi-tenant-only: with MT off
+// the probe MUST report skipped and MUST NOT touch the pinger.
+func TestReadyzProbe_Redis(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	t.Run("skipped_when_multitenant_off", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		pinger := NewMockRedisPinger(ctrl)
+		// No Ping expectation: the MT gate must short-circuit before the pinger.
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetRedisPinger(pinger)
+		// multiTenantEnabled defaults to false.
+
+		check := hc.probeReadyzRedis(readyzTracerCtx())
+
+		assert.Equal(t, StatusSkipped, check.Status)
+		assert.Equal(t, reasonMultiTenantDisabled, check.Reason)
+		assert.Empty(t, check.Error, "skipped probe must not surface an error")
+		assert.Nil(t, check.TLS, "skipped probe must not populate TLS")
+	})
+
+	t.Run("up_with_tls_true", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		pinger := NewMockRedisPinger(ctrl)
+		pinger.EXPECT().Ping(gomock.Any()).Return(nil)
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		hc.SetRedisPinger(pinger)
+		hc.SetRedisTLS(true)
+
+		check := hc.probeReadyzRedis(readyzTracerCtx())
+
+		assert.Equal(t, StatusUp, check.Status)
+		require.NotNil(t, check.TLS, "redis TLS posture must be echoed when configured")
+		assert.True(t, *check.TLS)
+		assert.GreaterOrEqual(t, check.LatencyMs, int64(0))
+	})
+
+	t.Run("down_on_ping_error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		pinger := NewMockRedisPinger(ctrl)
+		pinger.EXPECT().Ping(gomock.Any()).Return(errors.New("dial tcp: connection refused"))
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		hc.SetRedisPinger(pinger)
+		hc.SetRedisTLS(false)
+
+		check := hc.probeReadyzRedis(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrRedisPingFailed.Error(), check.Error,
+			"down probe must surface the canonical sentinel code, not the raw client error")
+		assert.NotContains(t, check.Error, "connection refused", "raw client error must never leak")
+	})
+
+	t.Run("down_when_not_wired", func(t *testing.T) {
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		// Deliberately never call SetRedisPinger.
+
+		check := hc.probeReadyzRedis(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrRedisConnectionNotEstablished.Error(), check.Error)
+	})
+}
+
+// TestReadyzProbe_TenantManager covers the tenant_manager probe. Tenant manager
+// is multi-tenant-only, and its tri-state comes pre-classified from the
+// bootstrap adapter (up / degraded / down).
+func TestReadyzProbe_TenantManager(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	t.Run("skipped_when_multitenant_off", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockTenantManagerProber(ctrl)
+		// No Probe expectation — MT gate short-circuits.
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetTenantManagerProber(prober)
+
+		check := hc.probeReadyzTenantManager(readyzTracerCtx())
+
+		assert.Equal(t, StatusSkipped, check.Status)
+		assert.Equal(t, reasonMultiTenantDisabled, check.Reason)
+		assert.Empty(t, check.Error)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockTenantManagerProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil)
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		hc.SetTenantManagerProber(prober)
+
+		check := hc.probeReadyzTenantManager(readyzTracerCtx())
+
+		assert.Equal(t, StatusUp, check.Status)
+		assert.Empty(t, check.Error)
+		assert.GreaterOrEqual(t, check.LatencyMs, int64(0))
+	})
+
+	t.Run("degraded_on_circuit_breaker_open", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockTenantManagerProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusDegraded, errors.New("circuit breaker open"))
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		hc.SetTenantManagerProber(prober)
+
+		check := hc.probeReadyzTenantManager(readyzTracerCtx())
+
+		assert.Equal(t, StatusDegraded, check.Status)
+		assert.Equal(t, reasonCircuitBreakerOpen, check.Reason)
+		assert.Empty(t, check.Error, "degraded surfaces Reason, not Error")
+	})
+
+	t.Run("down", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockTenantManagerProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusDown, errors.New("500 internal"))
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+		hc.SetTenantManagerProber(prober)
+
+		check := hc.probeReadyzTenantManager(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrTenantManagerUnavailable.Error(), check.Error)
+		assert.NotContains(t, check.Error, "internal", "raw client error must never leak")
+	})
+
+	t.Run("down_when_not_wired", func(t *testing.T) {
+		hc := NewTestableHealthChecker(nil)
+		hc.SetMultiTenantEnabled(true)
+
+		check := hc.probeReadyzTenantManager(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrTenantManagerUnavailable.Error(), check.Error)
+	})
+}
+
+// TestReadyzProbe_Streaming covers the streaming probe. Streaming is
+// independent of multi-tenancy and gated by its own master flag.
+func TestReadyzProbe_Streaming(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	t.Run("skipped_when_streaming_off", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockStreamingHealthProber(ctrl)
+		// No Probe expectation — the disabled gate short-circuits.
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetStreamingProber(prober)
+		// streamingEnabled defaults to false.
+
+		check := hc.probeReadyzStreaming(readyzTracerCtx())
+
+		assert.Equal(t, StatusSkipped, check.Status)
+		assert.Equal(t, reasonStreamingDisabled, check.Reason)
+		assert.Empty(t, check.Error)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockStreamingHealthProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil)
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetStreamingEnabled(true)
+		hc.SetStreamingProber(prober)
+
+		check := hc.probeReadyzStreaming(readyzTracerCtx())
+
+		assert.Equal(t, StatusUp, check.Status)
+		assert.Empty(t, check.Error)
+	})
+
+	t.Run("degraded", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockStreamingHealthProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusDegraded, errors.New("broker unreachable"))
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetStreamingEnabled(true)
+		hc.SetStreamingProber(prober)
+
+		check := hc.probeReadyzStreaming(readyzTracerCtx())
+
+		assert.Equal(t, StatusDegraded, check.Status)
+		assert.Equal(t, reasonStreamingDegraded, check.Reason)
+		assert.Empty(t, check.Error)
+	})
+
+	t.Run("down", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		prober := NewMockStreamingHealthProber(ctrl)
+		prober.EXPECT().Probe(gomock.Any()).Return(StatusDown, errors.New("broker down"))
+
+		hc := NewTestableHealthChecker(nil)
+		hc.SetStreamingEnabled(true)
+		hc.SetStreamingProber(prober)
+
+		check := hc.probeReadyzStreaming(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrStreamingUnhealthy.Error(), check.Error)
+		assert.NotContains(t, check.Error, "broker", "raw client error must never leak")
+	})
+
+	t.Run("down_when_not_wired", func(t *testing.T) {
+		hc := NewTestableHealthChecker(nil)
+		hc.SetStreamingEnabled(true)
+
+		check := hc.probeReadyzStreaming(readyzTracerCtx())
+
+		assert.Equal(t, StatusDown, check.Status)
+		assert.Equal(t, ErrStreamingUnhealthy.Error(), check.Error)
+	})
+}
+
+// wireFiveCheckHandler builds a HealthChecker with all five deps wired and up,
+// in multi-tenant + streaming-enabled mode. Returns the checker and a cleanup
+// the caller must defer.
+func wireFiveCheckHandler(t *testing.T, redisStatus error, tmStatus, streamStatus string) (*HealthChecker, func()) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+
+	mock.ExpectPing()
+
+	provider := NewMockPostgresDBProvider(ctrl)
+	provider.EXPECT().IsConnected().Return(true).AnyTimes()
+	provider.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
+
+	redis := NewMockRedisPinger(ctrl)
+	redis.EXPECT().Ping(gomock.Any()).Return(redisStatus).AnyTimes()
+
+	tm := NewMockTenantManagerProber(ctrl)
+	tm.EXPECT().Probe(gomock.Any()).Return(tmStatus, nil).AnyTimes()
+
+	stream := NewMockStreamingHealthProber(ctrl)
+	stream.EXPECT().Probe(gomock.Any()).Return(streamStatus, nil).AnyTimes()
+
+	hc := NewTestableHealthCheckerWithMeta(provider, "1.2.3", "saas")
+	hc.SetMultiTenantEnabled(true)
+	hc.SetCacheHealthProvider(&mockCacheHealth{ready: true, staleness: time.Second, size: 1})
+	hc.SetRedisPinger(redis)
+	hc.SetRedisTLS(true)
+	hc.SetTenantManagerProber(tm)
+	hc.SetStreamingEnabled(true)
+	hc.SetStreamingProber(stream)
+
+	cleanup := func() {
+		mock.ExpectClose()
+		require.NoError(t, db.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	}
+
+	return hc, cleanup
+}
+
+// TestReadyzHandler_AllFiveChecks_PresentAndHealthy asserts the grown fan-out:
+// the checks map carries all five keys, and with every dep up (rule_cache is
+// n/a in MT mode) the aggregate is healthy / 200.
+func TestReadyzHandler_AllFiveChecks_PresentAndHealthy(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	hc, cleanup := wireFiveCheckHandler(t, nil, StatusUp, StatusUp)
+	defer cleanup()
+
+	app := createReadyzTestApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Len(t, response.Checks, 5, "grown fan-out must return exactly five checks")
+
+	for _, key := range []string{"postgres", "rule_cache", "redis", "tenant_manager", "streaming"} {
+		_, ok := response.Checks[key]
+		assert.Truef(t, ok, "checks map must contain %q", key)
+	}
+
+	assert.Equal(t, StatusUp, response.Checks["redis"].Status)
+	assert.Equal(t, StatusUp, response.Checks["tenant_manager"].Status)
+	assert.Equal(t, StatusUp, response.Checks["streaming"].Status)
+	assert.Equal(t, StatusNA, response.Checks["rule_cache"].Status, "rule_cache is n/a in MT mode")
+}
+
+// TestReadyzHandler_NewDepDown_Returns503 asserts a down on any of the GATING
+// multi-tenant deps (redis, tenant_manager) flips the aggregate to unhealthy /
+// 503. Streaming is advisory and is covered by the advisory tests above — it is
+// intentionally absent here.
+func TestReadyzHandler_NewDepDown_Returns503(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	tests := []struct {
+		name        string
+		redisErr    error
+		tmStatus    string
+		streamState string
+		wantDownKey string
+	}{
+		{name: "redis_down", redisErr: errors.New("refused"), tmStatus: StatusUp, streamState: StatusUp, wantDownKey: "redis"},
+		{name: "tenant_manager_down", redisErr: nil, tmStatus: StatusDown, streamState: StatusUp, wantDownKey: "tenant_manager"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hc, cleanup := wireFiveCheckHandler(t, tt.redisErr, tt.tmStatus, tt.streamState)
+			defer cleanup()
+
+			app := createReadyzTestApp(hc)
+			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var response api.ReadyzResponse
+			require.NoError(t, json.Unmarshal(body, &response))
+
+			assert.Equal(t, StatusUnhealthy, response.Status)
+			assert.Len(t, response.Checks, 5)
+			assert.Contains(t, []string{StatusDown, StatusDegraded}, response.Checks[tt.wantDownKey].Status)
+		})
+	}
+}
+
+// TestReadyzHandler_StreamingAdvisory_DownDoesNotGate asserts the A-decision:
+// streaming is advisory. With every gating dep up/skipped and streaming DOWN,
+// /readyz must still return 200 + healthy, while the streaming check still
+// appears verbatim in the checks map with its real "down" status. A broker
+// hiccup must never pull the pod from rotation.
+func TestReadyzHandler_StreamingAdvisory_DownDoesNotGate(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	hc, cleanup := wireFiveCheckHandler(t, nil, StatusUp, StatusDown)
+	defer cleanup()
+
+	app := createReadyzTestApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"advisory streaming=down must NOT force 503")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	assert.Equal(t, StatusHealthy, response.Status,
+		"advisory streaming=down must NOT flip the top-level status")
+	assert.Equal(t, StatusDown, response.Checks["streaming"].Status,
+		"streaming check must still appear verbatim with its real status")
+}
+
+// TestReadyzHandler_StreamingAdvisory_DegradedDoesNotGate is the symmetric
+// advisory case for a degraded streaming producer.
+func TestReadyzHandler_StreamingAdvisory_DegradedDoesNotGate(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	hc, cleanup := wireFiveCheckHandler(t, nil, StatusUp, StatusDegraded)
+	defer cleanup()
+
+	app := createReadyzTestApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"advisory streaming=degraded must NOT force 503")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, StatusDegraded, response.Checks["streaming"].Status)
+}
+
+// TestReadyzHandler_PostgresDown_StillGatesWithAdvisoryStreaming guards against
+// over-skipping: a real gating dep (postgres) down must still force 503 even
+// while streaming (advisory) is up. Confirms the advisory-skip is scoped only
+// to the advisoryChecks set.
+func TestReadyzHandler_PostgresDown_StillGatesWithAdvisoryStreaming(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+
+	provider := NewMockPostgresDBProvider(ctrl)
+	provider.EXPECT().IsConnected().Return(false).AnyTimes()
+
+	redis := NewMockRedisPinger(ctrl)
+	redis.EXPECT().Ping(gomock.Any()).Return(nil).AnyTimes()
+
+	tm := NewMockTenantManagerProber(ctrl)
+	tm.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil).AnyTimes()
+
+	stream := NewMockStreamingHealthProber(ctrl)
+	stream.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil).AnyTimes()
+
+	hc := NewTestableHealthCheckerWithMeta(provider, "1.2.3", "saas")
+	hc.SetMultiTenantEnabled(true)
+	hc.SetCacheHealthProvider(&mockCacheHealth{ready: true, staleness: time.Second, size: 1})
+	hc.SetRedisPinger(redis)
+	hc.SetTenantManagerProber(tm)
+	hc.SetStreamingEnabled(true)
+	hc.SetStreamingProber(stream)
+
+	app := createReadyzTestApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"a real gating dep (postgres) down must still force 503 — advisory-skip must not over-skip")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+	assert.Equal(t, StatusUnhealthy, response.Status)
+	assert.Equal(t, StatusDown, response.Checks["postgres"].Status)
 }

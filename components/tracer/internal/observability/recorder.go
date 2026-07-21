@@ -10,8 +10,8 @@
 //   - readyz_check_status      (Counter,   labels: dep, status) — per-outcome count
 //   - selfprobe_result         (Gauge,     labels: dep)         — startup probe (1=up,0=down)
 //
-// Cardinality is bounded: dep ∈ {postgres, rule_cache},
-// status ∈ {up, down, degraded, skipped, n/a}. No per-tenant labels.
+// Cardinality is bounded: dep ∈ {postgres, rule_cache, redis, tenant_manager,
+// streaming}, status ∈ {up, down, degraded, skipped, n/a}. No per-tenant labels.
 //
 // The metrics are exposed on /metrics via an OpenTelemetry Prometheus exporter
 // bridge wired in bootstrap (see prometheus_factory.go): metrics are recorded
@@ -36,8 +36,11 @@ import (
 // documented at the top of this file.
 var (
 	allowedDeps = map[string]struct{}{
-		"postgres":   {},
-		"rule_cache": {},
+		"postgres":       {},
+		"rule_cache":     {},
+		"redis":          {},
+		"tenant_manager": {},
+		"streaming":      {},
 	}
 
 	allowedStatuses = map[string]struct{}{

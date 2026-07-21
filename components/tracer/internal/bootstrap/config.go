@@ -765,7 +765,8 @@ func ValidateAuthConfig(ctx context.Context, cfg *Config, logger libLog.Logger) 
 		return fmt.Errorf(
 			"API_KEY_ENABLED=true is incompatible with CORS_ALLOWED_ORIGINS=\"*\": " +
 				"any malicious website can invoke authenticated API calls once the key leaks. " +
-				"Restrict CORS_ALLOWED_ORIGINS to a concrete allow-list (e.g. https://app.example.com)")
+				"Restrict CORS_ALLOWED_ORIGINS to a concrete allow-list (e.g. https://app.example.com)",
+		)
 	}
 
 	return nil
@@ -819,7 +820,8 @@ func buildPostgresDSN(cfg *Config) string {
 		sslMode = "disable" // Default for local development; use "require" in production
 	}
 
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+	return fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		quoteLibpqValue(cfg.DBHost),
 		quoteLibpqValue(cfg.DBUser),
 		quoteLibpqValue(cfg.DBPassword),
@@ -1443,7 +1445,8 @@ func initMultiTenant(
 	// (per-tenant sync + cleanup) that run on their own goroutine schedules
 	// and own their own ctx lifetime; threading boot ctx in is conceptually
 	// wrong (the workers must outlive boot).
-	components, err := buildComponentsMT(cfg, logger,
+	components, err := buildComponentsMT(
+		cfg, logger,
 		wiringDepsMT{
 			SyncRepo:             ruleSyncRepo,
 			UsageRepo:            limitDeps.usageCounterRepo,
@@ -1831,12 +1834,14 @@ func InitServers(ctx context.Context) (*Service, error) {
 		}
 	}()
 
-	// Init health checker for readiness probe. The /readyz cycle is single-
-	// tenant only — the cache probe always runs the global staleness/ready
-	// check. In multi-tenant deployments per-tenant cache health is surfaced
-	// via the tenant_consumers_active metric, NOT /readyz. version +
-	// deploymentMode are echoed in /readyz responses; deploymentMode defaults
-	// to "local" when unset (used for SaaS TLS enforcement).
+	// Init health checker for readiness probe. The /readyz cycle probes five
+	// deps: postgres + rule_cache always; redis + tenant_manager are gated to
+	// multi-tenant mode; streaming is advisory (STREAMING_ENABLED-gated, never
+	// forces 503). The rule_cache probe reports "n/a" in multi-tenant mode —
+	// per-tenant cache health is surfaced via the tenant_consumers_active
+	// metric there, NOT /readyz. version + deploymentMode are echoed in /readyz
+	// responses; deploymentMode defaults to "local" when unset (used for SaaS
+	// TLS enforcement).
 	healthChecker := buildHealthChecker(cfg, postgresConn)
 
 	// Build the OTel-backed metrics recorder for /readyz + selfprobe and wire
@@ -1850,6 +1855,12 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// only metric emission is silenced.
 	readyzRecorder := buildReadyzRecorder(ctx, logger)
 	healthChecker.SetReadyzRecorder(readyzRecorder)
+
+	// Wire the streaming /readyz probe. The emitter is always non-nil (a
+	// NoopEmitter when streaming is disabled); the probe reports "skipped"
+	// when StreamingEnabled is false rather than probing the Noop.
+	healthChecker.SetStreamingEnabled(cfg.StreamingEnabled)
+	healthChecker.SetStreamingProber(newStreamingHealthProber(streamingEmitter))
 
 	// Build the single pgdb.Connection adapter and toggle strict MT mode ONCE.
 	// every repository now shares this adapter, so tenant resolution lives in
@@ -1918,6 +1929,16 @@ func InitServers(ctx context.Context) (*Service, error) {
 	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
 	if err != nil {
 		return nil, err
+	}
+
+	// Wire the multi-tenant-only /readyz probes. mtComponents is nil in
+	// single-tenant mode, in which case the probes report "skipped" via their
+	// multiTenantEnabled gate. The Redis TLS posture is read from config, never
+	// reflected off the live connection.
+	if mtComponents != nil {
+		healthChecker.SetRedisPinger(newRedisPinger(mtComponents.redisClient))
+		healthChecker.SetRedisTLS(cfg.MultiTenantRedisTLS)
+		healthChecker.SetTenantManagerProber(newTenantManagerHealthProber(mtComponents.tmClient, cfg.ApplicationName))
 	}
 
 	// Init HTTP server with all services. mtComponents is nil in single-tenant
