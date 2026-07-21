@@ -55,6 +55,12 @@ func TestTopicName(t *testing.T) {
 			want:    "lerian.streaming.ledger_account.created",
 		},
 		{
+			name:    "ledger created resource equals service no-op proof",
+			service: "ledger",
+			key:     "ledger.created",
+			want:    "lerian.streaming.ledger_ledger.created",
+		},
+		{
 			name:    "crm multi-hyphen event segment",
 			service: "crm",
 			key:     "alias.related-party-deleted",
