@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
@@ -29,6 +30,12 @@ import (
 
 // maxPayloadSize is the maximum allowed request body size in bytes (100KB).
 const maxPayloadSize = 100 * 1024
+
+// payloadTooLargeMessage is the shared HTTP 413 detail for an oversized request
+// body. It is derived from maxPayloadSize so the stated limit can never drift
+// from the enforced one, and is shared by the validation and reservation
+// handlers so both emit an identical message.
+var payloadTooLargeMessage = fmt.Sprintf("payload too large: exceeds %dKB limit", maxPayloadSize/1024)
 
 // ValidationService defines the interface for validation operations.
 // Interface defined locally per Ring pattern.
@@ -96,7 +103,7 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 
 	logger = logging.WithTrace(ctx, logger)
 
-	// Check payload size (technical error - use HandleSpanError)
+	// Check payload size (413 is a client/business error - use HandleSpanBusinessErrorEvent)
 	if len(rawBody) > maxPayloadSize {
 		logger.With(
 			libLog.String("operation", "handler.validations.validate"),
@@ -104,13 +111,13 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 			libLog.Int("max_size", maxPayloadSize),
 		).Log(ctx, libLog.LevelWarn, "Payload too large")
 
-		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
 		return nil, pkg.PayloadTooLargeError{
 			EntityType: constant.EntityValidationRequest,
 			Code:       constant.ErrPayloadTooLarge.Error(),
 			Title:      "Payload Too Large",
-			Message:    "payload too large: exceeds 100KB limit",
+			Message:    payloadTooLargeMessage,
 		}
 	}
 

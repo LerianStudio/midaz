@@ -89,6 +89,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 
 	logger = logging.WithTrace(ctx, logger)
 
+	// Check payload size (413 is a client/business error - use HandleSpanBusinessErrorEvent)
 	if len(rawBody) > maxPayloadSize {
 		logger.With(
 			libLog.String("operation", "handler.reservations.reserve"),
@@ -96,9 +97,14 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 			libLog.Int("max_size", maxPayloadSize),
 		).Log(ctx, libLog.LevelWarn, "Payload too large")
 
-		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, constant.EntityReservation)
+		return nil, pkg.PayloadTooLargeError{
+			EntityType: constant.EntityReservation,
+			Code:       constant.ErrPayloadTooLarge.Error(),
+			Title:      "Payload Too Large",
+			Message:    payloadTooLargeMessage,
+		}
 	}
 
 	var request ReserveRequest
