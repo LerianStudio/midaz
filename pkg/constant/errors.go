@@ -153,6 +153,7 @@ var (
 	ErrNoBalanceDataAtTimestamp                 = errors.New("0141")
 	ErrMissingRequiredQueryParameter            = errors.New("0142")
 	ErrPayloadTooLarge                          = errors.New("0143")
+	ErrRequestHeaderFieldsTooLarge              = errors.New("0493")
 	ErrJSONNestingDepthExceeded                 = errors.New("0144")
 	ErrJSONKeyCountExceeded                     = errors.New("0145")
 	ErrTenantNotProvisioned                     = errors.New("0146")

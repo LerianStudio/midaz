@@ -88,6 +88,12 @@ func classifyStatusOf(t *testing.T, err error) (status int, code string) {
 	if e := (pkg.ServiceUnavailableError{}); errors.As(err, &e) {
 		return fiber.StatusServiceUnavailable, e.Code
 	}
+	if e := (pkg.GatewayTimeoutError{}); errors.As(err, &e) {
+		return fiber.StatusGatewayTimeout, e.Code
+	}
+	if e := (pkg.PayloadTooLargeError{}); errors.As(err, &e) {
+		return fiber.StatusRequestEntityTooLarge, e.Code
+	}
 
 	// Fallthrough: WithError:110 -> ValidateInternalError -> 500 / code 0046.
 	return fiber.StatusInternalServerError, constant.ErrInternalServer.Error()
@@ -275,6 +281,7 @@ func allSentinels() []error {
 		constant.ErrNoBalanceDataAtTimestamp,
 		constant.ErrMissingRequiredQueryParameter,
 		constant.ErrPayloadTooLarge,
+		constant.ErrRequestHeaderFieldsTooLarge,
 		constant.ErrJSONNestingDepthExceeded,
 		constant.ErrJSONKeyCountExceeded,
 		constant.ErrTenantNotProvisioned,
@@ -565,9 +572,9 @@ func allSentinels() []error {
 func TestGolden_SentinelInventoryComplete(t *testing.T) {
 	t.Parallel()
 
-	// pkg/constant/errors.go currently declares 422 Err* sentinels. Bump this
+	// pkg/constant/errors.go currently declares 423 Err* sentinels. Bump this
 	// number in lockstep with allSentinels() whenever a code is added/removed.
-	const wantSentinelCount = 422
+	const wantSentinelCount = 423
 
 	assert.Len(t, allSentinels(), wantSentinelCount,
 		"sentinel inventory drifted: update allSentinels() and this count together")

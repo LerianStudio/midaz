@@ -20,8 +20,8 @@ import (
 // CanonicalFiberErrorHandler is the Fiber ErrorHandler that renders the canonical
 // {code,title,message} envelope (E13) for errors that escape the handler chain —
 // chiefly *fiber.Error producers: auth assertions (401), Fiber's router (404/405),
-// and the body-limit guard (413). Any unmapped error degrades to a generic 500
-// with no raw error text (E9).
+// the body-limit guard (413), and the header-size guard (431). Any unmapped error
+// degrades to a generic 500 with no raw error text (E9).
 //
 // Reuse this handler in every fiber.Config{ErrorHandler: ...} so all Midaz fiber
 // apps share one error envelope.
@@ -44,6 +44,8 @@ func CanonicalFiberErrorHandler(c *fiber.Ctx, err error) error {
 			return renderCanonical(c, fiber.StatusMethodNotAllowed, pkg.ValidateBusinessError(constant.ErrMethodNotAllowed, ""))
 		case fiber.StatusRequestEntityTooLarge:
 			return renderCanonical(c, fiber.StatusRequestEntityTooLarge, pkg.ValidateBusinessError(constant.ErrPayloadTooLarge, ""))
+		case fiber.StatusRequestHeaderFieldsTooLarge:
+			return renderCanonical(c, fiber.StatusRequestHeaderFieldsTooLarge, pkg.ValidateBusinessError(constant.ErrRequestHeaderFieldsTooLarge, ""))
 		}
 	}
 
@@ -75,7 +77,8 @@ func logError(ctx context.Context, c *fiber.Ctx, err error) {
 	}
 
 	logger := libObservability.NewLoggerFromContext(ctx)
-	logger.Log(ctx, libLog.LevelError,
+	logger.Log(
+		ctx, libLog.LevelError,
 		"handler error",
 		libLog.String("method", c.Method()),
 		libLog.String("path", c.Path()),
