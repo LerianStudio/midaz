@@ -468,6 +468,10 @@ var (
 	ErrInstrumentAccountReferenceNotFound     = errors.New("0489")
 	ErrSkipNotPermitted                       = errors.New("0490")
 	ErrHolderRequired                         = errors.New("0491")
+	ErrReadyzRedisConnectionNotEstablished    = errors.New("0493")
+	ErrReadyzRedisPingFailed                  = errors.New("0494")
+	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
+	ErrReadyzStreamingUnhealthy               = errors.New("0496")
 )
 
 // List of CRM domain errors.
