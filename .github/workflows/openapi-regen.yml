@@ -1,0 +1,188 @@
+# OpenAPI Huma spec regeneration — tier-2 fix-up on direct pushes
+# =============================================================================
+# RUNBOOK (this comment block is the runbook — no tracked .md, by design).
+#
+# PURPOSE
+#   PRs to this repo are gated by the REQUIRED check-docs job (pr-validation.yml):
+#   it runs `CHECK_DOCS_REGEN=1 make check-docs`, which regenerates the docs via
+#   generate-docs.sh and fails on `git diff -- 'components/*/api' postman/specs`.
+#   So a PR that changes ledger/tracer routes without refreshing the committed
+#   Huma dumps AND their consolidated postman/specs hub fails. DIRECT pushes
+#   bypass that gate — gandalf-at-lerian pushes straight to develop. This workflow
+#   closes that hole: after a direct push it regenerates the SAME artifact set the
+#   gate diffs and, if the push left it stale, commits + pushes a `[skip ci]`
+#   fix-up so the tree matches HEAD. It reproduces the check-docs gate's
+#   regenerate-and-diff over the same paths, nothing more.
+#
+# SCOPE
+#   Regenerates the full doc artifact set the required check-docs gate diffs,
+#   via the same script that gate runs (`make generate-docs` = generate-docs.sh):
+#     components/ledger/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
+#     components/tracer/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
+#     postman/specs/ledger/openapi.huma.yaml    (published copy)
+#     postman/specs/tracer/openapi.huma.yaml    (published copy)
+#     postman/specs/midaz.openapi.{yaml,json}   (redocly-joined hub spec)
+#   Reusing generate-docs.sh — rather than re-inlining its regen/publish/join
+#   steps here — is deliberate: it makes divergence from the gate impossible by
+#   construction. Toolchain is Go + Node/npm only (generate-docs.sh self-installs
+#   its npm deps; redocly + js-yaml are npm packages) — NO swag, NO Docker.
+#   generate-docs.sh also regenerates the Postman collection
+#   (postman/MIDAZ.postman_*.json) as a side effect, but the fix-up commit does
+#   NOT stage it: the check-docs gate diffs only `components/*/api` and
+#   postman/specs, so the commit stays scoped to exactly what the gate enforces.
+#
+# TRIGGER
+#   push to the branches the release pipeline builds from (develop,
+#   release-candidate, main), filtered to the two image-bearing component trees
+#   release.yml declares (components/ledger, components/tracer) PLUS pkg/** —
+#   shared pkg/ code (e.g. the RFC 9457 Error schema) is embedded in the dumps,
+#   and release.yml/pr-validation.yml declare pkg/ as a shared_path for the
+#   same reason. `workflow_dispatch` remains available to force a regen check
+#   by hand. Push/schedule-style triggers only fire from the DEFAULT branch, so
+#   this file is INERT until the huma consolidation lands on develop — it rides
+#   that merge (same activation-gating as the docs-repo Phase 9 CI). Authoring it
+#   on the feature branch now is safe.
+#
+# WHY NO SELF-TRIGGER LOOP
+#   Two independent guarantees:
+#     1. The fix-up commit subject carries `[skip ci]`. GitHub Actions skips
+#        every workflow run for a push whose HEAD commit message contains that
+#        token, so the bot's own push does not re-trigger this (or any) push
+#        workflow.
+#     2. Even if (1) were ignored, a second run would regenerate the now-fresh
+#        dumps, find no diff, log "already fresh", and exit WITHOUT pushing. The
+#        loop is bounded to one no-op iteration regardless.
+#
+# FAILURE MODES (all fail LOUD — never push a broken tree)
+#   - `make generate-docs` fails (build/route error, redocly join failure, or
+#     Postman conversion error): job fails, NO push. Fix the code. This mirrors
+#     the gate, which runs the same script and also fails on any of these.
+#   - `make test-openapi-locks` fails: the regenerated dumps broke the cross-plane
+#     RFC 9457 error-contract lock the SDK depends on — job fails, NO commit/push.
+#     A human investigates; this must never be auto-committed.
+#   - Push rejected (non-fast-forward — a newer push raced in): job fails; the
+#     drift persists until the next matching push or a manual workflow_dispatch.
+#   - Token / GPG secret missing, App lacks contents:write, or App not in the
+#     branch-protection bypass list: job fails at the token/gpg/push step
+#     (provisioning issue — see below).
+#
+# SECRET PROVISIONING (names only; all are existing org-level secrets already
+# consumed by the shared release/backmerge/helm workflows via `secrets: inherit`,
+# so a repo-local workflow resolves them at org scope):
+#   - LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID / _PRIVATE_KEY — the push-bot GitHub
+#     App. Passed to create-github-app-token as client-id/private-key (mirrors
+#     every org create-github-app-token@v3 call). The App must hold contents:write
+#     and be on the branch-protection bypass list for develop/release-candidate/
+#     main so the fix-up can land on a protected branch.
+#   - MANAGE_TOKEN — org PAT used only to fetch private github.com/LerianStudio/*
+#     Go modules during `go test` (the exact go-pr-analysis pattern).
+#   - LERIAN_CI_CD_USER_GPG_KEY / _GPG_KEY_PASSWORD / _NAME / _EMAIL — the CI
+#     committer identity and signing key. The fix-up commit is GPG-SIGNED as this
+#     identity (you can only sign as the imported key's owner, so the committer is
+#     the CI user, not the App — the App token is purely push-auth). The signing
+#     key's public half must be registered on the CI user's GitHub account for the
+#     signature to verify and to satisfy any "require signed commits" protection.
+# =============================================================================
+
+name: OpenAPI Regen (tier-2 direct-push fix-up)
+
+on:
+  push:
+    branches: [develop, release-candidate, main]
+    paths:
+      - components/ledger/**
+      - components/tracer/**
+      - pkg/**
+  workflow_dispatch:
+
+# GITHUB_TOKEN stays read-only: every mutation (module fetch, commit, push) uses
+# a purpose-scoped secret (MANAGE_TOKEN / the App token), never GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Serialize per-ref so two runs never race a commit+push. Do NOT cancel a
+# mid-flight regen+push — a cancelled run could leave the branch mid-fix-up.
+concurrency:
+  group: openapi-regen-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  regen:
+    name: Regenerate & sync Huma specs
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          # No persisted credential: module fetch and push each set their own
+          # auth explicitly, so nothing clobbers the other.
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          MANAGE_TOKEN: ${{ secrets.MANAGE_TOKEN }}
+        run: |
+          git config --global url."https://${MANAGE_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+      - name: Import GPG key (signed committer identity)
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7
+        with:
+          gpg_private_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
+          passphrase: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
+          git_committer_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          git_committer_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      # Regenerate the FULL gate-enforced doc artifact set (both Huma dumps + the
+      # published copies + the redocly-joined postman/specs hub) via the same
+      # script the required check-docs gate runs under CHECK_DOCS_REGEN=1.
+      # generate-docs.sh self-installs its npm deps (redocly, js-yaml) and runs
+      # the pure-Go golden dump under the MANAGE_TOKEN module auth configured
+      # above; no swag, no Docker.
+      - name: Regenerate OpenAPI docs
+        run: make generate-docs
+
+      - name: Verify cross-plane OpenAPI spec locks
+        run: make test-openapi-locks
+
+      # Minted LAST and scoped to contents:write only: the regen steps above run
+      # third-party Go/Node dependency code, and a bypass-capable App token must
+      # not be live on the runner while they execute.
+      - name: Create GitHub App token (push auth)
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Commit & push fix-up if specs drifted
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Same pathspec the required check-docs gate diffs
+          # (drift_check: git diff --exit-code -- 'components/*/api' postman/specs).
+          # The regenerated Postman collection is intentionally NOT staged — the
+          # gate does not diff it, so the fix-up stays scoped to what it enforces.
+          if git diff --quiet -- 'components/*/api' postman/specs; then
+            echo "OpenAPI docs already fresh after regen — no fix-up needed."
+            exit 0
+          fi
+          echo "OpenAPI docs drifted after a direct push — committing a [skip ci] fix-up."
+          git add 'components/*/api' postman/specs
+          git commit -m "chore(openapi): sync openapi docs after direct push [skip ci]"
+          # Explicit App-token URL: carries its own auth (bypasses branch
+          # protection) and is NOT rewritten by the MANAGE_TOKEN insteadOf above
+          # (that rule only matches bare https://github.com/ prefixes).
+          git push "https://x-access-token:${APP_TOKEN}@github.com/${REPO}.git" "HEAD:${BRANCH}"

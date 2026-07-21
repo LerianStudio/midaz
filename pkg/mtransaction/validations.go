@@ -15,8 +15,8 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 

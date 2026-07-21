@@ -9,20 +9,19 @@ import (
 	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // companionBalanceLoader abstracts the lookup used by overdraft enrichment to
@@ -44,7 +43,7 @@ type companionBalanceLoader func(ctx context.Context, organizationID, ledgerID u
 // no-op for brand-new transactions — this helper fills the gap by enforcing
 // the same invariant once GetBalances has returned.
 func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance) error {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	for _, b := range balances {
 		if b == nil || b.Settings == nil {
@@ -129,7 +128,7 @@ func enrichOverdraftOperations(
 	validate *mtransaction.Responses,
 	loader companionBalanceLoader,
 ) ([]mmodel.BalanceOperation, []mtransaction.FromTo, error) {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	debits := collectOverdraftDebitSplits(balanceOps)
 	refunds := collectOverdraftRefundSplits(balanceOps)

@@ -1,0 +1,157 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package services
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+)
+
+func TestValidateAliasClosingDate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAliasRepo := instrument.NewMockRepository(ctrl)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	createdAt := time.Now().Add(-24 * time.Hour)
+
+	uc := &UseCase{
+		InstrumentRepo: mockAliasRepo,
+	}
+
+	testCases := []struct {
+		name          string
+		holderID      uuid.UUID
+		instrumentID  uuid.UUID
+		closingDate   *mmodel.Date
+		mockSetup     func()
+		expectError   bool
+		expectedError error
+	}{
+		{
+			name:         "Success when closing date is nil",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate:  nil,
+			mockSetup:    func() {},
+			expectError:  false,
+		},
+		{
+			name:         "Error when closing date is before creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now().Add(-48 * time.Hour)}
+			}(),
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
+					Return(&mmodel.Instrument{
+						ID:        &instrumentID,
+						HolderID:  &holderID,
+						CreatedAt: createdAt,
+					}, nil)
+			},
+			expectError:   true,
+			expectedError: cn.ErrInstrumentClosingDateBeforeCreation,
+		},
+		{
+			name:         "Success when closing date is after creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now().Add(24 * time.Hour)}
+			}(),
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
+					Return(&mmodel.Instrument{
+						ID:        &instrumentID,
+						HolderID:  &holderID,
+						CreatedAt: createdAt,
+					}, nil)
+			},
+			expectError: false,
+		},
+		{
+			name:         "Error when alias not found",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now()}
+			}(),
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
+					Return(nil, cn.ErrInstrumentNotFound)
+			},
+			expectError:   true,
+			expectedError: cn.ErrInstrumentNotFound,
+		},
+		{
+			name:         "Error when repository returns generic error",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: time.Now()}
+			}(),
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
+					Return(nil, errors.New("database error"))
+			},
+			expectError: true,
+		},
+		{
+			name:         "Success when closing date equals creation date",
+			holderID:     holderID,
+			instrumentID: instrumentID,
+			closingDate: func() *mmodel.Date {
+				return &mmodel.Date{Time: createdAt}
+			}(),
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Find(gomock.Any(), organizationID, holderID, instrumentID, false).
+					Return(&mmodel.Instrument{
+						ID:        &instrumentID,
+						HolderID:  &holderID,
+						CreatedAt: createdAt,
+					}, nil)
+			},
+			expectError: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testCase.mockSetup()
+
+			ctx := context.Background()
+			err := uc.validateInstrumentClosingDate(ctx, organizationID, testCase.holderID, testCase.instrumentID, testCase.closingDate)
+
+			if testCase.expectError {
+				assert.Error(t, err)
+				if testCase.expectedError != nil {
+					assert.Contains(t, err.Error(), testCase.expectedError.Error())
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

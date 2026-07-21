@@ -7,36 +7,39 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// GetOrganizationByID fetch a new organization from the repository
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (_ *mmodel.Organization, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_organization_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving organization for id: %s", id.String()))
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "get_organization", start, err)
+	}()
 
 	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting organization on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting organization on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, constant.EntityOrganization)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get organization on repo by id", err)
 
@@ -51,9 +54,9 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 	}
 
 	if organization != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String())
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityOrganization, id.String())
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, constant.EntityOrganization)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb organization", err)
 

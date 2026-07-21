@@ -19,19 +19,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mongoContainer "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	pgContainer "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redisContainer "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	mongoContainer "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	pgContainer "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redisContainer "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-// newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
-// This is needed because HandleReadyz now checks lifecycle state before running checks.
-func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
-	handler := NewReadyzHandler(cfg)
-	handler.SetServerReady()
-
-	return handler
-}
+// newReadyHandler (the shared ready-handler test helper) is defined once in
+// readyz_test.go and reused here.
 
 func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	t.Parallel()

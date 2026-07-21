@@ -13,14 +13,14 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -112,7 +112,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -255,7 +255,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -396,7 +396,7 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -671,7 +671,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -777,7 +777,7 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}

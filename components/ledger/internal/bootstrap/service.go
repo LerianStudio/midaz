@@ -17,7 +17,7 @@ import (
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libsd "github.com/LerianStudio/lib-service-discovery"
-	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
@@ -45,6 +45,12 @@ type Service struct {
 	// to register the producer-shutdown Launcher app.
 	StreamingEnabled bool
 
+	// TracerClose is the close hook for the tracer reservation client's
+	// persistent connection (the gRPC client holds a grpc.ClientConn).
+	// It is nil when the active transport needs no teardown (the REST
+	// client) so Run() can skip registering a no-op Launcher app. Non-nil
+	// only for transports that expose Close() error.
+	TracerClose func() error
 	// ServiceDiscovery is the lib-service-discovery Manager. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
 	// invoke Register/Deregister/Resolve unconditionally.
@@ -68,11 +74,12 @@ type Service struct {
 func (s *Service) Run() {
 	s.Logger.Log(context.Background(), libLog.LevelInfo, "Running unified ledger service with single-port mode")
 
-	launcherOpts := []libCommons.LauncherOption{
-		libCommons.WithLogger(s.Logger),
-	}
+	apps := s.launcherApps()
 
-	for _, app := range s.launcherApps() {
+	launcherOpts := make([]libCommons.LauncherOption, 0, 1+len(apps))
+	launcherOpts = append(launcherOpts, libCommons.WithLogger(s.Logger))
+
+	for _, app := range apps {
 		launcherOpts = append(launcherOpts, libCommons.RunApp(app.name, app.app))
 	}
 
@@ -159,7 +166,48 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
+	// Tracer reservation client: register only when the active transport
+	// exposes a close hook. The REST client needs no teardown and leaves
+	// TracerClose nil, so the Launcher app list stays lean.
+	if s.TracerClose != nil {
+		apps = append(apps, launcherApp{
+			"Tracer Reservation Client",
+			&tracerCloseRunnable{close: s.TracerClose, logger: s.Logger},
+		})
+	}
+
 	return apps
+}
+
+// tracerCloseRunnable adapts the tracer reservation client's Close hook to the
+// libCommons.App interface. It blocks until SIGINT/SIGTERM and then drains the
+// persistent gRPC connection so it is released before the process exits.
+type tracerCloseRunnable struct {
+	close  func() error
+	logger libLog.Logger
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the tracer client close hook.
+// A non-nil return is logged but not propagated because at shutdown the Launcher
+// cannot meaningfully react.
+func (r *tracerCloseRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.close == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	if err := r.close(); err != nil && r.logger != nil {
+		r.logger.Log(context.Background(), libLog.LevelWarn,
+			"tracer reservation client Close returned error",
+			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
 }
 
 // streamingProducerRunnable adapts the lib-streaming Producer's Close hook

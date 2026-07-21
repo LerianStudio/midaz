@@ -18,11 +18,12 @@
 //
 // Run with:
 //
-//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos_InitPostgres ./components/onboarding/internal/bootstrap/...
+//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos_InitOnboardingPostgres ./components/ledger/internal/bootstrap/...
 package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"net"
 	stdhttp "net/http"
 	"net/http/httptest"
@@ -31,10 +32,12 @@ import (
 	"testing"
 	"time"
 
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,23 +46,23 @@ import (
 // CHAOS TEST INFRASTRUCTURE
 // =============================================================================
 
-// chaosBootstrapInfra holds all resources for bootstrap chaos tests with
+// onboardingChaosBootstrapInfra holds all resources for bootstrap chaos tests with
 // Toxiproxy network fault injection.
-type chaosBootstrapInfra struct {
+type onboardingChaosBootstrapInfra struct {
 	pgResult   *pgtestutil.ContainerResult
 	chaosInfra *chaos.Infrastructure
 	proxy      *chaos.Proxy
 	proxyHost  string // host:port for connecting through the proxy
 }
 
-// setupBootstrapChaosInfra creates the full chaos test infrastructure:
+// setupOnboardingBootstrapChaosInfra creates the full chaos test infrastructure:
 //  1. Creates a Docker network + Toxiproxy container via chaos.Infrastructure
 //  2. Starts a PostgreSQL container
 //  3. Registers the container with Infrastructure to get UpstreamAddr
 //  4. Creates a Toxiproxy proxy that forwards through to PostgreSQL
 //
 // All cleanup is registered with t.Cleanup() automatically.
-func setupBootstrapChaosInfra(t *testing.T) *chaosBootstrapInfra {
+func setupOnboardingBootstrapChaosInfra(t *testing.T) *onboardingChaosBootstrapInfra {
 	t.Helper()
 
 	// 1. Create chaos infrastructure (Docker network + Toxiproxy)
@@ -81,7 +84,7 @@ func setupBootstrapChaosInfra(t *testing.T) *chaosBootstrapInfra {
 	require.True(t, ok, "PostgreSQL container must be registered in chaos infrastructure")
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy listen address must be non-empty")
 
-	return &chaosBootstrapInfra{
+	return &onboardingChaosBootstrapInfra{
 		pgResult:   pgResult,
 		chaosInfra: chaosInfra,
 		proxy:      proxy,
@@ -89,9 +92,45 @@ func setupBootstrapChaosInfra(t *testing.T) *chaosBootstrapInfra {
 	}
 }
 
-// buildProxiedConfig creates a Config that routes PG traffic through the
+// useAbsoluteOnboardingMigrationsPath overrides onboardingPostgresMigrator so
+// migrations run against an absolute path. The production migrator uses the
+// CWD-relative "components/ledger/migrations/onboarding", which lib-commons
+// resolves via filepath.Abs: correct in the container (WORKDIR /) but doubled
+// under `go test` (CWD is the package dir). FindMigrationsPath walks up to the
+// repo and returns an absolute, "..".-free path that sanitizePath accepts.
+func useAbsoluteOnboardingMigrationsPath(t *testing.T) {
+	t.Helper()
+
+	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
+
+	original := onboardingPostgresMigrator
+	onboardingPostgresMigrator = func(cfg *Config, logger libLog.Logger) error {
+		primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+			cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
+			cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
+
+		migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+			PrimaryDSN:     primaryDSN,
+			DatabaseName:   cfg.OnbPrefixedPrimaryDBName,
+			MigrationsPath: migrationsPath,
+			Logger:         logger,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create migrator: %w", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		return migrator.Up(ctx)
+	}
+
+	t.Cleanup(func() { onboardingPostgresMigrator = original })
+}
+
+// buildOnboardingProxiedConfig creates a Config that routes PG traffic through the
 // Toxiproxy proxy so faults can be injected.
-func (infra *chaosBootstrapInfra) buildProxiedConfig(t *testing.T) *Config {
+func (infra *onboardingChaosBootstrapInfra) buildOnboardingProxiedConfig(t *testing.T) *Config {
 	t.Helper()
 
 	host, portStr, err := net.SplitHostPort(infra.proxyHost)
@@ -130,7 +169,7 @@ func (infra *chaosBootstrapInfra) buildProxiedConfig(t *testing.T) *Config {
 //  3. Verify   -- initSingleTenantPostgres returns error, no panic
 //  4. Restore  -- Toxiproxy proxy is re-enabled
 //  5. Recovery -- initSingleTenantPostgres succeeds again
-func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T) {
+func TestIntegration_Chaos_InitOnboardingPostgres_SingleTenantConnectionLoss(t *testing.T) {
 	if os.Getenv("CHAOS") != "1" {
 		t.Skip("Set CHAOS=1 to run chaos tests")
 	}
@@ -139,16 +178,18 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 		t.Skip("Skipping chaos test in short mode")
 	}
 
-	infra := setupBootstrapChaosInfra(t)
+	infra := setupOnboardingBootstrapChaosInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildProxiedConfig(t)
+	cfg := infra.buildOnboardingProxiedConfig(t)
 
 	// Use the real connector so connections go through the proxy.
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
 	t.Cleanup(func() { onboardingPostgresConnector = original })
+
+	useAbsoluteOnboardingMigrationsPath(t)
 
 	// --- Phase 1: Normal ---
 	// Verify initSingleTenantPostgres succeeds through the proxy.
@@ -185,7 +226,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *onboardingPostgresComponents
 		failResult, initErr = initOnboardingSingleTenantPostgres(cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)
@@ -224,8 +265,9 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 
 	t.Cleanup(func() { closePGConnection(recoveredResult.connection) })
 
-	assert.True(t, recoveredResult.connection.Connected,
-		"Phase 5: connection must be connected after recovery")
+	connected, connErr := recoveredResult.connection.IsConnected()
+	require.NoError(t, connErr, "Phase 5: IsConnected must not error")
+	assert.True(t, connected, "Phase 5: connection must be connected after recovery")
 
 	t.Log("PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
@@ -244,7 +286,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 //  3. Verify   -- initMultiTenantPostgres returns error, no panic
 //  4. Restore  -- Toxiproxy proxy is re-enabled
 //  5. Recovery -- initMultiTenantPostgres succeeds again
-func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) {
+func TestIntegration_Chaos_InitOnboardingPostgres_MultiTenantConnectionLoss(t *testing.T) {
 	if os.Getenv("CHAOS") != "1" {
 		t.Skip("Set CHAOS=1 to run chaos tests")
 	}
@@ -253,11 +295,11 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 		t.Skip("Skipping chaos test in short mode")
 	}
 
-	infra := setupBootstrapChaosInfra(t)
+	infra := setupOnboardingBootstrapChaosInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildProxiedConfig(t)
+	cfg := infra.buildOnboardingProxiedConfig(t)
 
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
@@ -305,7 +347,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *onboardingPostgresComponents
 		failResult, initErr = initOnboardingMultiTenantPostgres(opts, cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)
@@ -362,7 +404,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 //  3. Verify   -- Resolver and queries return errors, no panic
 //  4. Restore  -- PG comes back via Toxiproxy reconnect
 //  5. Recovery -- Repos can query again
-func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
+func TestIntegration_Chaos_InitOnboardingPostgres_PostInitConnectionLoss(t *testing.T) {
 	if os.Getenv("CHAOS") != "1" {
 		t.Skip("Set CHAOS=1 to run chaos tests")
 	}
@@ -371,15 +413,17 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 		t.Skip("Skipping chaos test in short mode")
 	}
 
-	infra := setupBootstrapChaosInfra(t)
+	infra := setupOnboardingBootstrapChaosInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildProxiedConfig(t)
+	cfg := infra.buildOnboardingProxiedConfig(t)
 
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
 	t.Cleanup(func() { onboardingPostgresConnector = original })
+
+	useAbsoluteOnboardingMigrationsPath(t)
 
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): initializing single-tenant and verifying queries succeed")

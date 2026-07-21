@@ -10,10 +10,10 @@ import (
 
 	libObs "github.com/LerianStudio/lib-observability"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/shopspring/decimal"
 )
 

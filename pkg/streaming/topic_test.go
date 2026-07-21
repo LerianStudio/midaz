@@ -7,7 +7,7 @@ package streaming_test
 import (
 	"testing"
 
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/stretchr/testify/assert"
 )
 

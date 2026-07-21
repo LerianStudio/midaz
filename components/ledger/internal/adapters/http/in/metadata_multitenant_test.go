@@ -13,8 +13,8 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

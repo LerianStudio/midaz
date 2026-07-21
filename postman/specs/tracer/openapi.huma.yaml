@@ -1,0 +1,2152 @@
+components:
+  schemas:
+    AccountContext:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        status:
+          examples:
+            - active
+          type: string
+        type:
+          examples:
+            - checking
+          type: string
+      required:
+        - accountId
+        - type
+        - status
+      type: object
+    Actor:
+      additionalProperties: false
+      properties:
+        actorType:
+          examples:
+            - user
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        ipAddress:
+          examples:
+            - 203.0.113.42
+          type: string
+        name:
+          examples:
+            - Jane Doe
+          type: string
+        role:
+          examples:
+            - admin
+          type: string
+      required:
+        - actorType
+        - id
+        - name
+        - ipAddress
+      type: object
+    AuditEvent:
+      additionalProperties: false
+      properties:
+        action:
+          examples:
+            - VALIDATE
+          type: string
+        actor:
+          $ref: "#/components/schemas/Actor"
+        context:
+          additionalProperties: {}
+          type: object
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        eventId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        eventType:
+          examples:
+            - TRANSACTION_VALIDATED
+          type: string
+        hash:
+          examples:
+            - a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        previousHash:
+          examples:
+            - b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3
+          type: string
+        resourceId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        resourceType:
+          examples:
+            - transaction
+          type: string
+        result:
+          examples:
+            - ALLOW
+          type: string
+      required:
+        - eventId
+        - eventType
+        - createdAt
+        - action
+        - result
+        - resourceId
+        - resourceType
+        - actor
+      type: object
+    Error:
+      additionalProperties: false
+      properties:
+        code:
+          description: "Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN)."
+          examples:
+            - ERR-0001
+          type: string
+        detail:
+          description: A human-readable explanation specific to this occurrence of the problem.
+          examples:
+            - Property foo is required but is missing.
+          type: string
+        errors:
+          description: Optional list of individual error details
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        instance:
+          description: A URI reference that identifies the specific occurrence of the problem.
+          examples:
+            - https://example.com/error-log/abc123
+          format: uri
+          type: string
+        status:
+          description: HTTP status code
+          examples:
+            - 400
+          format: int64
+          type: integer
+        title:
+          description: A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+          examples:
+            - Bad Request
+          type: string
+        type:
+          default: about:blank
+          description: A URI reference to human-readable documentation for the error.
+          examples:
+            - https://example.com/errors/example
+          format: uri
+          type: string
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    HashChainVerificationResult:
+      additionalProperties: false
+      properties:
+        firstInvalidId:
+          examples:
+            - 42
+          format: int64
+          type: integer
+        isValid:
+          examples:
+            - true
+          type: boolean
+        message:
+          examples:
+            - hash chain intact
+          type: string
+        totalChecked:
+          examples:
+            - 1000
+          format: int64
+          type: integer
+      required:
+        - isValid
+        - totalChecked
+        - message
+      type: object
+    Limit:
+      additionalProperties: false
+      properties:
+        activeTimeEnd:
+          examples:
+            - "17:00"
+          type: string
+        activeTimeStart:
+          examples:
+            - "09:00"
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        currency:
+          examples:
+            - USD
+          type: string
+        customEndDate:
+          examples:
+            - "2021-12-31T23:59:59Z"
+          format: date-time
+          type: string
+        customStartDate:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          examples:
+            - Caps daily USD outflows for retail accounts
+          type: string
+        limitId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        limitType:
+          examples:
+            - DAILY
+          type: string
+        maxAmount:
+          examples:
+            - "1000.00"
+          type: string
+        name:
+          examples:
+            - Daily USD spending cap
+          maxLength: 255
+          type: string
+        resetAt:
+          examples:
+            - "2021-01-02T00:00:00Z"
+          format: date-time
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type:
+            - array
+            - "null"
+        status:
+          examples:
+            - ACTIVE
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - limitId
+        - name
+        - limitType
+        - maxAmount
+        - currency
+        - scopes
+        - status
+        - createdAt
+        - updatedAt
+      type: object
+    LimitUsageDetail:
+      additionalProperties: false
+      properties:
+        attemptedAmount:
+          examples:
+            - "100.00"
+          type: string
+        currentUsage:
+          examples:
+            - "500.00"
+          type: string
+        exceeded:
+          type: boolean
+        limitAmount:
+          examples:
+            - "1000.00"
+          type: string
+        limitId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        period:
+          examples:
+            - DAILY
+          type: string
+        scope:
+          examples:
+            - account:00000000-0000-0000-0000-000000000000
+          type: string
+        skipReason:
+          examples:
+            - outside_time_window
+          type: string
+        skipped:
+          type: boolean
+      required:
+        - limitId
+        - limitAmount
+        - scope
+        - period
+        - currentUsage
+        - attemptedAmount
+        - exceeded
+      type: object
+    ListAuditEventsResponse:
+      additionalProperties: false
+      properties:
+        auditEvents:
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+          maxItems: 1000
+          type:
+            - array
+            - "null"
+        hasMore:
+          examples:
+            - true
+          type: boolean
+        nextCursor:
+          examples:
+            - eyJpZCI6IjAxOTI4In0=
+          type: string
+      required:
+        - auditEvents
+        - hasMore
+      type: object
+    ListLimitsResponse:
+      additionalProperties: false
+      properties:
+        hasMore:
+          examples:
+            - true
+          type: boolean
+        limits:
+          items:
+            $ref: "#/components/schemas/Limit"
+          type:
+            - array
+            - "null"
+        nextCursor:
+          examples:
+            - eyJpZCI6IjAxOTI4In0=
+          type: string
+      required:
+        - limits
+        - hasMore
+      type: object
+    ListRulesResponse:
+      additionalProperties: false
+      properties:
+        hasMore:
+          examples:
+            - true
+          type: boolean
+        nextCursor:
+          examples:
+            - eyJpZCI6IjAxOTI4In0=
+          type: string
+        rules:
+          items:
+            $ref: "#/components/schemas/Rule"
+          type:
+            - array
+            - "null"
+      required:
+        - rules
+        - hasMore
+      type: object
+    ListTransactionValidationsResponse:
+      additionalProperties: false
+      properties:
+        hasMore:
+          examples:
+            - true
+          type: boolean
+        nextCursor:
+          examples:
+            - eyJpZCI6IjAxOTI4In0=
+          type: string
+        transactionValidations:
+          items:
+            $ref: "#/components/schemas/ValidationSummary"
+          type:
+            - array
+            - "null"
+      required:
+        - transactionValidations
+        - hasMore
+      type: object
+    MerchantContext:
+      additionalProperties: false
+      properties:
+        category:
+          examples:
+            - "5411"
+          type: string
+        country:
+          examples:
+            - US
+          type: string
+        merchantId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - Acme Store
+          type: string
+      required:
+        - merchantId
+        - name
+        - category
+        - country
+      type: object
+    PortfolioContext:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - growth
+          type: string
+        portfolioId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - portfolioId
+      type: object
+    ReservationActionResponse:
+      additionalProperties: false
+      properties:
+        reservationId:
+          format: uuid
+          type: string
+        status:
+          examples:
+            - CONFIRMED
+          type: string
+      required:
+        - reservationId
+        - status
+      type: object
+    ReserveResponse:
+      additionalProperties: false
+      properties:
+        denied:
+          examples:
+            - false
+          type: boolean
+        reservationIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        transactionId:
+          format: uuid
+          type: string
+      required:
+        - transactionId
+        - denied
+        - reservationIds
+      type: object
+    Rule:
+      additionalProperties: false
+      properties:
+        action:
+          examples:
+            - DENY
+          type: string
+        activatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deactivatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        description:
+          examples:
+            - Denies transactions over $1000 from checking accounts
+          type: string
+        expression:
+          examples:
+            - transaction.amount > 1000 && account.type == 'checking'
+          type: string
+        name:
+          examples:
+            - Block high-value checking transactions
+          maxLength: 255
+          type: string
+        ruleId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        scopes:
+          items:
+            $ref: "#/components/schemas/Scope"
+          type:
+            - array
+            - "null"
+        status:
+          examples:
+            - ACTIVE
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - ruleId
+        - name
+        - expression
+        - action
+        - scopes
+        - status
+        - createdAt
+        - updatedAt
+      type: object
+    Scope:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        merchantId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        portfolioId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        subType:
+          examples:
+            - purchase
+          maxLength: 50
+          type: string
+        transactionType:
+          examples:
+            - CARD
+          type: string
+      type: object
+    SegmentContext:
+      additionalProperties: false
+      properties:
+        metadata:
+          additionalProperties: {}
+          type: object
+        name:
+          examples:
+            - retail
+          type: string
+        segmentId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - segmentId
+      type: object
+    TransactionActionResponse:
+      additionalProperties: false
+      properties:
+        flipped:
+          examples:
+            - 2
+          format: int64
+          type: integer
+        status:
+          examples:
+            - CONFIRMED
+          type: string
+        transactionId:
+          format: uuid
+          type: string
+      required:
+        - transactionId
+        - status
+        - flipped
+      type: object
+    TransactionValidation:
+      additionalProperties: false
+      properties:
+        account:
+          $ref: "#/components/schemas/AccountContext"
+        amount:
+          examples:
+            - "100.00"
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        currency:
+          examples:
+            - USD
+          type: string
+        decision:
+          examples:
+            - ALLOW
+          type: string
+        evaluatedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        limitUsageDetails:
+          items:
+            $ref: "#/components/schemas/LimitUsageDetail"
+          type:
+            - array
+            - "null"
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        merchant:
+          $ref: "#/components/schemas/MerchantContext"
+        metadata:
+          additionalProperties: {}
+          type: object
+        portfolio:
+          $ref: "#/components/schemas/PortfolioContext"
+        processingTimeMs:
+          examples:
+            - 12.5
+          format: double
+          type: number
+        reason:
+          examples:
+            - Transaction denied by rule 'Block high-value checking transactions'
+          type: string
+        requestId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        segment:
+          $ref: "#/components/schemas/SegmentContext"
+        subType:
+          examples:
+            - purchase
+          maxLength: 50
+          type: string
+        totalRulesLoaded:
+          examples:
+            - 42
+          format: int64
+          type: integer
+        transactionTimestamp:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        transactionType:
+          examples:
+            - CARD
+          type: string
+        truncated:
+          examples:
+            - false
+          type: boolean
+        validationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - validationId
+        - requestId
+        - transactionType
+        - amount
+        - currency
+        - transactionTimestamp
+        - account
+        - limitUsageDetails
+        - processingTimeMs
+        - createdAt
+        - decision
+        - matchedRuleIds
+        - evaluatedRuleIds
+        - reason
+        - totalRulesLoaded
+        - truncated
+      type: object
+    UsageSnapshot:
+      additionalProperties: false
+      properties:
+        currentUsage:
+          examples:
+            - "500.00"
+          type: string
+        limitAmount:
+          examples:
+            - "1000.00"
+          type: string
+        limitId:
+          format: uuid
+          type: string
+        nearLimit:
+          examples:
+            - false
+          type: boolean
+        resetAt:
+          format: date-time
+          type: string
+        utilizationPercent:
+          examples:
+            - 50
+          format: double
+          type: number
+      required:
+        - limitId
+        - currentUsage
+        - limitAmount
+        - utilizationPercent
+        - nearLimit
+      type: object
+    ValidationResponse:
+      additionalProperties: false
+      properties:
+        decision:
+          examples:
+            - ALLOW
+          type: string
+        evaluatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        evaluatedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        limitUsageDetails:
+          items:
+            $ref: "#/components/schemas/LimitUsageDetail"
+          type:
+            - array
+            - "null"
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        processingTimeMs:
+          examples:
+            - 12.5
+          format: double
+          type: number
+        reason:
+          examples:
+            - Transaction denied by rule 'Block high-value checking transactions'
+          type: string
+        requestId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        totalRulesLoaded:
+          examples:
+            - 42
+          format: int64
+          type: integer
+        truncated:
+          examples:
+            - false
+          type: boolean
+        validationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - validationId
+        - requestId
+        - limitUsageDetails
+        - processingTimeMs
+        - evaluatedAt
+        - decision
+        - matchedRuleIds
+        - evaluatedRuleIds
+        - reason
+        - totalRulesLoaded
+        - truncated
+      type: object
+    ValidationSummary:
+      additionalProperties: false
+      properties:
+        accountId:
+          format: uuid
+          type: string
+        amount:
+          examples:
+            - "100.00"
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        currency:
+          examples:
+            - USD
+          type: string
+        decision:
+          examples:
+            - ALLOW
+          type: string
+        exceededLimitIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        matchedRuleIds:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - "null"
+        portfolioId:
+          format: uuid
+          type: string
+        processingTimeMs:
+          examples:
+            - 12.5
+          format: double
+          type: number
+        reason:
+          examples:
+            - All rules passed
+          type: string
+        segmentId:
+          format: uuid
+          type: string
+        transactionType:
+          examples:
+            - CARD
+          type: string
+        validationId:
+          format: uuid
+          type: string
+      required:
+        - validationId
+        - decision
+        - reason
+        - amount
+        - currency
+        - transactionType
+        - accountId
+        - matchedRuleIds
+        - exceededLimitIds
+        - processingTimeMs
+        - createdAt
+      type: object
+  securitySchemes:
+    ApiKeyAuth:
+      description: Static API key presented in the X-API-Key header.
+      in: header
+      name: X-API-Key
+      type: apiKey
+    BearerAuth:
+      bearerFormat: JWT
+      description: JWT bearer token issued by the identity provider.
+      scheme: bearer
+      type: http
+info:
+  title: Midaz Tracer API
+  version: 4.0.0
+openapi: 3.1.0
+paths:
+  /audit-events:
+    get:
+      operationId: listAuditEvents
+      parameters:
+        - description: Start date (RFC3339 format)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Start date (RFC3339 format)
+            type: string
+        - description: End date (RFC3339 format)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: End date (RFC3339 format)
+            type: string
+        - description: Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)
+          explode: false
+          in: query
+          name: event_type
+          schema:
+            description: Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)
+            type: string
+        - description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
+          explode: false
+          in: query
+          name: action
+          schema:
+            description: Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
+            type: string
+        - description: Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)
+          explode: false
+          in: query
+          name: result
+          schema:
+            description: Filter by result (SUCCESS, FAILED, ALLOW, DENY, REVIEW)
+            type: string
+        - description: Filter by resource type (transaction, rule, limit)
+          explode: false
+          in: query
+          name: resource_type
+          schema:
+            description: Filter by resource type (transaction, rule, limit)
+            type: string
+        - description: Filter by resource ID (UUID)
+          explode: false
+          in: query
+          name: resource_id
+          schema:
+            description: Filter by resource ID (UUID)
+            type: string
+        - description: Filter by actor type (user, system)
+          explode: false
+          in: query
+          name: actor_type
+          schema:
+            description: Filter by actor type (user, system)
+            type: string
+        - description: Filter by actor ID
+          explode: false
+          in: query
+          name: actor_id
+          schema:
+            description: Filter by actor ID
+            type: string
+        - description: Filter by account ID (UUID)
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter by account ID (UUID)
+            type: string
+        - description: Filter by segment ID (UUID)
+          explode: false
+          in: query
+          name: segment_id
+          schema:
+            description: Filter by segment ID (UUID)
+            type: string
+        - description: Filter by portfolio ID (UUID)
+          explode: false
+          in: query
+          name: portfolio_id
+          schema:
+            description: Filter by portfolio ID (UUID)
+            type: string
+        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+          explode: false
+          in: query
+          name: transaction_type
+          schema:
+            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            type: string
+        - description: Filter by matched rule ID (UUID)
+          explode: false
+          in: query
+          name: matched_rule_id
+          schema:
+            description: Filter by matched rule ID (UUID)
+            type: string
+        - description: "Max items per page (1-1000, default: 100)"
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: "Max items per page (1-1000, default: 100)"
+            type: string
+        - description: Pagination token (empty for first page)
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination token (empty for first page)
+            type: string
+        - description: Sort field (created_at, event_type)
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: Sort field (created_at, event_type)
+            type: string
+        - description: Sort direction (ASC, DESC)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (ASC, DESC)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAuditEventsResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List audit events
+      tags:
+        - Audit
+  /audit-events/{id}:
+    get:
+      operationId: getAuditEvent
+      parameters:
+        - description: Audit event ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Audit event ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEvent"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get an audit event by ID
+      tags:
+        - Audit
+  /audit-events/{id}/verify:
+    get:
+      operationId: verifyAuditEvent
+      parameters:
+        - description: Audit event ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Audit event ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HashChainVerificationResult"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Verify audit event hash chain integrity
+      tags:
+        - Audit
+  /limits:
+    get:
+      operationId: listLimits
+      parameters:
+        - description: Filter by name (case-insensitive partial match)
+          explode: false
+          in: query
+          name: name
+          schema:
+            description: Filter by name (case-insensitive partial match)
+            type: string
+        - description: Filter by status (DRAFT, ACTIVE, INACTIVE)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter by status (DRAFT, ACTIVE, INACTIVE)
+            type: string
+        - description: Filter by limit type (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION)
+          explode: false
+          in: query
+          name: limit_type
+          schema:
+            description: Filter by limit type (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION)
+            type: string
+        - description: Filter by scope account_id (UUID)
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter by scope account_id (UUID)
+            type: string
+        - description: Filter by scope segment_id (UUID)
+          explode: false
+          in: query
+          name: segment_id
+          schema:
+            description: Filter by scope segment_id (UUID)
+            type: string
+        - description: Filter by scope portfolio_id (UUID)
+          explode: false
+          in: query
+          name: portfolio_id
+          schema:
+            description: Filter by scope portfolio_id (UUID)
+            type: string
+        - description: Filter by scope merchant_id (UUID)
+          explode: false
+          in: query
+          name: merchant_id
+          schema:
+            description: Filter by scope merchant_id (UUID)
+            type: string
+        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+          explode: false
+          in: query
+          name: transaction_type
+          schema:
+            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            type: string
+        - description: Filter by scope sub_type (case-insensitive; max 50 chars)
+          explode: false
+          in: query
+          name: sub_type
+          schema:
+            description: Filter by scope sub_type (case-insensitive; max 50 chars)
+            type: string
+        - description: "Max items per page (1-100, default: 10)"
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: "Max items per page (1-100, default: 10)"
+            type: string
+        - description: Pagination cursor (empty for first page)
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination cursor (empty for first page)
+            type: string
+        - description: Sort field (created_at, updated_at, name, max_amount)
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: Sort field (created_at, updated_at, name, max_amount)
+            type: string
+        - description: Sort direction (ASC, DESC)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (ASC, DESC)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListLimitsResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List spending limits
+      tags:
+        - Limits
+    post:
+      operationId: createLimit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new spending limit
+      tags:
+        - Limits
+  /limits/{id}:
+    delete:
+      operationId: deleteLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete a spending limit
+      tags:
+        - Limits
+    get:
+      operationId: getLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get a spending limit by ID
+      tags:
+        - Limits
+    patch:
+      operationId: updateLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Partially update an existing spending limit
+      tags:
+        - Limits
+  /limits/{id}/activate:
+    post:
+      operationId: activateLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Activate a spending limit
+      tags:
+        - Limits
+  /limits/{id}/deactivate:
+    post:
+      operationId: deactivateLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Deactivate a spending limit
+      tags:
+        - Limits
+  /limits/{id}/draft:
+    post:
+      operationId: draftLimit
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Limit"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Transition a limit back to draft
+      tags:
+        - Limits
+  /limits/{id}/usage:
+    get:
+      operationId: getLimitUsage
+      parameters:
+        - description: Limit ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Limit ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSnapshot"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get usage snapshot for a limit
+      tags:
+        - Limits
+  /reservations:
+    post:
+      operationId: createReservation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReserveResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Reserve transaction capacity (phase one)
+      tags:
+        - Reservations
+  /reservations/transaction/{transaction_id}/confirm:
+    post:
+      operationId: confirmReservationByTransaction
+      parameters:
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionActionResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Confirm a transaction's reservations (phase two — commit by transaction)
+      tags:
+        - Reservations
+  /reservations/transaction/{transaction_id}/release:
+    post:
+      operationId: releaseReservationByTransaction
+      parameters:
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionActionResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Release a transaction's reservations (phase two — abort by transaction)
+      tags:
+        - Reservations
+  /reservations/{id}/confirm:
+    post:
+      operationId: confirmReservation
+      parameters:
+        - description: Reservation ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Reservation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationActionResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Confirm a reservation (phase two — commit)
+      tags:
+        - Reservations
+  /reservations/{id}/release:
+    post:
+      operationId: releaseReservation
+      parameters:
+        - description: Reservation ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Reservation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationActionResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Release a reservation (phase two — abort)
+      tags:
+        - Reservations
+  /rules:
+    get:
+      operationId: listRules
+      parameters:
+        - description: Filter by name (case-insensitive partial match)
+          explode: false
+          in: query
+          name: name
+          schema:
+            description: Filter by name (case-insensitive partial match)
+            type: string
+        - description: Filter by status (DRAFT, ACTIVE, INACTIVE; DELETED not allowed)
+          explode: false
+          in: query
+          name: status
+          schema:
+            description: Filter by status (DRAFT, ACTIVE, INACTIVE; DELETED not allowed)
+            type: string
+        - description: Filter by action (ALLOW, DENY, REVIEW)
+          explode: false
+          in: query
+          name: action
+          schema:
+            description: Filter by action (ALLOW, DENY, REVIEW)
+            type: string
+        - description: Filter by scope account_id (UUID)
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter by scope account_id (UUID)
+            type: string
+        - description: Filter by scope segment_id (UUID)
+          explode: false
+          in: query
+          name: segment_id
+          schema:
+            description: Filter by scope segment_id (UUID)
+            type: string
+        - description: Filter by scope portfolio_id (UUID)
+          explode: false
+          in: query
+          name: portfolio_id
+          schema:
+            description: Filter by scope portfolio_id (UUID)
+            type: string
+        - description: Filter by scope merchant_id (UUID)
+          explode: false
+          in: query
+          name: merchant_id
+          schema:
+            description: Filter by scope merchant_id (UUID)
+            type: string
+        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+          explode: false
+          in: query
+          name: transaction_type
+          schema:
+            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            type: string
+        - description: Filter by scope sub_type (case-insensitive; max 50 chars)
+          explode: false
+          in: query
+          name: sub_type
+          schema:
+            description: Filter by scope sub_type (case-insensitive; max 50 chars)
+            type: string
+        - description: "Max items per page (1-100, default: 10)"
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: "Max items per page (1-100, default: 10)"
+            type: string
+        - description: Pagination cursor (empty for first page)
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination cursor (empty for first page)
+            type: string
+        - description: Sort field (created_at, updated_at, name, status)
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: Sort field (created_at, updated_at, name, status)
+            type: string
+        - description: Sort direction (ASC, DESC)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (ASC, DESC)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRulesResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List fraud rules
+      tags:
+        - Rules
+    post:
+      operationId: createRule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Create a new fraud rule
+      tags:
+        - Rules
+  /rules/{id}:
+    delete:
+      operationId: deleteRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Delete a fraud rule
+      tags:
+        - Rules
+    get:
+      operationId: getRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get a fraud rule by ID
+      tags:
+        - Rules
+    patch:
+      operationId: updateRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Partially update an existing fraud rule
+      tags:
+        - Rules
+  /rules/{id}/activate:
+    post:
+      operationId: activateRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Activate a fraud rule
+      tags:
+        - Rules
+  /rules/{id}/deactivate:
+    post:
+      operationId: deactivateRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Deactivate a fraud rule
+      tags:
+        - Rules
+  /rules/{id}/draft:
+    post:
+      operationId: draftRule
+      parameters:
+        - description: Rule ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Rule ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Transition a rule back to draft
+      tags:
+        - Rules
+  /validations:
+    get:
+      operationId: listValidations
+      parameters:
+        - description: "Max items per page (1-1000, default: 100)"
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: "Max items per page (1-1000, default: 100)"
+            type: string
+        - description: Pagination cursor from previous response
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Pagination cursor from previous response
+            type: string
+        - description: "Field to sort by (created_at, processing_time_ms; default: created_at)"
+          explode: false
+          in: query
+          name: sort_by
+          schema:
+            description: "Field to sort by (created_at, processing_time_ms; default: created_at)"
+            type: string
+        - description: "Sort direction (ASC, DESC; default: DESC)"
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: "Sort direction (ASC, DESC; default: DESC)"
+            type: string
+        - description: Filter from this date (RFC3339)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter from this date (RFC3339)
+            type: string
+        - description: Filter to this date (RFC3339)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter to this date (RFC3339)
+            type: string
+        - description: Filter by decision (ALLOW, DENY, REVIEW)
+          explode: false
+          in: query
+          name: decision
+          schema:
+            description: Filter by decision (ALLOW, DENY, REVIEW)
+            type: string
+        - description: Filter by account ID (UUID)
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter by account ID (UUID)
+            type: string
+        - description: Filter by matched rule ID (UUID)
+          explode: false
+          in: query
+          name: matched_rule_id
+          schema:
+            description: Filter by matched rule ID (UUID)
+            type: string
+        - description: Filter by exceeded limit ID (UUID)
+          explode: false
+          in: query
+          name: exceeded_limit_id
+          schema:
+            description: Filter by exceeded limit ID (UUID)
+            type: string
+        - description: Filter by segment ID (UUID)
+          explode: false
+          in: query
+          name: segment_id
+          schema:
+            description: Filter by segment ID (UUID)
+            type: string
+        - description: Filter by portfolio ID (UUID)
+          explode: false
+          in: query
+          name: portfolio_id
+          schema:
+            description: Filter by portfolio ID (UUID)
+            type: string
+        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+          explode: false
+          in: query
+          name: transaction_type
+          schema:
+            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListTransactionValidationsResponse"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: List transaction validation records
+      tags:
+        - Validations
+    post:
+      operationId: validateTransaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResponse"
+          description: OK
+        "201":
+          description: New validation created
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Validate a transaction
+      tags:
+        - Validations
+  /validations/{id}:
+    get:
+      operationId: getValidation
+      parameters:
+        - description: Transaction Validation ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Transaction Validation ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionValidation"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get a transaction validation record by ID
+      tags:
+        - Validations
+servers:
+  - url: /v1

@@ -7,10 +7,6 @@ package mmodel
 import "time"
 
 // CreateAssetInput is a struct design to encapsulate request create payload data.
-//
-// swagger:model CreateAssetInput
-//
-//	@Description	CreateAssetInput is the input payload to create an asset within a ledger, such as a currency, cryptocurrency, or other financial instrument.
 type CreateAssetInput struct {
 	// Name of the asset (required, max length 256 characters)
 	Name string `json:"name" validate:"required,max=256" example:"US Dollar"`
@@ -27,24 +23,9 @@ type CreateAssetInput struct {
 	// Additional custom attributes for the asset
 	// Keys max length: 100 characters, Values max length: 2000 characters
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} //	@name	CreateAssetInput
-// @example {
-//   "name": "US Dollar",
-//   "type": "currency",
-//   "code": "USD",
-//   "status": "ACTIVE",
-//   "metadata": {
-//     "country": "United States",
-//     "symbol": "$",
-//     "isoNumeric": "840"
-//   }
-// }
+}
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
-//
-// swagger:model UpdateAssetInput
-//
-//	@Description	UpdateAssetInput is the input payload to update an existing asset's properties such as name, status, and metadata.
 type UpdateAssetInput struct {
 	// Updated name of the asset (optional, max length 256 characters)
 	Name string `json:"name" validate:"max=256" example:"Bitcoin"`
@@ -55,25 +36,9 @@ type UpdateAssetInput struct {
 	// Updated or additional custom attributes for the asset
 	// Keys max length: 100 characters, Values max length: 2000 characters
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} //	@name	UpdateAssetInput
-// @example {
-//   "name": "US Dollar Updated",
-//   "status": {
-//     "code": "ACTIVE"
-//   },
-//   "metadata": {
-//     "country": "United States",
-//     "symbol": "$",
-//     "isoNumeric": "840",
-//     "updated": true
-//   }
-// }
+}
 
 // Asset is a struct designed to encapsulate payload data.
-//
-// swagger:model Asset
-//
-//	@Description	Asset represents a financial instrument within a ledger, such as a currency, cryptocurrency, commodity, or other asset type.
 type Asset struct {
 	// Unique identifier for the asset (UUID format)
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
@@ -107,13 +72,9 @@ type Asset struct {
 
 	// Additional custom attributes for the asset
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	Asset
+}
 
 // Assets struct to return get all.
-//
-// swagger:model Assets
-//
-//	@Description	Assets represents a paginated collection of asset records returned by list operations.
 type Assets struct {
 	// Array of asset records
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"US Dollar","code":"USD","type":"currency"}]
@@ -129,32 +90,20 @@ type Assets struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} //	@name	Assets
+}
 
 // AssetResponse represents a success response containing a single asset.
-//
-// swagger:response AssetResponse
-// @Description Successful response containing a single asset entity.
 type AssetResponse struct {
-	// in: body
 	Body Asset
 }
 
 // AssetsResponse represents a success response containing a paginated list of assets.
-//
-// swagger:response AssetsResponse
-// @Description Successful response containing a paginated list of assets.
 type AssetsResponse struct {
-	// in: body
 	Body Assets
 }
 
 // AssetErrorResponse represents an error response for asset operations.
-//
-// swagger:response AssetErrorResponse
-// @Description Error response for asset operations with error code and message.
 type AssetErrorResponse struct {
-	// in: body
 	Body struct {
 		// Error code identifying the specific error
 		// example: 400001

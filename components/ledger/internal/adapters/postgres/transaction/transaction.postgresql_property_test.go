@@ -105,7 +105,6 @@ func TestProperty_GetDB_TenantConnectionReturned(t *testing.T) {
 		)
 
 		db, err := repo.getDB(ctx)
-
 		// getDB must succeed and return the injected tenant DB.
 		if err != nil {
 			return false

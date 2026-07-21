@@ -9,7 +9,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
-	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

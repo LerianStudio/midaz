@@ -15,12 +15,14 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -30,11 +32,17 @@ import (
 // The balance is created via the BalancePort interface.
 //
 //nolint:gocyclo // Validation + creation + metadata + balance orchestration; refactor candidate.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (_ *mmodel.Account, err error) {
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_account", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
@@ -46,6 +54,36 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting validations failed", err)
 		logger.Log(ctx, libLog.LevelError, "Accounting validations failed", libLog.Err(err))
+
+		return nil, err
+	}
+
+	requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder requirement", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve holder requirement", libLog.Err(err))
+
+		return nil, err
+	}
+
+	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder skip not permitted", libLog.Err(err))
+
+		return nil, err
+	}
+
+	requireHolder = requireHolder && !honoredHolderSkip
+
+	// Record the honored skip as a system observation (not a request input): it
+	// reflects what the two-key holder gate actually honored, and it is persisted
+	// to the account row below for the durable audit trail.
+	span.SetAttributes(attribute.Bool("app.account.holder_check_skipped", honoredHolderSkip))
+
+	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
 
 		return nil, err
 	}
@@ -139,24 +177,28 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	blocked := cai.Blocked != nil && *cai.Blocked
 
+	holderID := uc.resolveHolderID(organizationID, cai)
+
 	now := time.Now()
 
 	account := &mmodel.Account{
-		ID:              accountID.String(),
-		AssetCode:       cai.AssetCode,
-		Alias:           alias,
-		Name:            cai.Name,
-		Type:            cai.Type,
-		Blocked:         &blocked,
-		ParentAccountID: cai.ParentAccountID,
-		SegmentID:       cai.SegmentID,
-		OrganizationID:  organizationID.String(),
-		PortfolioID:     cai.PortfolioID,
-		LedgerID:        ledgerID.String(),
-		EntityID:        cai.EntityID,
-		Status:          status,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:                 accountID.String(),
+		AssetCode:          cai.AssetCode,
+		Alias:              alias,
+		Name:               cai.Name,
+		Type:               cai.Type,
+		Blocked:            &blocked,
+		ParentAccountID:    cai.ParentAccountID,
+		SegmentID:          cai.SegmentID,
+		OrganizationID:     organizationID.String(),
+		PortfolioID:        cai.PortfolioID,
+		LedgerID:           ledgerID.String(),
+		EntityID:           cai.EntityID,
+		HolderID:           holderID,
+		Status:             status,
+		HolderCheckSkipped: honoredHolderSkip,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
@@ -267,6 +309,82 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// resolveHolderRequirement reads the cached holder gate keys for a ledger in a
+// single settings read: whether holder validation is required and whether the
+// per-call holder skip is opted in. It uses the cached settings reader port (not
+// the uncached LedgerRepo.GetSettings).
+//
+// A nil reader is an unwired adapter (legitimate; production always wires it) and
+// falls back to the permissive default (false, false). A settings-read error fails
+// CLOSED — it is propagated so a transient PostgreSQL failure cannot silently
+// disable the holder-integrity gate, mirroring applyAccountingValidations.
+func (uc *UseCase) resolveHolderRequirement(ctx context.Context, organizationID, ledgerID uuid.UUID) (requireHolder, allowHolderSkip bool, err error) {
+	if uc.SettingsReader == nil {
+		return false, false, nil
+	}
+
+	settings, err := uc.SettingsReader.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
+	if err != nil {
+		return false, false, err
+	}
+
+	return settings.Accounting.RequireHolder, settings.Overrides.AllowHolderSkip, nil
+}
+
+// applyHolderValidation enforces the requireHolder gate. When RequireHolder is
+// true the account must name a real, existing holder: an absent HolderID is
+// rejected with ErrHolderRequired (KYC semantics — the derived self-holder
+// default is not an acceptable substitute), and a supplied HolderID must resolve
+// to an existing holder or it maps to ErrHolderNotFound. When RequireHolder is
+// false the gate is a no-op and the self-holder default applies.
+func (uc *UseCase) applyHolderValidation(ctx context.Context, organizationID uuid.UUID, requireHolder bool, cai *mmodel.CreateAccountInput) error {
+	if !requireHolder {
+		return nil
+	}
+
+	if libCommons.IsNilOrEmpty(cai.HolderID) {
+		return pkg.ValidateBusinessError(constant.ErrHolderRequired, constant.EntityAccount)
+	}
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	holderID, err := uuid.Parse(*cai.HolderID)
+	if err != nil {
+		return pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, constant.EntityAccount)
+	}
+
+	exists, err := uc.HolderReader.Exists(ctx, organizationID.String(), holderID)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return pkg.ValidateBusinessError(constant.ErrHolderNotFound, constant.EntityHolder)
+	}
+
+	return nil
+}
+
+// resolveHolderID materialises the account's holder_id on the create path.
+// When the input supplies a holder, that value wins. Otherwise non-external
+// accounts default to the org's deterministic self-holder (derived, no I/O), and
+// external accounts stay unowned (nil).
+func (uc *UseCase) resolveHolderID(organizationID uuid.UUID, cai *mmodel.CreateAccountInput) *string {
+	if !libCommons.IsNilOrEmpty(cai.HolderID) {
+		return cai.HolderID
+	}
+
+	if strings.ToLower(cai.Type) == "external" {
+		return nil
+	}
+
+	self := deriveSelfHolderID(organizationID).String()
+
+	return &self
 }
 
 // applyAccountingValidations validates the account type against the registered

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // AccountCreatedDefinition is the routing contract for account.created.
@@ -52,6 +52,7 @@ type AccountCreatedPayload struct {
 	SegmentID       *string `json:"segmentId"`
 	ParentAccountID *string `json:"parentAccountId"`
 	EntityID        *string `json:"entityId"`
+	HolderID        *string `json:"holderId"`
 	Alias           *string `json:"alias"`
 
 	// Status block. Decoupled from mmodel.Status so domain-side fields
@@ -63,6 +64,10 @@ type AccountCreatedPayload struct {
 	// false. Contract emits the field with value false when unset on
 	// the request.
 	Blocked *bool `json:"blocked"`
+
+	// HolderCheckSkipped records whether an honored per-call holder skip
+	// bypassed the holder existence check when this account was created.
+	HolderCheckSkipped bool `json:"holderCheckSkipped"`
 
 	// RFC3339-formatted timestamps. Producer formats once at the emit
 	// site; consumers parse with time.Parse(time.RFC3339, ...).
@@ -97,14 +102,16 @@ func NewAccountCreated(acc *mmodel.Account) AccountCreatedPayload {
 		SegmentID:       acc.SegmentID,
 		ParentAccountID: acc.ParentAccountID,
 		EntityID:        acc.EntityID,
+		HolderID:        acc.HolderID,
 		Alias:           acc.Alias,
 		Status: AccountStatusPayload{
 			Code:        acc.Status.Code,
 			Description: acc.Status.Description,
 		},
-		Blocked:   acc.Blocked,
-		CreatedAt: acc.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: acc.UpdatedAt.Format(time.RFC3339),
+		Blocked:            acc.Blocked,
+		HolderCheckSkipped: acc.HolderCheckSkipped,
+		CreatedAt:          acc.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          acc.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

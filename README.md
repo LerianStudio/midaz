@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz?include_prereleases)](https://github.com/LerianStudio/midaz/v3/releases)
+[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz?include_prereleases)](https://github.com/LerianStudio/midaz/releases)
 [![License: Elastic-2.0](https://img.shields.io/badge/License-Elastic_2.0-blue.svg)](https://github.com/LerianStudio/midaz/blob/main/LICENSE)
 [![Go Report](https://goreportcard.com/badge/github.com/lerianstudio/midaz)](https://goreportcard.com/report/github.com/lerianstudio/midaz)
 [![Discord](https://img.shields.io/badge/Discord-Lerian%20Studio-%237289da.svg?logo=discord)](https://discord.gg/DnhqKwkGv3)
@@ -10,112 +10,78 @@
 
 </div>
 
-# Lerian Midaz: Enterprise-Grade Source-Available Ledger System
+# Lerian Midaz: Source-Available Core Banking Platform
 
-Lerian Midaz is a modern, source-available ledger system for building financial infrastructure. It scales from fintech startups to enterprise banking solutions. The robust architecture empowers developers to create sophisticated financial applications that handle complex transactional requirements.
+Midaz is a composable core banking platform built around a double-entry ledger. One Go monorepo ships the ledger core (onboarding, transactions, CRM, fees), real-time transaction validation and fraud prevention (Tracer) — all under the [Elastic License 2.0](LICENSE), source-available. Transactional messaging (PIX, cards, wires) and governance integrations remain external and plug in via the marketplace.
 
-## Why Midaz?
+## What's in the Box
 
-- **Enterprise-Ready**: Built with the reliability, scalability, and security needed for mission-critical financial systems
-- **Developer-Friendly**: Clean architecture and comprehensive API documentation for rapid integration and development
-- **Future-Proof Design**: Multi-asset and multi-currency support to handle both traditional and digital assets in a single system
-- **Community-Backed**: Growing developer community with commercial support options available from Lerian
+- **Ledger core** (one binary): double-entry accounting over the full financial hierarchy — onboarding (organizations, ledgers, assets, portfolios, segments, accounts), n:n transactions, CRM (holders and instruments) with field-level encryption and searchable hashing so PII stays queryable without exposing plaintext, and in-process fee calculation on the transaction path.
+- **Tracer**: real-time transaction validation and fraud prevention — a CEL rule engine, multi-scope spending limits, and a hash-chained immutable audit trail for compliance.
+## Quickstart
 
-## Core Banking
+Prerequisites: Go 1.26.4+ and Docker.
 
-At Lerian, we view a core banking system as a comprehensive platform consisting of four main components:
+```bash
+git clone https://github.com/LerianStudio/midaz.git
+cd midaz
+make set-env   # create .env files from .env.example
+make up        # start infra, then all services
+```
 
-1. **Ledger**: The central database that manages all transactions and accounts. This is where Midaz plays a crucial role, serving as the foundation of the core banking system. We implemented our ledger with two main services:
+Services after `make up`:
 
-   - **Onboarding Service**: Manages organizations, ledgers, assets, portfolios, segments, and accounts.
-   - **Transaction Service**: Handles complex n:n transactions with double-entry accounting.
-2. **Transactional Messaging Integrations**: These are responsible for integrating with external systems to generate debits and credits in the ledger. Examples include instant payments (like PIX in Brazil), card transactions, and wire transfers.
-3. **Governance Integrations**: These are responsible for enhancing the core banking capabilities with KYC, anti-fraud/AML measures, management reporting, regulatory compliance, and accounting reporting.
+| Service | URL |
+| --- | --- |
+| Ledger API | http://localhost:3002 |
+| Tracer | http://localhost:4020 |
 
-Our source-available approach allows for the integration of Midaz with other components, like transactional messaging and governance, creating a complete core banking solution tailored to your specific needs. We also provide a marketplace with different plugins that streamline the integration of these messaging systems and governance players. These plugins are built by both Lerian and the community/partners.
+Full guide, API references, and best practices: [docs.lerian.studio](https://docs.lerian.studio).
 
-Interested in contributing to plugin development? Reach out in the Discussions tab or at [contact@lerian.studio](mailto:contact@lerian.studio).
+## Architecture
 
-## Core Architecture
+Both Go units build from the single root module (`github.com/LerianStudio/midaz/v4`) and ship under a single unified version.
 
-Lerian Midaz is built as a modern, cloud-native platform with a modular microservices architecture:
+| Unit | Port | Role | Stores |
+| --- | --- | --- | --- |
+| Ledger | :3002 | Unified binary: onboarding + transaction + CRM + fees, in-process | PostgreSQL, MongoDB |
+| Tracer | :4020 | Real-time validation/fraud: CEL rules, spending limits, hash-chained audit | PostgreSQL |
+| Infra | — | docker-compose stack | — |
 
-### Domains
+Infrastructure: PostgreSQL 17 (primary/replica), MongoDB replica set, RabbitMQ, Valkey, and Grafana/OpenTelemetry.
 
-Lerian Midaz implements a comprehensive financial hierarchy:
+The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL`. The transport is gRPC by default with a selectable REST fallback (`TRACER_TRANSPORT`), authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`) or delegated to a service-mesh sidecar (`mesh`), forwarding a trusted `x-tenant-id` for per-tenant pool resolution. See [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
-- **Organizations**: Top-level entities, optionally with parent-child relationships
-- **Ledgers**: Financial record-keeping systems belonging to organizations
-- **Assets**: Different types of value (currencies, securities, etc.) with specific codes
-- **Portfolios**: Collections of accounts for organizational purposes
-- **Segments**: Categories for grouping accounts (e.g., by department, product line)
-- **Accounts**: Basic units for tracking financial resources, linked to assets with specific types
-- **Transactions**: Financial transactions with debits and credits
-- **Balances**: Account balance tracking with available funds management and transaction capabilities
+CRM routes register under the `midaz` authorization namespace; the coordinated tenant-manager RBAC policy migration is the X1 release gate (see [docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)).
 
-### Services
+### Domain Hierarchy
 
-1. **Onboarding Service**: Core entity management system.
+- **Organizations** — top-level entities, optionally with parent-child relationships.
+- **Ledgers** — financial record-keeping systems belonging to organizations.
+- **Assets** — types of value (currencies, securities) with specific codes.
+- **Portfolios** — collections of accounts for organizational purposes.
+- **Segments** — categories for grouping accounts (e.g. by department or product line).
+- **Accounts** — basic units for tracking financial resources, linked to assets.
+- **Transactions** — debits and credits, balanced by double-entry rules.
+- **Balances** — available and on-hold amounts tracked per account.
 
-   - Implements hexagonal architecture with CQRS pattern
-   - RESTful API with OpenAPI documentation
-   - PostgreSQL for primary data, MongoDB for flexible metadata
-   - Manages the full financial hierarchy from organizations to accounts
+### Key Capabilities
 
-2. **Transaction Service**: Financial transaction processing system.
-
-   - Handles complex n:n transactions with double-entry accounting
-   - Supports multiple transaction creation methods (JSON, DSL, templates)
-   - Asset rate management and balance tracking with optimistic concurrency
-   - Event-driven architecture using RabbitMQ for transaction lifecycle
-
-3. **Infrastructure Layer**: Containerized infrastructure services.
-
-   - PostgreSQL with primary-replica setup for high availability
-   - MongoDB replica set for metadata storage
-   - RabbitMQ for message queuing with predefined exchanges
-   - Valkey for caching and message passing
-   - Grafana/OpenTelemetry for comprehensive monitoring
-
-4. **CRM Service**: Customer Relationship Management for financial services.
-
-   - Manages Holders (natural/legal persons) and Aliases (financial identifiers like bank accounts, PIX keys)
-   - Field-level encryption (AES-GCM) for personal data (names, documents, contacts)
-   - Searchable hashing (HMAC-SHA256) for filtered queries without exposing plaintext
-   - Requires `LCRYPTO_ENCRYPT_SECRET_KEY` and `LCRYPTO_HASH_SECRET_KEY` (32-byte keys)
-   - Optional Auth integration via `PLUGIN_AUTH_ENABLED` and `PLUGIN_AUTH_ADDRESS`
-
-### Transaction Processing
-
-Lerian Midaz implements true double-entry accounting with sophisticated transaction capabilities:
-
-- **Double-Entry Engine**: Every credit has a corresponding debit, ensuring financial integrity
-- **Multi-Asset Support**: Handle transactions across different currencies with automatic rate conversion
-- **Complex Transactions**: Support for n:n operations (multiple sources to multiple destinations)
-- **Domain-Specific Language**: Proprietary DSL for modeling complex transactions
-- **Immutable Records**: Every transaction is permanently recorded for audit purposes
-- **Async Processing**: Event-driven architecture for scalable transaction handling
-- **Balance Management**: Sophisticated balance tracking with available and on-hold amounts
-
-### Technical Highlights
-
-- **Hexagonal Architecture**: Clear separation between domain logic and external dependencies
-- **CQRS Pattern**: Separate command and query responsibilities for optimized performance
-- **Event-Driven Design**: Asynchronous processing using message queues for scalability
-- **Domain-Specific Language**: Specialized grammar for defining complex transactions
-- **Optimistic Concurrency**: Version-based concurrency control for balance updates
-- **Comprehensive APIs**: RESTful endpoints with OpenAPI documentation
-- **Testing**: Extensive unit and integration tests with mocking support
-
-## Getting Started
-
-Follow our [Getting Started Guide](https://docs.lerian.studio/en/midaz/midaz-getting-started) to begin. For features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
+- **Double-entry engine** — every credit has a matching debit.
+- **Multi-asset support** — transactions across currencies with automatic rate conversion.
+- **Complex transactions** — n:n operations (multiple sources to multiple destinations).
+- **Gold transaction DSL** — a purpose-built grammar for modeling complex transactions.
+- **Immutable records** — every transaction is permanently recorded for audit.
+- **Async processing** — event-driven transaction handling via RabbitMQ.
+- **Optimistic-concurrency balances** — version-based concurrency control for balance updates.
+- **Hexagonal + CQRS** — domain logic isolated from adapters; commands and queries separated.
+- **OpenAPI docs** — RESTful endpoints with generated OpenAPI specifications.
 
 ## Community & Support
 
 - Join our [Discord community](https://discord.gg/DnhqKwkGv3) for discussions, support, and updates.
-- For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/v3/issues).
-- If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/v3/discussions).
+- For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/issues).
+- If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).
 - Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.
 
 ## Repo Activity
@@ -128,4 +94,4 @@ We welcome contributions from the community. Read our [Contributing Guidelines](
 
 ## About Lerian
 
-Midaz is developed by Lerian, a tech company founded in 2024. Our team has a track record in developing ledger and core banking solutions. For inquiries or support, reach out at [contact@lerian.studio](mailto:contact@lerian.studio) or open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/v3/discussions).
+Midaz is developed by Lerian, a tech company founded in 2024. Our team has a track record in developing ledger and core banking solutions. For inquiries or support, reach out at [contact@lerian.studio](mailto:contact@lerian.studio) or open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).

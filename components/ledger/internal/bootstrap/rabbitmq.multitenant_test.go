@@ -29,8 +29,21 @@ func goleakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.(*opts).retry"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.Find"),
 		goleak.IgnoreAnyFunction("github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
-		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).runConsumerLoop"),
 		goleak.IgnoreAnyFunction("github.com/valyala/fasthttp.updateServerDate.func1"),
+		// MongoDB driver topology background goroutines. InitServers opens client
+		// pools whose maintenance/monitor goroutines only stop on client.Disconnect,
+		// which happens at SIGTERM via the launcher; tests that build a Service
+		// without running it cannot drain them.
+		goleak.IgnoreAnyFunction("go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology.(*Server).update"),
+		goleak.IgnoreAnyFunction("go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology.(*pool).maintain"),
+		goleak.IgnoreAnyFunction("go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology.(*pool).createConnections"),
+		goleak.IgnoreAnyFunction("go.mongodb.org/mongo-driver/v2/x/mongo/driver/topology.(*rttMonitor).start"),
+		// database/sql connection-pool goroutines for the onboarding/transaction
+		// Postgres pools InitServers opens. They stop on (*DB).Close, which the
+		// launcher does at SIGTERM; a Service built without Run() keeps them alive.
+		goleak.IgnoreTopFunction("database/sql.(*DB).connectionOpener"),
+		goleak.IgnoreTopFunction("database/sql.(*DB).connectionCleaner"),
 	}
 }
 

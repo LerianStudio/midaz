@@ -9,26 +9,32 @@ import (
 	"errors"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteLedgerByID deletes a ledger from the repository.
-func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_ledger_by_id")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_ledger", start, err)
+	}()
 
 	if err := uc.LedgerRepo.Delete(ctx, organizationID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {

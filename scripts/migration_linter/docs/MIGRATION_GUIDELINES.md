@@ -319,7 +319,7 @@ make migrate-lint
 │       └── Merge PR                                          │
 │                                                              │
 │  T+1: MIGRATION                                              │
-│       ├── make migrate-up COMPONENT=xxx                     │
+│       ├── make migrate                                     │
 │       ├── Verify migration applied                          │
 │       └── DB has BOTH structures (old + new)                │
 │                                                              │

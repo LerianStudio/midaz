@@ -7,7 +7,7 @@ package mtransaction
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 

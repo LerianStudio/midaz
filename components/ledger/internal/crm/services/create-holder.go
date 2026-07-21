@@ -1,0 +1,80 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package services
+
+import (
+	"context"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libObservability "github.com/LerianStudio/lib-observability"
+	libLog "github.com/LerianStudio/lib-observability/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// CreateHolder inserts a holder data in the repository.
+func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi *mmodel.CreateHolderInput) (_ *mmodel.Holder, err error) {
+	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.create_holder")
+	defer span.End()
+
+	start := time.Now()
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "crm", "create_holder", start, err)
+	}()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+	)
+
+	holderID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate holder id", err)
+
+		return nil, err
+	}
+
+	holder := &mmodel.Holder{
+		ID:            &holderID,
+		ExternalID:    chi.ExternalID,
+		Type:          chi.Type,
+		Name:          &chi.Name,
+		Document:      &chi.Document,
+		Addresses:     chi.Addresses,
+		Contact:       chi.Contact,
+		NaturalPerson: chi.NaturalPerson,
+		LegalPerson:   chi.LegalPerson,
+		Metadata:      chi.Metadata,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	createdHolder, err := uc.HolderRepo.Create(ctx, organizationID, holder)
+	if err != nil {
+		recordSpanError(span, "Failed to create holder", err)
+
+		return nil, err
+	}
+
+	uc.emitHolderCreatedEvent(ctx, span, logger, createdHolder, organizationID)
+
+	return createdHolder, nil
+}
+
+func (uc *UseCase) emitHolderCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, h *mmodel.Holder, organizationID string) {
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderCreatedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewHolderCreated(h, organizationID).ToEmitRequest(tenantID, h.CreatedAt)
+		})
+}

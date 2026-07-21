@@ -8,19 +8,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,7 +28,7 @@ import (
 )
 
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate mtransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
@@ -135,13 +135,17 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 //     - reducing limit below current usage is rejected
 //  3. Auto-creates the system-managed "overdraft" balance on a false→true
 //     transition (idempotent — existing overdraft balances are reused).
-func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (_ *mmodel.Balance, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Updating balance")
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_balance", start, err)
+	}()
 
 	// Always load the current balance so the scope guard can fire
 	// regardless of which fields the payload contains (Settings,

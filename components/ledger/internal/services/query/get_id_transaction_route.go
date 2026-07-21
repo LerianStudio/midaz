@@ -7,15 +7,13 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 
 	// GetTransactionRouteByID retrieves a transaction route by its ID.
@@ -24,23 +22,21 @@ import (
 )
 
 func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_transaction_route_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving transaction route for id: %s", id))
-
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction route on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting transaction route on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transaction route on repo by id: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting transaction route on repo by id", libLog.Err(err))
 
 			return nil, err
 		}
@@ -55,7 +51,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb transaction route", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb transaction route: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb transaction route", libLog.Err(err))
 
 			return nil, err
 		}

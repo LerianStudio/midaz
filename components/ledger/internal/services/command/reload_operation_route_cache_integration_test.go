@@ -15,15 +15,14 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,18 +45,10 @@ func setupReloadCacheTestInfra(t *testing.T) *reloadCacheTestInfra {
 	// Setup PostgreSQL
 	pgContainer := pgtestutil.SetupContainer(t)
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(conn)
 	opRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(conn)
@@ -66,7 +57,7 @@ func setupReloadCacheTestInfra(t *testing.T) *reloadCacheTestInfra {
 	redisContainer := redistestutil.SetupContainer(t)
 	redisConn := redistestutil.CreateConnection(t, redisContainer.Addr)
 
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -89,8 +80,8 @@ func setupReloadCacheTestInfra(t *testing.T) *reloadCacheTestInfra {
 func TestIntegration_ReloadOperationRouteCache_RebuildsSingleTransactionRoute(t *testing.T) {
 	infra := setupReloadCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes in DB
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source Route", "source")
@@ -124,8 +115,8 @@ func TestIntegration_ReloadOperationRouteCache_RebuildsSingleTransactionRoute(t 
 func TestIntegration_ReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 	infra := setupReloadCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create an operation route with no transaction route links
 	opRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Unlinked Route", "source")
@@ -142,8 +133,8 @@ func TestIntegration_ReloadOperationRouteCache_NoTransactionRoutes(t *testing.T)
 func TestIntegration_ReloadOperationRouteCache_MultipleTransactionRoutes(t *testing.T) {
 	infra := setupReloadCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create a shared operation route
 	sharedSourceID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Shared Source", "source")
@@ -194,8 +185,8 @@ func TestIntegration_ReloadOperationRouteCache_MultipleTransactionRoutes(t *test
 func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing.T) {
 	infra := setupReloadCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes with account rules
 	ruleType := "alias"
@@ -239,8 +230,8 @@ func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing
 func TestIntegration_ReloadOperationRouteCache_ReplacesExistingCache(t *testing.T) {
 	infra := setupReloadCacheTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -252,7 +243,7 @@ func TestIntegration_ReloadOperationRouteCache_ReplacesExistingCache(t *testing.
 	ctx := context.Background()
 
 	// Write an outdated cache with a fake route ID
-	fakeRouteID := libCommons.GenerateUUIDv7()
+	fakeRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 	outdatedCache := mmodel.TransactionRouteCache{
 		Actions: map[string]mmodel.ActionRouteCache{"direct": {Source: map[string]mmodel.OperationRouteCache{fakeRouteID.String(): {OperationType: "source"}}}},
 	}

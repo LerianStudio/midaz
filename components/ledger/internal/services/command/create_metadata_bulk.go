@@ -11,13 +11,12 @@ import (
 	"reflect"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
@@ -62,7 +61,7 @@ func (e MetadataEntry) Validate() error {
 // Returns nil if all entries were created successfully (or were empty).
 // Returns error if any entries failed to create after fallback.
 func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEntry) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_bulk")
 	defer span.End()
@@ -131,7 +130,7 @@ func (uc *UseCase) createMetadataForCollection(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libObs.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata_for_collection")
 	defer span.End()
@@ -177,10 +176,8 @@ func (uc *UseCase) createMetadataForCollection(
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert failed with infrastructure error, skipping fallback", err)
 
 			if logger != nil {
-				logger.Log(ctx, libLog.LevelError, fmt.Sprintf(
-					"Bulk metadata insert failed for %s with infrastructure error (no fallback): %v",
-					collection, err,
-				))
+				logger.Log(ctx, libLog.LevelError, "Bulk metadata insert failed with infrastructure error, no fallback",
+					libLog.String("collection", collection), libLog.Err(err))
 			}
 
 			return len(entries), fmt.Errorf("infrastructure error during bulk insert for %s: %w", collection, err)
@@ -190,17 +187,19 @@ func (uc *UseCase) createMetadataForCollection(
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert failed, falling back to individual creates", err)
 
 		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Bulk metadata insert failed for %s, using fallback: %v", collection, err))
+			logger.Log(ctx, libLog.LevelWarn, "Bulk metadata insert failed, using fallback",
+				libLog.String("collection", collection), libLog.Err(err))
 		}
 
 		return uc.fallbackToIndividualMetadataCreate(ctx, logger, collection, entries)
 	}
 
 	if logger != nil {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-			"Bulk inserted metadata for %s: attempted=%d, inserted=%d, matched=%d",
-			collection, result.Attempted, result.Inserted, result.Matched,
-		))
+		logger.Log(ctx, libLog.LevelDebug, "Bulk inserted metadata",
+			libLog.String("collection", collection),
+			libLog.Int("attempted", int(result.Attempted)),
+			libLog.Int("inserted", int(result.Inserted)),
+			libLog.Int("matched", int(result.Matched)))
 	}
 
 	return 0, nil
@@ -223,7 +222,8 @@ func (uc *UseCase) createSingleMetadata(
 
 	if err := uc.TransactionMetadataRepo.Create(ctx, collection, meta); err != nil {
 		if logger != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create metadata for %s entity %s: %v", collection, entry.EntityID, err))
+			logger.Log(ctx, libLog.LevelError, "Failed to create metadata",
+				libLog.String("collection", collection), libLog.String("entity_id", entry.EntityID), libLog.Err(err))
 		}
 
 		return err
@@ -240,7 +240,7 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 	collection string,
 	entries []MetadataEntry,
 ) (int, error) {
-	_, tracer, _, _ := libObs.NewTrackingFromContext(ctx) //nolint:dogsled // consistent with codebase pattern
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.fallback_individual_metadata_create")
 	defer span.End()
@@ -261,10 +261,8 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 
 		if err := uc.TransactionMetadataRepo.Create(ctx, collection, meta); err != nil {
 			if logger != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
-					"Fallback: failed to create metadata for %s entity %s: %v",
-					collection, entry.EntityID, err,
-				))
+				logger.Log(ctx, libLog.LevelWarn, "Fallback: failed to create metadata",
+					libLog.String("collection", collection), libLog.String("entity_id", entry.EntityID), libLog.Err(err))
 			}
 
 			failureCount++
@@ -276,10 +274,10 @@ func (uc *UseCase) fallbackToIndividualMetadataCreate(
 	}
 
 	if logger != nil {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-			"Fallback metadata create for %s: %d/%d succeeded",
-			collection, successCount, len(entries),
-		))
+		logger.Log(ctx, libLog.LevelDebug, "Fallback metadata create complete",
+			libLog.String("collection", collection),
+			libLog.Int("succeeded", successCount),
+			libLog.Int("total", len(entries)))
 	}
 
 	if failureCount > 0 {
@@ -316,7 +314,7 @@ func (uc *UseCase) processMetadataAndEventsBulk(
 	// Create metadata in bulk (handles batching and fallback internally)
 	if err := uc.createMetadataBulk(ctx, entries); err != nil {
 		if logger != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create bulk metadata: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to create bulk metadata", libLog.Err(err))
 		}
 	}
 }

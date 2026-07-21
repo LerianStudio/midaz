@@ -9,6 +9,7 @@ package chaos
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
@@ -239,6 +240,13 @@ func (i *Infrastructure) Cleanup() {
 	// No-op: cleanup is now handled automatically via t.Cleanup()
 }
 
+// isContainerGone reports whether err indicates the container was already
+// terminated (e.g. by another t.Cleanup). The Docker daemon returns a 404
+// "No such container" in that case, which is success for cleanup purposes.
+func isContainerGone(err error) bool {
+	return strings.Contains(err.Error(), "No such container")
+}
+
 // cleanup is the internal cleanup implementation called by t.Cleanup().
 func (i *Infrastructure) cleanup() {
 	i.t.Helper()
@@ -254,9 +262,12 @@ func (i *Infrastructure) cleanup() {
 
 	// Note: Toxiproxy container cleanup is handled by its own t.Cleanup() registered in SetupToxiproxy
 
-	// Terminate all containers
+	// Terminate all containers. Containers registered here may also own a
+	// t.Cleanup() from their own setup helper (e.g. pgtestutil.SetupContainer);
+	// whichever terminate runs second sees the container already gone. Treat a
+	// missing container as success rather than logging spurious failures.
 	for name, info := range i.containers {
-		if err := info.Container.Terminate(ctx); err != nil {
+		if err := info.Container.Terminate(ctx); err != nil && !isContainerGone(err) {
 			i.t.Logf("failed to terminate container %s: %v", name, err)
 		}
 	}

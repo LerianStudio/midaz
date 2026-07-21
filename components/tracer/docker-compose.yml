@@ -1,0 +1,41 @@
+services:
+  tracer:
+    container_name: midaz-tracer
+    restart: always
+    build:
+      context: ../../
+      dockerfile: ./components/tracer/Dockerfile.dev
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    # Note: healthcheck uses wget which is included in the Alpine dev image.
+    # Production (Kubernetes) uses liveness/readiness probes instead.
+    # The path is /readyz (canonical Lerian readiness probe — not /health,
+    # which only verifies the process is alive). start_period matches
+    # Dockerfile.dev to give the self-probe time to complete.
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${SERVER_PORT}/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # stop_grace_period must exceed READYZ_DRAIN_GRACE_SECONDS (default 12s)
+    # so `docker compose stop` does not SIGKILL during the drain window.
+    stop_grace_period: 25s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - infra-network
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true

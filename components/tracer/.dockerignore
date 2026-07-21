@@ -1,0 +1,80 @@
+# Build artifacts
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+coverage.out
+coverage*.out
+*.coverprofile
+integration.test
+command.test
+
+# Dependencies (downloaded at build time)
+/vendor/
+
+# IDE/Editor
+.idea/
+.vscode/
+.windsurf/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.githooks/
+
+# Development tools
+.claude/
+.ring/
+.factory/
+
+# CI/CD
+.github/
+
+# Linting/Quality
+.golangci.yml
+.releaserc.yml
+.releaserc.hotfix.yml
+coderabbit-instructions.md
+dot_coderabbit.yaml
+
+# Go workspace
+go.work
+go.work.sum
+
+# Documentation
+/docs/
+*.md
+
+# Local environment
+.env
+.env.local
+.env.example
+*.env
+.secrets
+
+# Docker (avoid recursive includes)
+docker-compose*.yml
+Dockerfile.dev
+
+# Scripts (not needed in image)
+/scripts/
+
+# Artifacts
+/artifacts/
+
+# Test directories
+/tests/
+
+# Backups
+*.bak

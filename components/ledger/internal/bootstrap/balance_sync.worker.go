@@ -18,10 +18,11 @@ import (
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
-	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/lib-observability/metrics"
+	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -49,14 +50,15 @@ func (c BalanceSyncConfig) PollInterval() time.Duration {
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
 type BalanceSyncWorker struct {
-	logger      libLog.Logger
-	idleWait    time.Duration
-	syncConfig  BalanceSyncConfig
-	useCase     *command.UseCase
-	mtEnabled   bool
-	tenantCache *tenantcache.TenantCache
-	pgManager   *tmpostgres.Manager
-	serviceName string
+	logger         libLog.Logger
+	idleWait       time.Duration
+	syncConfig     BalanceSyncConfig
+	useCase        *command.UseCase
+	metricsFactory *metrics.MetricsFactory
+	mtEnabled      bool
+	tenantCache    *tenantcache.TenantCache
+	pgManager      *tmpostgres.Manager
+	serviceName    string
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -134,6 +136,35 @@ func NewBalanceSyncWorkerMT(
 	w.serviceName = serviceName
 
 	return w
+}
+
+// WithMetricsFactory sets the metrics factory used to emit balance-sync worker
+// metrics (e.g. tenant skips). A nil factory disables metric emission. Returns
+// the receiver for fluent wiring at bootstrap.
+func (w *BalanceSyncWorker) WithMetricsFactory(factory *metrics.MetricsFactory) *BalanceSyncWorker {
+	w.metricsFactory = factory
+
+	return w
+}
+
+// emitTenantSkip increments the tenant-skip counter, labelled by tenant. The
+// tenant set is bounded by deployment so the label cardinality is safe (T11).
+// Best-effort: a nil factory or emit error never affects the worker (Debug log).
+func (w *BalanceSyncWorker) emitTenantSkip(ctx context.Context, tenantID string) {
+	if w.metricsFactory == nil {
+		return
+	}
+
+	counter, err := w.metricsFactory.Counter(utils.BalanceSyncTenantSkip)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelDebug, "Failed to create tenant skip counter", libLog.Err(err))
+
+		return
+	}
+
+	if addErr := counter.WithLabels(map[string]string{"tenant_id": tenantID}).AddOne(ctx); addErr != nil {
+		w.logger.Log(ctx, libLog.LevelDebug, "Failed to emit tenant skip counter", libLog.Err(addErr))
+	}
 }
 
 // isMTReady returns true when the worker is configured for MT (multi-tenant)
@@ -314,6 +345,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get PG connection for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
+		w.emitTenantSkip(parentCtx, tenantID)
+
 		return nil
 	}
 
@@ -321,6 +354,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 	if err != nil {
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get DB for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+		w.emitTenantSkip(parentCtx, tenantID)
 
 		return nil
 	}

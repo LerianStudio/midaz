@@ -10,13 +10,13 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -521,7 +521,7 @@ func strPtr(s string) *string { return &s }
 // The route defines only a `direct` entry (no `overdraft`). A companion source
 // operation is present with Balance.Key == "overdraft" and its concat alias
 // mirrored into OperationRoutesFrom. With ValidateRoutes=true and action
-// "direct", the gate must reject with ErrOverdraftRouteNotConfigured (0176).
+// "direct", the gate must reject with ErrOverdraftRouteNotConfigured (0492).
 func TestValidateAccountingRules_OverdraftRouteNotConfigured(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -862,7 +862,7 @@ func TestValidateAccountingRules_OverdraftRoutePasses(t *testing.T) {
 // into the From maps). The route defines a valid Overdraft.Credit rubric, so the
 // gate must accept. Before the fix, validateOverdraftRoutes read only
 // OperationRoutesFrom, missed the companion's routeID, and wrongly rejected with
-// 0176 — repayment could never succeed on any ledger with ValidateRoutes=true.
+// 0492 — repayment could never succeed on any ledger with ValidateRoutes=true.
 func TestValidateAccountingRules_OverdraftRefundToSidePasses(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1060,7 +1060,7 @@ func TestValidateAccountingRules_OverdraftWrongDirectionRubric(t *testing.T) {
 }
 
 // assertOverdraftRouteNotConfigured asserts the returned error is a
-// pkg.UnprocessableOperationError (HTTP 422) carrying the 0176 overdraft-route
+// pkg.UnprocessableOperationError (HTTP 422) carrying the 0492 overdraft-route
 // code and the OperationRoute entity type, mirroring the identity assertions in
 // pkg/errors_overdraft_test.go.
 func assertOverdraftRouteNotConfigured(t *testing.T, err error) {
@@ -1068,7 +1068,7 @@ func assertOverdraftRouteNotConfigured(t *testing.T, err error) {
 
 	mapped, ok := err.(pkg.UnprocessableOperationError)
 	require.True(t, ok, "error must map to pkg.UnprocessableOperationError (HTTP 422), got %T", err)
-	assert.Equal(t, constant.ErrOverdraftRouteNotConfigured.Error(), mapped.Code, "code must be 0176")
+	assert.Equal(t, constant.ErrOverdraftRouteNotConfigured.Error(), mapped.Code, "code must be 0492")
 	assert.Equal(t, constant.EntityOperationRoute, mapped.EntityType, "entity type must be OperationRoute")
 }
 
@@ -1076,7 +1076,7 @@ func assertOverdraftRouteNotConfigured(t *testing.T, err error) {
 // rejection paths: (a) an Overdraft rubric present but with an empty Code counts
 // as missing; (c) a companion whose route is absent from BOTH the From and To
 // maps resolves to an empty routeID and is rejected. Both must return the
-// typed 0176 UnprocessableOperationError.
+// typed 0492 UnprocessableOperationError.
 func TestValidateAccountingRules_OverdraftRouteRejections(t *testing.T) {
 	primaryAlias := "0#@sender#default"
 	companionAlias := "0#@sender#overdraft"

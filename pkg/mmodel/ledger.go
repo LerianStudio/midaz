@@ -7,9 +7,6 @@ package mmodel
 import "time"
 
 // CreateLedgerInput is a struct designed to encapsulate request create payload data.
-//
-// swagger:model CreateLedgerInput
-// @Description Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.
 type CreateLedgerInput struct {
 	// Display name of the ledger
 	// required: true
@@ -28,12 +25,9 @@ type CreateLedgerInput struct {
 	// Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
 	// example: {"accounting": {"validateAccountType": true}}
 	Settings *LedgerSettings `json:"settings,omitempty" validate:"omitempty"`
-} // @name CreateLedgerInput
+}
 
 // UpdateLedgerInput is a struct designed to encapsulate request update payload data.
-//
-// swagger:model UpdateLedgerInput
-// @Description Request payload for updating an existing ledger. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 type UpdateLedgerInput struct {
 	// Updated display name of the ledger
 	// required: false
@@ -49,12 +43,9 @@ type UpdateLedgerInput struct {
 	// required: false
 	// example: {"department": "Global Finance", "currency": "USD", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateLedgerInput
+}
 
 // Ledger is a struct designed to encapsulate response payload data.
-//
-// swagger:model Ledger
-// @Description Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations. Ledgers are organizational units within an organization that group related financial accounts and assets together.
 type Ledger struct {
 	// Unique identifier for the ledger (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -96,12 +87,9 @@ type Ledger struct {
 	// Dynamic configuration settings for this ledger
 	// example: {"accounting": {"validateAccountType": true}}
 	Settings *LedgerSettings `json:"settings,omitempty"`
-} // @name Ledger
+}
 
 // Ledgers struct designed to return a paginated list of ledgers.
-//
-// swagger:model Ledgers
-// @Description Paginated list of ledgers with metadata about the current page, limit, and the ledger items themselves. Used for list operations.
 type Ledgers struct {
 	// Array of ledger records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Treasury Operations","status":{"code":"ACTIVE"}}]
@@ -117,32 +105,20 @@ type Ledgers struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} // @name Ledgers
+}
 
 // LedgerResponse represents a success response containing a single ledger.
-//
-// swagger:response LedgerResponse
-// @Description Successful response containing a single ledger entity.
 type LedgerResponse struct {
-	// in: body
 	Body Ledger
 }
 
 // LedgersResponse represents a success response containing a paginated list of ledgers.
-//
-// swagger:response LedgersResponse
-// @Description Successful response containing a paginated list of ledgers.
 type LedgersResponse struct {
-	// in: body
 	Body Ledgers
 }
 
 // LedgerErrorResponse represents an error response for ledger operations.
-//
-// swagger:response LedgerErrorResponse
-// @Description Error response for ledger operations with error code and message.
 type LedgerErrorResponse struct {
-	// in: body
 	Body struct {
 		// Error code identifying the specific error
 		// example: 400001

@@ -12,8 +12,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // streamingPrimaryTargetName is the canonical name for midaz's single
@@ -22,8 +22,9 @@ import (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingServiceName is the component service segment embedded in every
-// topic name (e.g. "ledger" -> lerian.streaming.ledger_<resource>.<event>).
+// streamingServiceName is the component service segment folded into every
+// topic name by pkgStreaming.TopicName, yielding
+// "lerian.streaming.<service>_<resource>.<event>".
 const streamingServiceName = "ledger"
 
 // noopStreamingCloser is the close hook returned by BuildStreamingEmitter
@@ -115,15 +116,10 @@ func BuildStreamingEmitter(
 			Brokers: streamingCfg.Brokers,
 		})
 
-	// Apply TLS from STREAMING_TLS_* env. No-op when STREAMING_TLS_ENABLED=false,
-	// so plaintext dev brokers are unaffected. When enabled, the private-CA dial
-	// is built from STREAMING_TLS_CA_CERT inside lib-streaming.
+	// SASL/TLS are owned by lib-streaming: TLSFromConfig and SASLFromConfig
+	// read the STREAMING_TLS_* and STREAMING_SASL_* knobs already parsed by
+	// LoadConfig and wire the broker dial. midaz does not parse these itself.
 	builder = builder.TLSFromConfig(streamingCfg)
-
-	// Apply SASL from STREAMING_SASL_* env via lib-streaming (SASLFromConfig).
-	// No-op when STREAMING_SASL_MECHANISM is empty. SASL over plaintext needs
-	// STREAMING_SASL_ALLOW_PLAINTEXT=true (dev brokers only); otherwise
-	// lib-streaming pairs SASL with TLS and fails closed at Build.
 	builder = builder.SASLFromConfig(streamingCfg)
 
 	emitter, err := builder.Build(ctx)
@@ -200,6 +196,22 @@ func midazEventDefinitions() []events.Definition {
 		events.TransactionCommittedDefinition,
 		events.TransactionCanceledDefinition,
 		events.TransactionRevertedDefinition,
+		// Fees
+		events.FeesPackageCreatedDefinition,
+		events.FeesPackageUpdatedDefinition,
+		events.FeesPackageDeletedDefinition,
+		events.FeesBillingPackageCreatedDefinition,
+		events.FeesBillingPackageUpdatedDefinition,
+		events.FeesBillingPackageDeletedDefinition,
+		events.FeesAppliedDefinition,
+		// CRM
+		events.HolderCreatedDefinition,
+		events.HolderUpdatedDefinition,
+		events.HolderDeletedDefinition,
+		events.InstrumentCreatedDefinition,
+		events.InstrumentUpdatedDefinition,
+		events.InstrumentDeletedDefinition,
+		events.InstrumentRelatedPartyDeletedDefinition,
 	}
 }
 
@@ -225,10 +237,7 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per midaz event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<service>_<resource>.<event>" — hyphens in the route
-// key are converted to underscores in the topic name ONLY; the route Key
-// and DefinitionKey stay hyphenated (the lib-streaming route-key regex
-// rejects underscores).
+// "lerian.streaming.<service>_<resource>.<event>".
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
 // "account.created.primary") — Route.Key must match a lower-case

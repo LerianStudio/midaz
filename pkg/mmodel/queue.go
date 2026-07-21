@@ -12,9 +12,6 @@ import (
 )
 
 // Queue is a struct designed for internal message queueing.
-//
-// swagger:model Queue
-// @Description Internal structure for message queue data transfer between services. Contains entity identifiers and a collection of queue data items.
 type Queue struct {
 	// Organization identifier for the queue message
 	// format: uuid
@@ -39,12 +36,9 @@ type Queue struct {
 	// Array of data items contained in this queue message
 	// required: true
 	QueueData []QueueData `json:"queueData"`
-} // @name Queue
+}
 
 // QueueData is a struct representing a single data item in a queue message.
-//
-// swagger:model QueueData
-// @Description Individual data item within a queue message, containing a unique identifier and a JSON payload.
 type QueueData struct {
 	// Unique identifier for this queue data item
 	// format: uuid
@@ -54,12 +48,9 @@ type QueueData struct {
 	// Raw JSON payload data
 	// example: {"type": "transaction", "amount": 1000}
 	Value json.RawMessage `json:"value"`
-} // @name QueueData
+}
 
 // Event is a struct representing a single data event in a queue message.
-//
-// swagger:model Event
-// @Description Individual struct event within json payload.
 type Event struct {
 	Source         string          `json:"source" example:"midaz"`
 	EventType      string          `json:"eventType" example:"transaction"`

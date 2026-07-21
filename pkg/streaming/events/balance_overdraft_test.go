@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -172,4 +172,6 @@ func TestBalanceOverdraftPayload_JSONShape_IncludesAllRequiredFields(t *testing.
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted from the wire payload")
+
+	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }

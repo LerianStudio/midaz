@@ -7,44 +7,48 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-
-	libObs "github.com/LerianStudio/lib-observability"
+	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// GetAllTransactions fetch all Transactions from the repository
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) (_ []*transaction.Transaction, _ libHTTP.CursorPagination, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving transactions")
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_transactions", start, err)
+	}()
 
 	filter.ApplyDefaultDateRange()
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transactions on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transactions on repo: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error getting transactions on repo", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -69,7 +73,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting metadata on mongodb transaction: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb transaction", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -125,7 +129,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 // enrichOperationsWithMetadata retrieves and assigns metadata to operations
 func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
 	defer span.End()
@@ -134,7 +138,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation metadata: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Error getting operation metadata", libLog.Err(err))
 
 		return err
 	}
@@ -154,18 +158,17 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 }
 
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving Operations")
 
 	operations, _, err := uc.GetAllOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operations", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
+			libLog.String("transaction_id", tran.IDtoUUID().String()), libLog.Err(err))
 
 		return nil, err
 	}

@@ -7,28 +7,32 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// UpdateOperation update an operation from the repository by given id.
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (_ *operation.Operation, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_operation")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update operation: %v", uoi))
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_operation", start, err)
+	}()
 
 	op := &operation.Operation{
 		Description: uoi.Description,
@@ -36,14 +40,14 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, op)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating op on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error updating op on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, constant.EntityOperation)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update operation on repo by id", err)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating op on repo by id: %v", err))
+			logger.Log(ctx, libLog.LevelWarn, "Error updating op on repo by id", libLog.Err(err))
 
 			return nil, err
 		}

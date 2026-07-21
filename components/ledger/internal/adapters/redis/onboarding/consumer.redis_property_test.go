@@ -40,6 +40,13 @@ func sanitizeQuickStringOnboarding(s string, maxLen int) string {
 	return s
 }
 
+// sanitizeQuickTenantIDOnboarding bounds a generated tenant ID and strips the
+// ':' namespace delimiter, which GetKey/StripTenantPrefix reject by contract —
+// the property domain is valid tenant IDs, not arbitrary strings.
+func sanitizeQuickTenantIDOnboarding(s string, maxLen int) string {
+	return strings.ReplaceAll(sanitizeQuickStringOnboarding(s, maxLen), ":", "")
+}
+
 // TestProperty_KeyNamespacing_Identity verifies the identity property:
 //
 //	When tenantID is empty, GetKey("", key) == key for ALL keys.
@@ -78,7 +85,7 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 	var propErr error
 
 	property := func(tenantID, key string) bool {
-		tenantID = sanitizeQuickStringOnboarding(tenantID, 256)
+		tenantID = sanitizeQuickTenantIDOnboarding(tenantID, 256)
 		key = sanitizeQuickStringOnboarding(key, 512)
 
 		// This property only applies when tenantID is non-empty.
@@ -117,7 +124,7 @@ func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
 	var propErr error
 
 	property := func(tenantID, key string) bool {
-		tenantID = sanitizeQuickStringOnboarding(tenantID, 256)
+		tenantID = sanitizeQuickTenantIDOnboarding(tenantID, 256)
 		key = sanitizeQuickStringOnboarding(key, 512)
 
 		namespaced, err := tmvalkey.GetKey(tenantID, key)

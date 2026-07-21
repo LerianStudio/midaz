@@ -13,7 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
 	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // multiTenantConsumerRunnable adapts *tmconsumer.MultiTenantConsumer to the

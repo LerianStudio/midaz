@@ -22,15 +22,24 @@ package in
 
 import (
 	"fmt"
-	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/valyala/fasthttp"
 )
+
+// fuzzCountApp is the shared Fiber app used to acquire a lightweight ctx per
+// fuzz execution. It is built once (sync.OnceValue, lazily on first fuzz call)
+// so the per-exec cost is just AcquireCtx/ReleaseCtx rather than a full
+// fiber.New() plus an app.Test() HTTP round-trip. That round-trip's per-exec
+// latency is what provoked the Go -fuzztime boundary "context deadline
+// exceeded" flake; keeping each execution cheap removes it at the source.
+var fuzzCountApp = sync.OnceValue(func() *fiber.App { return fiber.New() })
 
 // fuzzParseCountFilter is a test helper that creates a Fiber context with the
 // given query parameters and calls parseCountFilter. It returns the error (if
@@ -44,15 +53,6 @@ func fuzzParseCountFilter(t *testing.T, route, status, startDate, endDate string
 			err = fmt.Errorf("panic: %v", r)
 		}
 	}()
-
-	app := fiber.New()
-
-	var capturedErr error
-
-	app.Get("/test", func(c *fiber.Ctx) error {
-		_, capturedErr = parseCountFilter(c)
-		return c.SendStatus(200)
-	})
 
 	qv := url.Values{}
 	if route != "" {
@@ -76,8 +76,18 @@ func fuzzParseCountFilter(t *testing.T, route, status, startDate, endDate string
 		target += "?" + qv.Encode()
 	}
 
-	req := httptest.NewRequest("GET", target, nil)
-	_, _ = app.Test(req)
+	// parseCountFilter reads only query parameters via c.Query, so acquiring a
+	// Fiber ctx with the request URI set exercises the exact same parsing path as
+	// a full app.Test() round-trip — but at orders-of-magnitude higher throughput.
+	app := fuzzCountApp()
+
+	fctx := &fasthttp.RequestCtx{}
+	fctx.Request.SetRequestURI(target)
+
+	c := app.AcquireCtx(fctx)
+	defer app.ReleaseCtx(c)
+
+	_, capturedErr := parseCountFilter(c)
 
 	return capturedErr, false
 }

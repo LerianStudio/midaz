@@ -1,0 +1,67 @@
+# Development Dockerfile - uses Alpine for shell access and healthcheck support
+# For production, use Dockerfile (distroless)
+FROM golang:1.26.4-alpine AS builder
+
+WORKDIR /tracer-app
+
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata \
+    && update-ca-certificates
+
+# Copy only go.mod and go.sum first to cache dependencies
+COPY go.mod go.sum ./
+
+RUN go mod download
+
+COPY . .
+
+ARG TARGETPLATFORM
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) \
+    go build -a -tags netgo -ldflags '-w -extldflags "-static"' \
+    -o /app/tracer components/tracer/cmd/app/main.go
+
+# Development image with Alpine (shell + wget for healthcheck)
+FROM alpine:3.23 AS dev
+
+ARG SERVER_PORT=4020
+ENV SERVER_PORT=${SERVER_PORT}
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
+
+# Create non-root user for security
+RUN addgroup -g 1000 tracer && \
+    adduser -u 1000 -G tracer -s /bin/sh -D tracer
+
+COPY --from=builder /app/tracer /app/tracer
+COPY --from=builder /tracer-app/components/tracer/migrations /app/migrations
+
+# Set ownership
+RUN chown -R tracer:tracer /app
+
+# Switch to non-root user
+USER tracer
+
+# GOMEMLIMIT — soft memory limit for the Go runtime. Dev default mirrors
+# production (~90% of a 2 GiB container limit). Override in docker-compose.yml
+# or Helm to match the real deployment's `resources.limits.memory`.
+ENV GOMEMLIMIT=1800MiB
+
+EXPOSE ${SERVER_PORT}
+
+# Health check using wget to verify app readiness (wget is included in Alpine base image)
+# interval: check every 30 seconds
+# timeout: wait up to 10 seconds for response
+# start-period: wait 40 seconds before first check (app startup time)
+# retries: mark unhealthy after 3 consecutive failures
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT}/readyz || exit 1
+
+ENTRYPOINT ["/app/tracer"]

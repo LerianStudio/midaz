@@ -13,8 +13,6 @@ import (
 )
 
 // AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database
-//
-// @Description Database model for storing asset rate information in PostgreSQL
 type AssetRatePostgreSQLModel struct {
 	ID             string         // Unique identifier (UUID format)
 	OrganizationID string         // Organization that owns this asset rate
@@ -32,9 +30,6 @@ type AssetRatePostgreSQLModel struct {
 }
 
 // CreateAssetRateInput is a struct design to encapsulate payload data.
-//
-// swagger:model CreateAssetRateInput
-// @Description CreateAssetRateInput is the input payload to create an asset rate. Contains required fields for setting up asset conversion rates, including source and target assets, rate value, scale, and optional metadata.
 type CreateAssetRateInput struct {
 	// Source asset code (required)
 	// example: USD
@@ -78,12 +73,9 @@ type CreateAssetRateInput struct {
 	// Additional custom attributes (optional)
 	// example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name CreateAssetRateInput
+}
 
 // AssetRate is a struct designed to encapsulate response payload data.
-//
-// swagger:model AssetRate
-// @Description AssetRate is a struct designed to store asset rate data. Represents a complete asset rate entity containing conversion information between two assets, including all system-generated fields.
 type AssetRate struct {
 	// Unique identifier for the asset rate
 	// example: 00000000-0000-0000-0000-000000000000
@@ -149,7 +141,7 @@ type AssetRate struct {
 	// Additional custom attributes
 	// example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
 	Metadata map[string]any `json:"metadata"`
-} // @name AssetRate
+}
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
@@ -196,20 +188,12 @@ func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) error {
 }
 
 // AssetRateResponse represents a success response containing a single asset rate.
-//
-// swagger:response AssetRateResponse
-// @Description Successful response containing a single asset rate entity.
 type AssetRateResponse struct {
-	// in: body
 	Body AssetRate
 }
 
 // AssetRatesResponse represents a success response containing a paginated list of asset rates.
-//
-// swagger:response AssetRatesResponse
-// @Description Successful response containing a paginated list of asset rates.
 type AssetRatesResponse struct {
-	// in: body
 	Body struct {
 		Items      []AssetRate `json:"items"`
 		Pagination struct {

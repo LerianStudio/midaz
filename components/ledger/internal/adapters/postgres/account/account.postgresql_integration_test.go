@@ -15,11 +15,11 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1484,6 +1484,107 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	assert.Equal(t, int64(1), count2, "org2 should have 1 account")
 }
 
+// createHolderAccount persists an active (or soft-deleted) account owned by
+// holderID via repo.Create, then optionally soft-deletes it, so CountByHolderID
+// can be exercised against real holder_id-bearing rows.
+func createHolderAccount(t *testing.T, repo *AccountPostgreSQLRepository, orgID, ledgerID uuid.UUID, holderID, alias string, deleted bool) {
+	t.Helper()
+
+	hid := holderID
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	acc := &mmodel.Account{
+		Name:           "Holder Account",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &alias,
+		Type:           "deposit",
+		HolderID:       &hid,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(context.Background(), acc)
+	require.NoError(t, err)
+
+	if deleted {
+		parsedID, perr := uuid.Parse(created.ID)
+		require.NoError(t, perr)
+		require.NoError(t, repo.Delete(context.Background(), orgID, ledgerID, nil, parsedID))
+	}
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_CountsActiveOwned(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	otherHolderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	// 2 active accounts for the target holder.
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own2-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	// 1 soft-deleted account for the target holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@owndel-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], true)
+	// 1 active account for a different holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, otherHolderID, "@other-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	// Act
+	count, err := repo.CountByHolderID(context.Background(), orgID, holderUUID)
+
+	// Assert: only the 2 active accounts owned by the target holder count.
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_IsolatesByOrg(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, org1ID)
+
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
+
+	// Same holder id value appears under two organizations; the count must be
+	// scoped to the organization passed in.
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	createHolderAccount(t, repo, org1ID, ledger1ID, holderID, "@o1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2a-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2b-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	count1, err1 := repo.CountByHolderID(ctx, org1ID, holderUUID)
+	count2, err2 := repo.CountByHolderID(ctx, org2ID, holderUUID)
+
+	// Assert
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, int64(1), count1, "org1 should count 1 owned account")
+	assert.Equal(t, int64(2), count2, "org2 should count 2 owned accounts")
+}
+
 // ============================================================================
 // FindAll Filter Tests (Phase 1 - Account Filters)
 // ============================================================================
@@ -2341,5 +2442,259 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 	for _, acc := range accounts {
 		require.NotNil(t, acc.ParentAccountID, "account parent_account_id should not be nil")
 		assert.Equal(t, parentAccountID.String(), *acc.ParentAccountID, "all returned accounts should have the correct parent_account_id")
+	}
+}
+
+// ============================================================================
+// EPIC 4.2: PER-CALL SKIP AUDIT ROUND-TRIP (holder_check_skipped)
+// ============================================================================
+//
+// Runtime proof that the honored holder-check skip flag survives a real squirrel
+// INSERT (column alignment) and reads back true through TWO distinct Scan sites:
+// the single-row Find and the list-derived ListByIDs. A column-order regression
+// in either the INSERT VALUES list or a SELECT/Scan corrupts the flag silently;
+// unit tests cannot catch it because they do not exercise PostgreSQL.
+//
+// Out of integration scope here (already unit-covered, NOT re-proven at this
+// level): the gate's zero-downstream-call invariant (holder existence check
+// never reached) and the settings-read-count==1 invariant. Those are asserted by:
+//   - TestCreateAccountHolderSkip
+//     (components/ledger/internal/services/command/create_account_holder_test.go)
+//     -> honored holder skip means holderReader.calls==0 and
+//        settingsReader.calls==1 (the skip gate rides the single settings read).
+//   - TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422
+//     (pkg/skip/skip_test.go) -> two-key gate truth table + unauthorized 422.
+
+// TestIntegration_AccountRepository_SkipAudit_RoundTrip proves that
+// HolderCheckSkipped persists through repo.Create (squirrel INSERT) and reads
+// back true via BOTH repo.Find (single-row scan) and repo.ListByIDs (list scan),
+// with a false control account confirming the flag is not spuriously set.
+func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Skipped account: holder check skip honored.
+	skippedAlias := fmt.Sprintf("@skip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdSkipped, err := repo.Create(ctx, &mmodel.Account{
+		Name:               "Skip Audit Honored",
+		AssetCode:          "USD",
+		OrganizationID:     orgID.String(),
+		LedgerID:           ledgerID.String(),
+		Status:             mmodel.Status{Code: "ACTIVE"},
+		Alias:              &skippedAlias,
+		Type:               "deposit",
+		Blocked:            &blocked,
+		HolderCheckSkipped: true,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	require.NoError(t, err, "Create with holder_check_skipped should succeed")
+	assert.True(t, createdSkipped.HolderCheckSkipped, "Create should echo holder_check_skipped=true")
+
+	// False control: skip flag not set.
+	controlAlias := fmt.Sprintf("@noskip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdControl, err := repo.Create(ctx, &mmodel.Account{
+		Name:           "Skip Audit Control",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &controlAlias,
+		Type:           "deposit",
+		Blocked:        &blocked,
+		// HolderCheckSkipped left at zero value (false).
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	require.NoError(t, err, "Create control should succeed")
+	assert.False(t, createdControl.HolderCheckSkipped, "control holder_check_skipped should be false")
+
+	skippedID, err := uuid.Parse(createdSkipped.ID)
+	require.NoError(t, err)
+	controlID, err := uuid.Parse(createdControl.ID)
+	require.NoError(t, err)
+
+	t.Run("Find single-row scan reads the flag back", func(t *testing.T) {
+		foundSkipped, err := repo.Find(ctx, orgID, ledgerID, nil, skippedID)
+		require.NoError(t, err)
+		assert.True(t, foundSkipped.HolderCheckSkipped, "Find: skipped account holder_check_skipped should round-trip true")
+
+		foundControl, err := repo.Find(ctx, orgID, ledgerID, nil, controlID)
+		require.NoError(t, err)
+		assert.False(t, foundControl.HolderCheckSkipped, "Find: control holder_check_skipped should round-trip false")
+	})
+
+	t.Run("ListByIDs list scan reads the flag back", func(t *testing.T) {
+		// ListByIDs exercises a DIFFERENT Scan call site than Find, so the
+		// list-derived column order is proven independently here.
+		accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{skippedID, controlID})
+		require.NoError(t, err)
+		require.Len(t, accounts, 2)
+
+		byID := make(map[string]*mmodel.Account, len(accounts))
+		for i := range accounts {
+			byID[accounts[i].ID] = accounts[i]
+		}
+
+		require.Contains(t, byID, createdSkipped.ID)
+		require.Contains(t, byID, createdControl.ID)
+		assert.True(t, byID[createdSkipped.ID].HolderCheckSkipped, "ListByIDs: skipped account holder_check_skipped should round-trip true")
+		assert.False(t, byID[createdControl.ID].HolderCheckSkipped, "ListByIDs: control holder_check_skipped should round-trip false")
+	})
+}
+
+// ============================================================================
+// HolderID Round-Trip and Filter Tests (F1-T03, F1-T12)
+// ============================================================================
+
+// TestIntegration_AccountRepository_Create_RoundTripsHolderID validates that an account
+// created with a holder_id persists the value and reads it back via both Find and FindAll
+// (F1-T03: persistence round-trip through INSERT, the column list, and ToEntity/FromEntity).
+func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	alias := fmt.Sprintf("@holder-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	newAccount := &mmodel.Account{
+		Name:           "Account With Holder",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &alias,
+		Type:           "deposit",
+		HolderID:       &holderID,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	// Act: create persists holder_id
+	created, err := repo.Create(ctx, newAccount)
+
+	// Assert: create returns the holder_id
+	require.NoError(t, err, "Create should not return error")
+	require.NotNil(t, created, "created account should not be nil")
+	require.NotNil(t, created.HolderID, "created account holder_id should not be nil")
+	assert.Equal(t, holderID, *created.HolderID, "created account holder_id should match")
+
+	// Assert: Find reads the holder_id back
+	parsedID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	require.NoError(t, err, "Find should not return error")
+	require.NotNil(t, found.HolderID, "found account holder_id should not be nil")
+	assert.Equal(t, holderID, *found.HolderID, "found account holder_id should round-trip")
+
+	// Assert: FindAll reads the holder_id back
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: now.Add(-24 * time.Hour),
+		EndDate:   now.Add(24 * time.Hour),
+	}
+
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	require.NoError(t, err, "FindAll should not return error")
+	require.Len(t, accounts, 1, "should return the single created account")
+	require.NotNil(t, accounts[0].HolderID, "listed account holder_id should not be nil")
+	assert.Equal(t, holderID, *accounts[0].HolderID, "listed account holder_id should round-trip")
+}
+
+// TestIntegration_AccountRepository_FindAll_FiltersByHolderID validates that the
+// FindAll holder_id filter returns only accounts owned by the requested holder
+// (F1-T12: guarded holder_id = ? clause).
+func TestIntegration_AccountRepository_FindAll_FiltersByHolderID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+
+	holderA := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderB := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Two accounts owned by holderA, one by holderB.
+	for i := 0; i < 2; i++ {
+		alias := fmt.Sprintf("@holderA-%d-%s", i, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+		_, err := repo.Create(ctx, &mmodel.Account{
+			Name:           fmt.Sprintf("Holder A Account %d", i),
+			AssetCode:      "USD",
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         mmodel.Status{Code: "ACTIVE"},
+			Alias:          &alias,
+			Type:           "deposit",
+			HolderID:       &holderA,
+			Blocked:        &blocked,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		})
+		require.NoError(t, err, "Create holderA account should not return error")
+	}
+
+	aliasB := fmt.Sprintf("@holderB-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	_, err := repo.Create(ctx, &mmodel.Account{
+		Name:           "Holder B Account",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &aliasB,
+		Type:           "deposit",
+		HolderID:       &holderB,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	require.NoError(t, err, "Create holderB account should not return error")
+
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: now.Add(-24 * time.Hour),
+		EndDate:   now.Add(24 * time.Hour),
+		HolderID:  &holderA,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+
+	// Assert
+	require.NoError(t, err, "FindAll should not return error")
+	assert.Len(t, accounts, 2, "should return only accounts owned by holderA")
+
+	for _, acc := range accounts {
+		require.NotNil(t, acc.HolderID, "account holder_id should not be nil")
+		assert.Equal(t, holderA, *acc.HolderID, "all returned accounts should be owned by holderA")
 	}
 }

@@ -5,24 +5,25 @@
 package query
 
 import (
-	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
-	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/lib-observability/metrics"
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
 // Compile-time interface verification.
@@ -93,4 +94,12 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
+
+	// --- Observability (D6) ---
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for the flagship read entrypoints
+	// via utils.RecordDomainOperation. A nil value is a no-op so the binary
+	// runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
 }

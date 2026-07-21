@@ -27,8 +27,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -291,16 +291,22 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 	assert.Equal(t, int64(5), count)
 	t.Logf("Phase 1 (Normal): count = %d", count)
 
-	// Phase 2: Inject — severely throttle bandwidth to create connection contention.
-	// A 1 KB/s limit forces all queries to take several seconds, exhausting the
-	// connection pool when many concurrent requests compete for connections.
-	t.Log("Phase 2 (Inject): adding severe bandwidth throttle (1 KB/s)")
-	err = infra.proxy.AddBandwidthLimit(1)
-	require.NoError(t, err, "failed to add bandwidth limit")
+	// Phase 2: Inject — add per-connection latency that exceeds the per-query
+	// context deadline used in Phase 3. A bandwidth throttle is non-deterministic
+	// here: toxics are applied per connection and a COUNT round-trip is only a few
+	// hundred bytes, so 20 concurrent 1 KB/s connections all complete comfortably.
+	// Latency, by contrast, delays every round-trip on every connection, so each
+	// query is guaranteed to outlast the 5s deadline below.
+	const queryDeadline = 5 * time.Second
+	const injectedLatency = queryDeadline + 3*time.Second
 
-	// Phase 3: Verify — flood with concurrent queries to exhaust the pool.
-	// 20 goroutines competing for connections through a 1 KB/s pipe should
-	// cause timeouts and contention.
+	t.Logf("Phase 2 (Inject): adding %v network latency (exceeds %v per-query deadline)", injectedLatency, queryDeadline)
+	err = infra.proxy.AddLatency(injectedLatency, 0)
+	require.NoError(t, err, "failed to add latency")
+
+	// Phase 3: Verify — flood with concurrent queries under degraded network.
+	// Every goroutine competes for a connection and then stalls on the injected
+	// latency; all must hit their context deadline rather than hang indefinitely.
 	const concurrency = 20
 	var wg sync.WaitGroup
 	var errCount int64
@@ -311,7 +317,7 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 		go func() {
 			defer wg.Done()
 
-			ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctxTimeout, cancel := context.WithTimeout(ctx, queryDeadline)
 			defer cancel()
 
 			_, queryErr := infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
@@ -323,11 +329,11 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 
 	wg.Wait()
 
-	t.Logf("Phase 3 (Verify): %d/%d concurrent queries failed during pool exhaustion", errCount, concurrency)
-	require.Greater(t, errCount, int64(0), "at least some concurrent queries should fail or timeout during bandwidth throttle")
+	t.Logf("Phase 3 (Verify): %d/%d concurrent queries failed under degraded network", errCount, concurrency)
+	require.Equal(t, int64(concurrency), errCount, "all concurrent queries should time out when injected latency exceeds the per-query deadline")
 
-	// Phase 4: Restore — remove bandwidth throttle
-	t.Log("Phase 4 (Restore): removing bandwidth throttle")
+	// Phase 4: Restore — remove the latency toxic
+	t.Log("Phase 4 (Restore): removing injected latency")
 	err = infra.proxy.RemoveAllToxics()
 	require.NoError(t, err, "failed to remove toxics")
 

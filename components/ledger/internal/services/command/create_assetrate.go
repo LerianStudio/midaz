@@ -6,33 +6,36 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 
 	// CreateOrUpdateAssetRate creates or updates an asset rate.
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
-func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
+func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (_ *assetrate.AssetRate, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initializing the create or update asset rate operation: %v", cari))
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_asset_rate", start, err)
+	}()
 
 	if err := utils.ValidateCode(cari.From); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		err := pkg.ValidateBusinessError(err, constant.EntityAssetRate)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'from' asset code", err)
 
@@ -40,7 +43,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	if err := utils.ValidateCode(cari.To); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		err := pkg.ValidateBusinessError(err, constant.EntityAssetRate)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'to' asset code", err)
 
@@ -53,20 +56,16 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	rate := float64(cari.Rate)
 	scale := float64(cari.Scale)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to find existing asset rate by currency pair: %v", cari))
-
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset rate by currency pair", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset rate: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating asset rate", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if arFound != nil {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update asset rate: %v", cari))
-
 		arFound.Rate = rate
 		arFound.Scale = &scale
 		arFound.Source = cari.Source
@@ -81,12 +80,12 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update asset rate", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating asset rate: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error updating asset rate", libLog.Err(err))
 
 			return nil, err
 		}
 
-		metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), arFound.ID, cari.Metadata)
+		metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityAssetRate, arFound.ID, cari.Metadata)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
@@ -118,13 +117,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create asset rate: %v", cari))
-
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate on repository", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating asset rate: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error creating asset rate", libLog.Err(err))
 
 		return nil, err
 	}
@@ -132,16 +129,16 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	if cari.Metadata != nil {
 		meta := mongodb.Metadata{
 			EntityID:   assetRate.ID,
-			EntityName: reflect.TypeOf(assetrate.AssetRate{}).Name(),
+			EntityName: constant.EntityAssetRate,
 			Data:       cari.Metadata,
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.TransactionMetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
+		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityAssetRate, &meta); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset rate metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error into creating asset rate metadata: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error into creating asset rate metadata", libLog.Err(err))
 
 			return nil, err
 		}
