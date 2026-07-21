@@ -1087,6 +1087,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 // Error Code Mapping for Validation Handler (numeric registry, pkg/constant/errors.go):
 // ------------------------------------------
 // 0094: ErrInvalidRequestBody - Body parsing errors (malformed JSON, wrong type, unparseable request), title "Bad Request"
+// 0143: ErrPayloadTooLarge - request body exceeds the size limit, 413 Payload Too Large (top-level `message` populated; `detail` carries the same text since 413 < 500)
 // 0413: ErrValidationRequestIDRequired - requestId is required
 // 0414: ErrValidationInvalidTransactionType - transactionType invalid
 // 0415: ErrValidationAmountNonPositive - amount must be positive
@@ -1095,7 +1096,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 // 0418: ErrValidationTimestampRequired - transactionTimestamp is required
 // 0419: ErrValidationTimestampFuture - transactionTimestamp in future
 // 0420: ErrValidationAccountRequired - account is required
-// 0422: ErrValidationTimeout - validation timeout
+// 0422: ErrValidationTimeout - validation timeout, 504 Gateway Timeout (>=500: `detail` scrubbed, human text in top-level `message`)
 // 0423: ErrValidationSegmentIDRequired - segment.id is required
 // 0424: ErrValidationPortfolioIDRequired - portfolio.id is required
 // 0425: ErrValidationSubTypeTooLong - subType exceeds 50 characters
