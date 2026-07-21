@@ -17,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
 
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
@@ -34,9 +35,10 @@ const (
 // sync.
 const streamingPrimaryTargetName = "primary"
 
-// streamingTopicPrefix is the canonical prefix every topic name uses.
-// Topic names take the shape "lerian.streaming.<resource>.<event>".
-const streamingTopicPrefix = "lerian.streaming."
+// streamingServiceName is the producing-service segment folded into every
+// tracer topic name via pkgStreaming.TopicName. Topic names take the shape
+// "lerian.streaming.<service>_<resource>.<event>" (service = tracer).
+const streamingServiceName = "tracer"
 
 // streamingSource is the default CloudEvents source stamped on every event
 // tracer emits. Distinct from the ledger component's source so downstream
@@ -174,7 +176,8 @@ func buildLiveStreamingEmitter(
 	}
 
 	// Build the route table. One required route per event keyed to the
-	// canonical "lerian.streaming.<resource>.<event>" topic name.
+	// canonical "lerian.streaming.<service>_<resource>.<event>" topic name
+	// (service = tracer).
 	routes := buildRoutes(streamingPrimaryTargetName)
 
 	source := resolveStreamingSource(cfg)
@@ -226,7 +229,8 @@ func buildLiveStreamingEmitter(
 			}
 		}
 
-		logger.Log(ctx, libLog.LevelInfo, "Streaming emitter constructed",
+		logger.Log(
+			ctx, libLog.LevelInfo, "Streaming emitter constructed",
 			libLog.String("brokers", strings.Join(streamingCfg.Brokers, ",")),
 			libLog.String("client_id", streamingCfg.ClientID),
 			libLog.String("ce_source", source),
@@ -271,7 +275,8 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 	if user == "" || pass == "" {
 		return nil, "", fmt.Errorf(
 			"STREAMING_SASL_MECHANISM=%q requires STREAMING_SASL_USERNAME and STREAMING_SASL_PASSWORD",
-			mechanism)
+			mechanism,
+		)
 	}
 
 	switch mechanism {
@@ -284,7 +289,8 @@ func resolveSASLMechanism(cfg *Config) (sasl.Mechanism, string, error) {
 	default:
 		return nil, "", fmt.Errorf(
 			"STREAMING_SASL_MECHANISM=%q is not supported (accepted: %s, %s, %s)",
-			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512)
+			raw, saslMechanismPlain, saslMechanismScram256, saslMechanismScram512,
+		)
 	}
 }
 
@@ -334,13 +340,13 @@ func buildCatalog() (libStreaming.Catalog, error) {
 
 // buildRoutes constructs one RouteRequired route per tracer event,
 // targeting the single broker named targetName. Topic names are
-// "lerian.streaming.<resource>.<event>".
+// "lerian.streaming.<service>_<resource>.<event>" (service = tracer),
+// rendered via pkgStreaming.TopicName.
 //
 // Route Keys are composed as "<definition-key>.<target-name>" (e.g.
-// "validation.evaluated.primary") — Route.Key must match a lower-case
-// dot-delimited pattern, and the target-name suffix guarantees uniqueness
-// when the same event is later routed to multiple targets (e.g. a parallel
-// shadow route).
+// "rule.created.primary") — Route.Key must match a lower-case dot-delimited
+// pattern, and the target-name suffix guarantees uniqueness when the same
+// event is later routed to multiple targets (e.g. a parallel shadow route).
 func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 	defs := tracerEventDefinitions()
 	routes := make([]libStreaming.RouteDefinition, 0, len(defs))
@@ -351,7 +357,7 @@ func buildRoutes(targetName string) []libStreaming.RouteDefinition {
 			Key:           key + "." + targetName,
 			DefinitionKey: key,
 			Target:        targetName,
-			Destination:   libStreaming.KafkaTopic(streamingTopicPrefix + key),
+			Destination:   libStreaming.KafkaTopic(pkgStreaming.TopicName(streamingServiceName, key)),
 			Requirement:   libStreaming.RouteRequired,
 		})
 	}
