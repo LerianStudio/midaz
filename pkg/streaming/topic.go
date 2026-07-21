@@ -10,7 +10,8 @@ import "strings"
 const TopicPrefix = "lerian.streaming."
 
 // TopicName renders the consumer-facing Kafka topic name for a producing
-// service ("ledger"/"crm") and a definition key ("<resource>.<event>").
+// service ("ledger"/"crm"/"fee"/"tracer") and a definition key
+// ("<resource>.<event>").
 //
 // The streaming-hub ingest consumer subscribes via kgo.ConsumeRegex to
 // ^lerian.streaming.<seg>.<seg>$ over the [a-z0-9_] charset — exactly two
@@ -21,6 +22,14 @@ const TopicPrefix = "lerian.streaming."
 // hyphens: lib-streaming's route-key grammar requires hyphens and rejects "_",
 // so the underscore form lives ONLY on the wire topic name, not on the event
 // identity.
+//
+// A leading "<service>-" on the key is stripped before the fold. Fee resources
+// carry a "fee-" prefix on their keys ("fee-packages.created"); without the strip
+// the "fee_" service segment would double it into "lerian.streaming.fee_fee_*".
+// Stripping keeps the topic at the required two segments and drops the redundant
+// prefix. The strip is a no-op for services whose keys never begin with
+// "<service>-" (ledger/crm/tracer), so it does not affect existing producers.
 func TopicName(service, key string) string {
+	key = strings.TrimPrefix(key, service+"-")
 	return TopicPrefix + service + "_" + strings.ReplaceAll(key, "-", "_")
 }
