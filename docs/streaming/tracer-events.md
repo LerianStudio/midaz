@@ -398,8 +398,22 @@ point tracer at it:
   from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Set `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, and
   `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.tracer`.
-- Pre-provision the 12 `lerian.streaming.tracer_{rule,limit}.*` topics
-  explicitly; do not rely on auto-create.
+- Pre-provision these 12 topics explicitly; do not rely on auto-create:
+
+  ```
+  lerian.streaming.tracer_rule.created
+  lerian.streaming.tracer_rule.updated
+  lerian.streaming.tracer_rule.activated
+  lerian.streaming.tracer_rule.deactivated
+  lerian.streaming.tracer_rule.drafted
+  lerian.streaming.tracer_rule.deleted
+  lerian.streaming.tracer_limit.created
+  lerian.streaming.tracer_limit.updated
+  lerian.streaming.tracer_limit.activated
+  lerian.streaming.tracer_limit.deactivated
+  lerian.streaming.tracer_limit.drafted
+  lerian.streaming.tracer_limit.deleted
+  ```
 
 The default unit suite never touches a broker — the JSONShape and mapping tests
 in `pkg/streaming/events/` marshal payloads in memory. See the `CLAUDE.md`
