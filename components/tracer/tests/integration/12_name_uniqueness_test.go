@@ -60,6 +60,7 @@ type nameUniquenessLimitRequest struct {
 type nameUniquenessErrorResponse struct {
 	Code    string `json:"code"`
 	Title   string `json:"title"`
+	Detail  string `json:"detail"`
 	Message string `json:"message"`
 }
 
@@ -149,6 +150,8 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 		assert.Equal(t, "Rule Name Already Exists In Ctx", errResp.Title, "Error title is the humanized sentinel name")
 		// message field is retired under RFC 9457; the human text now lives in `detail`.
 		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Rule name already exists in this context.", errResp.Detail, "detail should state the rule-name conflict")
 	}
 }
 
@@ -429,6 +432,8 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 		assert.Equal(t, "Limit Name Already Exists", errResp.Title, "Error title is the humanized sentinel name")
 		// message field is retired under RFC 9457; the human text now lives in `detail`.
 		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Limit name already exists.", errResp.Detail, "detail should state the limit-name conflict")
 	}
 }
 

@@ -54,7 +54,7 @@ func TestValidation_CompletePayload(t *testing.T) {
 			MCC:  "5411",
 			Name: "Test Merchant",
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"channel":  "mobile",
 			"deviceId": "device-123",
 		},
@@ -694,7 +694,7 @@ func TestValidation_1_1_9_PayloadTooLarge(t *testing.T) {
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"largeField": string(largeString),
 		},
 	}
@@ -725,6 +725,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 		expectedCode    string
 		expectedTitle   string
 		expectedMessage string
+		expectedDetail  string // RFC 9457 human-readable text (registry message)
 	}{
 		{
 			name: "missing requestId",
@@ -740,6 +741,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0413",
 			expectedTitle:   "Validation Request IDRequired",
 			expectedMessage: "",
+			expectedDetail:  "RequestId is required.",
 		},
 		{
 			name: "missing transactionType",
@@ -755,6 +757,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0414",
 			expectedTitle:   "Validation Invalid Transaction Type",
 			expectedMessage: "",
+			expectedDetail:  "Invalid transactionType.",
 		},
 		{
 			name: "missing amount (zero value)",
@@ -770,6 +773,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0415",
 			expectedTitle:   "Validation Amount Non Positive",
 			expectedMessage: "",
+			expectedDetail:  "Amount must be positive.",
 		},
 		{
 			name: "missing currency",
@@ -785,6 +789,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0416",
 			expectedTitle:   "Validation Currency Required",
 			expectedMessage: "",
+			expectedDetail:  "Currency is required.",
 		},
 		{
 			name: "missing timestamp",
@@ -800,6 +805,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0418",
 			expectedTitle:   "Validation Timestamp Required",
 			expectedMessage: "",
+			expectedDetail:  "Timestamp is required.",
 		},
 		{
 			name: "missing account",
@@ -815,6 +821,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0420",
 			expectedTitle:   "Validation Account Required",
 			expectedMessage: "",
+			expectedDetail:  "Account is required.",
 		},
 	}
 
@@ -832,6 +839,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			assert.Equal(t, tc.expectedCode, errorResp.Code, "Error code should be %s for missing %s", tc.expectedCode, tc.missing)
 			assert.Equal(t, tc.expectedTitle, errorResp.Title, "Error title should be %s", tc.expectedTitle)
 			assert.Equal(t, tc.expectedMessage, errorResp.Message, "Error message should be %s", tc.expectedMessage)
+			assert.Equal(t, tc.expectedDetail, errorResp.Detail, "RFC 9457 detail should carry the human-readable text for missing %s", tc.missing)
 		})
 	}
 }
@@ -1130,7 +1138,7 @@ func TestValidation_1_1_18_CustomMetadata(t *testing.T) {
 	requestID := testutil.MustDeterministicUUID(341).String()
 
 	// Create metadata with 50 entries (maximum allowed)
-	metadata := make(map[string]interface{})
+	metadata := make(map[string]any)
 	for i := 1; i <= 50; i++ {
 		key := fmt.Sprintf("field%02d", i)
 		metadata[key] = fmt.Sprintf("value%02d", i)
@@ -1189,7 +1197,7 @@ func TestValidation_1_1_19_RejectsMetadataOverLimit(t *testing.T) {
 	requestID := testutil.MustDeterministicUUID(351).String()
 
 	// Create metadata with 51 entries (exceeds maximum of 50)
-	metadata := make(map[string]interface{})
+	metadata := make(map[string]any)
 	for i := 1; i <= 51; i++ {
 		key := fmt.Sprintf("field%02d", i)
 		metadata[key] = fmt.Sprintf("value%02d", i)
@@ -1228,7 +1236,7 @@ func TestValidation_1_1_20_RejectsLongMetadataKey(t *testing.T) {
 	// Create a metadata key with 65 characters (exceeds maximum of 64)
 	longKey := "this_key_is_way_too_long_and_exceeds_the_64_character_limit_for_k"
 
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		longKey: "value",
 	}
 
@@ -1293,7 +1301,7 @@ func TestValidation_1_1_21_RejectsInvalidMetadataKeyChars(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			requestID := testutil.MustDeterministicUUID(int64(355 + i)).String()
 
-			metadata := map[string]interface{}{
+			metadata := map[string]any{
 				tc.key: "value",
 			}
 
@@ -2595,7 +2603,7 @@ func TestValidation_1_2_5_CompleteSnapshotPreserved(t *testing.T) {
 		Segment: &testutil.SegmentContext{
 			ID: segmentID,
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"channel": "mobile",
 			"testKey": "testValue",
 		},

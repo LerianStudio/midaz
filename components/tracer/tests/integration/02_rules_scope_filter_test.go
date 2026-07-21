@@ -352,8 +352,11 @@ func TestListRules_2_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectCode, errResp.Code, "Error code mismatch")
 			assert.Equal(t, "Invalid Query Parameter", errResp.Title, "Invalid scope filter should surface as Invalid Query Parameter")
-			// message field is retired under RFC 9457; the invalid-field text now lives in `detail`.
-			assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail should mention %s", tc.expectMsg)
+			// message field is retired under RFC 9457; the human-readable text now lives in `detail`.
+			// 0082 carries a generic query-parameter format message (it does not echo the specific field).
+			assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text for %s", tc.expectMsg)
+			assert.Contains(t, errResp.Detail, "One or more query parameters are in an incorrect format",
+				"RFC 9457 detail should carry the invalid query-parameter message for %s", tc.expectMsg)
 		})
 	}
 }

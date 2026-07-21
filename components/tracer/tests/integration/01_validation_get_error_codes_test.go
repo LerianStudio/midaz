@@ -126,46 +126,55 @@ func TestListTransactionValidations_InvalidLimit_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	tests := []struct {
-		name      string
-		query     string
-		wantCode  string
-		wantTitle string
-		wantMsg   string
+		name              string
+		query             string
+		wantCode          string
+		wantTitle         string
+		wantMsg           string
+		wantDetail        string // RFC 9457 human-readable text
+		wantDetailIsExact bool   // true: assert.Equal against wantDetail; false: assert.Contains
 	}{
 		{
-			name:      "limit-zero",
-			query:     "limit=0",
-			wantCode:  "0331",
-			wantTitle: "Pagination Limit Invalid",
-			wantMsg:   "",
+			name:              "limit-zero",
+			query:             "limit=0",
+			wantCode:          "0331",
+			wantTitle:         "Pagination Limit Invalid",
+			wantMsg:           "",
+			wantDetail:        "Pagination limit must be positive.",
+			wantDetailIsExact: true,
 		},
 		{
-			name:      "limit-negative",
-			query:     "limit=-1",
-			wantCode:  "0331",
-			wantTitle: "Pagination Limit Invalid",
-			wantMsg:   "",
+			name:              "limit-negative",
+			query:             "limit=-1",
+			wantCode:          "0331",
+			wantTitle:         "Pagination Limit Invalid",
+			wantMsg:           "",
+			wantDetail:        "Pagination limit must be positive.",
+			wantDetailIsExact: true,
 		},
 		{
-			name:      "limit-exceeds-max",
-			query:     "limit=1001",
-			wantCode:  "0080",
-			wantTitle: "Pagination Limit Exceeded",
-			wantMsg:   "",
+			name:       "limit-exceeds-max",
+			query:      "limit=1001",
+			wantCode:   "0080",
+			wantTitle:  "Pagination Limit Exceeded",
+			wantMsg:    "",
+			wantDetail: "exceeds the maximum allowed", // detail interpolates the configured max
 		},
 		{
-			name:      "limit-non-numeric",
-			query:     "limit=abc",
-			wantCode:  "0082",
-			wantTitle: "Invalid Query Parameter",
-			wantMsg:   "",
+			name:       "limit-non-numeric",
+			query:      "limit=abc",
+			wantCode:   "0082",
+			wantTitle:  "Invalid Query Parameter",
+			wantMsg:    "",
+			wantDetail: "One or more query parameters are in an incorrect format", // 0082 detail is generic
 		},
 		{
-			name:      "limit-decimal",
-			query:     "limit=10.5",
-			wantCode:  "0082",
-			wantTitle: "Invalid Query Parameter",
-			wantMsg:   "",
+			name:       "limit-decimal",
+			query:      "limit=10.5",
+			wantCode:   "0082",
+			wantTitle:  "Invalid Query Parameter",
+			wantMsg:    "",
+			wantDetail: "One or more query parameters are in an incorrect format", // 0082 detail is generic
 		},
 	}
 
@@ -188,6 +197,12 @@ func TestListTransactionValidations_InvalidLimit_ReturnsError(t *testing.T) {
 			assert.Equal(t, tc.wantCode, errResp.Code, "Expected error code %s for query=%q", tc.wantCode, tc.query)
 			assert.Equal(t, tc.wantTitle, errResp.Title, "Expected title %q for query=%q", tc.wantTitle, tc.query)
 			assert.Equal(t, tc.wantMsg, errResp.Message)
+
+			if tc.wantDetailIsExact {
+				assert.Equal(t, tc.wantDetail, errResp.Detail, "Expected exact detail for query=%q", tc.query)
+			} else {
+				assert.Contains(t, errResp.Detail, tc.wantDetail, "Expected detail to mention %q for query=%q", tc.wantDetail, tc.query)
+			}
 		})
 	}
 }

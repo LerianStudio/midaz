@@ -288,10 +288,9 @@ func extractDevelopMigrations(ctx context.Context, t *testing.T) string {
 }
 
 // resolveHeadMigrationsDir returns the absolute path of the tracer migrations/
-// tree in the current working copy (HEAD of the feature branch). Post
-// monorepo-consolidation the tree lives at components/tracer/migrations, not the
-// repository root; this mirrors the production boot path resolved by the shared
-// integration suite (internal/testutil_integration/testcontainer_suite.go).
+// tree (components/tracer/migrations) in the current working copy; this mirrors
+// the production boot path resolved by the shared integration suite
+// (internal/testutil_integration/testcontainer_suite.go).
 //
 // ctx is threaded into the git subprocess via exec.CommandContext so a
 // cancelled or timed-out test context kills the child process, matching the

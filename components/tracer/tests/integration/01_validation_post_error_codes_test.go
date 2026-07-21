@@ -29,7 +29,13 @@ import (
 // endpoint POST /v1/validations. Errors use the RFC 9457 problem+json
 // envelope with numeric codes from pkg/constant/errors.go; the `title` is the
 // humanized sentinel name and the human-readable text is carried in `detail`
-// (the retired `message` field is empty).
+// (the retired `message` field is empty for these 4xx validation errors).
+//
+// Exception: the problem builder intentionally populates the top-level
+// `message` for payload-too-large (0143 / 413) and gateway-timeout
+// (0422 / 0433 / 504). For >=500 responses the `detail` is scrubbed to a
+// generic string, so those cases assert the human-readable text against
+// `message`, not `detail`.
 //
 // Error Code Mapping (numeric registry):
 //   - Body parse failure (malformed JSON / wrong type) → 0094 (ErrInvalidRequestBody), title "Bad Request"

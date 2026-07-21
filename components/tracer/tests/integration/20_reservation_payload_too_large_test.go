@@ -22,8 +22,7 @@ import (
 // for the reservation endpoint: a POST /v1/reservations body larger than the
 // 100KB limit must be rejected with 413 Payload Too Large and code 0143. The
 // size guard runs before JSON parsing, so the oversized body need not be valid
-// JSON. This is the coverage that was missing when the guard incorrectly mapped
-// to 400 instead of 413.
+// JSON.
 func TestReservation_PayloadTooLarge(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -45,6 +44,8 @@ func TestReservation_PayloadTooLarge(t *testing.T) {
 
 	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode,
 		"Reservation payload >100KB should return 413 Payload Too Large, got body: %s", string(respBody))
+	assert.Contains(t, resp.Header.Get("Content-Type"), "application/problem+json",
+		"413 error must use the RFC 9457 problem+json media type")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
 	assert.Equal(t, "0143", errorResp.Code, "Error code should be 0143 for payload too large")

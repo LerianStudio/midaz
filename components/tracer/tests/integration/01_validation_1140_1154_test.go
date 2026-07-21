@@ -657,7 +657,7 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode,
 		"Amount exceeding CEL precision (2^53) should return 422: %s", string(body))
 
-	var errResp map[string]interface{}
+	var errResp map[string]any
 	require.NoError(t, json.Unmarshal(body, &errResp), "Response body should be valid JSON")
 	assert.Equal(t, "0346", errResp["code"], "Error code should be 0346 (amount exceeds precision)")
 	assert.Equal(t, "Amount Exceeds Precision", errResp["title"])
@@ -842,6 +842,7 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid currency error code")
 	assert.Equal(t, "Validation Invalid Currency", errResp.Title, "Error response should have invalid currency title")
 	assert.Empty(t, errResp.Message, "RFC 9457 carries the human message in detail, not message")
+	assert.Equal(t, "Currency must be valid ISO 4217.", errResp.Detail, "RFC 9457 detail carries the human-readable currency validation message")
 }
 
 // Test 1.1.52: Duplicate requestId returns cached response (idempotent behavior)
