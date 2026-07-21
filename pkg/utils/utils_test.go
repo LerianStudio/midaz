@@ -219,6 +219,11 @@ func TestValidateType(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "valid type - fiat",
+			assetType:   "fiat",
+			expectError: false,
+		},
+		{
 			name:        "valid type - commodity",
 			assetType:   "commodity",
 			expectError: false,

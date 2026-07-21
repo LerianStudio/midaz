@@ -681,7 +681,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidType.Error(),
 			Title:      "Invalid Type",
-			Message:    "The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type.",
+			Message:    "The provided 'type' is not valid. Accepted types are currency, fiat, crypto, commodity, or others. Please provide a valid type.",
 		},
 		constant.ErrTokenMissing: UnauthorizedError{
 			EntityType: entityType,

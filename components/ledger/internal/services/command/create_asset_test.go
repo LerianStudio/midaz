@@ -137,7 +137,19 @@ func TestCreateAsset(t *testing.T) {
 			},
 			mockSetup: func() {},
 
-			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type."),
+			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, fiat, crypto, commodity, or others. Please provide a valid type."),
+			expectedRes: nil,
+		},
+		{
+			name: "failure - fiat asset with non ISO-4217 code",
+			input: &mmodel.CreateAssetInput{
+				Name: "Fake Fiat",
+				Type: "fiat",
+				Code: "ZZZ",
+			},
+			mockSetup: func() {},
+
+			expectedErr: errors.New("0005 - Currency-type assets must comply with the ISO-4217 standard. Please use a currency code that conforms to ISO-4217 guidelines."),
 			expectedRes: nil,
 		},
 		{
