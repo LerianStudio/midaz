@@ -90,7 +90,10 @@ define integ_discover
 endef
 
 # Tracer's integration suite has no CHAOS notion — suppress the root chaos notice.
-integ_chaos_notice =
+# Must expand to a shell no-op (`:`), not empty: the root recipe uses it as
+# `$(integ_chaos_notice); \`, so an empty value leaves a bare `;` that aborts
+# the recipe under /bin/sh with "syntax error near unexpected token ';'".
+integ_chaos_notice = :
 
 # ------------------------------------------------------
 # Test tooling configuration
