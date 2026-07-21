@@ -54,6 +54,10 @@ func (a *redisPingerAdapter) Ping(ctx context.Context) error {
 		return in.ErrRedisConnectionNotEstablished
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	return a.client.Ping(ctx).Err()
 }
 
@@ -121,6 +125,10 @@ const tmStatusMessagePrefix = "tenant manager returned status "
 func (p *tenantManagerHealthProber) Probe(ctx context.Context) (string, error) {
 	if p == nil || p.client == nil {
 		return in.StatusDown, errTenantManagerNotWired
+	}
+
+	if ctx.Err() != nil {
+		return in.StatusDown, errTenantManagerProbe
 	}
 
 	_, err := p.client.GetActiveTenantsByService(ctx, p.service)
@@ -194,6 +202,10 @@ func newStreamingHealthProber(emitter libStreaming.Emitter) in.StreamingHealthPr
 func (p *streamingHealthProber) Probe(ctx context.Context) (string, error) {
 	if p == nil || p.emitter == nil {
 		return in.StatusDown, errStreamingNotWired
+	}
+
+	if ctx.Err() != nil {
+		return in.StatusDown, errStreamingProbe
 	}
 
 	err := p.emitter.Healthy(ctx)

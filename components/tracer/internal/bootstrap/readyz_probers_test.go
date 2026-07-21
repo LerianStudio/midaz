@@ -13,6 +13,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
@@ -38,6 +39,49 @@ func (f fakeEmitter) Emit(_ context.Context, _ libStreaming.EmitRequest) error {
 func (f fakeEmitter) Close() error                                             { return nil }
 func (f fakeEmitter) Healthy(_ context.Context) error                          { return f.healthyErr }
 
+// recordingRedisClient records whether Ping reached the external client. It
+// embeds redis.UniversalClient so it satisfies the interface without stubbing
+// every method; only Ping is overridden, and no other method is exercised.
+type recordingRedisClient struct {
+	redis.UniversalClient
+
+	pingCalled bool
+}
+
+func (c *recordingRedisClient) Ping(ctx context.Context) *redis.StatusCmd {
+	c.pingCalled = true
+
+	return redis.NewStatusCmd(ctx)
+}
+
+// recordingTenantsGetter records whether the external tenant-manager call ran,
+// so a short-circuit on a canceled context can be asserted.
+type recordingTenantsGetter struct {
+	called bool
+	err    error
+}
+
+func (r *recordingTenantsGetter) GetActiveTenantsByService(_ context.Context, _ string) ([]*tmclient.TenantSummary, error) {
+	r.called = true
+
+	return nil, r.err
+}
+
+// recordingEmitter records whether Healthy reached the external emitter, so a
+// short-circuit on a canceled context can be asserted.
+type recordingEmitter struct {
+	healthyErr    error
+	healthyCalled bool
+}
+
+func (r *recordingEmitter) Emit(_ context.Context, _ libStreaming.EmitRequest) error { return nil }
+func (r *recordingEmitter) Close() error                                             { return nil }
+func (r *recordingEmitter) Healthy(_ context.Context) error {
+	r.healthyCalled = true
+
+	return r.healthyErr
+}
+
 func TestRedisPingerAdapter(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +94,23 @@ func TestRedisPingerAdapter(t *testing.T) {
 
 	assert.ErrorIs(t, (&redisPingerAdapter{}).Ping(context.Background()), in.ErrRedisConnectionNotEstablished,
 		"nil underlying client must report connection-not-established")
+}
+
+// TestRedisPingerAdapter_CanceledContext asserts that a canceled context
+// short-circuits before the external PING: the adapter returns the ctx error
+// (probe layer maps it to down) and the underlying client is never touched.
+func TestRedisPingerAdapter_CanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	client := &recordingRedisClient{}
+	adapter := &redisPingerAdapter{client: client}
+
+	err := adapter.Ping(ctx)
+	assert.ErrorIs(t, err, context.Canceled, "canceled context must be returned before the external PING")
+	assert.False(t, client.pingCalled, "external PING must not run once the context is canceled")
 }
 
 func TestTenantManagerHealthProber_Probe(t *testing.T) {
@@ -154,6 +215,26 @@ func TestTenantManagerHealthProber_ClassifiesByStatusClass(t *testing.T) {
 	}
 }
 
+// TestTenantManagerHealthProber_Probe_CanceledContext asserts that a canceled
+// context short-circuits to down with the generic sentinel before the external
+// tenant-manager call runs — preserving the "nothing sensitive on the wire/span"
+// discipline (the raw ctx error is not surfaced).
+func TestTenantManagerHealthProber_Probe_CanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	getter := &recordingTenantsGetter{}
+	prober := &tenantManagerHealthProber{client: getter, service: "tracer"}
+
+	status, probeErr := prober.Probe(ctx)
+	assert.Equal(t, in.StatusDown, status)
+	assert.ErrorIs(t, probeErr, errTenantManagerProbe,
+		"canceled context must yield the generic down sentinel, never the raw ctx error")
+	assert.False(t, getter.called, "external tenant-manager call must not run once the context is canceled")
+}
+
 func TestTenantManagerHealthProber_NotWired(t *testing.T) {
 	t.Parallel()
 
@@ -223,6 +304,25 @@ func TestStreamingHealthProber_NonHealthErrorIsSanitized(t *testing.T) {
 		"non-HealthError fallback must return the generic sentinel, not the raw error")
 	assert.NotContains(t, probeErr.Error(), "kafka-internal-9092",
 		"raw broker/topology detail must never reach the probe span")
+}
+
+// TestStreamingHealthProber_Probe_CanceledContext asserts that a canceled
+// context short-circuits to down with the generic sentinel before Emitter.Healthy
+// runs — same sanitization discipline as the tenant_manager prober.
+func TestStreamingHealthProber_Probe_CanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	emitter := &recordingEmitter{}
+	prober := &streamingHealthProber{emitter: emitter}
+
+	status, probeErr := prober.Probe(ctx)
+	assert.Equal(t, in.StatusDown, status)
+	assert.ErrorIs(t, probeErr, errStreamingProbe,
+		"canceled context must yield the generic down sentinel")
+	assert.False(t, emitter.healthyCalled, "external Healthy call must not run once the context is canceled")
 }
 
 func TestStreamingHealthProber_NotWired(t *testing.T) {
