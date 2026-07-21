@@ -92,7 +92,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID uui
 	return nil
 }
 
-// emitFeesPackageUpdatedEvent publishes fees-package.updated. IMPORTANT posture.
+// emitFeesPackageUpdatedEvent publishes fee-packages.updated. IMPORTANT posture.
 func (uc *UseCase) emitFeesPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *pack.Package, organizationID uuid.UUID) {
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
@@ -275,7 +275,8 @@ func (uc *UseCase) SetAmountsDataToUpdate(ctx context.Context, logger libLog.Log
 	// validating max and min amount range of a package
 	if errRange := uc.ValidatePackageMaxAndMinAmountRange(
 		ctx, logger, maxAmount, minAmount, feesAmountData.GetTransactionRoute(),
-		organizationID, feesAmountData.LedgerID, feesAmountData.SegmentID, packageID); errRange != nil {
+		organizationID, feesAmountData.LedgerID, feesAmountData.SegmentID, packageID,
+	); errRange != nil {
 		return errRange
 	}
 

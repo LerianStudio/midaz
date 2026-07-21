@@ -30,8 +30,8 @@ var billingPkgDeletedTime = time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 
 // TestFeesBillingPackageDeletedDefinition_Key locks the canonical event key.
 func TestFeesBillingPackageDeletedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fees-billing-package.deleted", events.FeesBillingPackageDeletedDefinition.Key())
-	assert.Equal(t, "fees-billing-package", events.FeesBillingPackageDeletedDefinition.ResourceType)
+	assert.Equal(t, "fee-billing-packages.deleted", events.FeesBillingPackageDeletedDefinition.Key())
+	assert.Equal(t, "fee-billing-packages", events.FeesBillingPackageDeletedDefinition.ResourceType)
 	assert.Equal(t, "deleted", events.FeesBillingPackageDeletedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesBillingPackageDeletedDefinition.SchemaVersion)
 }
@@ -40,7 +40,8 @@ func TestFeesBillingPackageDeletedDefinition_Key(t *testing.T) {
 // deleted payload including RFC3339 formatting of the deletion timestamp.
 func TestNewFeesBillingPackageDeleted_Maps(t *testing.T) {
 	payload := events.NewFeesBillingPackageDeleted(
-		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime)
+		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime,
+	)
 
 	assert.Equal(t, billingPkgDeletedID, payload.ID)
 	assert.Equal(t, billingPkgDeletedOrgID, payload.OrganizationID)
@@ -52,7 +53,8 @@ func TestNewFeesBillingPackageDeleted_Maps(t *testing.T) {
 // helper composes a fully-populated EmitRequest and round-trips the payload.
 func TestFeesBillingPackageDeletedPayload_ToEmitRequest(t *testing.T) {
 	payload := events.NewFeesBillingPackageDeleted(
-		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime)
+		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime,
+	)
 
 	req, err := payload.ToEmitRequest("tenant-1", billingPkgDeletedTime)
 	require.NoError(t, err)
@@ -71,7 +73,8 @@ func TestFeesBillingPackageDeletedPayload_ToEmitRequest(t *testing.T) {
 // asserts every fee-detail / account / monetary field is ABSENT.
 func TestFeesBillingPackageDeletedPayload_JSONShape(t *testing.T) {
 	payload := events.NewFeesBillingPackageDeleted(
-		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime)
+		billingPkgDeletedID, billingPkgDeletedOrgID, billingPkgDeletedLedgerID, billingPkgDeletedTime,
+	)
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)

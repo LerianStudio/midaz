@@ -313,7 +313,7 @@ func TestCreatePackage(t *testing.T) {
 }
 
 // TestCreatePackage_EmitsFeesPackageCreated asserts a successful create emits
-// the fees-package.created event through the mock emitter.
+// the fee-packages.created event through the mock emitter.
 func TestCreatePackage_EmitsFeesPackageCreated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -362,7 +362,7 @@ func TestCreatePackage_EmitsFeesPackageCreated(t *testing.T) {
 	_, err := svc.CreatePackage(context.Background(), input, orgID, ledgerID, segID)
 	require.NoError(t, err)
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fees-package", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-packages", "created")
 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1)

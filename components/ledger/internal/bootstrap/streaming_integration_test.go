@@ -208,8 +208,8 @@ func streamingITExpectations() []streamingITExpectation {
 
 	return []streamingITExpectation{
 		{
-			name:       "fees-package.created",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesPackageCreatedDefinition.Key()),
+			name:       "fee-packages.created",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageCreatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesPackageCreatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -219,8 +219,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fees-package.updated",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesPackageUpdatedDefinition.Key()),
+			name:       "fee-packages.updated",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageUpdatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesPackageUpdatedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "enable", "createdAt", "updatedAt"},
@@ -230,8 +230,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fees-package.deleted",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesPackageDeletedDefinition.Key()),
+			name:       "fee-packages.deleted",
+			topic:      pkgStreaming.TopicName("fee", events.FeesPackageDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesPackageDeletedDefinition.Key(),
 			subject:    packageID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -241,8 +241,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fees-billing-package.created",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesBillingPackageCreatedDefinition.Key()),
+			name:       "fee-billing-packages.created",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageCreatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageCreatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -255,8 +255,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fees-billing-package.updated",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesBillingPackageUpdatedDefinition.Key()),
+			name:       "fee-billing-packages.updated",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageUpdatedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageUpdatedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "type", "enable", "createdAt", "updatedAt"},
@@ -269,8 +269,8 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			name:       "fees-billing-package.deleted",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesBillingPackageDeletedDefinition.Key()),
+			name:       "fee-billing-packages.deleted",
+			topic:      pkgStreaming.TopicName("fee", events.FeesBillingPackageDeletedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesBillingPackageDeletedDefinition.Key(),
 			subject:    billingID,
 			requireKey: []string{"id", "organizationId", "ledgerId", "deletedAt"},
@@ -281,8 +281,8 @@ func streamingITExpectations() []streamingITExpectation {
 		},
 		{
 			// ce-subject for fees.applied is the TRANSACTION id, not a package id.
-			name:       "fees.applied",
-			topic:      pkgStreaming.TopicName(streamingServiceName, events.FeesAppliedDefinition.Key()),
+			name:       "fee-charge.applied",
+			topic:      pkgStreaming.TopicName("fee", events.FeesAppliedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesAppliedDefinition.Key(),
 			subject:    transactionID,
 			requireKey: []string{"transactionId", "organizationId", "ledgerId", "feePackageId", "appliedAt"},

@@ -26,8 +26,8 @@ const feesPackageOrgID = "0190d9e1-7c2a-7000-8000-0000000000f3"
 const feesPackageLedgerID = "0190d9e1-7c2a-7000-8000-0000000000f2"
 
 func TestFeesPackageCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "fees-package.created", events.FeesPackageCreatedDefinition.Key())
-	assert.Equal(t, "fees-package", events.FeesPackageCreatedDefinition.ResourceType)
+	assert.Equal(t, "fee-packages.created", events.FeesPackageCreatedDefinition.Key())
+	assert.Equal(t, "fee-packages", events.FeesPackageCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.FeesPackageCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesPackageCreatedDefinition.SchemaVersion)
 }

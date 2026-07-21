@@ -38,9 +38,11 @@ import (
 // host port (CLAUDE.md "Streaming / Local testing": bind 19092).
 const strmDefaultBroker = "localhost:19092"
 
-// strmServiceName mirrors bootstrap/streaming.go streamingServiceName; topics
-// are rendered via pkgStreaming.TopicName and take the shape
-// "lerian.streaming.<service>_<resource>.<event>".
+// strmServiceName is the ledger-core producing service segment; topics are
+// rendered via pkgStreaming.TopicName and take the shape
+// "lerian.streaming.<service>_<resource>.<event>". Fees route under "fee" and
+// CRM under "crm" (see bootstrap/streaming.go per-product registry); those are
+// passed explicitly at their call sites, not via this const.
 const strmServiceName = "ledger"
 
 // strmCEType is the reverse-DNS namespace prepended to every ce-type header by
@@ -433,7 +435,7 @@ func TestStreamingTransactionPostedEmitted(t *testing.T) {
 // TestStreamingHolderCreateEmitsNothing pins the negative contract: holder
 // creation has NO streaming emit (components/ledger/internal/crm/services/
 // create-holder.go contains no Emit call). We create a holder and confirm no
-// record carrying its id surfaces on any lerian.streaming.holder.* topic
+// record carrying its id surfaces on any lerian.streaming.crm_holder.* topic
 // within a short window. The holder-created and holder-updated topics are
 // probed explicitly; both must stay silent. A non-empty match is a regression
 // (an emit was added without a wire-contract event).
@@ -448,7 +450,7 @@ func TestStreamingHolderCreateEmitsNothing(t *testing.T) {
 	// keeps the test fast. If the broker auto-creates the topic, an empty log
 	// simply yields found=false.
 	for _, suffix := range []string{"created", "updated"} {
-		topic := pkgStreaming.TopicName(strmServiceName, "holder."+suffix)
+		topic := pkgStreaming.TopicName("crm", "holder."+suffix)
 
 		_, _, _, found := strmConsumeMatch(t, topic, holderID, 4*time.Second)
 		if found {

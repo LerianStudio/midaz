@@ -12,15 +12,15 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming"
 )
 
-// FeesAppliedDefinition is the routing contract for fees.applied.
+// FeesAppliedDefinition is the routing contract for fee-charge.applied.
 // IMPORTANT posture: emit failures MUST NOT fail the request.
 var FeesAppliedDefinition = Definition{
-	ResourceType:  "fees",
+	ResourceType:  "fee-charge",
 	EventType:     "applied",
 	SchemaVersion: "1.0.0",
 }
 
-// FeesAppliedPayload is the wire payload for fees.applied. Only the transaction
+// FeesAppliedPayload is the wire payload for fee-charge.applied. Only the transaction
 // identity, org/ledger scope, the applied fee package reference, and the
 // application timestamp cross the wire. Monetary and detail surface (amounts,
 // asset codes, source/destination, operations, metadata, fee lines,

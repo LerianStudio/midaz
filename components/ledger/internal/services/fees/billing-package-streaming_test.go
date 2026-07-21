@@ -71,9 +71,9 @@ func TestCreateBillingPackage_EmitsCreatedEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	pkgStreaming.AssertEventEmitted(t, mock, "fees-billing-package", "created")
+	pkgStreaming.AssertEventEmitted(t, mock, "fee-billing-packages", "created")
 
-	req := findEmittedByKey(t, mock, "fees-billing-package", "created")
+	req := findEmittedByKey(t, mock, "fee-billing-packages", "created")
 	assert.Equal(t, result.ID, req.Subject)
 
 	var payload struct {
@@ -112,9 +112,9 @@ func TestUpdateBillingPackage_EmitsUpdatedEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	pkgStreaming.AssertEventEmitted(t, mock, "fees-billing-package", "updated")
+	pkgStreaming.AssertEventEmitted(t, mock, "fee-billing-packages", "updated")
 
-	req := findEmittedByKey(t, mock, "fees-billing-package", "updated")
+	req := findEmittedByKey(t, mock, "fee-billing-packages", "updated")
 	assert.Equal(t, bpID.String(), req.Subject)
 
 	var payload struct {
@@ -153,9 +153,9 @@ func TestDeleteBillingPackage_EmitsDeletedEvent(t *testing.T) {
 	err := svc.DeleteBillingPackage(context.Background(), bpID, orgID)
 	require.NoError(t, err)
 
-	pkgStreaming.AssertEventEmitted(t, mock, "fees-billing-package", "deleted")
+	pkgStreaming.AssertEventEmitted(t, mock, "fee-billing-packages", "deleted")
 
-	req := findEmittedByKey(t, mock, "fees-billing-package", "deleted")
+	req := findEmittedByKey(t, mock, "fee-billing-packages", "deleted")
 	assert.Equal(t, bpID.String(), req.Subject)
 
 	var payload struct {

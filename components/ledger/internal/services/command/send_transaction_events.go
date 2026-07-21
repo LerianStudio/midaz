@@ -239,14 +239,14 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 
-	// fees.applied rides alongside transaction.posted only. Commit/cancel/
+	// fee-charge.applied rides alongside transaction.posted only. Commit/cancel/
 	// revert do NOT re-emit it (the fee charge happened once, at post).
 	if posted {
 		uc.emitFeesAppliedEvent(ctx, span, logger, tran)
 	}
 }
 
-// emitFeesAppliedEvent emits fees.applied for a posted transaction that
+// emitFeesAppliedEvent emits fee-charge.applied for a posted transaction that
 // actually charged a fee. It fires only when feeApplied=true and a
 // packageAppliedID are present in metadata (charged-only, set by the fee
 // engine on the real-charge branch); pure exemptions carry neither. IMPORTANT

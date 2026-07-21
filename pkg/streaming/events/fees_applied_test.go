@@ -32,8 +32,8 @@ const feesAppliedPackageID = "0190d9e1-7c2a-7000-8000-0000000000a4"
 func TestFeesAppliedDefinition_Key(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "fees.applied", events.FeesAppliedDefinition.Key())
-	assert.Equal(t, "fees", events.FeesAppliedDefinition.ResourceType)
+	assert.Equal(t, "fee-charge.applied", events.FeesAppliedDefinition.Key())
+	assert.Equal(t, "fee-charge", events.FeesAppliedDefinition.ResourceType)
 	assert.Equal(t, "applied", events.FeesAppliedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesAppliedDefinition.SchemaVersion)
 }

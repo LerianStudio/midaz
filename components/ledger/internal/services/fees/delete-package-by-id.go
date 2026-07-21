@@ -72,7 +72,7 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uui
 	return nil
 }
 
-// emitFeesPackageDeletedEvent publishes fees-package.deleted. IMPORTANT posture.
+// emitFeesPackageDeletedEvent publishes fee-packages.deleted. IMPORTANT posture.
 func (uc *UseCase) emitFeesPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID uuid.UUID, deletedAt time.Time) {
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
