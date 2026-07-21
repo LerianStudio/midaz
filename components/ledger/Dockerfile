@@ -29,6 +29,11 @@ LABEL org.opencontainers.image.licenses="Elastic-2.0"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
+# The :nonroot base defaults WORKDIR to /home/nonroot, but the ledger resolves
+# its migration source from the CWD-relative "components/ledger/migrations/...".
+# Pin WORKDIR to / so that relative path resolves to the staged files below.
+WORKDIR /
+
 COPY --from=builder /app /app
 COPY --from=builder /ledger-app/components/ledger/migrations/onboarding /components/ledger/migrations/onboarding
 COPY --from=builder /ledger-app/components/ledger/migrations/transaction /components/ledger/migrations/transaction

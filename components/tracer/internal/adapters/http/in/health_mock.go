@@ -122,3 +122,119 @@ func (mr *MockPostgresDBProviderMockRecorder) IsConnected() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsConnected", reflect.TypeOf((*MockPostgresDBProvider)(nil).IsConnected))
 }
+
+// MockRedisPinger is a mock of RedisPinger interface.
+type MockRedisPinger struct {
+	ctrl     *gomock.Controller
+	recorder *MockRedisPingerMockRecorder
+	isgomock struct{}
+}
+
+// MockRedisPingerMockRecorder is the mock recorder for MockRedisPinger.
+type MockRedisPingerMockRecorder struct {
+	mock *MockRedisPinger
+}
+
+// NewMockRedisPinger creates a new mock instance.
+func NewMockRedisPinger(ctrl *gomock.Controller) *MockRedisPinger {
+	mock := &MockRedisPinger{ctrl: ctrl}
+	mock.recorder = &MockRedisPingerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRedisPinger) EXPECT() *MockRedisPingerMockRecorder {
+	return m.recorder
+}
+
+// Ping mocks base method.
+func (m *MockRedisPinger) Ping(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Ping", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Ping indicates an expected call of Ping.
+func (mr *MockRedisPingerMockRecorder) Ping(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockRedisPinger)(nil).Ping), ctx)
+}
+
+// MockTenantManagerProber is a mock of TenantManagerProber interface.
+type MockTenantManagerProber struct {
+	ctrl     *gomock.Controller
+	recorder *MockTenantManagerProberMockRecorder
+	isgomock struct{}
+}
+
+// MockTenantManagerProberMockRecorder is the mock recorder for MockTenantManagerProber.
+type MockTenantManagerProberMockRecorder struct {
+	mock *MockTenantManagerProber
+}
+
+// NewMockTenantManagerProber creates a new mock instance.
+func NewMockTenantManagerProber(ctrl *gomock.Controller) *MockTenantManagerProber {
+	mock := &MockTenantManagerProber{ctrl: ctrl}
+	mock.recorder = &MockTenantManagerProberMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTenantManagerProber) EXPECT() *MockTenantManagerProberMockRecorder {
+	return m.recorder
+}
+
+// Probe mocks base method.
+func (m *MockTenantManagerProber) Probe(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Probe", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Probe indicates an expected call of Probe.
+func (mr *MockTenantManagerProberMockRecorder) Probe(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Probe", reflect.TypeOf((*MockTenantManagerProber)(nil).Probe), ctx)
+}
+
+// MockStreamingHealthProber is a mock of StreamingHealthProber interface.
+type MockStreamingHealthProber struct {
+	ctrl     *gomock.Controller
+	recorder *MockStreamingHealthProberMockRecorder
+	isgomock struct{}
+}
+
+// MockStreamingHealthProberMockRecorder is the mock recorder for MockStreamingHealthProber.
+type MockStreamingHealthProberMockRecorder struct {
+	mock *MockStreamingHealthProber
+}
+
+// NewMockStreamingHealthProber creates a new mock instance.
+func NewMockStreamingHealthProber(ctrl *gomock.Controller) *MockStreamingHealthProber {
+	mock := &MockStreamingHealthProber{ctrl: ctrl}
+	mock.recorder = &MockStreamingHealthProberMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockStreamingHealthProber) EXPECT() *MockStreamingHealthProberMockRecorder {
+	return m.recorder
+}
+
+// Probe mocks base method.
+func (m *MockStreamingHealthProber) Probe(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Probe", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Probe indicates an expected call of Probe.
+func (mr *MockStreamingHealthProberMockRecorder) Probe(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Probe", reflect.TypeOf((*MockStreamingHealthProber)(nil).Probe), ctx)
+}
