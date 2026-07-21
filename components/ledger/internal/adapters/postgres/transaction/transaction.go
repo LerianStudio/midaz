@@ -12,10 +12,10 @@ import (
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 )
 
@@ -28,8 +28,6 @@ type CountFilter struct {
 }
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
-//
-// @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
 	ID                       string                    // Unique identifier (UUID format)
 	ParentTransactionID      *string                   // Parent transaction ID (for reversals or child transactions)
@@ -47,13 +45,12 @@ type TransactionPostgreSQLModel struct {
 	DeletedAt                sql.NullTime              // Deletion timestamp (if soft-deleted)
 	Route                    *string                   // Deprecated: legacy route identifier. Use RouteID instead.
 	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
+	FeesSkipped              bool                      // Honored per-call fee skip (audit trail)
+	TracerSkipped            bool                      // Honored per-call tracer skip (audit trail)
 	Metadata                 map[string]any            // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Status
-// @Description Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.
 type Status struct {
 	// Status code identifying the state of the transaction
 	// example: ACTIVE
@@ -64,7 +61,7 @@ type Status struct {
 	// example: Active status
 	// maxLength: 256
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
-} // @name Status
+}
 
 // IsEmpty method that set empty or nil in fields
 func (s Status) IsEmpty() bool {
@@ -72,9 +69,6 @@ func (s Status) IsEmpty() bool {
 }
 
 // InputDSL is a struct design to encapsulate payload data.
-//
-// swagger:model InputDSL
-// @Description Template-based transaction input for creating transactions from predefined templates with variable substitution.
 type InputDSL struct {
 	// Transaction type identifier
 	// example: 00000000-0000-0000-0000-000000000000
@@ -92,9 +86,6 @@ type InputDSL struct {
 }
 
 // UpdateTransactionInput is a struct design to encapsulate payload data.
-//
-// swagger:model UpdateTransactionInput
-// @Description UpdateTransactionInput is the input payload to update a transaction. Contains fields that can be modified after a transaction is created.
 type UpdateTransactionInput struct {
 	// Human-readable description of the transaction
 	// example: Transaction description
@@ -104,12 +95,9 @@ type UpdateTransactionInput struct {
 	// Additional custom attributes
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} // @name UpdateTransactionInput
+}
 
 // Transaction is a struct designed to encapsulate response payload data.
-//
-// swagger:model Transaction
-// @Description Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.
 type Transaction struct {
 	// Unique identifier for the transaction
 	// example: 00000000-0000-0000-0000-000000000000
@@ -177,6 +165,14 @@ type Transaction struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
+	// Whether an honored per-call fee skip bypassed the fee engine for this transaction
+	// example: false
+	FeesSkipped bool `json:"feesSkipped" example:"false"`
+
+	// Whether an honored per-call tracer skip bypassed the tracer reserve for this transaction
+	// example: false
+	TracerSkipped bool `json:"tracerSkipped" example:"false"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -198,7 +194,7 @@ type Transaction struct {
 
 	// List of operations associated with this transaction
 	Operations []*operation.Operation `json:"operations"`
-} // @name Transaction
+}
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
 func (t Transaction) IDtoUUID() uuid.UUID {
@@ -222,6 +218,8 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
+		FeesSkipped:              t.FeesSkipped,
+		TracerSkipped:            t.TracerSkipped,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -264,6 +262,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
+		FeesSkipped:              transaction.FeesSkipped,
+		TracerSkipped:            transaction.TracerSkipped,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
 	}
@@ -421,8 +421,6 @@ func (t Transaction) buildReversalLegs() (froms, tos []mtransaction.FromTo, from
 //
 // This struct is serialized via msgpack to RabbitMQ. The msgpack tags preserve
 // backward compatibility with messages serialized before the rename.
-//
-// @Description Container for transaction data exchanged via message queues.
 type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
 	Validate *mtransaction.Responses `json:"validate" msgpack:"Validate"`
@@ -450,20 +448,12 @@ type TransactionProcessingPayload struct {
 }
 
 // TransactionResponse represents a success response containing a single transaction.
-//
-// swagger:response TransactionResponse
-// @Description Successful response containing a single transaction entity.
 type TransactionResponse struct {
-	// in: body
 	Body Transaction
 }
 
 // TransactionsResponse represents a success response containing a paginated list of transactions.
-//
-// swagger:response TransactionsResponse
-// @Description Successful response containing a paginated list of transactions.
 type TransactionsResponse struct {
-	// in: body
 	Body struct {
 		Items      []Transaction `json:"items"`
 		Pagination struct {

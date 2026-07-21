@@ -12,16 +12,15 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -67,10 +66,12 @@ const (
 // at create_bulk_transaction_operations_async.go:555 which only does
 // fresh inserts) pass TransactionLifecyclePhaseCreated explicitly.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if !isTransactionEventEnabled() {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
+		logger.Log(ctx, libLog.LevelDebug, "Transaction event not enabled",
+			libLog.String("rabbitmq_transaction_events_enabled", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
+
 		return
 	}
 
@@ -81,7 +82,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal transaction to JSON string: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal transaction to JSON string", libLog.Err(err))
 	}
 
 	event := mmodel.Event{
@@ -103,8 +104,6 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	key.WriteString(".")
 	key.WriteString(tran.Status.Code)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Sending transaction events to key: %s", key.String()))
-
 	message, err := json.Marshal(event)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal exchange message struct", err)
@@ -120,7 +119,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	); err != nil {
 		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to send transaction events to exchange", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send message: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to send message", libLog.Err(err))
 	}
 
 	// lib-streaming emission runs alongside the rabbit publish during
@@ -189,6 +188,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 	var (
 		definitionKey string
 		buildFn       func(string) (libStreaming.EmitRequest, error)
+		posted        bool
 	)
 
 	switch phase {
@@ -210,6 +210,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 			buildFn = func(tenantID string) (libStreaming.EmitRequest, error) {
 				return events.NewTransactionPosted(src).ToEmitRequestPosted(tenantID, time.Now())
 			}
+			posted = true
 		}
 	case TransactionLifecyclePhaseUpdated:
 		switch tran.Status.Code {
@@ -224,7 +225,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 				return events.NewTransactionCanceled(src).ToEmitRequestCanceled(tenantID, time.Now())
 			}
 		default:
-			logger.Log(ctx, libLog.LevelInfo, "Skipping transaction lifecycle emit; updated phase with non-terminal status",
+			logger.Log(ctx, libLog.LevelDebug, "Skipping transaction lifecycle emit; updated phase with non-terminal status",
 				libLog.String("status", tran.Status.Code),
 				libLog.String("phase", phase))
 
@@ -237,6 +238,36 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 	}
 
 	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+
+	// fees.applied rides alongside transaction.posted only. Commit/cancel/
+	// revert do NOT re-emit it (the fee charge happened once, at post).
+	if posted {
+		uc.emitFeesAppliedEvent(ctx, span, logger, tran)
+	}
+}
+
+// emitFeesAppliedEvent emits fees.applied for a posted transaction that
+// actually charged a fee. It fires only when feeApplied=true and a
+// packageAppliedID are present in metadata (charged-only, set by the fee
+// engine on the real-charge branch); pure exemptions carry neither. IMPORTANT
+// posture: EmitImportant swallows build/emit failures.
+func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
+	if applied, _ := tran.Metadata["feeApplied"].(string); applied != "true" {
+		return
+	}
+
+	packageID, _ := tran.Metadata["packageAppliedID"].(string)
+	if packageID == "" {
+		return
+	}
+
+	appliedAt := tran.CreatedAt
+
+	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewFeesApplied(tran.ID, tran.OrganizationID, tran.LedgerID, packageID, appliedAt).
+				ToEmitRequest(tenantID, appliedAt)
+		})
 }
 
 // buildTransactionEventSource maps a persisted Transaction into the
@@ -295,6 +326,8 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		RouteID:                  tran.RouteID,
 		Operations:               operationsRaw,
 		Metadata:                 tran.Metadata,
+		FeesSkipped:              tran.FeesSkipped,
+		TracerSkipped:            tran.TracerSkipped,
 		CreatedAt:                tran.CreatedAt,
 		UpdatedAt:                tran.UpdatedAt,
 	}, nil

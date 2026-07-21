@@ -21,8 +21,17 @@ echo "${CYAN}----------------------------------------------${NC}"
 # Check for error logging in usecases
 echo "${CYAN}Checking for proper error logging in usecases...${NC}"
 
-# Define directories to check
-COMPONENTS=("./components/onboarding" "./components/transaction")
+# Enumerate component directories the same way check-tests.sh does: glob
+# ./components/* and keep only dirs that contain Go files. Post-consolidation
+# this auto-covers ledger (which absorbed onboarding/transaction/crm/fees) plus
+# tracer and reporter, without hardcoding any component path.
+COMPONENTS=()
+for component in ./components/*; do
+    [ -d "$component" ] || continue
+    if find "$component" -name "*.go" -type f | grep -q .; then
+        COMPONENTS+=("$component")
+    fi
+done
 
 # Define patterns to search for
 MISSING_LOG_PATTERN="return err"

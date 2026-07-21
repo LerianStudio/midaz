@@ -11,8 +11,8 @@ import (
 	"time"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/stretchr/testify/assert"
 )
 

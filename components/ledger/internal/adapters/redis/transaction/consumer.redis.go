@@ -15,15 +15,14 @@ import (
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -37,10 +36,26 @@ var balanceAtomicOperationLua string
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
 
+// balanceAtomicScript and claimBalanceSyncScript are built once at package init.
+// redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
+// per-call hot paths (runBalanceAtomicScript, GetBalanceSyncKeys,
+// GetBalanceSyncKeysLegacy) avoids re-hashing on every invocation. *redis.Script
+// is safe for concurrent use.
+var (
+	balanceAtomicScript    = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript = redis.NewScript(claimBalanceSyncKeysLua)
+)
+
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
 const TransactionBackupQueue = "backup_queue:{transactions}"
+
+// TransactionBackupAttemptsQueue is the parallel hash tracking how many consumer
+// cycles have failed to replay each backup record. Field keys match those of
+// TransactionBackupQueue. The shared {transactions} hash tag co-locates both
+// keys in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
+const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
 
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
 // to prevent oversized payloads. Operations with more items are split into chunks.
@@ -96,6 +111,15 @@ type RedisRepository interface {
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// IncrementBackupAttempt atomically increments the failure counter for a backup
+	// record in the parallel attempts hash and returns the new count. Returns the
+	// new value and nil on success. Used by the backup consumer to track how many
+	// cycles a poison record has failed before quarantining it.
+	IncrementBackupAttempt(ctx context.Context, key string) (int64, error)
+	// ClearBackupAttempt removes the failure counter field for a backup record from
+	// the parallel attempts hash. Called after a record is successfully replayed or
+	// after it has been durably quarantined, to keep the attempts hash bounded.
+	ClearBackupAttempt(ctx context.Context, key string) error
 	// GetBalanceSyncKeys claims due balance keys from the ZSET schedule using a Lua script.
 	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
 	// Returns the claimed keys with their scores for conditional removal later.
@@ -158,7 +182,7 @@ func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) 
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
@@ -189,7 +213,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
@@ -220,7 +244,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
@@ -257,7 +281,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 // MGet retrieves multiple values from redis.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
 func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.mget")
 	defer span.End()
@@ -324,7 +348,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
@@ -361,7 +385,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 }
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
@@ -637,7 +661,7 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 const luaArgsPerOperation = 24
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.build_balance_atomic_operation_plan")
 	defer span.End()
@@ -800,14 +824,12 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 }
 
 func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any) (any, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
 	defer span.End()
 
-	script := redis.NewScript(balanceAtomicOperationLua)
-
-	result, err := script.Run(ctx, rds, keys, finalArgs...).Result()
+	result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
 
@@ -829,7 +851,7 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 }
 
 func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	collected := make([]*mmodel.Balance, 0, len(balances))
 	for _, balanceRedis := range balances {
@@ -851,7 +873,7 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 }
 
 func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
 	defer span.End()
@@ -878,7 +900,7 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 }
 
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
 	defer span.End()
@@ -932,7 +954,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
@@ -967,7 +989,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 }
 
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
@@ -999,7 +1021,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 // AddMessageToQueue add message to redis queue
 func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
 	defer span.End()
@@ -1034,7 +1056,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 
 // ReadMessageFromQueue read an especific message from redis queue
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
 	defer span.End()
@@ -1070,7 +1092,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 
 // ReadAllMessagesFromQueue read all messages from redis queue
 func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
 	defer span.End()
@@ -1094,14 +1116,12 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Messages read on redis queue successfully")
-
 	return data, nil
 }
 
 // RemoveMessageFromQueue remove message from redis queue
 func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
 	defer span.End()
@@ -1134,9 +1154,92 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	return nil
 }
 
+// IncrementBackupAttempt atomically increments the per-record failure counter in
+// the parallel attempts hash and returns the new count.
+func (rr *RedisConsumerRepository) IncrementBackupAttempt(ctx context.Context, key string) (int64, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.increment_backup_attempt")
+	defer span.End()
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupAttemptsQueue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace attempts queue key", err)
+
+		return 0, err
+	}
+
+	key, err = tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return 0, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return 0, err
+	}
+
+	count, err := rds.HIncrBy(ctx, prefixedQueue, key, 1).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to increment backup attempt", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to increment backup attempt", libLog.Err(err))
+
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// ClearBackupAttempt removes the per-record failure counter field from the
+// parallel attempts hash.
+func (rr *RedisConsumerRepository) ClearBackupAttempt(ctx context.Context, key string) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.clear_backup_attempt")
+	defer span.End()
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupAttemptsQueue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace attempts queue key", err)
+
+		return err
+	}
+
+	key, err = tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to clear backup attempt", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to clear backup attempt", libLog.Err(err))
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Backup attempt counter cleared", libLog.String("key", key))
+
+	return nil
+}
+
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.
 func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")
 	defer span.End()
@@ -1148,9 +1251,6 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 		return nil, err
 	}
-
-	// Use the claim_balance_sync_keys.lua script to claim the balance sync keys.
-	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
@@ -1173,7 +1273,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	// If a worker crashes after claiming, keys become re-claimable after this TTL expires.
 	const claimTTLSeconds int64 = 600 // 10 minutes
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua", libLog.Err(err))
@@ -1189,7 +1289,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Claimed balance sync keys",
+	logger.Log(ctx, libLog.LevelDebug, "Claimed balance sync keys",
 		libLog.Int("count", len(out)))
 
 	return out, nil
@@ -1200,7 +1300,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 // scores because both are in the ~1e9 range. Microsecond scores (~1e15) will never be
 // "due" and remain in the ZSET until TTL expiry or manual cleanup.
 func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys_legacy")
 	defer span.End()
@@ -1212,8 +1312,6 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 
 		return nil, err
 	}
-
-	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKeyLegacy)
 	if err != nil {
@@ -1233,7 +1331,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 
 	const claimTTLSeconds int64 = 600
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
+	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua (legacy)", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)", libLog.Err(err))
@@ -1250,7 +1348,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	}
 
 	if len(out) > 0 {
-		logger.Log(ctx, libLog.LevelInfo, "Claimed legacy balance sync keys",
+		logger.Log(ctx, libLog.LevelDebug, "Claimed legacy balance sync keys",
 			libLog.Int("count", len(out)))
 	}
 
@@ -1314,7 +1412,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 		return nil
 	}
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.schedule_balance_sync_batch")
 	defer span.End()
@@ -1381,7 +1479,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 }
 
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.list_balance_by_key")
 	defer span.End()
@@ -1486,7 +1584,7 @@ const balanceCacheSettingsTTL = 3600 * time.Second
 // Errors are surfaced to the caller so the command layer can decide whether to
 // log (best-effort) or escalate; this method does not swallow them internally.
 func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_settings")
 	defer span.End()
@@ -1626,7 +1724,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 		return make(map[string]*mmodel.BalanceRedis), nil
 	}
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balances_by_keys")
 	defer span.End()
@@ -1705,7 +1803,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 		return 0, nil
 	}
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_keys_batch")
 	defer span.End()

@@ -7,8 +7,7 @@ package command
 import (
 	"context"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/google/uuid"
@@ -17,15 +16,12 @@ import (
 // ReloadOperationRouteCache reloads the cache for all transaction routes associated with the given operation route.
 // It retrieves all transaction routes linked to the operation route and recreates their cache entries.
 func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.reload_operation_route_cache")
 	defer span.End()
 
 	operationRouteIDStr := id.String()
-
-	logger.Log(ctx, libLog.LevelInfo, "Reloading operation route cache",
-		libLog.String("operation_route_id", operationRouteIDStr))
 
 	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, id)
 	if err != nil {
@@ -39,15 +35,11 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 	}
 
 	if len(transactionRouteIDs) == 0 {
-		logger.Log(ctx, libLog.LevelInfo, "No transaction routes found for operation route, no cache reload needed",
+		logger.Log(ctx, libLog.LevelDebug, "No transaction routes found for operation route, no cache reload needed",
 			libLog.String("operation_route_id", operationRouteIDStr))
 
 		return nil
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Found transaction routes associated with operation route",
-		libLog.Int("transaction_route_count", len(transactionRouteIDs)),
-		libLog.String("operation_route_id", operationRouteIDStr))
 
 	for _, transactionRouteID := range transactionRouteIDs {
 		transactionRouteIDStr := transactionRouteID.String()
@@ -72,13 +64,7 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 
 			continue
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully reloaded cache for transaction route",
-			libLog.String("transaction_route_id", transactionRouteIDStr))
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully completed cache reload for operation route",
-		libLog.String("operation_route_id", operationRouteIDStr))
 
 	return nil
 }

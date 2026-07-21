@@ -7,37 +7,31 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 )
 
 // CountLedgers returns the total count of ledgers for a specific organization.
 func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (int64, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_ledgers")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting ledgers for organization: %s", organizationID))
-
 	count, err := uc.LedgerRepo.Count(ctx, organizationID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting ledgers on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error counting ledgers on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No ledgers found for organization: %s", organizationID.String()))
+			logger.Log(ctx, libLog.LevelWarn, "No ledgers found for organization")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count ledgers on repo", err)
 

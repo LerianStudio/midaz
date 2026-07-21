@@ -1,0 +1,67 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package query
+
+//go:generate mockgen -source=get_rule.go -destination=repository_mock.go -package=query
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	libObservability "github.com/LerianStudio/lib-observability"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+)
+
+// RuleRepository defines the interface for rule persistence (read operations).
+// Interface defined in the package that USES it (per PROJECT_RULES.md).
+type RuleRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, error)
+}
+
+// GetRuleQuery handles retrieving a rule by ID.
+type GetRuleQuery struct {
+	repo RuleRepository
+}
+
+// NewGetRuleQuery creates a new GetRuleQuery instance.
+func NewGetRuleQuery(repo RuleRepository) *GetRuleQuery {
+	return &GetRuleQuery{
+		repo: repo,
+	}
+}
+
+// Execute retrieves a rule by ID.
+func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (_ *model.Rule, retErr error) {
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.rule.get")
+	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, factory, logger, "tracer", "rule_get", start, retErr)
+	}()
+
+	rule, err := q.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, constant.ErrRuleNotFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to get rule", err)
+
+		return nil, err
+	}
+
+	return rule, nil
+}

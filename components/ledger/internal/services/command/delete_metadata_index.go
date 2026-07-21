@@ -6,26 +6,22 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	// DeleteMetadataIndex removes a metadata index from a specific entity collection.
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexName string) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_metadata_index")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initializing the delete metadata index operation: entity=%s, index=%s", entityName, indexName))
 
 	if !strings.HasPrefix(indexName, "metadata.") {
 		err := pkg.ValidateBusinessError(constant.ErrMetadataIndexDeletionForbidden, "metadata_index")
@@ -39,12 +35,10 @@ func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexNam
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete metadata index", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete metadata index: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to delete metadata index", libLog.Err(err))
 
 		return err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Metadata index deleted successfully: %v", indexName))
 
 	return nil
 }

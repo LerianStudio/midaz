@@ -1,0 +1,12 @@
+# Docker daemon vulnerabilities (AuthZ plugin bypass, plugin privilege off-by-one).
+# These CVEs can be triggered by client access or user actions against the daemon.
+# Suppression is conditional on:
+#   - The testcontainers-go daemon is isolated from untrusted network access
+#   - No untrusted plugins are installed in test or CI environments
+# This project uses github.com/docker/docker as an indirect dependency
+# (via testcontainers-go for integration tests and golang-migrate for DB migrations).
+# Docker v29 fix (29.3.1) is not available as a Go module tag (module path
+# changed to github.com/moby/moby/v2). No backport exists for v28.x.
+# Re-evaluate when docker/docker publishes v29+ Go module tags.
+CVE-2026-34040 exp:2026-06-30
+CVE-2026-33997 exp:2026-06-30

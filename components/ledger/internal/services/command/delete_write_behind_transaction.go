@@ -7,12 +7,11 @@ package command
 import (
 	"context"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -20,7 +19,7 @@ import (
 // Called by the consumer after successfully persisting the transaction to Postgres.
 // Errors are logged but do not block the consumer flow.
 func (uc *UseCase) DeleteWriteBehindTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_write_behind_transaction")
 	defer span.End()

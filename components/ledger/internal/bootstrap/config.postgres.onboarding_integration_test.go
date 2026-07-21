@@ -16,17 +16,16 @@
 //
 // Run with:
 //
-//	go test -tags integration -v -run TestIntegration_InitPostgres ./components/onboarding/internal/bootstrap/...
+//	go test -tags integration -v -run TestIntegration_InitOnboardingPostgres ./components/ledger/internal/bootstrap/...
 package bootstrap
 
 import (
 	"context"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,28 +34,28 @@ import (
 // INTEGRATION TEST INFRASTRUCTURE
 // =============================================================================
 
-// integrationTestInfra holds resources for bootstrap integration tests with a
+// onboardingIntegrationTestInfra holds resources for bootstrap integration tests with a
 // real PostgreSQL container.
-type integrationTestInfra struct {
+type onboardingIntegrationTestInfra struct {
 	pgResult *pgtestutil.ContainerResult
 }
 
-// setupBootstrapIntegrationInfra creates a PostgreSQL container and returns the
+// setupOnboardingBootstrapIntegrationInfra creates a PostgreSQL container and returns the
 // infrastructure needed for bootstrap integration tests.
-func setupBootstrapIntegrationInfra(t *testing.T) *integrationTestInfra {
+func setupOnboardingBootstrapIntegrationInfra(t *testing.T) *onboardingIntegrationTestInfra {
 	t.Helper()
 
 	pgResult := pgtestutil.SetupContainer(t)
 
-	return &integrationTestInfra{
+	return &onboardingIntegrationTestInfra{
 		pgResult: pgResult,
 	}
 }
 
-// buildTestConfig creates a Config populated with the real container's connection
+// buildOnboardingTestConfig creates a Config populated with the real container's connection
 // details so that buildPostgresConnection and the init* functions connect to the
 // test container instead of a production database.
-func (infra *integrationTestInfra) buildTestConfig() *Config {
+func (infra *onboardingIntegrationTestInfra) buildOnboardingTestConfig() *Config {
 	return &Config{
 		OnbPrefixedPrimaryDBHost:     infra.pgResult.Host,
 		OnbPrefixedPrimaryDBUser:     infra.pgResult.Config.DBUser,
@@ -81,11 +80,16 @@ func (infra *integrationTestInfra) buildTestConfig() *Config {
 // initSingleTenantPostgres with a real PostgreSQL container produces a
 // postgresComponents with a connected connection and all repositories initialized.
 func TestIntegration_InitOnboardingPostgres_SingleTenantProducesWorkingRepos(t *testing.T) {
-	infra := setupBootstrapIntegrationInfra(t)
+	infra := setupOnboardingBootstrapIntegrationInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildTestConfig()
+	cfg := infra.buildOnboardingTestConfig()
+
+	// Single-tenant init runs migrations from a relative path resolved against
+	// the working directory, so the test must run from the project root.
+	restoreDir := changeToProjectRoot(t)
+	defer restoreDir()
 
 	// Restore the default connector so the real PostgreSQL container is used.
 	// The unit test file overrides postgresConnector; here we need the real one.
@@ -129,11 +133,11 @@ func TestIntegration_InitOnboardingPostgres_SingleTenantProducesWorkingRepos(t *
 // TenantClient produces a postgresComponents with pgManager set and all
 // repositories initialized.
 func TestIntegration_InitOnboardingPostgres_MultiTenantProducesWorkingRepos(t *testing.T) {
-	infra := setupBootstrapIntegrationInfra(t)
+	infra := setupOnboardingBootstrapIntegrationInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildTestConfig()
+	cfg := infra.buildOnboardingTestConfig()
 
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
@@ -187,11 +191,11 @@ func TestIntegration_InitOnboardingPostgres_MultiTenantProducesWorkingRepos(t *t
 // buildPostgresConnection creates a PostgresConnection whose connection string
 // matches the real container and can be used to establish a live connection.
 func TestIntegration_InitOnboardingPostgres_BuildConnectionProducesConnectable(t *testing.T) {
-	infra := setupBootstrapIntegrationInfra(t)
+	infra := setupOnboardingBootstrapIntegrationInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildTestConfig()
+	cfg := infra.buildOnboardingTestConfig()
 
 	conn, err := buildOnboardingPostgresConnection(cfg, logger)
 	require.NoError(t, err, "buildPostgresConnection must return no error")
@@ -222,11 +226,16 @@ func TestIntegration_InitOnboardingPostgres_BuildConnectionProducesConnectable(t
 // multi-tenant initialization based on Options, producing working components
 // in both cases.
 func TestIntegration_InitOnboardingPostgres_DispatcherRoutesCorrectly(t *testing.T) {
-	infra := setupBootstrapIntegrationInfra(t)
+	infra := setupOnboardingBootstrapIntegrationInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	cfg := infra.buildTestConfig()
+	cfg := infra.buildOnboardingTestConfig()
+
+	// The single-tenant sub-test runs migrations from a relative path resolved
+	// against the working directory, so the test must run from the project root.
+	restoreDir := changeToProjectRoot(t)
+	defer restoreDir()
 
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
@@ -292,7 +301,7 @@ func TestIntegration_InitOnboardingPostgres_DispatcherRoutesCorrectly(t *testing
 // the real PG container. This complements the unit test by proving the
 // connection actually works, not just that the string is formatted correctly.
 func TestIntegration_InitOnboardingPostgres_PrefixedFallbackConnects(t *testing.T) {
-	infra := setupBootstrapIntegrationInfra(t)
+	infra := setupOnboardingBootstrapIntegrationInfra(t)
 
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
@@ -411,15 +420,5 @@ func TestIntegration_InitOnboardingPostgres_MultiTenantInvalidConfigReturnsError
 		"error must contain descriptive context")
 }
 
-// =============================================================================
-// HELPERS (integration-specific)
-// =============================================================================
-
-// closePGConnection is a helper that safely closes a PostgresConnection's
-// underlying DB handle. PostgresConnection does not have a Close method;
-// we must close the ConnectionDB directly.
-func closePGConnection(conn *libPostgres.Client) {
-	if conn != nil {
-		_ = conn.Close()
-	}
-}
+// closePGConnection (the shared connection-close helper) is defined once in
+// config.postgres.transaction_integration_test.go and reused here.

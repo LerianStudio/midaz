@@ -30,23 +30,24 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	rabbitmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	rabbitmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -100,6 +101,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -113,6 +115,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		LedgerRepo:              ledgerRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
@@ -135,11 +138,44 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
 	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
 
+	// The create-transaction path reads ledger settings via LedgerRepo.GetSettings,
+	// but the `ledger` table lives in the onboarding module (absent from the
+	// transaction-only container). Provision a minimal ledger row so settings
+	// resolution returns empty (validators default off) instead of erroring.
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+
 	// Setup Fiber app with routes
 	infra.app = fiber.New()
 	infra.setupRoutes()
 
 	return infra
+}
+
+// seedLedgerSettings provisions a minimal `ledger` table and a single settings
+// row for the given org/ledger in the transaction-only test container. The
+// onboarding migrations (which own the real ledger table) are not loaded here,
+// so we create just the columns LedgerRepo.GetSettings reads. Empty settings
+// make ParseLedgerSettings fall back to defaults (route/account-type validation
+// disabled).
+func seedLedgerSettings(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) {
+	t.Helper()
+
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS ledger (
+			id              UUID PRIMARY KEY NOT NULL,
+			organization_id UUID NOT NULL,
+			settings        JSONB NOT NULL DEFAULT '{}',
+			deleted_at      TIMESTAMP WITH TIME ZONE
+		)`)
+	require.NoError(t, err, "failed to create ledger table for settings seed")
+
+	_, err = db.Exec(`
+		INSERT INTO ledger (id, organization_id, settings)
+		VALUES ($1, $2, '{}')
+		ON CONFLICT (id) DO NOTHING`,
+		ledgerID, orgID,
+	)
+	require.NoError(t, err, "failed to seed ledger settings row")
 }
 
 // setupRoutes registers handler routes on the Fiber app.
@@ -196,6 +232,34 @@ func getBalanceFromRedis(t *testing.T, ctx context.Context, redisRepo redis.Redi
 	}
 
 	return &balance
+}
+
+// drainBalanceSync flushes scheduled balance mutations from Redis to PostgreSQL.
+//
+// In production, hot balances are mutated atomically in Redis by the Lua script
+// during validation, while cold (PostgreSQL) balances are persisted asynchronously
+// by BalanceSyncWorker, which claims due keys from the schedule:balance-sync ZSET
+// and calls SyncBalancesBatch. These handler-level integration tests do not run
+// that worker, so they must drive the same drain explicitly before asserting on
+// PostgreSQL balance state. This mirrors the worker's claim -> SyncBalancesBatch
+// loop, iterating until the schedule is empty so concurrent bursts are fully
+// flushed.
+func drainBalanceSync(t *testing.T, ctx context.Context, commandUC *command.UseCase, redisRepo redis.RedisRepository, orgID, ledgerID uuid.UUID) {
+	t.Helper()
+
+	const claimLimit int64 = 1000
+
+	for {
+		keys, err := redisRepo.GetBalanceSyncKeys(ctx, claimLimit)
+		require.NoError(t, err, "failed to claim balance sync keys")
+
+		if len(keys) == 0 {
+			return
+		}
+
+		_, err = commandUC.SyncBalancesBatch(ctx, orgID, ledgerID, keys)
+		require.NoError(t, err, "failed to sync balances to PostgreSQL")
+	}
 }
 
 // TestIntegration_TransactionHandler_CreateTransactionJSON_Sync validates that
@@ -331,6 +395,10 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T)
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatus,
 		"database transaction status should be APPROVED after sync processing")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker) before
+	// asserting on durable balance state.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Assert: Source balance decreased by 100 (1000 -> 900)
 	sourceAvailable := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -597,6 +665,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -622,6 +691,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		LedgerRepo:              ledgerRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
@@ -643,6 +713,11 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
 	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
 	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Provision a minimal ledger settings row (see seedLedgerSettings) so the
+	// create-transaction path can resolve settings against the transaction-only
+	// container.
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
 
 	// Setup Fiber app with routes
 	infra.app = fiber.New()
@@ -671,7 +746,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	require.NoError(t, err, "failed to initialize telemetry")
 
 	// Create consumer routes (used by newTestMultiQueueConsumer during test execution)
-	infra.consumerRoutes = rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
+	consumerRoutes, err := rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
+	require.NoError(t, err, "failed to create consumer routes")
+	infra.consumerRoutes = consumerRoutes
 
 	return infra
 }
@@ -896,6 +973,12 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 	assert.Equal(t, cn.APPROVED, dbStatus,
 		"database transaction status should be APPROVED after async processing")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker) before
+	// asserting on durable balance state. The async consumer persists the
+	// transaction/operations but, like sync mode, leaves cold-balance
+	// persistence to the sync worker.
+	drainBalanceSync(t, context.Background(), infra.commandUC, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Assert: Source balance decreased by 100 (1000 -> 900)
 	sourceAvailable := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	assert.True(t, sourceAvailable.Equal(decimal.NewFromInt(900)),
@@ -1086,6 +1169,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	assert.Equal(t, cn.PENDING, dbStatus,
 		"transaction status should be PENDING after creation")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Assert: Source balance in PostgreSQL - Available decreased, OnHold increased
 	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1154,6 +1240,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	dbStatusAfterCommit := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatusAfterCommit,
 		"transaction status should be APPROVED after commit")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Assert: Source balance in PostgreSQL - Available=900, OnHold=0 (released)
 	sourceAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1293,9 +1382,10 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	commitBody, err := io.ReadAll(commitResp.Body)
 	require.NoError(t, err, "should read commit response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	assert.True(t, commitResp.StatusCode == 400 || commitResp.StatusCode == 422,
-		"expected HTTP 400 or 422 for commit on non-pending, got %d: %s", commitResp.StatusCode, string(commitBody))
+	// Assert: Should return 409 Conflict — committing a non-PENDING transaction is
+	// a state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, commitResp.StatusCode,
+		"expected HTTP 409 for commit on non-pending, got %d: %s", commitResp.StatusCode, string(commitBody))
 }
 
 // TestIntegration_TransactionHandler_RevertOnPending_Returns4xx validates that
@@ -1380,13 +1470,10 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	revertBody, err := io.ReadAll(revertResp.Body)
 	require.NoError(t, err, "should read revert response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	// Note: If this returns 500, it indicates a known backend issue
-	if revertResp.StatusCode == 500 {
-		t.Logf("WARNING: Revert on PENDING returned 500 (known backend issue): %s", string(revertBody))
-	}
-	assert.True(t, revertResp.StatusCode == 400 || revertResp.StatusCode == 422 || revertResp.StatusCode == 500,
-		"expected HTTP 400, 422, or 500 for revert on pending, got %d: %s", revertResp.StatusCode, string(revertBody))
+	// Assert: Should return 409 Conflict — reverting a PENDING transaction is a
+	// state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, revertResp.StatusCode,
+		"expected HTTP 409 for revert on pending, got %d: %s", revertResp.StatusCode, string(revertBody))
 }
 
 // TestIntegration_TransactionHandler_PendingTransaction_Revert validates the full
@@ -1487,6 +1574,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	dbStatusAfterCommit := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.APPROVED, dbStatusAfterCommit, "transaction should be APPROVED after commit")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify balances after commit
 	sourceAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	destAvailableAfterCommit := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, destBalanceID)
@@ -1536,6 +1626,9 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	reversalStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, *reversalTxID)
 	assert.Equal(t, cn.APPROVED, reversalStatus,
 		"reversal transaction should have status APPROVED")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Verify balances returned to original state
 	sourceAvailableAfterRevert := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1657,6 +1750,9 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.PENDING, dbStatus, "transaction should be PENDING after creation")
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Source balance: available=800, onHold=200 (funds reserved)
 	sourceAvailableAfterCreate := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
 	sourceOnHoldAfterCreate := postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1707,6 +1803,9 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	dbStatusAfterCancel := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.Equal(t, cn.CANCELED, dbStatusAfterCancel,
 		"transaction status should be CANCELED after cancel")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Source balance: available=1000 (restored), onHold=0 (released)
 	sourceAvailableAfterCancel := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, sourceBalanceID)
@@ -1821,9 +1920,10 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	cancelBody, err := io.ReadAll(cancelResp.Body)
 	require.NoError(t, err, "should read cancel response body")
 
-	// Assert: Should return 4xx (400 or 422)
-	assert.True(t, cancelResp.StatusCode == 400 || cancelResp.StatusCode == 422,
-		"expected HTTP 400 or 422 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
+	// Assert: Should return 409 Conflict — cancelling a non-PENDING transaction is
+	// a state conflict (error 0099), reclassified from 422 to 409 in the API contract.
+	assert.Equal(t, 409, cancelResp.StatusCode,
+		"expected HTTP 409 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
 }
 
 // TestIntegration_TransactionHandler_ConcurrentMixedTransactions validates that
@@ -2002,6 +2102,11 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 	t.Logf("Concurrent test results: outSucc=%d outFails=%d inSucc=%d inFails=%d expected=%s",
 		outSucc, outFails, inSucc, inFails, expectedBalance.String())
 
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker). The
+	// concurrent burst schedules many sync keys; the drain loops until the
+	// schedule is empty.
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
 	// Verify PostgreSQL balance
 	pgBalance := postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balanceID)
 	assert.True(t, pgBalance.Equal(expectedBalance),
@@ -2142,6 +2247,9 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
 	assert.NotEmpty(t, dbStatus, "transaction should exist in database")
+
+	// Flush Redis hot balances to PostgreSQL (mirrors BalanceSyncWorker).
+	drainBalanceSync(t, context.Background(), infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	// Verify balance was only affected once
 	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
@@ -2285,6 +2393,158 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 		"source balance should be %s (only first transaction), got %s", expectedBalance.String(), sourceBalance.String())
 
 	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
+}
+
+// TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the
+// EPIC 4.2 runtime proof that the Redis-backed idempotency replay returns the FIRST
+// transaction's outcome regardless of the replayer's body — specifically, a skip
+// object set only on the second request is IGNORED.
+//
+// Direction (deliberate, no-seed): the FIRST request carries NO skip object, so it
+// needs no per-ledger override and persists fees_skipped=false. The SECOND request
+// reuses the same idempotency key but adds skip.fees=true. If the replayer's body
+// were honored, the second request would hit the two-key skip gate and — because
+// this ledger has no Allow*Skip override seeded — return 422 ErrSkipNotPermitted
+// ("0490"). Instead it must replay the first outcome: HTTP 201, same transaction id,
+// X-Idempotency-Replayed=true, and feesSkipped=false. The 201-not-422 result is
+// itself proof the replayer's skip never reached the gate.
+//
+// Out of integration scope here (already unit-covered): the gate's
+// zero-downstream-call and settings-read-count==1 invariants
+// (TestApplyFees_NoOpWhenSkipHonored / TestApplyFees_SkipHonoredTouchesNoFeeDependency
+// in transaction_fee_application_test.go; TestCreateAccountHolderSkip in
+// services/command/create_account_holder_test.go; the two-key truth table in
+// pkg/skip/skip_test.go TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422).
+func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Note: cannot use t.Parallel() because setupTestInfra uses t.Setenv.
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	sourceAlias := "@source-idem-skip"
+	destAlias := "@dest-idem-skip"
+
+	initialBalance := decimal.NewFromInt(1000)
+	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
+	sourceBalanceParams.Alias = sourceAlias
+	sourceBalanceParams.AssetCode = "USD"
+	sourceBalanceParams.Available = initialBalance
+	sourceBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
+
+	destBalanceParams := postgrestestutil.DefaultBalanceParams()
+	destBalanceParams.Alias = destAlias
+	destBalanceParams.AssetCode = "USD"
+	destBalanceParams.Available = decimal.Zero
+	destBalanceParams.OnHold = decimal.Zero
+	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
+
+	// First request: NO skip object -> needs no override, persists fees_skipped=false.
+	firstBody := fmt.Sprintf(`{
+		"send": {
+			"asset": "USD",
+			"value": "50",
+			"source": {
+				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	// Second request: SAME idempotency key, but adds skip.fees=true.
+	secondBody := fmt.Sprintf(`{
+		"skip": {"fees": true},
+		"send": {
+			"asset": "USD",
+			"value": "50",
+			"source": {
+				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			},
+			"distribute": {
+				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "50"}}]
+			}
+		}
+	}`, sourceAlias, destAlias)
+
+	idempotencyKey := "idem-skip-" + uuid.New().String()
+
+	// First POST.
+	req1 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(firstBody))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("X-Idempotency", idempotencyKey)
+	req1.Header.Set("X-TTL", "60")
+
+	resp1, err := infra.app.Test(req1, -1)
+	require.NoError(t, err, "first request should not fail")
+
+	body1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err, "should read first response body")
+	require.Equal(t, 201, resp1.StatusCode,
+		"first request (no skip) should return 201, got %d: %s", resp1.StatusCode, string(body1))
+
+	var result1 map[string]any
+	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
+	assert.Equal(t, false, result1["feesSkipped"],
+		"first transaction should persist feesSkipped=false (no skip requested)")
+
+	// Wait for the async goroutine to write the idempotency outcome to Redis.
+	time.Sleep(200 * time.Millisecond)
+
+	// Second POST: same key, replayer adds skip.fees=true.
+	req2 := httptest.NewRequest("POST",
+		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
+		bytes.NewBufferString(secondBody))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("X-Idempotency", idempotencyKey)
+	req2.Header.Set("X-TTL", "60")
+
+	resp2, err := infra.app.Test(req2, -1)
+	require.NoError(t, err, "second request should not fail")
+
+	body2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err, "should read second response body")
+
+	// MANDATORY assertion: the replay returns the FIRST outcome, the replayer's
+	// differing skip is IGNORED. A 422 here would mean the skip gate ran on the
+	// replay (it must not); a 201 with feesSkipped=true would mean the second
+	// body leaked into the replayed result (it must not).
+	require.Equal(t, 201, resp2.StatusCode,
+		"replay must return 201 (first outcome), NOT 422 from the replayer's skip gate; got %d: %s",
+		resp2.StatusCode, string(body2))
+
+	replayed2 := resp2.Header.Get("X-Idempotency-Replayed")
+	assert.Equal(t, "true", replayed2,
+		"second request should be flagged as a replay, got %q", replayed2)
+
+	var result2 map[string]any
+	require.NoError(t, json.Unmarshal(body2, &result2), "second response should be valid JSON")
+
+	assert.Equal(t, result1["id"], result2["id"],
+		"replay must return the same transaction id as the first request")
+	assert.Equal(t, false, result2["feesSkipped"],
+		"replay must return the FIRST transaction's audit state (feesSkipped=false); the replayer's skip.fees=true is ignored")
+
+	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
+	txID, err := uuid.Parse(result1["id"].(string))
+	require.NoError(t, err, "transaction ID should be valid UUID")
+
+	var dbFeesSkipped, dbTracerSkipped bool
+	err = infra.pgContainer.DB.QueryRow(
+		`SELECT fees_skipped, tracer_skipped FROM transaction WHERE id = $1`, txID,
+	).Scan(&dbFeesSkipped, &dbTracerSkipped)
+	require.NoError(t, err, "should read persisted skip-audit columns")
+	assert.False(t, dbFeesSkipped, "persisted fees_skipped must be false (first outcome, replayer skip ignored)")
+	assert.False(t, dbTracerSkipped, "persisted tracer_skipped must be false")
 }
 
 // TestIntegration_Property_Transaction_Amounts tests that various transaction amount values

@@ -17,15 +17,14 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
+	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,18 +48,10 @@ func setupCacheQueryTestInfra(t *testing.T) *cacheQueryTestInfra {
 	// Setup PostgreSQL
 	pgContainer := pgtestutil.SetupContainer(t)
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	txRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(conn)
 
@@ -68,7 +59,7 @@ func setupCacheQueryTestInfra(t *testing.T) *cacheQueryTestInfra {
 	redisContainer := redistestutil.SetupContainer(t)
 	redisConn := redistestutil.CreateConnection(t, redisContainer.Addr)
 
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -92,9 +83,9 @@ func setupCacheQueryTestInfra(t *testing.T) *cacheQueryTestInfra {
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredAfterDBMiss(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, nonExistentID)
@@ -125,10 +116,10 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredAfterDBMiss(
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredForDifferentNonExistentRoutes(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistent1 := libCommons.GenerateUUIDv7()
-	nonExistent2 := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistent1 := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistent2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -162,9 +153,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredForDifferent
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelHitReturnsCachedNotFound(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -184,9 +175,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelHitReturnsCachedNo
 func TestIntegration_GetOrCreateTransactionRouteCache_ManualSentinelInRedisReturnsCachedNotFound(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	arbitraryID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	arbitraryID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, arbitraryID)
@@ -207,9 +198,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_ManualSentinelInRedisRetur
 func TestIntegration_GetOrCreateTransactionRouteCache_MultipleSentinelHitsConsistent(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -234,9 +225,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_MultipleSentinelHitsConsis
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelExpiryTriggersDBLookup(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 	internalKey := utils.AccountingRoutesInternalKey(orgID, ledgerID, nonExistentID)
@@ -278,8 +269,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelExpiryTriggersDBLo
 func TestIntegration_GetOrCreateTransactionRouteCache_FreshCacheReturned(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes in DB
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source Route", "source")
@@ -318,8 +309,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_FreshCacheReturned(t *test
 func TestIntegration_GetOrCreateTransactionRouteCache_HitReturnsCachedData(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes and transaction route in DB
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -351,8 +342,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_HitReturnsCachedData(t *te
 func TestIntegration_GetOrCreateTransactionRouteCache_CacheMissPopulatesCache(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -396,8 +387,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_CacheMissPopulatesCache(t 
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelOverwrittenByValidCache(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create route in DB first (we need a real route ID to test cache overwrite)
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -447,8 +438,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelOverwrittenByValid
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelOverwrittenByDBFetch(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create route in DB first
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -495,8 +486,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelOverwrittenByDBFet
 func TestIntegration_GetOrCreateTransactionRouteCache_CorruptedCacheFallsBackToDB(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create DB data
 	sourceRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Source", "source")
@@ -533,9 +524,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_CorruptedCacheFallsBackToD
 func TestIntegration_GetOrCreateTransactionRouteCache_CorruptedCacheForNonExistentRoute(t *testing.T) {
 	infra := setupCacheQueryTestInfra(t)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

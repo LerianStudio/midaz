@@ -13,21 +13,28 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateOrganization creates a new organization and persists it in the repository.
-func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
+func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (_ *mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_organization", start, err)
+	}()
 
 	status := coi.Status
 	if status.Code == "" {
@@ -70,6 +77,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
 
+	uc.provisionSelfHolder(ctx, span, logger, org)
+
 	// NOTE: The organization is already persisted at this point. If metadata creation
 	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
 	// known consistency gap that affects all entity creates. A proper fix requires
@@ -96,4 +105,35 @@ func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOrganizationCreated(org).ToEmitRequest(tenantID, org.CreatedAt)
 		})
+}
+
+// provisionSelfHolder eagerly creates the organization's deterministic self-holder
+// (a LEGAL_PERSON holder whose ID is derived from the org ID via UUIDv5). It runs
+// after the PG commit and is non-fatal: there is no cross-store transaction, so a
+// Mongo failure is span-recorded, logged at Warn, and swallowed. The idempotent
+// backfill runner is the repair path for any miss.
+func (uc *UseCase) provisionSelfHolder(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
+	if uc.HolderProvisioner == nil {
+		return
+	}
+
+	organizationID, err := uuid.Parse(org.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse organization ID for self-holder", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to parse organization ID for self-holder provisioning", libLog.Err(err))
+
+		return
+	}
+
+	holderType := "LEGAL_PERSON"
+	input := &mmodel.CreateHolderInput{
+		Type:     &holderType,
+		Name:     org.LegalName,
+		Document: org.LegalDocument,
+	}
+
+	if _, err := uc.HolderProvisioner.CreateHolderWithID(ctx, org.ID, deriveSelfHolderID(organizationID), input); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to provision organization self-holder", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to provision organization self-holder", libLog.Err(err))
+	}
 }

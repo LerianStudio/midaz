@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Lerian Studio. All rights reserved.
+# Use of this source code is governed by the Elastic License 2.0
+# that can be found in the LICENSE file.
+
+# Redocly lint config for the CONSOLIDATED spec (postman/specs/midaz.openapi.yaml).
+#
+# Baseline is the built-in `recommended` ruleset. The consolidated_lint_check()
+# gate in check-docs.sh runs `redocly lint` against this config so that a NEW
+# problem introduced by the `redocly join` merge (a broken $ref, a dropped
+# security scheme, a structurally invalid document) still fails the gate.
+#
+# The per-component sources are now native Huma OAS 3.1 dumps
+# (components/{ledger,tracer}/api/openapi.huma.yaml), regenerated from struct
+# tags by TestOpenAPISpecDump; swaggo/openapi-generator have been fully retired.
+# Every rule below has been re-verified against those Huma dumps. Only three
+# remain relaxed, each because it still fires on the current Huma output — the
+# reason is documented per rule. The rest (no-server-trailing-slash,
+# no-server-example.com, security-defined, no-unused-components,
+# no-invalid-schema-examples) produced zero findings on the Huma dumps and were
+# re-enabled here.
+
+extends:
+  - recommended
+
+rules:
+  # JOIN ARTIFACT — intentional. `redocly join` relocates each component's
+  # server into a per-path `servers` block and leaves the root `servers` empty.
+  # That per-path relocation is the whole reason we use join; an empty root
+  # `servers` is the expected shape of the joined document.
+  no-empty-servers: off
+
+  # HUMA OUTPUT — the ledger and tracer Huma handlers declare their error
+  # responses via the shared RFC 9457 problem model, but the generated OAS does
+  # not always emit an explicit 4xx entry per operation (71 operations across
+  # both components, e.g. countOrganizations and the ledger accounts/assets/
+  # balances CRUD). This is a characteristic of the native Huma dumps, not the
+  # join. Kept off until the Huma response registration adds explicit 4xx
+  # entries; re-enabling would flood the gate with 71 known-benign warnings and
+  # mask a real future regression of the same rule.
+  operation-4xx-response: off
+
+  # HUMA OUTPUT — the ledger declares
+  # /organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances
+  # and .../accounts/{account_id}/operations, which redocly considers ambiguous
+  # against their sibling collection paths. Both are legitimate ledger routes
+  # present in the ledger Huma dump. Kept off; the ambiguity is structural to the
+  # ledger API surface, not introduced by the join.
+  no-ambiguous-paths: off

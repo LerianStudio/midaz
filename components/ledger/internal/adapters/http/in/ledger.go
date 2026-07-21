@@ -5,20 +5,21 @@
 package in
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -29,148 +30,71 @@ type LedgerHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateLedger is a method that creates Ledger information.
+// --- Transport-agnostic cores -------------------------------------------------
 //
-//	@Summary		Create a new ledger
-//	@Description	Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.
-//	@Tags			Ledgers
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
-//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
-//	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger details including name, status, and optional metadata"
-//	@Success		201				{object}	mmodel.Ledger				"Successfully created ledger"
-//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error				"Organization not found"
-//	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers [post]
-func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+// The createLedger/updateLedger/... methods below own the span, the service call
+// and the success log. They take primitive args (parsed UUIDs, the already-decoded
+// payload, the query map) so BOTH transports feed them: the Fiber wrappers pull
+// those from *fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the
+// Huma handlers (ledger_handler_huma.go) pull them from the request envelope. Every
+// canonical Midaz error the cores return is rendered by the caller — http.WithError
+// on the Fiber path, http.HumaProblem on the Huma path — so code + HTTP status are
+// identical across both transports (no native Huma 422).
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// createLedger owns the span + service call + success log for an already-decoded
+// payload. Body decode+validation happens BEFORE this core (Fiber: WithBody
+// decorator; Huma: http.DecodeAndValidate), so create is identical across transports.
+func (handler *LedgerHandler) createLedger(ctx context.Context, organizationID uuid.UUID, payload *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := i.(*mmodel.CreateLedgerInput)
 	logSafePayload(ctx, logger, "Request to create a ledger", payload)
-
 	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger on command", err)
+		handleSpanByErrorClass(span, "Failed to create ledger on command", err)
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Successfully created ledger")
-
-	return http.Created(c, ledger)
+	return ledger, nil
 }
 
-// GetLedgerByID is a method that retrieves Ledger information by a given id.
-//
-//	@Summary		Retrieve a specific ledger
-//	@Description	Returns detailed information about a ledger identified by its UUID within the specified organization
-//	@Tags			Ledgers
-//	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Success		200				{object}	mmodel.Ledger	"Successfully retrieved ledger"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [get]
-func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// getLedgerByID retrieves a single ledger.
+func (handler *LedgerHandler) getLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Ledger with ID: %s", id.String()))
-
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve ledger on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve ledger on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Ledger with ID: %s", id.String()))
-
-	return http.OK(c, ledger)
+	return ledger, nil
 }
 
-// GetAllLedgers is a method that retrieves all ledgers.
-//
-//	@Summary		List all ledgers
-//	@Description	Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria
-//	@Tags			Ledgers
-//	@Produce		json
-//	@Param			Authorization	header		string																false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string																false	"Request ID for tracing"
-//	@Param			organization_id	path		string																true	"Organization ID in UUID format"
-//	@Param			metadata		query		string																false	"JSON string to filter ledgers by metadata fields"
-//	@Param			limit			query		int																	false	"Maximum number of records to return per page"	default(10)	minimum(1)	maximum(100)
-//	@Param			page			query		int																	false	"Page number for pagination"					default(1)	minimum(1)
-//	@Param			start_date		query		string																false	"Filter ledgers created on or after this date (format: YYYY-MM-DD)"
-//	@Param			end_date		query		string																false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Param			name			query		string																false	"Filter ledgers by name (case-insensitive, prefix match)"	maxLength(256)
-//	@Param			status			query		string																false	"Filter ledgers by status"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Ledger}	"Successfully retrieved ledgers list"
-//	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error														"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error														"Organization not found"
-//	@Failure		500				{object}	mmodel.Error														"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers [get]
-func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// getAllLedgers binds the query map imperatively (http.ValidateParameters — the
+// SAME binder the Fiber path used), enforces the ledger-specific status allowlist
+// and the metadata/name-filter mutual exclusion, then returns the assembled
+// pagination envelope. Every rejection is a canonical 400 (no native Huma 422).
+func (handler *LedgerHandler) getAllLedgers(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	headerParams, err := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
-
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	if headerParams.Status != nil && !isValidStatus(*headerParams.Status, ledgerAllowedStatuses) {
@@ -180,7 +104,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate ledger status query parameter", libLog.String("status", *headerParams.Status), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
 
 	recordSafeQueryAttributes(span, headerParams)
@@ -199,203 +123,273 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers by metadata")
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all ledgers by metadata", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Ledgers, Error: %s", err.Error()))
-
-			return http.WithError(c, err)
+			return http.Pagination{}, err
 		}
-
-		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Ledgers by metadata")
 
 		pagination.SetItems(ledgers)
 
-		return http.OK(c, pagination)
+		return pagination, nil
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers")
 
 	headerParams.Metadata = &bson.M{}
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all ledgers on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all ledgers on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Ledgers, Error: %s", err.Error()))
-
-		return http.WithError(c, err)
+		return http.Pagination{}, err
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Ledgers")
 
 	pagination.SetItems(ledgers)
 
-	return http.OK(c, pagination)
+	return pagination, nil
 }
 
-// UpdateLedger is a method that updates Ledger information.
-//
-//	@Summary		Update an existing ledger
-//	@Description	Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.
-//	@Tags			Ledgers
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
-//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
-//	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger fields to update. Only supplied fields will be modified."
-//	@Success		200				{object}	mmodel.Ledger				"Successfully updated ledger"
-//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error				"Ledger or organization not found"
-//	@Failure		500				{object}	mmodel.Error				"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [patch]
-func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// updateLedger owns the span + service call + success log for an already-decoded
+// payload (see createLedger for the decode split across transports).
+func (handler *LedgerHandler) updateLedger(ctx context.Context, organizationID, id uuid.UUID, payload *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Ledger with ID: %s", id.String()))
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	payload := p.(*mmodel.UpdateLedgerInput)
-	logSafePayload(ctx, logger, fmt.Sprintf("Request to update ledger with ID: %s", id.String()), payload)
-
+	logSafePayload(ctx, logger, "Request to update ledger", payload)
 	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on command", err)
+		handleSpanByErrorClass(span, "Failed to update ledger on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Ledger with ID: %s", id.String()))
-
-	return http.OK(c, ledger)
+	return ledger, nil
 }
 
-// DeleteLedgerByID is a method that removes Ledger information by a given id.
-//
-//	@Summary		Delete a ledger
-//	@Description	Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.
-//	@Tags			Ledgers
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Success		204				"Ledger successfully deleted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
-//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
-//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete ledger with dependent resources"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id} [delete]
-func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// deleteLedger removes a ledger. The production-environment guard (ENV_NAME) is
+// enforced HERE so both transports refuse the delete identically (canonical 0008 /
+// 403 forbidden), not just on the Fiber path.
+func (handler *LedgerHandler) deleteLedger(ctx context.Context, organizationID, id uuid.UUID) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	id, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
-
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, constant.EntityLedger)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
+		handleSpanByErrorClass(span, "Failed to remove ledger on command", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Ledger with ID: %s in production", id.String()))
-
-		return http.WithError(c, err)
+		return err
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
+		handleSpanByErrorClass(span, "Failed to remove ledger on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Ledger with ID: %s", id.String()))
-
-	return http.NoContent(c)
+	return nil
 }
 
-// CountLedgers is a method that returns the total count of ledgers for a specific organization.
-//
-//	@Summary		Count total ledgers
-//	@Description	Returns the total count of ledgers for a specific organization as a header without a response body
-//	@Tags			Ledgers
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Success		204				"No content with X-Total-Count header containing the count"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Organization not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/metrics/count [head]
-func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// countLedgers returns the total ledger count for the organization.
+func (handler *LedgerHandler) countLedgers(ctx context.Context, organizationID uuid.UUID) (int64, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating count of all ledgers for organization: %s", organizationID))
 
 	count, err := handler.Query.CountLedgers(ctx, organizationID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count ledgers", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count ledgers, Error: %s", err.Error()))
+		return 0, err
+	}
 
+	return count, nil
+}
+
+// getLedgerSettings returns the parsed settings for a ledger.
+func (handler *LedgerHandler) getLedgerSettings(ctx context.Context, organizationID, id uuid.UUID) (mmodel.LedgerSettings, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", id.String()),
+	)
+
+	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
+
+		return mmodel.LedgerSettings{}, err
+	}
+
+	return ledgerSettings, nil
+}
+
+// updateLedgerSettings owns the span + the schema-aware merge-patch service call.
+//
+// LANDMINE: the settings body is a free-form map[string]any, NOT a validated
+// struct — the allowlist merge-patch (unknown fields -> 0147, wrong types -> 0148)
+// lives in Command.UpdateLedgerSettings (via mmodel.ValidateSettings). Those are
+// canonical business errors classified to a 400, so the caller renders them
+// identically on both transports (Fiber: WithError; Huma: HumaProblem -> 400
+// problem+json) — never a native Huma 422. Body decode happens BEFORE this core
+// (Fiber: WithBody(new(map[string]any)); Huma: http.DecodeAndValidate into a map),
+// so the null-byte/depth/key-count guards stay byte-identical too.
+func (handler *LedgerHandler) updateLedgerSettings(ctx context.Context, organizationID, id uuid.UUID, settings map[string]any) (mmodel.LedgerSettings, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", id.String()),
+	)
+
+	updatedSettings, err := handler.Command.UpdateLedgerSettings(ctx, organizationID, id, settings)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
+
+		return mmodel.LedgerSettings{}, err
+	}
+
+	return mmodel.ParseLedgerSettings(updatedSettings), nil
+}
+
+// CreateLedger is a method that creates Ledger information.
+//
+// --- Fiber wrappers (thin) ----------------------------------------------------
+//
+// These stay so the legacy Fiber unit/integration tests keep exercising the
+// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload) and
+// delegates to the shared core. NOTE: once RegisterLedgerRoutesToApp is wired, the
+// LIVE ledger routes are Huma (see ledger_handler_huma.go); these Fiber wrappers are
+// the inline routes.go handlers and keep compiling until the integration task.
+func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted ledgers for organization %s: %d", organizationID, count))
+	ledger, err := handler.createLedger(ctx, organizationID, i.(*mmodel.CreateLedgerInput))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.Created(c, ledger)
+}
+
+// GetLedgerByID is a method that retrieves Ledger information by a given id.
+func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledger, err := handler.getLedgerByID(ctx, organizationID, id)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, ledger)
+}
+
+// GetAllLedgers is a method that retrieves all ledgers.
+func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	pagination, err := handler.getAllLedgers(ctx, organizationID, c.Queries())
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, pagination)
+}
+
+// UpdateLedger is a method that updates Ledger information.
+func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledger, err := handler.updateLedger(ctx, organizationID, id, p.(*mmodel.UpdateLedgerInput))
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.OK(c, ledger)
+}
+
+// DeleteLedgerByID is a method that removes Ledger information by a given id.
+func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	if err := handler.deleteLedger(ctx, organizationID, id); err != nil {
+		return http.WithError(c, err)
+	}
+
+	return http.NoContent(c)
+}
+
+// CountLedgers is a method that returns the total count of ledgers for a specific organization.
+func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	count, err := handler.countLedgers(ctx, organizationID)
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
@@ -404,28 +398,8 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 }
 
 // GetLedgerSettings retrieves the settings for a specific ledger.
-//
-//	@Summary		Get ledger settings
-//	@Description	Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.
-//	@Tags			Ledgers
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully retrieved ledger settings"
-//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error			"Ledger not found"
-//	@Failure		500				{object}	mmodel.Error			"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [get]
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -437,53 +411,17 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	span.SetAttributes(
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", id.String()),
-	)
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving settings for Ledger with ID: %s", id.String()))
-
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, id)
+	ledgerSettings, err := handler.getLedgerSettings(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get settings for Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
 		return http.WithError(c, err)
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved settings for Ledger with ID: %s", id.String()))
 
 	return http.OK(c, ledgerSettings)
 }
 
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
-//
-//	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
-//	@Tags			Ledgers
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string			false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
-//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
-//	@Param			ledger_id		path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
-//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
-//	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [patch]
 func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
-	defer span.End()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -495,28 +433,20 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	span.SetAttributes(
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", id.String()),
-	)
-
+	// Defensive type assertion of the WithBody(new(map[string]any)) payload. The
+	// allowlist merge-patch itself lives in the updateLedgerSettings core (via
+	// Command.UpdateLedgerSettings -> mmodel.ValidateSettings). This BadRequest is
+	// the sole HTTP-layer guard and stays Fiber-only; the Huma path decodes the map
+	// directly from RawBody and cannot hit this branch.
 	settings, ok := i.(*map[string]any)
 	if !ok {
 		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, "settings"))
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update settings for Ledger with ID: %s", id.String()))
-
-	updatedSettings, err := handler.Command.UpdateLedgerSettings(ctx, organizationID, id, *settings)
+	updatedSettings, err := handler.updateLedgerSettings(ctx, organizationID, id, *settings)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update settings for Ledger with ID: %s, Error: %s", id.String(), err.Error()))
-
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for Ledger with ID: %s", id.String()))
-
-	return http.OK(c, mmodel.ParseLedgerSettings(updatedSettings))
+	return http.OK(c, updatedSettings)
 }

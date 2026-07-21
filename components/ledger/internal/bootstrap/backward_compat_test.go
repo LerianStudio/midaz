@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +69,59 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"Logger must be nil by default in Options")
 		assert.Nil(t, opts.CircuitBreakerStateListener,
 			"CircuitBreakerStateListener must be nil by default in Options")
+	})
+
+	// Migrated from the standalone CRM bootstrap's backward_compat_test.go
+	// (P3-T13b). CRM asserted initTenantMiddleware returns a nil handler with no
+	// Tenant Manager contact when MT is disabled. The unified binary has no
+	// initTenantMiddleware; its analog is buildUnifiedRouteSetup, which returns an
+	// empty setup (no tenant middleware attached to any route group, no TM
+	// client/manager touched) when MultiTenantEnabled is false. This preserves the
+	// single-tenant guarantee for the merged binary that now also serves CRM routes.
+	t.Run("route_setup_attaches_no_tenant_middleware_when_disabled", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &libLog.GoLogger{}
+
+		// All managers nil + tenantCache/loader nil: in single-tenant mode none of
+		// them are dereferenced, proving no Tenant Manager interaction occurs.
+		setup, err := buildUnifiedRouteSetup(&Config{MultiTenantEnabled: false}, logger,
+			nil, nil, nil, nil, nil, nil, nil, nil)
+
+		require.NoError(t, err,
+			"buildUnifiedRouteSetup must not error in single-tenant mode")
+		require.NotNil(t, setup, "setup must be non-nil")
+		assert.Nil(t, setup.onboardingRouteOptions,
+			"onboarding routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.transactionRouteOptions,
+			"transaction routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.ledgerRouteOptions,
+			"ledger routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.crmRouteOptions,
+			"CRM routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.feesRouteOptions,
+			"fee routes must carry no tenant middleware in single-tenant mode")
+	})
+
+	t.Run("crm_config_fields_present_with_correct_tags", func(t *testing.T) {
+		t.Parallel()
+
+		// CRM collapse (P3) adds a CrmPrefixed Mongo block + the bare LCRYPTO_*
+		// crypto keys. Assert they exist with the exact env tags so the merged
+		// binary loads CRM config (and the carried-over crypto values, R7).
+		expectedFields := map[string]string{
+			"CrmPrefixedMongoURI":    "MONGO_CRM_URI",
+			"CrmPrefixedMongoDBName": "MONGO_CRM_NAME",
+			"CrmHashSecretKey":       "LCRYPTO_HASH_SECRET_KEY",
+			"CrmEncryptSecretKey":    "LCRYPTO_ENCRYPT_SECRET_KEY",
+		}
+
+		for fieldName, expectedTag := range expectedFields {
+			field, found := reflect.TypeOf(Config{}).FieldByName(fieldName)
+			require.True(t, found, "Config must have CRM field %s", fieldName)
+			assert.Equal(t, expectedTag, field.Tag.Get("env"),
+				"field %s must have env tag %q", fieldName, expectedTag)
+		}
 	})
 
 	t.Run("config_struct_has_all_required_multi_tenant_fields_with_correct_tags", func(t *testing.T) {

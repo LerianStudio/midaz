@@ -6,9 +6,10 @@ package pkg
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -260,36 +261,6 @@ func TestUnprocessableOperationError_Error(t *testing.T) {
 		{
 			name: "Empty message",
 			errorObj: UnprocessableOperationError{
-				Message: "",
-			},
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.errorObj.Error()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestHTTPError_Error(t *testing.T) {
-	tests := []struct {
-		name     string
-		errorObj HTTPError
-		expected string
-	}{
-		{
-			name: "With message",
-			errorObj: HTTPError{
-				Message: "HTTP error occurred",
-			},
-			expected: "HTTP error occurred",
-		},
-		{
-			name: "Empty message",
-			errorObj: HTTPError{
 				Message: "",
 			},
 			expected: "",
@@ -727,6 +698,36 @@ func TestValidateInternalError(t *testing.T) {
 				assert.NotNil(t, internalErr.Err)
 				assert.Equal(t, tt.err.Error(), internalErr.Err.Error())
 			}
+		})
+	}
+}
+
+func TestIsBusinessError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "EntityNotFoundError", err: EntityNotFoundError{Code: "0007", Message: "not found"}, expected: true},
+		{name: "ValidationError", err: ValidationError{Code: "0009", Message: "missing field"}, expected: true},
+		{name: "EntityConflictError", err: EntityConflictError{Code: "0084", Message: "conflict"}, expected: true},
+		{name: "UnauthorizedError", err: UnauthorizedError{Code: "0042", Message: "no token"}, expected: true},
+		{name: "ForbiddenError", err: ForbiddenError{Code: "0043", Message: "denied"}, expected: true},
+		{name: "UnprocessableOperationError", err: UnprocessableOperationError{Code: "0182", Message: "semantic"}, expected: true},
+		{name: "ValidationKnownFieldsError", err: ValidationKnownFieldsError{Code: "0009", Message: "known"}, expected: true},
+		{name: "ValidationUnknownFieldsError", err: ValidationUnknownFieldsError{Code: "0053", Message: "unknown"}, expected: true},
+		{name: "wrapped EntityNotFoundError", err: fmt.Errorf("context: %w", EntityNotFoundError{Code: "0007"}), expected: true},
+		{name: "wrapped ValidationError", err: fmt.Errorf("context: %w", ValidationError{Code: "0009"}), expected: true},
+		{name: "InternalServerError is not business", err: InternalServerError{Code: "0046", Message: "boom"}, expected: false},
+		{name: "FailedPreconditionError is not business", err: FailedPreconditionError{Code: "0269", Message: "precondition"}, expected: false},
+		{name: "ServiceUnavailableError is not business", err: ServiceUnavailableError{Code: "0265", Message: "down"}, expected: false},
+		{name: "plain error is not business", err: errors.New("boom"), expected: false},
+		{name: "nil error is not business", err: nil, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsBusinessError(tt.err))
 		})
 	}
 }

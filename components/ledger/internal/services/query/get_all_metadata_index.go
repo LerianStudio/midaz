@@ -6,27 +6,23 @@ package query
 
 import (
 	"context"
-	"fmt"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	// GetAllMetadataIndexes returns all metadata indexes, optionally filtered by entity name
 	libLog "github.com/LerianStudio/lib-observability/log"
 )
 
 func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryHeader) ([]*mmodel.MetadataIndex, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_indexes")
 	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initializing the get all metadata indexes operation: %v", filter))
 
 	metadataIndexesResponse := make([]*mmodel.MetadataIndex, 0)
 
@@ -43,7 +39,8 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 	for _, entityName := range entitiesToQuery {
 		metadataIndexes, err := uc.TransactionMetadataRepo.FindAllIndexes(ctx, entityName)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting metadata indexes for entity %s: %v", entityName, err))
+			logger.Log(ctx, libLog.LevelError, "Error getting metadata indexes",
+				libLog.String("entity", entityName), libLog.Err(err))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata indexes on repo", err)
 

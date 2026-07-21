@@ -4,7 +4,7 @@
 
 package utils
 
-import "github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+import "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
 // SanitizeAccountAliases cleans the AccountAlias fields in a Transaction's FromTo entries.
 // This is necessary because HandleAccountFields mutates aliases in-place using ConcatAlias,

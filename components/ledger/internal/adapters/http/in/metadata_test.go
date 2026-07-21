@@ -15,8 +15,8 @@ import (
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func assertJSONErrorResponse(t *testing.T, resp *stdhttp.Response) {
 	require.NoError(t, json.Unmarshal(respBody, &errBody), "expected JSON error body, got: %s", string(respBody))
 	assert.NotEmpty(t, errBody["code"])
 	assert.NotEmpty(t, errBody["title"])
-	assert.NotEmpty(t, errBody["message"])
+	assert.NotEmpty(t, errBody["detail"])
 }
 
 func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {

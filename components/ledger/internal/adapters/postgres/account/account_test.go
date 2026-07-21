@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +18,7 @@ func TestAccountPostgreSQLModel_ToEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		parentAccountID := "parent-acc-123"
 		entityID := "entity-456"
+		holderID := "11111111-1111-1111-1111-111111111111"
 		portfolioID := "portfolio-789"
 		segmentID := "segment-012"
 		statusDesc := "Active account"
@@ -29,6 +30,7 @@ func TestAccountPostgreSQLModel_ToEntity(t *testing.T) {
 			Name:              "Main Account",
 			ParentAccountID:   &parentAccountID,
 			EntityID:          &entityID,
+			HolderID:          &holderID,
 			AssetCode:         "USD",
 			OrganizationID:    "org-456",
 			LedgerID:          "ledger-789",
@@ -51,6 +53,7 @@ func TestAccountPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.Name, entity.Name)
 		assert.Equal(t, model.ParentAccountID, entity.ParentAccountID)
 		assert.Equal(t, model.EntityID, entity.EntityID)
+		assert.Equal(t, model.HolderID, entity.HolderID)
 		assert.Equal(t, model.AssetCode, entity.AssetCode)
 		assert.Equal(t, model.OrganizationID, entity.OrganizationID)
 		assert.Equal(t, model.LedgerID, entity.LedgerID)
@@ -88,6 +91,7 @@ func TestAccountPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.ID, entity.ID)
 		assert.Nil(t, entity.ParentAccountID)
 		assert.Nil(t, entity.EntityID)
+		assert.Nil(t, entity.HolderID)
 		assert.Nil(t, entity.PortfolioID)
 		assert.Nil(t, entity.SegmentID)
 		assert.Nil(t, entity.Status.Description)
@@ -124,6 +128,7 @@ func TestAccountPostgreSQLModel_FromEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		parentAccountID := "parent-acc-123"
 		entityID := "entity-456"
+		holderID := "11111111-1111-1111-1111-111111111111"
 		portfolioID := "portfolio-789"
 		segmentID := "segment-012"
 		statusDesc := "Active account"
@@ -136,6 +141,7 @@ func TestAccountPostgreSQLModel_FromEntity(t *testing.T) {
 			Name:            "Main Account",
 			ParentAccountID: &parentAccountID,
 			EntityID:        &entityID,
+			HolderID:        &holderID,
 			AssetCode:       "USD",
 			OrganizationID:  "org-456",
 			LedgerID:        "ledger-789",
@@ -160,6 +166,7 @@ func TestAccountPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Equal(t, entity.Name, model.Name)
 		assert.Equal(t, entity.ParentAccountID, model.ParentAccountID)
 		assert.Equal(t, entity.EntityID, model.EntityID)
+		assert.Equal(t, entity.HolderID, model.HolderID)
 		assert.Equal(t, entity.AssetCode, model.AssetCode)
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
 		assert.Equal(t, entity.LedgerID, model.LedgerID)
@@ -197,6 +204,7 @@ func TestAccountPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.NotEmpty(t, model.ID, "ID should be generated when entity.ID is empty")
 		assert.Nil(t, model.ParentAccountID)
 		assert.Nil(t, model.EntityID)
+		assert.Nil(t, model.HolderID)
 		assert.Nil(t, model.PortfolioID, "PortfolioID should be nil when entity.PortfolioID is nil")
 		assert.Nil(t, model.StatusDescription)
 		assert.Nil(t, model.Alias)

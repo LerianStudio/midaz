@@ -4,7 +4,81 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-observability/metrics"
+import (
+	"context"
+	"time"
+
+	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-observability/metrics"
+	"github.com/LerianStudio/midaz/v4/pkg"
+)
+
+var (
+	// DomainOperationsTotal counts business-operation outcomes across all
+	// components (D6 mandate). Labels: component, operation, result — all
+	// bounded sets (result is success|business_error|technical_error).
+	DomainOperationsTotal = metrics.Metric{
+		Name:        "domain_operations_total",
+		Unit:        "1",
+		Description: "Count of business operations by component, operation and result.",
+	}
+
+	// DomainOperationDuration tracks business-operation latency. Labels:
+	// component, operation.
+	DomainOperationDuration = metrics.Metric{
+		Name:        "domain_operation_duration_ms",
+		Unit:        "ms",
+		Description: "Business operation duration in milliseconds by component and operation.",
+	}
+)
+
+// RecordDomainOperation emits the D6 domain metrics for one business-operation
+// completion. Call it at the single exit boundary of a use case (typically via
+// defer with a named error). A nil factory is a no-op so single binaries can
+// run with metrics disabled; emit failures log at Debug per T11 and never
+// affect the operation.
+func RecordDomainOperation(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component, operation string, start time.Time, err error) {
+	if factory == nil {
+		return
+	}
+
+	result := "success"
+
+	switch {
+	case err == nil:
+	case pkg.IsBusinessError(err):
+		result = "business_error"
+	default:
+		result = "technical_error"
+	}
+
+	counter, cErr := factory.Counter(DomainOperationsTotal)
+	if cErr == nil {
+		cErr = counter.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+			"result":    result,
+		}).Add(ctx, 1)
+	}
+
+	histogram, hErr := factory.Histogram(DomainOperationDuration)
+	if hErr == nil {
+		hErr = histogram.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+		}).Record(ctx, time.Since(start).Milliseconds())
+	}
+
+	if logger != nil {
+		if cErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation counter", libLog.Err(cErr))
+		}
+
+		if hErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation histogram", libLog.Err(hErr))
+		}
+	}
+}
 
 var (
 	BalanceSynced = metrics.Metric{
@@ -25,6 +99,47 @@ var (
 		Name:        "balance_sync_cleanup_failures_total",
 		Unit:        "1",
 		Description: "Total schedule cleanup failures after successful balance sync.",
+	}
+
+	// BalanceSyncTenantSkip counts tenants skipped by the balance sync worker when
+	// their PostgreSQL connection cannot be resolved for a cycle.
+	BalanceSyncTenantSkip = metrics.Metric{
+		Name:        "balance_sync_tenant_skip_total",
+		Unit:        "1",
+		Description: "Total tenants skipped by the balance sync worker due to connection resolution failure.",
+	}
+
+	// Redis backup-queue (poison record) observability metrics.
+
+	// RedisBackupQueueDepth is the number of records currently in the backup queue.
+	RedisBackupQueueDepth = metrics.Metric{
+		Name:        "redis_backup_queue_depth",
+		Unit:        "1",
+		Description: "Number of records currently in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQueueOldestAgeSeconds is the age of the oldest record in the backup queue.
+	RedisBackupQueueOldestAgeSeconds = metrics.Metric{
+		Name:        "redis_backup_queue_oldest_age_seconds",
+		Unit:        "s",
+		Description: "Age in seconds of the oldest record in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQuarantineTotal counts poison records moved to the durable quarantine table.
+	RedisBackupQuarantineTotal = metrics.Metric{
+		Name:        "redis_backup_quarantine_total",
+		Unit:        "1",
+		Description: "Total poison backup records moved to the Postgres quarantine table.",
+	}
+
+	// RedisBackupReplayRecomputedBalancesAfterTotal counts backup-replay records
+	// whose operation audit rows were rebuilt without Lua's authoritative
+	// after-balances, so overdraft transactions may carry naive before-amount
+	// arithmetic (audit divergence tracked under T-006.1 / T-009).
+	RedisBackupReplayRecomputedBalancesAfterTotal = metrics.Metric{
+		Name:        "redis_backup_replay_recomputed_balances_after_total",
+		Unit:        "1",
+		Description: "Total backup-replay records whose after-balances were recomputed rather than replayed from Lua, risking overdraft audit divergence.",
 	}
 
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.

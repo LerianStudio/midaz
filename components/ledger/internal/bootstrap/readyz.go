@@ -15,7 +15,8 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -363,6 +364,8 @@ func buildReadyzHandler(
 	txnPG *transactionPostgresComponents,
 	onbMgo *onboardingMongoComponents,
 	txnMgo *transactionMongoComponents,
+	crmMgo *crmComponents,
+	feeMgo *feesMongoComponents,
 	rmq *rabbitMQComponents,
 	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
@@ -385,6 +388,14 @@ func buildReadyzHandler(
 		cfg.TxnPrefixedMongoURI, cfg.TxnPrefixedMongoDBUser, cfg.TxnPrefixedMongoDBPassword,
 		cfg.TxnPrefixedMongoDBHost, cfg.TxnPrefixedMongoDBPort, cfg.TxnPrefixedMongoDBName,
 		cfg.TxnPrefixedMongoDBParameters)
+
+	// Reuse the CRM Mongo URI resolver so full-URI mode (MONGO_CRM_URI containing
+	// "://") is honored for TLS detection instead of being rebuilt from discrete
+	// host/port fields (which silently breaks full-URI deployments).
+	crmMongoURI, err := resolveCRMMongoURI(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve CRM MongoDB URI for readiness check: %w", err)
+	}
 
 	// Build RabbitMQ URI for TLS detection
 	rmqURI := buildRabbitMQConnectionString(
@@ -412,6 +423,25 @@ func buildReadyzHandler(
 	if txnMgo.connection != nil {
 		checkers = append(checkers,
 			NewMongoChecker("mongo_transaction", txnMgo.connection, txnMongoURI))
+	}
+
+	// CRM Mongo checker - present only in single-tenant mode (multi-tenant CRM
+	// resolves connections per-request and has no static connection).
+	if crmMgo.connection != nil {
+		checkers = append(checkers,
+			NewMongoChecker("mongo_crm", crmMgo.connection, crmMongoURI))
+	}
+
+	checkers, err = appendFeesMongoChecker(checkers, cfg, feeMgo, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Vault checker - present only in envelope encryption mode
+	// (KMS_VENDOR=hashicorp-vault); legacy mode has no Vault client.
+	if crmMgo.encryption != nil && crmMgo.encryption.vaultClient != nil {
+		checkers = append(checkers,
+			NewVaultChecker("vault", crmMgo.encryption.vaultClient, cfg.VaultAddr))
 	}
 
 	// Redis checker
@@ -463,4 +493,70 @@ func buildReadyzHandler(
 		DeploymentMode: cfg.DeploymentMode,
 		MetricsFactory: metricsFactory,
 	}), nil
+}
+
+// appendFeesMongoChecker appends a fees Mongo readiness checker when a static fees
+// connection is present. The fee repos always hold a static connection (even in
+// multi-tenant mode), so /readyz must probe it; otherwise readiness can pass while
+// the fees backing store is down.
+func appendFeesMongoChecker(checkers []DependencyChecker, cfg *Config, feeMgo *feesMongoComponents, logger libLog.Logger) ([]DependencyChecker, error) {
+	if feeMgo == nil || feeMgo.connection == nil {
+		return checkers, nil
+	}
+
+	feeMongoURI, err := resolveFeesMongoURI(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve fees MongoDB URI for readiness check: %w", err)
+	}
+
+	return append(checkers, newFeesMongoChecker("mongo_fees", feeMgo.connection, feeMongoURI)), nil
+}
+
+// feesMongoChecker probes the fee Mongo backing store. The fee slice wraps its
+// connection in feesmongo.MongoConnection (lazy GetDB) rather than a raw
+// *libMongo.Client, so it cannot reuse NewMongoChecker; it pings the resolved
+// driver client instead, mirroring MongoChecker's status mapping.
+type feesMongoChecker struct {
+	name       string
+	conn       *feesmongo.MongoConnection
+	tlsEnabled bool
+}
+
+// newFeesMongoChecker builds a fee Mongo health checker; TLS is detected from the
+// resolved connection URI, matching NewMongoChecker.
+func newFeesMongoChecker(name string, conn *feesmongo.MongoConnection, uri string) *feesMongoChecker {
+	tlsEnabled, _ := detectMongoTLS(uri)
+
+	return &feesMongoChecker{name: name, conn: conn, tlsEnabled: tlsEnabled}
+}
+
+// Name returns the checker identifier.
+func (c *feesMongoChecker) Name() string { return c.name }
+
+// TLSEnabled returns whether TLS is enabled for this connection.
+func (c *feesMongoChecker) TLSEnabled() bool { return c.tlsEnabled }
+
+// Check probes the fee MongoDB connection.
+func (c *feesMongoChecker) Check(ctx context.Context) DependencyCheck {
+	if c.conn == nil {
+		return DependencyCheck{Status: StatusSkipped, Reason: "fees MongoDB connection not configured"}
+	}
+
+	start := time.Now()
+
+	client, err := c.conn.GetDB(ctx)
+	if err == nil {
+		err = client.Ping(ctx, nil)
+	}
+
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		return DependencyCheck{
+			Status:    StatusDown,
+			LatencyMs: &latencyMs,
+			Error:     fmt.Sprintf("ping failed: %v", err),
+		}
+	}
+
+	return DependencyCheck{Status: StatusUp, LatencyMs: &latencyMs}
 }

@@ -7,36 +7,39 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 )
 
 // GetAllAccount fetches all accounts from the repository.
-func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) (_ []*mmodel.Account, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_account")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Retrieving accounts")
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_accounts", start, err)
+	}()
 
 	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting accounts on repo: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
 
 			logger.Log(ctx, libLog.LevelWarn, "No accounts found")
 
@@ -59,9 +62,9 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		accountIDs[i] = a.ID
 	}
 
-	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Account{}).Name(), accountIDs)
+	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityAccount, accountIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
 

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/gold/parser"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/shopspring/decimal"
 )

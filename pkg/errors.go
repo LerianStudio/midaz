@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -136,19 +136,6 @@ func (e UnprocessableOperationError) Error() string {
 	return e.Message
 }
 
-// HTTPError indicates an http error raised in an http client.
-type HTTPError struct {
-	EntityType string `json:"entityType,omitempty"`
-	Title      string `json:"title,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Code       string `json:"code,omitempty"`
-	Err        error  `json:"err,omitempty"`
-}
-
-func (e HTTPError) Error() string {
-	return e.Message
-}
-
 // FailedPreconditionError indicates a precondition failed during an operation.
 type FailedPreconditionError struct {
 	EntityType string `json:"entityType,omitempty"`
@@ -247,6 +234,55 @@ func (r ValidationUnknownFieldsError) Error() string {
 // UnknownFields is a map of unknown fields and their error messages.
 type UnknownFields map[string]any
 
+// IsBusinessError reports whether err is a business/domain error (validation, not-found,
+// conflict, auth) as opposed to a technical/infrastructure error. Business errors should
+// use HandleSpanBusinessErrorEvent so they don't pollute error-rate metrics with expected
+// conditions. Wrapped errors are unwrapped via errors.As.
+func IsBusinessError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var notFoundErr EntityNotFoundError
+	if errors.As(err, &notFoundErr) {
+		return true
+	}
+
+	var validationErr ValidationError
+	if errors.As(err, &validationErr) {
+		return true
+	}
+
+	var conflictErr EntityConflictError
+	if errors.As(err, &conflictErr) {
+		return true
+	}
+
+	var unauthorizedErr UnauthorizedError
+	if errors.As(err, &unauthorizedErr) {
+		return true
+	}
+
+	var forbiddenErr ForbiddenError
+	if errors.As(err, &forbiddenErr) {
+		return true
+	}
+
+	var unprocessableErr UnprocessableOperationError
+	if errors.As(err, &unprocessableErr) {
+		return true
+	}
+
+	var validationKnownFieldsErr ValidationKnownFieldsError
+	if errors.As(err, &validationKnownFieldsErr) {
+		return true
+	}
+
+	var validationUnknownFieldsErr ValidationUnknownFieldsError
+
+	return errors.As(err, &validationUnknownFieldsErr)
+}
+
 // Methods to create errors for different scenarios:
 
 // ValidateInternalError validates the error and returns an appropriate InternalServerError.
@@ -333,7 +369,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 // ValidateBusinessError validates the error and returns the appropriate business error code, title, and message.
 //
 // Parameters:
-//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/v3/common/constant/errors.go).
+//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/v4/common/constant/errors.go).
 //   - entityType: The type of the entity related to the error.
 //   - args: Additional arguments for formatting error messages.
 //
@@ -383,7 +419,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Entity Not Found",
 			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		},
-		constant.ErrActionNotPermitted: ValidationError{
+		constant.ErrActionNotPermitted: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrActionNotPermitted.Error(),
 			Title:      "Action Not Permitted",
@@ -395,31 +431,31 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Missing Fields in Request",
 			Message:    fmt.Sprintf("Your request is missing one or more required fields: %v. Please refer to the documentation to ensure all necessary fields are included in your request.", args...),
 		},
-		constant.ErrAccountTypeImmutable: ValidationError{
+		constant.ErrAccountTypeImmutable: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountTypeImmutable.Error(),
 			Title:      "Account Type Immutable",
 			Message:    "The account type specified cannot be modified. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrInactiveAccountType: ValidationError{
+		constant.ErrInactiveAccountType: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInactiveAccountType.Error(),
 			Title:      "Inactive Account Type Error",
 			Message:    "The account type specified cannot be set to INACTIVE. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrAccountBalanceDeletion: ValidationError{
+		constant.ErrAccountBalanceDeletion: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceDeletion.Error(),
 			Title:      "Account Balance Deletion Error",
 			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
 		},
-		constant.ErrResourceAlreadyDeleted: ValidationError{
+		constant.ErrResourceAlreadyDeleted: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrResourceAlreadyDeleted.Error(),
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		constant.ErrSegmentIDInactive: ValidationError{
+		constant.ErrSegmentIDInactive: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrSegmentIDInactive.Error(),
 			Title:      "Segment ID Inactive",
@@ -431,13 +467,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Segment Name Error",
 			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
-		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
-			EntityType: entityType,
-			Code:       constant.ErrBalanceRemainingDeletion.Error(),
-			Title:      "Balance Remaining Deletion Error",
-			Message:    "The asset cannot be deleted because there is a remaining balance. Please ensure all balances are cleared before attempting to delete again.",
-		},
-		constant.ErrInvalidScriptFormat: EntityConflictError{
+		constant.ErrInvalidScriptFormat: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidScriptFormat.Error(),
 			Title:      "Invalid Script Format Error",
@@ -454,6 +484,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrOverdraftLimitExceeded.Error(),
 			Title:      "Overdraft Limit Exceeded Error",
 			Message:    "The transaction could not be completed because it would exceed the configured overdraft limit for the balance. Please reduce the amount or increase the overdraft limit and try again.",
+		},
+		constant.ErrTransactionReservationDenied: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationDenied.Error(),
+			Title:      "Transaction Reservation Denied Error",
+			Message:    "The transaction could not be completed because it would exceed a configured usage limit. Please reduce the amount or wait for the limit window to reset and try again.",
+		},
+		constant.ErrTransactionReservationUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionReservationUnavailable.Error(),
+			Title:      "Transaction Reservation Unavailable Error",
+			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
 		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
 			EntityType: entityType,
@@ -473,7 +515,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deletion Of Internal Balance Error",
 			Message:    "Internal-scope balances cannot be deleted. They are managed by the system and must remain for accounting consistency.",
 		},
-		constant.ErrReservedBalanceKey: ValidationError{
+		constant.ErrReservedBalanceKey: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrReservedBalanceKey.Error(),
 			Title:      "Reserved Balance Key Error",
@@ -539,19 +581,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Timing Restriction",
 			Message:    fmt.Sprintf("You can only perform another transaction using %v of %f from %v to %v after %v. Please wait until the specified time to try again.", args...),
 		},
-		constant.ErrAccountStatusTransactionRestriction: ValidationError{
+		constant.ErrAccountStatusTransactionRestriction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountStatusTransactionRestriction.Error(),
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
 		},
-		constant.ErrInsufficientAccountBalance: ValidationError{
+		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientAccountBalance.Error(),
 			Title:      "Insufficient Account Balance Error",
 			Message:    fmt.Sprintf("The account %v does not have sufficient balance. Please try again with an amount that is less than or equal to the available balance.", args...),
 		},
-		constant.ErrTransactionMethodRestriction: ValidationError{
+		constant.ErrTransactionMethodRestriction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionMethodRestriction.Error(),
 			Title:      "Transaction Method Restriction",
@@ -575,7 +617,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Parent Account ID",
 			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
 		},
-		constant.ErrMismatchedAssetCode: ValidationError{
+		constant.ErrMismatchedAssetCode: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMismatchedAssetCode.Error(),
 			Title:      "Mismatched Asset Code",
@@ -815,13 +857,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Type",
 			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
 		},
-		constant.ErrTransactionValueMismatch: ValidationError{
+		constant.ErrTransactionValueMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionValueMismatch.Error(),
 			Title:      "Transaction Value Mismatch",
 			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},
-		constant.ErrForbiddenExternalAccountManipulation: ValidationError{
+		constant.ErrForbiddenExternalAccountManipulation: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrForbiddenExternalAccountManipulation.Error(),
 			Title:      "External Account Modification Prohibited",
@@ -893,43 +935,43 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Alias Not Found",
 			Message:    "The provided account Alias does not exist in our records. Please verify the account Alias and try again.",
 		},
-		constant.ErrLockVersionAccountBalance: ValidationError{
+		constant.ErrLockVersionAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrLockVersionAccountBalance.Error(),
 			Title:      "Race condition detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
-		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
+		constant.ErrTransactionIDHasAlreadyParentTransaction: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDHasAlreadyParentTransaction.Error(),
 			Title:      "Transaction Revert already exist",
 			Message:    "Transaction revert already exists. Please try again.",
 		},
-		constant.ErrTransactionIDIsAlreadyARevert: ValidationError{
+		constant.ErrTransactionIDIsAlreadyARevert: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
 			Title:      "Transaction is already a reversal",
 			Message:    "Transaction is already a reversal. Please try again",
 		},
-		constant.ErrTransactionCantRevert: ValidationError{
+		constant.ErrTransactionCantRevert: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionCantRevert.Error(),
 			Title:      "Transaction can't be reverted",
 			Message:    "Transaction can't be reverted. Please try again",
 		},
-		constant.ErrTransactionAmbiguous: ValidationError{
+		constant.ErrTransactionAmbiguous: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't use the same account in sources and destinations",
 		},
-		constant.ErrBalancesCantBeDeleted: ValidationError{
+		constant.ErrBalancesCantBeDeleted: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrBalancesCantBeDeleted.Error(),
 			Title:      "Balance cannot be deleted",
 			Message:    "Balance cannot be deleted because it still has funds in it.",
 		},
-		constant.ErrParentIDSameID: ValidationError{
+		constant.ErrParentIDSameID: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrParentIDSameID.Error(),
 			Title:      "ID cannot be used as the parent ID",
@@ -941,7 +983,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Message Broker Unavailable",
 			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
 		},
-		constant.ErrAccountAliasInvalid: InternalServerError{
+		constant.ErrAccountAliasInvalid: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
 			Title:      "Invalid Account Alias",
@@ -953,11 +995,17 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Pending Transaction",
 			Message:    "External accounts cannot be used for pending transactions in source operations. Please check the accounts and try again.",
 		},
-		constant.ErrCommitTransactionNotPending: UnprocessableOperationError{
+		constant.ErrCommitTransactionNotPending: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrCommitTransactionNotPending.Error(),
 			Title:      "Invalid Transaction Status",
 			Message:    "The transaction status does not allow the requested action. Please check the transaction status.",
+		},
+		constant.ErrPendingTransactionLocked: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrPendingTransactionLocked.Error(),
+			Title:      "Transaction Locked",
+			Message:    "This transaction is currently being processed by another request. Please retry shortly.",
 		},
 		constant.ErrOverFlowInt64: InternalServerError{
 			EntityType: entityType,
@@ -1121,7 +1169,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicated Alias Key Value Error",
 			Message:    "An account alias with the specified key value already exists for this organization and ledger. Please use a different key value.",
 		},
-		constant.ErrAdditionalBalanceNotAllowed: ValidationError{
+		constant.ErrAdditionalBalanceNotAllowed: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAdditionalBalanceNotAllowed.Error(),
 			Title:      "Additional Balance Creation Not Allowed",
@@ -1145,11 +1193,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Holder ID Not Found",
 			Message:    "The provided holder ID does not exist in our records. Please verify the holder ID and try again.",
 		},
-		constant.ErrAliasNotFound: EntityNotFoundError{
+		constant.ErrInstrumentNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrAliasNotFound.Error(),
-			Title:      "Alias ID Not Found",
-			Message:    "The provided alias ID does not exist in our records. Please verify the alias ID and try again.",
+			Code:       constant.ErrInstrumentNotFound.Error(),
+			Title:      "Instrument ID Not Found",
+			Message:    "The provided instrument ID does not exist in our records. Please verify the instrument ID and try again.",
 		},
 		constant.ErrDocumentAssociationError: EntityConflictError{
 			EntityType: entityType,
@@ -1163,17 +1211,47 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Already Associated",
 			Message:    "An accountId from ledger can only be associated with a single related account on CRM.",
 		},
-		constant.ErrHolderHasAliases: ValidationError{
+		constant.ErrHolderHasInstruments: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       constant.ErrHolderHasAliases.Error(),
+			Code:       constant.ErrHolderHasInstruments.Error(),
 			Title:      "Unable to Delete Holder",
 			Message:    "The holder cannot be deleted because it has one or more associated aliases.",
 		},
-		constant.ErrAliasClosingDateBeforeCreation: ValidationError{
+		constant.ErrHolderHasAccounts: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       constant.ErrAliasClosingDateBeforeCreation.Error(),
+			Code:       constant.ErrHolderHasAccounts.Error(),
+			Title:      "Unable to Delete Holder",
+			Message:    "The holder cannot be deleted because it owns one or more active accounts.",
+		},
+		constant.ErrInstrumentClosingDateBeforeCreation: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInstrumentClosingDateBeforeCreation.Error(),
 			Title:      "Alias Closing Date Before Creation Date",
 			Message:    "The alias closing date cannot be before the creation date. Please provide a valid closing date.",
+		},
+		constant.ErrInstrumentLedgerReferenceNotFound: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInstrumentLedgerReferenceNotFound.Error(),
+			Title:      "Instrument Ledger Reference Not Found",
+			Message:    "The ledger referenced by this instrument does not exist in this organization. Please provide a ledgerId that belongs to the organization and try again.",
+		},
+		constant.ErrInstrumentAccountReferenceNotFound: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInstrumentAccountReferenceNotFound.Error(),
+			Title:      "Instrument Account Reference Not Found",
+			Message:    "The account referenced by this instrument does not exist in the referenced ledger. Please provide an accountId that belongs to the ledger and try again.",
+		},
+		constant.ErrSkipNotPermitted: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrSkipNotPermitted.Error(),
+			Title:      "Skip Not Permitted",
+			Message:    fmt.Sprintf("The %v skip requested for this operation is not permitted on this ledger. Enable the matching ledger override to allow it, or remove the skip from your request.", args...),
+		},
+		constant.ErrHolderRequired: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrHolderRequired.Error(),
+			Title:      "Holder Required",
+			Message:    "This ledger requires every account to name an existing holder. Please provide a valid holderId and try again.",
 		},
 		constant.ErrRelatedPartyNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1229,7 +1307,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Key Format",
 			Message:    "The metadata key format is invalid. Keys must start with a letter and contain only alphanumeric characters and underscores.",
 		},
-		constant.ErrMetadataIndexLimitExceeded: ValidationError{
+		constant.ErrMetadataIndexLimitExceeded: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexLimitExceeded.Error(),
 			Title:      "Metadata Index Limit Exceeded",
@@ -1241,7 +1319,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Metadata Index Creation Failed",
 			Message:    "The metadata index could not be created. Please try again later or contact support.",
 		},
-		constant.ErrMetadataIndexDeletionForbidden: ValidationError{
+		constant.ErrMetadataIndexDeletionForbidden: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexDeletionForbidden.Error(),
 			Title:      "Metadata Index Deletion Forbidden",
@@ -1289,6 +1367,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Balance Data at Date",
 			Message:    "No balance data is available at the specified date.",
 		},
+		constant.ErrRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrRouteNotFound.Error(),
+			Title:      "Route Not Found",
+			Message:    "The requested route does not exist. Please verify the HTTP method and path and try again.",
+		},
+		constant.ErrMethodNotAllowed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMethodNotAllowed.Error(),
+			Title:      "Method Not Allowed",
+			Message:    "The HTTP method is not allowed for the requested route. Please verify the method and try again.",
+		},
 		constant.ErrPayloadTooLarge: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrPayloadTooLarge.Error(),
@@ -1318,6 +1408,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidSettingsFieldType.Error(),
 			Title:      "Invalid Settings Field Type",
 			Message:    fmt.Sprintf("The settings field '%v' has an invalid type. Expected %v.", args...),
+		},
+		constant.ErrInvalidSettingsFieldValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSettingsFieldValue.Error(),
+			Title:      "Invalid Settings Field Value",
+			Message:    fmt.Sprintf("The settings field '%v' has an invalid value. Allowed values are: %v.", args...),
 		},
 		constant.ErrSettingsRootLevelField: ValidationError{
 			EntityType: entityType,
@@ -1360,12 +1456,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidRouteAction.Error(),
 			Title:      "Invalid Route Action",
 			Message:    fmt.Sprintf("The action '%v' is not a valid route action. Please provide a valid action value.", args...),
-		},
-		constant.ErrDuplicateActionRoute: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrDuplicateActionRoute.Error(),
-			Title:      "Duplicate Action Route",
-			Message:    fmt.Sprintf("The operation route '%v' is already assigned to the action '%v'. Please remove the duplicate entry.", args...),
 		},
 		constant.ErrNoRoutesForAction: UnprocessableOperationError{
 			EntityType: entityType,
@@ -1410,6 +1500,91 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Accounting Entry Field Required",
 			Message:    fmt.Sprintf("A required field is missing in the accounting entry. %v", args...),
 		},
+		// Fee platform codes (migrated from FEE-xxxx, see docs/plans/2026-06-07-error-code-migration.md).
+		constant.ErrFeeCalculationFieldType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrFeeCalculationFieldType.Error(),
+			Title:      "Calculation field type invalid",
+			Message:    "The Calculation field type is invalid. Values can only be percentage or flat",
+		},
+		constant.ErrPriorityInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPriorityInvalid.Error(),
+			Title:      "Invalid fee priority",
+			Message:    "The priority field in fees is invalid. Field can not be repeated.",
+		},
+		constant.ErrFindAccountOnMidaz: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrFindAccountOnMidaz.Error(),
+			Title:      "Account not found on Midaz",
+			Message:    fmt.Sprintf("Failed to find account '%v' on Midaz. Please check the account alias passed.", args...),
+		},
+		constant.ErrMinAmountGreaterThanMaxAmount: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrMinAmountGreaterThanMaxAmount.Error(),
+			Title:      "minimumAmount greater than maximumAmount",
+			Message:    "minimumAmount value is greater than maximumAmount.",
+		},
+		constant.ErrNothingToUpdate: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNothingToUpdate.Error(),
+			Title:      "Nothing to Update",
+			Message:    "No updatable fields were provided. Please include at least one field to update.",
+		},
+		constant.ErrDuplicatePackage: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicatePackage.Error(),
+			Title:      "Package already exists",
+			Message:    "A package already exists with the same combination of organizationId, ledgerId, segmentId, transactionRoute, minimumAmount, and maximumAmount.",
+		},
+		constant.ErrFeeInvalidHeaderParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrFeeInvalidHeaderParameter.Error(),
+			Title:      "Invalid header parameter",
+			Message:    fmt.Sprintf("One or more header parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args),
+		},
+		constant.ErrCalculateFee: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculateFee.Error(),
+			Title:      "Failed to calculate fee",
+			Message:    "Failed to calculate the fee for the transaction. Please check the fee configuration and try again.",
+		},
+		constant.ErrCalculationRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationRequired.Error(),
+			Title:      "Missing calculation model",
+			Message:    fmt.Sprintf("The calculation model is required for fee %v.", args...),
+		},
+		constant.ErrPriorityOne: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPriorityOne.Error(),
+			Title:      "originalAmount is required when priority is one",
+			Message:    fmt.Sprintf("For Priority equals to one, referenceAmount must be 'originalAmount' for fee %v.", args...),
+		},
+		constant.ErrAppRuleFlatFeeAndPercentual: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAppRuleFlatFeeAndPercentual.Error(),
+			Title:      "Failed to apply rule: flatFee or percentual",
+			Message:    fmt.Sprintf("applicationRule flatFee or percentual must have exactly 1 calculation for Fee %v.", args...),
+		},
+		constant.ErrCalculationTypePercentual: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationTypePercentual.Error(),
+			Title:      "Invalid calculation type: percentual",
+			Message:    fmt.Sprintf("The calculation type percentual must be 'percentage' for Fee %v.", args...),
+		},
+		constant.ErrCalculationTypeFlatFee: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationTypeFlatFee.Error(),
+			Title:      "Invalid calculation type: flatFee",
+			Message:    fmt.Sprintf("The calculation type flatFee must be 'flat' for Fee %v.", args...),
+		},
+		constant.ErrFeeFieldsRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrFeeFieldsRequired.Error(),
+			Title:      "Missing required fee fields",
+			Message:    "All fields of a new Fee must be filled. Please check again the payload passed.",
+		},
 		// Encryption and provisioning errors
 		constant.ErrRegistryNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1449,6 +1624,1195 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Message:    "The tenant id \"default\" is reserved for internal single-tenant use and cannot be used as a tenant identifier. Please use a different tenant id and try again.",
 			Err:        constant.ErrReservedTenantID,
 		},
+		constant.ErrCalculationFieldOfFeeRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationFieldOfFeeRequired.Error(),
+			Title:      "Calculation field is required for fee",
+			Message:    "Please fill the Calculation object correctly. All calculation fields must be filled.",
+		},
+		constant.ErrReferenceAmountInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReferenceAmountInvalid.Error(),
+			Title:      "referenceAmount is not valid",
+			Message:    "Field reference amount must be originalAmount or afterFeesAmount.",
+		},
+		constant.ErrAppRuleInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAppRuleInvalid.Error(),
+			Title:      "Invalid applicationRule",
+			Message:    "Field application rule must be maxBetweenTypes, flatFee or percentual.",
+		},
+		constant.ErrCalculationTypeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationTypeInvalid.Error(),
+			Title:      "Invalid calculation type",
+			Message:    "Field calculation type must be percentage or flat.",
+		},
+		constant.ErrMaxAmountLessThanMinAmount: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrMaxAmountLessThanMinAmount.Error(),
+			Title:      "maximumAmount less than minimumAmount",
+			Message:    "maximumAmount value is less than minimumAmount.",
+		},
+		constant.ErrFilterPackage: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrFilterPackage.Error(),
+			Title:      "Package filtering error",
+			Message:    "Failed to filter a single package by transactionRoute, segmentID, and maximum/minimum amount. Either no package was found or multiple packages matched the criteria.",
+		},
+		constant.ErrPackageRange: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrPackageRange.Error(),
+			Title:      "Package amount range overlap",
+			Message:    "The maximumAmount and minimumAmount of the new package overlap with the amount range of an existing package.",
+		},
+		constant.ErrValidateDistributeTransactionValue: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidateDistributeTransactionValue.Error(),
+			Title:      "Failed to distribute values",
+			Message:    "Failed to distribute the transaction values. Please check the data passed.",
+		},
+		constant.ErrAppRuleMaxBetweenTypes: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAppRuleMaxBetweenTypes.Error(),
+			Title:      "Failed to apply rule: maxBetweenTypes",
+			Message:    fmt.Sprintf("applicationRule maxBetweenTypes must have more than 1 calculation for Fee %v.", args...),
+		},
+		constant.ErrInvalidSegmentID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSegmentID.Error(),
+			Title:      "Invalid segmentID",
+			Message:    "The specified segmentID is not a valid UUID. Please check the value passed.",
+		},
+		constant.ErrInvalidLedgerID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidLedgerID.Error(),
+			Title:      "Invalid ledgerID",
+			Message:    "The specified ledgerID is not a valid UUID. Please check the value passed.",
+		},
+		constant.ErrConvertToDecimal: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrConvertToDecimal.Error(),
+			Title:      "Error to convert values",
+			Message:    fmt.Sprintf("The value of the field %s is invalid. Remember to use dot (.) as decimal separator instead of comma (,). Example: use 1000.50 instead of 1000,50.", args...),
+		},
+		constant.ErrIsDeductibleFrom: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrIsDeductibleFrom.Error(),
+			Title:      "originalAmount is required when isDeductibleFrom is true",
+			Message:    fmt.Sprintf("For isDeductibleFrom `true`, referenceAmount must be 'originalAmount' for fee %v.", args...),
+		},
+		constant.ErrApplicationRule: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrApplicationRule.Error(),
+			Title:      "applicationRule invalid value",
+			Message:    fmt.Sprintf("applicationRule is invalid, Err: %v.", args...),
+		},
+		constant.ErrCalculationValuePercentage: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationValuePercentage.Error(),
+			Title:      "calculation value percentage invalid",
+			Message:    fmt.Sprintf("Calculation value is invalid, it cannot exceed 100%%. Please check the calculation value for Fee %v.", args...),
+		},
+		constant.ErrCalculationValueFlatFee: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCalculationValueFlatFee.Error(),
+			Title:      "calculation value flat invalid",
+			Message:    fmt.Sprintf("Calculation value is invalid, it cannot exceed the minimum amount %v. Please check the calculation value for Fee %v.", args...),
+		},
+		constant.ErrDeductibleFeeExceedsAmount: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeductibleFeeExceedsAmount.Error(),
+			Title:      "Deductible fee exceeds the amount it deducts from",
+			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
+		},
+		constant.ErrAccessMidaz: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrAccessMidaz.Error(),
+			Title:      "Failed to access Midaz",
+			Message:    fmt.Sprintf("Failed to access Midaz to validate account '%v'. Please check the service configuration and client credentials.", args...),
+		},
+		constant.ErrDeductibleCalculationValuePercentage: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeductibleCalculationValuePercentage.Error(),
+			Title:      "deductible value forbidden",
+			Message:    fmt.Sprintf("Can not update deductible value to true. The calculation value is bigger than 100%% for Fee %v.", args...),
+		},
+		constant.ErrDeductibleCalculationValueFlatFee: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDeductibleCalculationValueFlatFee.Error(),
+			Title:      "deductible value forbidden",
+			Message:    fmt.Sprintf("Can not update deductible value to true. Calculation value is bigger than the minimum amount %v for Fee %v.", args...),
+		},
+		constant.ErrInvalidQueryParameterPage: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidQueryParameterPage.Error(),
+			Title:      "Invalid Page",
+			Message:    "Query parameter page is invalid. The page must be greater than 0.",
+		},
+		constant.ErrBillingPackageNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrBillingPackageNotFound.Error(),
+			Title:      "Billing package not found",
+			Message:    fmt.Sprintf("No billing package was found for the given ID '%v'.", args...),
+		},
+		constant.ErrInvalidBillingPackageType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidBillingPackageType.Error(),
+			Title:      "Invalid billing package type",
+			Message:    "The billing package type is invalid. Valid types are 'volume' and 'maintenance'.",
+		},
+		constant.ErrMissingVolumeFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingVolumeFields.Error(),
+			Title:      "Missing volume fields",
+			Message:    "Volume billing packages require: eventFilter (transactionRoute, status), pricingModel, tiers, assetCode, debitAccountAlias, and creditAccountAlias.",
+		},
+		constant.ErrMissingMaintenanceFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingMaintenanceFields.Error(),
+			Title:      "Missing maintenance fields",
+			Message:    "Maintenance billing packages require: feeAmount, assetCode, maintenanceCreditAccount, and accountTarget.",
+		},
+		constant.ErrInvalidPricingModel: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidPricingModel.Error(),
+			Title:      "Invalid pricing model",
+			Message:    "The pricing model is invalid. Valid models are 'tiered' and 'fixed'.",
+		},
+		constant.ErrInvalidPricingTier: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidPricingTier.Error(),
+			Title:      "Invalid pricing tier",
+			Message:    formatPricingTierError(args),
+		},
+		constant.ErrBillingRouteOverlap: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrBillingRouteOverlap.Error(),
+			Title:      "Billing route overlap",
+			Message:    "A billing package already exists for this organization, ledger, and transaction route combination.",
+		},
+		constant.ErrTargetAccountNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrTargetAccountNotFound.Error(),
+			Title:      "Target account not found",
+			Message:    fmt.Sprintf("The target account '%v' was not found or is inactive in Midaz.", args...),
+		},
+		constant.ErrBillingCalculationFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrBillingCalculationFailed.Error(),
+			Title:      "Billing calculation failed",
+			Message:    fmt.Sprintf("Failed to calculate billing: %v", args...),
+		},
+		constant.ErrNoActiveBillingPackages: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoActiveBillingPackages.Error(),
+			Title:      "No active billing packages",
+			Message:    "No active billing packages were found for the specified organization and ledger.",
+		},
+		constant.ErrSegmentResolutionFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSegmentResolutionFailed.Error(),
+			Title:      "Segment resolution failed",
+			Message:    "Failed to resolve accounts for the configured segment. Please verify the segment exists and try again.",
+		},
+		constant.ErrInvalidBillingPeriod: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidBillingPeriod.Error(),
+			Title:      "Invalid billing period",
+			Message:    "The billing period format is invalid. Use 'YYYY-MM' (monthly), 'YYYY-Www' (weekly, e.g. '2026-W13'), or 'YYYY-MM-DD' (daily) format (e.g., '2026-01' or '2026-01-15').",
+		},
+		constant.ErrInvalidFreeQuota: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidFreeQuota.Error(),
+			Title:      "Invalid free quota",
+			Message:    "The free quota value is invalid. Must be a non-negative integer.",
+		},
+		constant.ErrInvalidDiscountTier: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDiscountTier.Error(),
+			Title:      "Invalid discount tier",
+			Message:    "Discount tier configuration is invalid. Each tier must have minQuantity and discountPercentage between 0 and 100.",
+		},
+		constant.ErrInvalidCountMode: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidCountMode.Error(),
+			Title:      "Invalid count mode",
+			Message:    "The count mode is invalid. Valid modes are 'perRoute' and 'perAccount'.",
+		},
+		constant.ErrMidazQueryFailed: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrMidazQueryFailed.Error(),
+			Title:      "Service dependency unavailable",
+			Message:    "A required service is temporarily unavailable. Please try again later.",
+		},
+		constant.ErrInvalidAccountTarget: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountTarget.Error(),
+			Title:      "Invalid account target",
+			Message:    "The account target is invalid. Exactly one of segmentId, portfolioId, or aliases must be provided.",
+		},
+		constant.ErrInvalidFeeAmount: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidFeeAmount.Error(),
+			Title:      "Invalid fee amount",
+			Message:    "The fee amount is invalid. It must be a positive value greater than zero.",
+		},
+		constant.ErrMissingSegmentContext: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingSegmentContext.Error(),
+			Title:      "Segment context unavailable",
+			Message:    "Segment-based waivers are configured but the resolution service is not available. This is an internal configuration issue.",
+		},
+		constant.ErrMidazRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrMidazRouteNotFound.Error(),
+			Title:      "Midaz service route not found",
+			Message:    "The Midaz service endpoint returned 404 (route not found). This usually indicates a misconfigured service URL or an API version mismatch. Please verify the Midaz URL environment variables.",
+		},
+		// Tracer platform codes (migrated from TRC-xxxx).
+		constant.ErrRuleCalculationFieldType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleCalculationFieldType.Error(),
+			Title:      "Calculation Field Type",
+			Message:    "Invalid calculation field type.",
+		},
+		constant.ErrParentIDNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrParentIDNotFound.Error(),
+			Title:      "Parent IDNot Found",
+			Message:    "Parent ID not found.",
+		},
+		constant.ErrContextCancelled: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrContextCancelled.Error(),
+			Title:      "Context Cancelled",
+			Message:    "Context cancelled / service unavailable.",
+		},
+		constant.ErrPaginationLimitInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPaginationLimitInvalid.Error(),
+			Title:      "Pagination Limit Invalid",
+			Message:    "Pagination limit must be positive.",
+		},
+		constant.ErrInvalidSortColumn: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSortColumn.Error(),
+			Title:      "Invalid Sort Column",
+			Message:    "Sort column not in allowed list.",
+		},
+		constant.ErrInvalidCursor: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidCursor.Error(),
+			Title:      "Invalid Cursor",
+			Message:    "Invalid or corrupted pagination cursor.",
+		},
+		constant.ErrCursorWithSortParams: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCursorWithSortParams.Error(),
+			Title:      "Cursor With Sort Params",
+			Message:    "Cursor and sort parameters are mutually exclusive.",
+		},
+		constant.ErrMetadataEntriesExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataEntriesExceeded.Error(),
+			Title:      "Metadata Entries Exceeded",
+			Message:    "Metadata entries exceed maximum of 50.",
+		},
+		constant.ErrMetadataKeyInvalidChars: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMetadataKeyInvalidChars.Error(),
+			Title:      "Metadata Key Invalid Chars",
+			Message:    "Metadata key contains invalid characters.",
+		},
+		constant.ErrInvalidDecision: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDecision.Error(),
+			Title:      "Invalid Decision",
+			Message:    "Invalid decision value.",
+		},
+		constant.ErrReasonRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReasonRequired.Error(),
+			Title:      "Reason Required",
+			Message:    "Reason is required.",
+		},
+		constant.ErrInvalidDefaultDecision: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDefaultDecision.Error(),
+			Title:      "Invalid Default Decision",
+			Message:    "Invalid default decision value.",
+		},
+		constant.ErrExpressionSyntax: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionSyntax.Error(),
+			Title:      "Expression Syntax",
+			Message:    "Invalid CEL syntax.",
+		},
+		constant.ErrExpressionType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionType.Error(),
+			Title:      "Expression Type",
+			Message:    "Expression must return boolean.",
+		},
+		constant.ErrExpressionCostExceeded: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionCostExceeded.Error(),
+			Title:      "Expression Cost Exceeded",
+			Message:    "Cost limit exceeded (cost computed and above threshold).",
+		},
+		constant.ErrExpressionEvaluation: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionEvaluation.Error(),
+			Title:      "Expression Evaluation",
+			Message:    "Runtime evaluation error.",
+		},
+		constant.ErrExpressionProgram: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionProgram.Error(),
+			Title:      "Expression Program",
+			Message:    "Program creation failed (compilation phase).",
+		},
+		constant.ErrExpressionCostEstimation: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionCostEstimation.Error(),
+			Title:      "Expression Cost Estimation",
+			Message:    "Failed to estimate expression cost.",
+		},
+		constant.ErrAmountExceedsPrecision: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAmountExceedsPrecision.Error(),
+			Title:      "Amount Exceeds Precision",
+			Message:    "Amount exceeds safe precision for CEL float64 evaluation (max: ±2^53).",
+		},
+		constant.ErrRuleNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNotFound.Error(),
+			Title:      "Rule Not Found",
+			Message:    "Rule not found by ID.",
+		},
+		constant.ErrRuleNameAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNameAlreadyExists.Error(),
+			Title:      "Rule Name Already Exists",
+			Message:    "Rule name must be unique.",
+		},
+		constant.ErrRuleInvalidStatus: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleInvalidStatus.Error(),
+			Title:      "Rule Invalid Status",
+			Message:    "Invalid rule status transition.",
+		},
+		constant.ErrRuleEvaluationFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleEvaluationFailed.Error(),
+			Title:      "Rule Evaluation Failed",
+			Message:    "Rule evaluation failed.",
+		},
+		constant.ErrExpressionNotModifiable: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrExpressionNotModifiable.Error(),
+			Title:      "Expression Not Modifiable",
+			Message:    "Expression cannot be modified for non-DRAFT rules.",
+		},
+		constant.ErrRuleNilInput: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNilInput.Error(),
+			Title:      "Rule Nil Input",
+			Message:    "Rule input cannot be nil.",
+		},
+		constant.ErrRuleNameRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNameRequired.Error(),
+			Title:      "Rule Name Required",
+			Message:    "Rule name is required.",
+		},
+		constant.ErrRuleNameTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNameTooLong.Error(),
+			Title:      "Rule Name Too Long",
+			Message:    "Rule name exceeds max length (255).",
+		},
+		constant.ErrRuleExpressionRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleExpressionRequired.Error(),
+			Title:      "Rule Expression Required",
+			Message:    "Rule expression is required.",
+		},
+		constant.ErrRuleExpressionTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleExpressionTooLong.Error(),
+			Title:      "Rule Expression Too Long",
+			Message:    "Rule expression exceeds max length (5000).",
+		},
+		constant.ErrRuleInvalidAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleInvalidAction.Error(),
+			Title:      "Rule Invalid Action",
+			Message:    "Action must be one of [ALLOW, DENY, REVIEW].",
+		},
+		constant.ErrRuleInvalidScope: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleInvalidScope.Error(),
+			Title:      "Rule Invalid Scope",
+			Message:    "Scope must have at least one field set.",
+		},
+		constant.ErrRuleDescriptionTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleDescriptionTooLong.Error(),
+			Title:      "Rule Description Too Long",
+			Message:    "Rule description exceeds max length (1000).",
+		},
+		constant.ErrRuleScopesTooMany: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleScopesTooMany.Error(),
+			Title:      "Rule Scopes Too Many",
+			Message:    "Rule scopes exceed maximum (100).",
+		},
+		constant.ErrRuleInvalidTransition: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleInvalidTransition.Error(),
+			Title:      "Rule Invalid Transition",
+			Message:    "Status transition not allowed.",
+		},
+		constant.ErrLimitNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNotFound.Error(),
+			Title:      "Limit Not Found",
+			Message:    "Limit not found by ID.",
+		},
+		constant.ErrLimitInvalidStatusChange: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidStatusChange.Error(),
+			Title:      "Limit Invalid Status Change",
+			Message:    "Invalid limit status transition.",
+		},
+		constant.ErrLimitInvalidType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidType.Error(),
+			Title:      "Limit Invalid Type",
+			Message:    "Invalid limit type.",
+		},
+		constant.ErrLimitInvalidMaxAmount: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidMaxAmount.Error(),
+			Title:      "Limit Invalid Max Amount",
+			Message:    "MaxAmount must be positive.",
+		},
+		constant.ErrLimitInvalidCurrency: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidCurrency.Error(),
+			Title:      "Limit Invalid Currency",
+			Message:    "Currency must be valid ISO 4217.",
+		},
+		constant.ErrLimitInvalidScope: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidScope.Error(),
+			Title:      "Limit Invalid Scope",
+			Message:    "Scope validation failed.",
+		},
+		constant.ErrLimitNameRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNameRequired.Error(),
+			Title:      "Limit Name Required",
+			Message:    "Limit name is required.",
+		},
+		constant.ErrLimitNameTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNameTooLong.Error(),
+			Title:      "Limit Name Too Long",
+			Message:    "Limit name exceeds max length.",
+		},
+		constant.ErrLimitAlreadyDeleted: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitAlreadyDeleted.Error(),
+			Title:      "Limit Already Deleted",
+			Message:    "Limit is already in DELETED state.",
+		},
+		constant.ErrLimitNameInvalidChars: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNameInvalidChars.Error(),
+			Title:      "Limit Name Invalid Chars",
+			Message:    "Limit name contains invalid characters.",
+		},
+		constant.ErrLimitDescriptionInvalidChars: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitDescriptionInvalidChars.Error(),
+			Title:      "Limit Description Invalid Chars",
+			Message:    "Limit description contains invalid characters.",
+		},
+		constant.ErrLimitInvalidID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidID.Error(),
+			Title:      "Limit Invalid ID",
+			Message:    "Limit ID is invalid or nil.",
+		},
+		constant.ErrLimitDescriptionTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitDescriptionTooLong.Error(),
+			Title:      "Limit Description Too Long",
+			Message:    "Limit description exceeds max length.",
+		},
+		constant.ErrLimitInvalidStatusFilter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidStatusFilter.Error(),
+			Title:      "Limit Invalid Status Filter",
+			Message:    "Invalid status filter value.",
+		},
+		constant.ErrLimitInvalidTypeFilter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidTypeFilter.Error(),
+			Title:      "Limit Invalid Type Filter",
+			Message:    "Invalid limitType filter value.",
+		},
+		constant.ErrLimitDeletedAtInvariant: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitDeletedAtInvariant.Error(),
+			Title:      "Limit Deleted At Invariant",
+			Message:    "DeletedAt must be set iff status is DELETED.",
+		},
+		constant.ErrLimitCheckFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCheckFailed.Error(),
+			Title:      "Limit Check Failed",
+			Message:    "Limit check failed.",
+		},
+		constant.ErrLimitNilInput: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNilInput.Error(),
+			Title:      "Limit Nil Input",
+			Message:    "Limit input cannot be nil.",
+		},
+		constant.ErrLimitImmutableField: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitImmutableField.Error(),
+			Title:      "Limit Immutable Field",
+			Message:    "Cannot modify immutable field (limitType, currency).",
+		},
+		constant.ErrAuditEventNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventNotFound.Error(),
+			Title:      "Audit Event Not Found",
+			Message:    "Audit event not found.",
+		},
+		constant.ErrInvalidAuditEventFilters: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAuditEventFilters.Error(),
+			Title:      "Invalid Audit Event Filters",
+			Message:    "Invalid audit event filter parameters.",
+		},
+		constant.ErrAuditEventInvalidType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventInvalidType.Error(),
+			Title:      "Audit Event Invalid Type",
+			Message:    "Invalid audit event type.",
+		},
+		constant.ErrAuditEventInvalidAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventInvalidAction.Error(),
+			Title:      "Audit Event Invalid Action",
+			Message:    "Invalid audit action.",
+		},
+		constant.ErrAuditEventInvalidResult: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventInvalidResult.Error(),
+			Title:      "Audit Event Invalid Result",
+			Message:    "Invalid audit result.",
+		},
+		constant.ErrAuditEventResourceIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventResourceIDRequired.Error(),
+			Title:      "Audit Event Resource IDRequired",
+			Message:    "Resource ID is required.",
+		},
+		constant.ErrAuditEventInvalidResourceType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventInvalidResourceType.Error(),
+			Title:      "Audit Event Invalid Resource Type",
+			Message:    "Invalid resource type.",
+		},
+		constant.ErrAuditEventActorIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventActorIDRequired.Error(),
+			Title:      "Audit Event Actor IDRequired",
+			Message:    "Actor ID is required.",
+		},
+		constant.ErrAuditEventActorTypeInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditEventActorTypeInvalid.Error(),
+			Title:      "Audit Event Actor Type Invalid",
+			Message:    "Actor type must be 'user' or 'system'.",
+		},
+		constant.ErrUsageCounterOverflow: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterOverflow.Error(),
+			Title:      "Usage Counter Overflow",
+			Message:    "Usage counter would overflow.",
+		},
+		constant.ErrUsageCounterLimitIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterLimitIDRequired.Error(),
+			Title:      "Usage Counter Limit IDRequired",
+			Message:    "Usage counter limitID is required.",
+		},
+		constant.ErrUsageCounterScopeKeyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterScopeKeyRequired.Error(),
+			Title:      "Usage Counter Scope Key Required",
+			Message:    "Usage counter scopeKey is required.",
+		},
+		constant.ErrUsageCounterPeriodKeyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterPeriodKeyRequired.Error(),
+			Title:      "Usage Counter Period Key Required",
+			Message:    "Usage counter periodKey is required.",
+		},
+		constant.ErrUsageCounterCurrentUsageNegative: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterCurrentUsageNegative.Error(),
+			Title:      "Usage Counter Current Usage Negative",
+			Message:    "Usage counter currentUsage must be non-negative.",
+		},
+		constant.ErrUsageCounterIncrementNonNegative: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterIncrementNonNegative.Error(),
+			Title:      "Usage Counter Increment Non Negative",
+			Message:    "Increment amount must be non-negative.",
+		},
+		constant.ErrUsageCounterNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterNotFound.Error(),
+			Title:      "Usage Counter Not Found",
+			Message:    "Usage counter not found.",
+		},
+		constant.ErrUsageCounterExceedsLimit: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterExceedsLimit.Error(),
+			Title:      "Usage Counter Exceeds Limit",
+			Message:    "Usage counter increment would exceed limit maximum.",
+		},
+		constant.ErrUsageCounterDecrementNonNegative: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUsageCounterDecrementNonNegative.Error(),
+			Title:      "Usage Counter Decrement Non Negative",
+			Message:    "Decrement amount must be non-negative.",
+		},
+		constant.ErrCheckLimitsInvalidAmount: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidAmount.Error(),
+			Title:      "Check Limits Invalid Amount",
+			Message:    "Check limits amount must be positive.",
+		},
+		constant.ErrCheckLimitsInvalidCurrency: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
+			Title:      "Check Limits Invalid Currency",
+			Message:    "Check limits currency must be valid ISO 4217.",
+		},
+		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsUnknownLimitType.Error(),
+			Title:      "Check Limits Unknown Limit Type",
+			Message:    "Unknown limit type for period key calculation.",
+		},
+		constant.ErrCheckLimitsInvalidTimestamp: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidTimestamp.Error(),
+			Title:      "Check Limits Invalid Timestamp",
+			Message:    "Check limits timestamp must not be zero.",
+		},
+		constant.ErrCheckLimitsNilInput: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsNilInput.Error(),
+			Title:      "Check Limits Nil Input",
+			Message:    "Check limits input cannot be nil.",
+		},
+		constant.ErrCheckLimitsInvalidAccountID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidAccountID.Error(),
+			Title:      "Check Limits Invalid Account ID",
+			Message:    "Check limits accountId is required.",
+		},
+		constant.ErrCheckLimitsInvalidTransactionType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidTransactionType.Error(),
+			Title:      "Check Limits Invalid Transaction Type",
+			Message:    "Check limits transactionType must be valid.",
+		},
+		constant.ErrCheckLimitsInvalidSubType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidSubType.Error(),
+			Title:      "Check Limits Invalid Sub Type",
+			Message:    "Check limits subType exceeds maximum length.",
+		},
+		constant.ErrCheckLimitsInvalidSegmentID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidSegmentID.Error(),
+			Title:      "Check Limits Invalid Segment ID",
+			Message:    "Check limits segmentId must not be zero UUID.",
+		},
+		constant.ErrCheckLimitsInvalidPortfolioID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidPortfolioID.Error(),
+			Title:      "Check Limits Invalid Portfolio ID",
+			Message:    "Check limits portfolioId must not be zero UUID.",
+		},
+		constant.ErrCheckLimitsInvalidMerchantID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrCheckLimitsInvalidMerchantID.Error(),
+			Title:      "Check Limits Invalid Merchant ID",
+			Message:    "Check limits merchantId must not be zero UUID.",
+		},
+		constant.ErrLimitCheckerNilLimitRepo: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCheckerNilLimitRepo.Error(),
+			Title:      "Limit Checker Nil Limit Repo",
+			Message:    "Limit checker: limit repository cannot be nil.",
+		},
+		constant.ErrLimitCheckerNilUsageCounterRepo: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCheckerNilUsageCounterRepo.Error(),
+			Title:      "Limit Checker Nil Usage Counter Repo",
+			Message:    "Limit checker: usage counter repository cannot be nil.",
+		},
+		constant.ErrLimitCheckerNilClock: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCheckerNilClock.Error(),
+			Title:      "Limit Checker Nil Clock",
+			Message:    "Limit checker: clock cannot be nil.",
+		},
+		constant.ErrValidationRequestIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationRequestIDRequired.Error(),
+			Title:      "Validation Request IDRequired",
+			Message:    "RequestId is required.",
+		},
+		constant.ErrValidationInvalidTransactionType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidTransactionType.Error(),
+			Title:      "Validation Invalid Transaction Type",
+			Message:    "Invalid transactionType.",
+		},
+		constant.ErrValidationAmountNonPositive: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationAmountNonPositive.Error(),
+			Title:      "Validation Amount Non Positive",
+			Message:    "Amount must be positive.",
+		},
+		constant.ErrValidationCurrencyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationCurrencyRequired.Error(),
+			Title:      "Validation Currency Required",
+			Message:    "Currency is required.",
+		},
+		constant.ErrValidationInvalidCurrency: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidCurrency.Error(),
+			Title:      "Validation Invalid Currency",
+			Message:    "Currency must be valid ISO 4217.",
+		},
+		constant.ErrValidationTimestampRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationTimestampRequired.Error(),
+			Title:      "Validation Timestamp Required",
+			Message:    "Timestamp is required.",
+		},
+		constant.ErrValidationTimestampFuture: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationTimestampFuture.Error(),
+			Title:      "Validation Timestamp Future",
+			Message:    "Timestamp cannot be in the future.",
+		},
+		constant.ErrValidationAccountRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationAccountRequired.Error(),
+			Title:      "Validation Account Required",
+			Message:    "Account is required.",
+		},
+		constant.ErrValidationTimestampPast: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationTimestampPast.Error(),
+			Title:      "Validation Timestamp Past",
+			Message:    "Timestamp is too far in the past.",
+		},
+		constant.ErrValidationTimeout: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationTimeout.Error(),
+			Title:      "Validation Timeout",
+			Message:    "Validation timeout.",
+		},
+		constant.ErrValidationSegmentIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationSegmentIDRequired.Error(),
+			Title:      "Validation Segment IDRequired",
+			Message:    "SegmentId is required when segment is provided.",
+		},
+		constant.ErrValidationPortfolioIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationPortfolioIDRequired.Error(),
+			Title:      "Validation Portfolio IDRequired",
+			Message:    "PortfolioId is required when portfolio is provided.",
+		},
+		constant.ErrValidationSubTypeTooLong: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationSubTypeTooLong.Error(),
+			Title:      "Validation Sub Type Too Long",
+			Message:    "SubType exceeds maximum length of 50 characters.",
+		},
+		constant.ErrValidationInvalidAccountType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidAccountType.Error(),
+			Title:      "Validation Invalid Account Type",
+			Message:    "Account.type must be checking, savings, or credit.",
+		},
+		constant.ErrValidationInvalidAccountStatus: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidAccountStatus.Error(),
+			Title:      "Validation Invalid Account Status",
+			Message:    "Account.status must be active, suspended, or closed.",
+		},
+		constant.ErrValidationInvalidMerchantCategory: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidMerchantCategory.Error(),
+			Title:      "Validation Invalid Merchant Category",
+			Message:    "Merchant.category must be 4-digit MCC code.",
+		},
+		constant.ErrValidationInvalidMerchantCountry: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationInvalidMerchantCountry.Error(),
+			Title:      "Validation Invalid Merchant Country",
+			Message:    "Merchant.country must be ISO 3166-1 alpha-2.",
+		},
+		constant.ErrValidationMerchantIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationMerchantIDRequired.Error(),
+			Title:      "Validation Merchant IDRequired",
+			Message:    "Merchant.id is required when merchant is provided.",
+		},
+		constant.ErrInvalidTransactionValidationFilters: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTransactionValidationFilters.Error(),
+			Title:      "Invalid Transaction Validation Filters",
+			Message:    "Invalid transaction validation filter parameters.",
+		},
+		constant.ErrTransactionValidationNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionValidationNotFound.Error(),
+			Title:      "Transaction Validation Not Found",
+			Message:    "Transaction validation record not found.",
+		},
+		constant.ErrListValidationsTimeout: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrListValidationsTimeout.Error(),
+			Title:      "List Validations Timeout",
+			Message:    "List validations query timeout (deadline exceeded).",
+		},
+		constant.ErrTransactionValidationIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionValidationIDRequired.Error(),
+			Title:      "Transaction Validation IDRequired",
+			Message:    "Validation ID is required.",
+		},
+		constant.ErrTransactionValidationCreatedAtRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionValidationCreatedAtRequired.Error(),
+			Title:      "Transaction Validation Created At Required",
+			Message:    "CreatedAt is required.",
+		},
+		constant.ErrRuleCacheWarmUpFailed: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleCacheWarmUpFailed.Error(),
+			Title:      "Rule Cache Warm Up Failed",
+			Message:    "Rule cache warm-up failed.",
+		},
+		constant.ErrRuleCacheNotReady: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleCacheNotReady.Error(),
+			Title:      "Rule Cache Not Ready",
+			Message:    "Rule cache is not ready.",
+		},
+		constant.ErrLimitTimeWindowMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitTimeWindowMismatch.Error(),
+			Title:      "Limit Time Window Mismatch",
+			Message:    "ActiveTimeStart and activeTimeEnd must both be set or both be nil.",
+		},
+		constant.ErrLimitTimeWindowZeroWidth: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitTimeWindowZeroWidth.Error(),
+			Title:      "Limit Time Window Zero Width",
+			Message:    "ActiveTimeStart cannot equal activeTimeEnd.",
+		},
+		constant.ErrTimeOfDayInvalidFormat: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTimeOfDayInvalidFormat.Error(),
+			Title:      "Time Of Day Invalid Format",
+			Message:    "Invalid time of day format, expected HH:MM.",
+		},
+		constant.ErrRuleNameAlreadyExistsInCtx: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrRuleNameAlreadyExistsInCtx.Error(),
+			Title:      "Rule Name Already Exists In Ctx",
+			Message:    "Rule name already exists in this context.",
+		},
+		constant.ErrLimitNameAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitNameAlreadyExists.Error(),
+			Title:      "Limit Name Already Exists",
+			Message:    "Limit name already exists.",
+		},
+		constant.ErrLimitCustomDatesNotAllowed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCustomDatesNotAllowed.Error(),
+			Title:      "Limit Custom Dates Not Allowed",
+			Message:    "CustomStartDate/customEndDate only allowed for CUSTOM limitType.",
+		},
+		constant.ErrLimitUnknownType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitUnknownType.Error(),
+			Title:      "Limit Unknown Type",
+			Message:    "Unknown limit type.",
+		},
+		constant.ErrLimitCustomPeriodTooLong: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCustomPeriodTooLong.Error(),
+			Title:      "Limit Custom Period Too Long",
+			Message:    "Custom period cannot exceed 5 years.",
+		},
+		constant.ErrLimitCustomPeriodExpired: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCustomPeriodExpired.Error(),
+			Title:      "Limit Custom Period Expired",
+			Message:    "Custom period end date must be in the future.",
+		},
+		constant.ErrLimitInvalidCustomStartFormat: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidCustomStartFormat.Error(),
+			Title:      "Limit Invalid Custom Start Format",
+			Message:    "Invalid customStartDate format, expected RFC3339.",
+		},
+		constant.ErrLimitInvalidCustomEndFormat: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitInvalidCustomEndFormat.Error(),
+			Title:      "Limit Invalid Custom End Format",
+			Message:    "Invalid customEndDate format, expected RFC3339.",
+		},
+		constant.ErrLimitCustomDatesRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCustomDatesRequired.Error(),
+			Title:      "Limit Custom Dates Required",
+			Message:    "CustomStartDate and customEndDate required for CUSTOM limitType.",
+		},
+		constant.ErrLimitCustomDatesOrder: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLimitCustomDatesOrder.Error(),
+			Title:      "Limit Custom Dates Order",
+			Message:    "CustomStartDate must be before customEndDate.",
+		},
+		constant.ErrMTConfigRequired: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrMTConfigRequired.Error(),
+			Title:      "MTConfig Required",
+			Message:    "Multi-tenant config: cfg is required.",
+		},
+		constant.ErrMTLoggerRequired: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrMTLoggerRequired.Error(),
+			Title:      "MTLogger Required",
+			Message:    "Multi-tenant config: logger is required.",
+		},
+		constant.ErrMTURLRequired: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTURLRequired.Error(),
+			Title:      "MTURLRequired",
+			Message:    "MULTI_TENANT_URL must be set when MULTI_TENANT_ENABLED=true.",
+		},
+		constant.ErrMTURLInvalid: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTURLInvalid.Error(),
+			Title:      "MTURLInvalid",
+			Message:    "MULTI_TENANT_URL must be a valid absolute URL with scheme and host.",
+		},
+		constant.ErrMTServiceAPIKeyRequired: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTServiceAPIKeyRequired.Error(),
+			Title:      "MTService APIKey Required",
+			Message:    "MULTI_TENANT_SERVICE_API_KEY must be set when MULTI_TENANT_ENABLED=true.",
+		},
+		constant.ErrMTRedisHostRequired: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTRedisHostRequired.Error(),
+			Title:      "MTRedis Host Required",
+			Message:    "MULTI_TENANT_REDIS_HOST must be set when MULTI_TENANT_ENABLED=true.",
+		},
+		constant.ErrMTPluginAuthRequired: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTPluginAuthRequired.Error(),
+			Title:      "MTPlugin Auth Required",
+			Message:    "MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true.",
+		},
+		constant.ErrMTAPIKeyOnlyValidationConfl: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrMTAPIKeyOnlyValidationConfl.Error(),
+			Title:      "MTAPIKey Only Validation Confl",
+			Message:    "MULTI_TENANT_ENABLED=true is incompatible with API_KEY_ENABLED_ONLY_VALIDATION=true.",
+		},
+		constant.ErrReadyzPgConnectionNotEstablished: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzPgConnectionNotEstablished.Error(),
+			Title:      "Readyz Pg Connection Not Established",
+			Message:    "Postgres readyz: connection not established.",
+		},
+		constant.ErrReadyzPgConnectionFailed: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzPgConnectionFailed.Error(),
+			Title:      "Readyz Pg Connection Failed",
+			Message:    "Postgres readyz: connection failed.",
+		},
+		constant.ErrReadyzPgPingFailed: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzPgPingFailed.Error(),
+			Title:      "Readyz Pg Ping Failed",
+			Message:    "Postgres readyz: ping failed.",
+		},
+		constant.ErrReadyzDependenciesUnhealthy: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzDependenciesUnhealthy.Error(),
+			Title:      "Readyz Dependencies Unhealthy",
+			Message:    "/readyz aggregate: one or more dependencies unhealthy.",
+		},
+		constant.ErrReadyzCacheNotReady: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzCacheNotReady.Error(),
+			Title:      "Readyz Cache Not Ready",
+			Message:    "Rule_cache readyz: cache not ready.",
+		},
+		constant.ErrReadyzCacheStale: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrReadyzCacheStale.Error(),
+			Title:      "Readyz Cache Stale",
+			Message:    "Rule_cache readyz: cache data stale.",
+		},
+		constant.ErrSupervisorShuttingDown: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorShuttingDown.Error(),
+			Title:      "Supervisor Shutting Down",
+			Message:    "Worker supervisor: shutting down, refusing to spawn new tenant workers.",
+		},
+		constant.ErrTenantCapReached: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTenantCapReached.Error(),
+			Title:      "Tenant Cap Reached",
+			Message:    "Tenant worker cap reached; client should retry after backoff.",
+		},
+		constant.ErrSupervisorNilRuleCache: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilRuleCache.Error(),
+			Title:      "Supervisor Nil Rule Cache",
+			Message:    "Worker supervisor: rule cache is required.",
+		},
+		constant.ErrSupervisorNilSyncRepo: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilSyncRepo.Error(),
+			Title:      "Supervisor Nil Sync Repo",
+			Message:    "Worker supervisor: sync repo is required.",
+		},
+		constant.ErrSupervisorNilUsageRepo: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilUsageRepo.Error(),
+			Title:      "Supervisor Nil Usage Repo",
+			Message:    "Worker supervisor: usage repo is required when cleanup workers are enabled.",
+		},
+		constant.ErrSupervisorNilCompiler: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilCompiler.Error(),
+			Title:      "Supervisor Nil Compiler",
+			Message:    "Worker supervisor: compiler is required.",
+		},
+		constant.ErrSupervisorNilLogger: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilLogger.Error(),
+			Title:      "Supervisor Nil Logger",
+			Message:    "Worker supervisor: logger is required.",
+		},
+		constant.ErrSupervisorNilReaperRepo: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilReaperRepo.Error(),
+			Title:      "Supervisor Nil Reaper Repo",
+			Message:    "Worker supervisor: reservation reaper repo is required when reaper workers are enabled.",
+		},
+		constant.ErrSupervisorNilReaperAuditor: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrSupervisorNilReaperAuditor.Error(),
+			Title:      "Supervisor Nil Reaper Auditor",
+			Message:    "Worker supervisor: reservation reaper auditor is required when reaper workers are enabled.",
+		},
+		constant.ErrUnauthorizedMissingSub: UnauthorizedError{
+			EntityType: entityType,
+			Code:       constant.ErrUnauthorizedMissingSub.Error(),
+			Title:      "Unauthorized Missing Sub",
+			Message:    "JWT lacks required 'sub' claim — identity cannot be attributed.",
+		},
+		constant.ErrReservationLimitIDRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationLimitIDRequired.Error(),
+			Title:      "Reservation Limit IDRequired",
+			Message:    "Reservation: limitId is required.",
+		},
+		constant.ErrReservationTransactionIDReq: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTransactionIDReq.Error(),
+			Title:      "Reservation Transaction IDReq",
+			Message:    "Reservation: transactionId is required.",
+		},
+		constant.ErrReservationTenantRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationTenantRequired.Error(),
+			Title:      "Reservation Tenant Required",
+			Message:    "Reservation: tenant id is required on the multi-tenant reservation surface.",
+		},
+		constant.ErrReservationScopeKeyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationScopeKeyRequired.Error(),
+			Title:      "Reservation Scope Key Required",
+			Message:    "Reservation: scopeKey is required.",
+		},
+		constant.ErrReservationPeriodKeyRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationPeriodKeyRequired.Error(),
+			Title:      "Reservation Period Key Required",
+			Message:    "Reservation: periodKey is required.",
+		},
+		constant.ErrReservationAmountInvalid: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAmountInvalid.Error(),
+			Title:      "Reservation Amount Invalid",
+			Message:    "Reservation: amount must be non-negative.",
+		},
+		constant.ErrReservationInvalidStatus: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationInvalidStatus.Error(),
+			Title:      "Reservation Invalid Status",
+			Message:    "Reservation: status must be one of RESERVED, CONFIRMED, RELEASED, EXPIRED.",
+		},
+		constant.ErrReservationExpiresAtRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationExpiresAtRequired.Error(),
+			Title:      "Reservation Expires At Required",
+			Message:    "Reservation: reservationExpiresAt is required.",
+		},
+		constant.ErrReservationNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationNotFound.Error(),
+			Title:      "Reservation Not Found",
+			Message:    "Reservation: reservation not found.",
+		},
+		constant.ErrReservationAlreadyTerminal: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservationAlreadyTerminal.Error(),
+			Title:      "Reservation Already Terminal",
+			Message:    "Reservation: reservation is already in a terminal state.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
@@ -1467,4 +2831,22 @@ func HandleKnownBusinessValidationErrors(err error) error {
 	default:
 		return err
 	}
+}
+
+// formatPricingTierError builds a clean error message for pricing tier validation failures.
+func formatPricingTierError(args []any) string {
+	if len(args) == 1 {
+		return fmt.Sprintf("Pricing tier configuration is invalid: %v.", args[0])
+	}
+
+	if len(args) > 1 {
+		parts := make([]string, len(args))
+		for i, a := range args {
+			parts[i] = fmt.Sprint(a)
+		}
+
+		return fmt.Sprintf("Pricing tier configuration is invalid: %s.", strings.Join(parts, "; "))
+	}
+
+	return "Pricing tier configuration is invalid."
 }

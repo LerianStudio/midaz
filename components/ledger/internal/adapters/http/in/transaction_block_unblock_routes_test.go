@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,23 +24,20 @@ const (
 )
 
 // registerTransactionRoutesForTest registers the transaction routes onto a fresh
-// Fiber app using zero-value handlers. Route registration only wires the handler
-// chain; the business handlers are not invoked, so nil internal dependencies are
-// safe here. This mirrors the existing routes_test.go pattern.
+// Fiber app using zero-value handlers. The json/block/unblock CREATE ops are
+// Huma-migrated: their Fiber auth chain is attached (group-relative) on the /v1
+// group by RegisterTransactionHumaRoutesToApp, which then registers the Huma
+// terminals on the shared API. Registration only wires the handler chain; the
+// business handlers are not invoked, so nil internal dependencies are safe here.
+// This mirrors the humaMount composition in buildUnifiedHumaAPI (contract_spec_routes_test.go).
 func registerTransactionRoutesForTest(auth *middleware.AuthClient, opts *pkgHTTP.ProtectedRouteOptions) *fiber.App {
 	app := fiber.New()
 
-	RegisterTransactionRoutesToApp(
-		app,
-		auth,
-		&TransactionHandler{},
-		&OperationHandler{},
-		&AssetRateHandler{},
-		&BalanceHandler{},
-		&OperationRouteHandler{},
-		&TransactionRouteHandler{},
-		opts,
-	)
+	apiV1 := app.Group("/v1")
+	humaAPI := openapi.New(app, apiV1, openapi.Config{Title: "Midaz Ledger API", Version: "4.0.0", Servers: []string{"/v1"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionHumaRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, opts)
 
 	return app
 }

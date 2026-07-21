@@ -5,49 +5,54 @@
 package in
 
 import (
-	libObs "github.com/LerianStudio/lib-observability"
+	"context"
+
+	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	goldTransaction "github.com/LerianStudio/midaz/v4/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+	// FeeApplier drives the in-process fee engine inside the create seam. It is
+	// injected at bootstrap from the fee use case; a nil applier disables fee
+	// application (the create path stays unchanged).
+	FeeApplier FeeApplier
+	// TracerReserver drives the tracer two-phase reservation lifecycle from the
+	// create seam. It is injected at bootstrap from the tracer HTTP client; a
+	// nil reserver means the tracer integration is disabled (the create path
+	// stays unchanged). The per-ledger tracer.mode gate lives at the call site.
+	TracerReserver TracerReserver
+	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
+	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
+	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
+	// only sets on FEE routes — never on the transaction route — so the seam
+	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
+	// mode (and in tests that do not exercise the seam).
+	FeesMongoManager feesDBResolver
+	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
+	// static fee connection is correct and resolveFeesTenantContext is a no-op.
+	MultiTenantEnabled bool
 }
 
 // CreateTransactionJSON method that create transaction using JSON
-//
-//	@Summary		Create a Transaction using JSON
-//	@Description	Create a Transaction with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
@@ -60,7 +65,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // buildOverriddenTransaction builds the transaction from the input, forces
@@ -99,7 +104,7 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_block")
 	defer span.End()
@@ -112,7 +117,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 	logSafePayload(ctx, logger, "Request to create a block transaction", &transactionInput)
 	recordSafePayloadAttributes(span, &transactionInput)
 
-	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionUnblock method that creates an unblock transaction
@@ -140,7 +145,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_unblock")
 	defer span.End()
@@ -153,32 +158,14 @@ func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx)
 	logSafePayload(ctx, logger, "Request to create an unblock transaction", &transactionInput)
 	recordSafePayloadAttributes(span, &transactionInput)
 
-	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
-//
-//	@Summary		Create a Transaction Annotation using JSON
-//	@Description	Create a Transaction Annotation with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string						false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation [post]
 func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_annotation")
 	defer span.End()
@@ -191,32 +178,14 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, constant.NOTED)
+	return handler.createTransactionFiber(c, *transactionInput, constant.NOTED)
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
-//
-//	@Summary		Create a Transaction without passing from source
-//	@Description	Create a Transaction with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string							false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionInflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
 func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
 	defer span.End()
@@ -229,32 +198,14 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
-//
-//	@Summary		Create a Transaction without passing to distribution
-//	@Description	Create a Transaction with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string								false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string								false	"Request ID"
-//	@Param			organization_id	path		string								true	"Organization ID"
-//	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		mtransaction.CreateTransactionOutflowInput	true	"Transaction Input"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
 func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
 	defer span.End()
@@ -267,32 +218,14 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, *transactionInput, transactionInput.InitialStatus())
 }
 
 // CreateTransactionDSL method that create transaction using DSL
-//
-//	@Summary		Create a Transaction using DSL
-//	@Description	Create a Transaction with the input DSL file
-//	@Tags			Transactions
-//	@Accept			mpfd
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction		formData	file	true	"Transaction DSL file"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation or business-rule errors (e.g. overdraft route not configured)"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_dsl")
 	defer span.End()
@@ -351,31 +284,14 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	recordSafePayloadAttributes(span, transactionInput.Send)
 
-	return handler.createTransaction(c, transactionInput, transactionInput.InitialStatus())
+	return handler.createTransactionFiber(c, transactionInput, transactionInput.InitialStatus())
 }
 
 // GetTransaction method that get transaction created before
-//
-//	@Summary		Get a Transaction by ID
-//	@Description	Get a Transaction with the input ID
-//	@Tags			Transactions
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
@@ -393,43 +309,61 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID); wbErr == nil {
-		c.Set("X-Cache-Hit", "true")
+	headerParams.Metadata = &bson.M{}
 
-		return http.OK(c, wbTran)
-	} else {
-		logger.Log(ctx, libLog.LevelDebug, "Write-behind cache miss, falling back to database",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(wbErr))
+	tran, cacheHit, err := handler.getTransaction(ctx, params.OrganizationID, params.LedgerID, params.TransactionID, headerParams)
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
-	c.Set("X-Cache-Hit", "false")
+	if cacheHit {
+		c.Set("X-Cache-Hit", "true")
+	} else {
+		c.Set("X-Cache-Hit", "false")
+	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, params.OrganizationID, params.LedgerID, params.TransactionID)
+	return http.OK(c, tran)
+}
+
+// getTransaction is the transport-neutral read core. It reads write-behind cache first
+// (returning cacheHit=true, operations already materialized in the cached shape), and on
+// a miss falls back to the DB then materializes operations via GetOperationsByTransaction.
+// The caller sets the X-Cache-Hit response header off the returned flag. headerParams is
+// expected to already carry the Metadata reset the Fiber path applied.
+func (handler *TransactionHandler) getTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, headerParams *http.QueryHeader) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_transaction.core")
+	defer span.End()
+
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+		return wbTran, true, nil
+	} else {
+		logger.Log(ctx, libLog.LevelDebug, "Write-behind cache miss, falling back to database",
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(wbErr))
+	}
+
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve transaction",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 	defer spanGetTransaction.End()
 
-	headerParams.Metadata = &bson.M{}
-
-	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, params.OrganizationID, params.LedgerID, tran, *headerParams)
+	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
-			libLog.String("transaction_id", params.TransactionID.String()), libLog.Err(err))
+			libLog.String("transaction_id", transactionID.String()), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Transaction retrieved",
-		libLog.String("transaction_id", params.TransactionID.String()))
-
-	return http.OK(c, tran)
+	return tran, false, nil
 }

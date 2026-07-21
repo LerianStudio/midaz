@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -17,11 +15,12 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
@@ -33,11 +32,17 @@ const (
 )
 
 //nolint:gocyclo // Validation + parent lookup + uniqueness + creation; refactor candidate.
-func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (*mmodel.Balance, error) {
+func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, cbi *mmodel.CreateAdditionalBalance) (_ *mmodel.Balance, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_balance", start, err)
+	}()
 
 	// Reserved key guard: "overdraft" (any case) is system-managed and MUST
 	// not be created through the public API. This check runs BEFORE any
@@ -99,7 +104,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	if existingBalance != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", nil)
-		logger.Log(ctx, libLog.LevelInfo, "Additional balance already exists", libLog.String("key", cbi.Key))
+		logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", cbi.Key))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
 	}
@@ -148,10 +153,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		// Migration 032 adds a unique balance key index. If another pod wins the
 		// race after the precheck, return the same business error as the precheck.
 		if isBalanceKeyUniqueViolation(err) {
-			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), strings.ToLower(cbi.Key))
+			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, strings.ToLower(cbi.Key))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
 
-			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Additional balance already exists: %v", berr))
+			logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", strings.ToLower(cbi.Key)))
 
 			return nil, berr
 		}

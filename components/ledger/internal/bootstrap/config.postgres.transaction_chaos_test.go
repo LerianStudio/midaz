@@ -23,16 +23,19 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
+	libLog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,6 +88,42 @@ func setupBootstrapChaosInfra(t *testing.T) *chaosBootstrapInfra {
 		proxy:      proxy,
 		proxyHost:  containerInfo.ProxyListen,
 	}
+}
+
+// useAbsoluteMigrationsPath overrides transactionPostgresMigrator so migrations
+// run against an absolute path. The production migrator uses the CWD-relative
+// "components/ledger/migrations/transaction", which lib-commons resolves via
+// filepath.Abs: correct in the container (WORKDIR /) but doubled under `go test`
+// (CWD is the package dir). FindMigrationsPath walks up to the repo and returns
+// an absolute, "..".-free path that sanitizePath accepts.
+func useAbsoluteMigrationsPath(t *testing.T) {
+	t.Helper()
+
+	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+
+	original := transactionPostgresMigrator
+	transactionPostgresMigrator = func(cfg *Config, logger libLog.Logger) error {
+		primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+			cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
+			cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
+
+		migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+			PrimaryDSN:     primaryDSN,
+			DatabaseName:   cfg.TxnPrefixedPrimaryDBName,
+			MigrationsPath: migrationsPath,
+			Logger:         logger,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create migrator: %w", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		return migrator.Up(ctx)
+	}
+
+	t.Cleanup(func() { transactionPostgresMigrator = original })
 }
 
 // buildProxiedConfig creates a Config that routes PG traffic through the
@@ -148,6 +187,8 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
+	useAbsoluteMigrationsPath(t)
+
 	// --- Phase 1: Normal ---
 	// Verify initSingleTenantPostgres succeeds through the proxy.
 	t.Log("Phase 1 (Normal): verifying initSingleTenantPostgres succeeds through proxy")
@@ -183,7 +224,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *transactionPostgresComponents
 		failResult, initErr = initTransactionSingleTenantPostgres(cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)
@@ -222,8 +263,9 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 
 	t.Cleanup(func() { closePGConnection(recoveredResult.connection) })
 
-	assert.True(t, recoveredResult.connection.Connected,
-		"Phase 5: connection must be connected after recovery")
+	connected, connErr := recoveredResult.connection.IsConnected()
+	require.NoError(t, connErr, "Phase 5: IsConnected must not error")
+	assert.True(t, connected, "Phase 5: connection must be connected after recovery")
 
 	t.Log("PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
@@ -299,7 +341,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	var initErr error
 
 	require.NotPanics(t, func() {
-		var failResult *postgresComponents
+		var failResult *transactionPostgresComponents
 		failResult, initErr = initTransactionMultiTenantPostgres(opts, cfg, logger)
 		if failResult != nil {
 			closePGConnection(failResult.connection)
@@ -374,6 +416,8 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
+
+	useAbsoluteMigrationsPath(t)
 
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): initializing single-tenant and verifying queries succeed")

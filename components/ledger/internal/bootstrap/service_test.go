@@ -243,7 +243,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
-		server := NewUnifiedServer(":0", logger, telemetry, nil)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
@@ -258,41 +258,11 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 			})
 		}
 
-		server := NewUnifiedServer(":0", logger, telemetry, nil, registrar)
+		server := NewUnifiedServer(":0", "", logger, telemetry, nil, nil, registrar)
 
 		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
-}
-
-func TestNewUnifiedServer_ServesSwaggerUIAssets(t *testing.T) {
-	t.Parallel()
-
-	server := NewUnifiedServer(":0", newTestLogger(), &libOpentelemetry.Telemetry{}, nil)
-
-	for _, path := range []string{
-		"/swagger/index.html",
-		"/swagger/doc.json",
-		"/swagger/swagger-ui.css",
-		"/swagger/swagger-ui-bundle.js",
-		"/swagger/swagger-ui-standalone-preset.js",
-	} {
-		path := path
-
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-
-			req, err := http.NewRequest(http.MethodGet, path, nil)
-			require.NoError(t, err)
-			req.Host = "localhost"
-
-			res, err := server.app.Test(req)
-			require.NoError(t, err)
-			defer res.Body.Close()
-
-			assert.Equal(t, http.StatusOK, res.StatusCode)
-		})
-	}
 }
 
 // TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed

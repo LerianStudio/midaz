@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -235,7 +235,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -613,7 +613,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				require.NoError(t, err, "error response should be valid JSON")
 
 				assert.Contains(t, errResp, "code", "error response should contain code field")
-				assert.Contains(t, errResp, "message", "error response should contain message field")
+				assert.Contains(t, errResp, "detail", "error response should contain message field")
 			},
 		},
 	}
@@ -674,7 +674,7 @@ func assertInvalidQueryParameterResponse(t *testing.T, body []byte) {
 
 	assert.Equal(t, cn.ErrInvalidQueryParameter.Error(), errResp["code"])
 	assert.Equal(t, "Invalid Query Parameter", errResp["title"])
-	assert.Contains(t, errResp["message"], "query parameters")
+	assert.Contains(t, errResp["detail"], "query parameters")
 }
 
 func TestAccountHandler_GetAccountByID(t *testing.T) {
@@ -758,7 +758,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -899,7 +899,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -1036,7 +1036,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -1260,7 +1260,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}
@@ -1399,7 +1399,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
+				assert.Contains(t, errResp, "detail", "error response should contain message")
 			},
 		},
 	}

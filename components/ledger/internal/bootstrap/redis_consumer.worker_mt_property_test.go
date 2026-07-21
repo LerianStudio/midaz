@@ -11,8 +11,8 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,7 +82,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 			mgr = pgMgr
 		}
 
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr)
 
 		// Property: constructor never returns nil.
 		if consumer == nil {
@@ -185,7 +185,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		}
 
 		// Property: NewRedisQueueConsumerMultiTenant must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager)
 		if consumer == nil {
 			return false
 		}

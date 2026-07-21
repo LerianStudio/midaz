@@ -14,7 +14,7 @@ import (
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // OrganizationUpdatedDefinition is the routing contract for organization.updated.

@@ -21,10 +21,10 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/log"
 	"github.com/LerianStudio/lib-observability/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -189,12 +189,12 @@ func initMultiTenantRabbitMQ(
 			func(ctx context.Context, delivery amqp.Delivery) error {
 				ctx, err := resolveTenantConnections(ctx, rmqComponents)
 				if err != nil {
-					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to resolve tenant connections for consumer message: %v", err))
+					logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant connections for consumer message", libLog.Err(err))
 					return err
 				}
 
 				if err := handlerBTO(ctx, delivery.Body, useCase); err != nil {
-					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to process consumer message: %v", err))
+					logger.Log(ctx, libLog.LevelError, "Failed to process consumer message", libLog.Err(err))
 					return err
 				}
 
@@ -204,10 +204,10 @@ func initMultiTenantRabbitMQ(
 					counter, counterErr := rmqComponents.metricsFactory.Counter(utils.TenantMessagesProcessedTotal)
 					if counterErr == nil {
 						if metricErr := counter.WithAttributes(attribute.String("tenant", tenantID)).AddOne(ctx); metricErr != nil {
-							logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("failed to increment metric %v: %v", utils.TenantMessagesProcessedTotal, metricErr))
+							logger.Log(ctx, libLog.LevelWarn, "Failed to increment metric", libLog.Any("metric", utils.TenantMessagesProcessedTotal), libLog.Err(metricErr))
 						}
 					} else {
-						logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("failed to create metric counter %v: %v", utils.TenantMessagesProcessedTotal, counterErr))
+						logger.Log(ctx, libLog.LevelWarn, "Failed to create metric counter", libLog.Any("metric", utils.TenantMessagesProcessedTotal), libLog.Err(counterErr))
 					}
 				}
 
@@ -321,7 +321,7 @@ func initSingleTenantRabbitMQ(
 	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
 	if err != nil {
 		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Log(logCtx, libLog.LevelWarn, fmt.Sprintf("Failed to close RabbitMQ producer during cleanup: %v", closeErr))
+			logger.Log(logCtx, libLog.LevelWarn, "Failed to close RabbitMQ producer during cleanup", libLog.Err(closeErr))
 		}
 
 		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
@@ -363,7 +363,7 @@ func initSingleTenantRabbitMQ(
 	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
 	if err != nil {
 		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Log(logCtx, libLog.LevelWarn, fmt.Sprintf("Failed to close RabbitMQ producer during cleanup: %v", closeErr))
+			logger.Log(logCtx, libLog.LevelWarn, "Failed to close RabbitMQ producer during cleanup", libLog.Err(closeErr))
 		}
 
 		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
@@ -377,7 +377,7 @@ func initSingleTenantRabbitMQ(
 	)
 	if err != nil {
 		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Log(logCtx, libLog.LevelWarn, fmt.Sprintf("Failed to close RabbitMQ producer during cleanup: %v", closeErr))
+			logger.Log(logCtx, libLog.LevelWarn, "Failed to close RabbitMQ producer during cleanup", libLog.Err(closeErr))
 		}
 
 		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
@@ -406,13 +406,16 @@ func initSingleTenantRabbitMQ(
 			Logger:                 logger,
 		}
 
-		routes := rabbitmq.NewConsumerRoutes(
+		routes, err := rabbitmq.NewConsumerRoutes(
 			rabbitMQConsumerConnection,
 			cfg.RabbitMQNumbersOfWorkers,
 			cfg.RabbitMQNumbersOfPrefetch,
 			logger,
 			telemetry,
 		)
+		if err != nil {
+			return fmt.Errorf("failed to create consumer routes: %w", err)
+		}
 
 		// Configure bulk processing if enabled
 		if shouldUseBulkMode(cfg) {
