@@ -71,32 +71,104 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		assert.True(t, ok, "definition %q has no route (unroutable event)", key)
 	}
 
-	// Per-product routing regression lock (#3388): fees route under the "fee"
-	// service segment and CRM under "crm" — NOT the ledger default that the
-	// monorepo-consolidation bug folded onto every event.
-	assertRouteTopic := func(key, service string) {
-		t.Helper()
+	// Per-product routing regression lock (#3388): an INDEPENDENT expected-service
+	// map keyed by Definition.Key() with LITERAL service segments, deliberately
+	// NOT derived from midazEventDefinitions (the code under test). serviceByKey
+	// above is computed from the registry and would tautologically agree with a
+	// wrong-service bug; this map enumerates every event's expected service so a
+	// regression on ANY event — not just a handful of spot-checks — is caught at
+	// unit speed. The literals "ledger"/"fee"/"crm" are intentional (not the
+	// serviceLedger/serviceFee/serviceCRM constants the production code uses).
+	const (
+		wantLedger = "ledger"
+		wantFee    = "fee"
+		wantCRM    = "crm"
+	)
 
-		want := libStreaming.KafkaTopic(pkgStreaming.TopicName(service, key))
-		for _, r := range routes {
-			if r.DefinitionKey == key {
-				assert.Equalf(t, want, r.Destination, "route %q must target %q", key, want)
-				return
-			}
-		}
-
-		t.Fatalf("no route for key %q", key)
+	expectedService := map[string]string{
+		// Ledger core.
+		events.OrganizationCreatedDefinition.Key():     wantLedger,
+		events.OrganizationUpdatedDefinition.Key():     wantLedger,
+		events.OrganizationDeletedDefinition.Key():     wantLedger,
+		events.LedgerCreatedDefinition.Key():           wantLedger,
+		events.LedgerUpdatedDefinition.Key():           wantLedger,
+		events.LedgerDeletedDefinition.Key():           wantLedger,
+		events.AccountCreatedDefinition.Key():          wantLedger,
+		events.AccountUpdatedDefinition.Key():          wantLedger,
+		events.AccountDeletedDefinition.Key():          wantLedger,
+		events.AssetCreatedDefinition.Key():            wantLedger,
+		events.AssetUpdatedDefinition.Key():            wantLedger,
+		events.AssetDeletedDefinition.Key():            wantLedger,
+		events.PortfolioCreatedDefinition.Key():        wantLedger,
+		events.PortfolioUpdatedDefinition.Key():        wantLedger,
+		events.PortfolioDeletedDefinition.Key():        wantLedger,
+		events.SegmentCreatedDefinition.Key():          wantLedger,
+		events.SegmentUpdatedDefinition.Key():          wantLedger,
+		events.SegmentDeletedDefinition.Key():          wantLedger,
+		events.OperationRouteCreatedDefinition.Key():   wantLedger,
+		events.OperationRouteUpdatedDefinition.Key():   wantLedger,
+		events.OperationRouteDeletedDefinition.Key():   wantLedger,
+		events.TransactionRouteCreatedDefinition.Key(): wantLedger,
+		events.TransactionRouteUpdatedDefinition.Key(): wantLedger,
+		events.TransactionRouteDeletedDefinition.Key(): wantLedger,
+		events.BalanceCreatedDefinition.Key():          wantLedger,
+		events.BalanceChangedDefinition.Key():          wantLedger,
+		events.BalanceConfigChangedDefinition.Key():    wantLedger,
+		events.BalanceDeletedDefinition.Key():          wantLedger,
+		events.BalanceOverdraftDrawnDefinition.Key():   wantLedger,
+		events.BalanceOverdraftRepaidDefinition.Key():  wantLedger,
+		events.BalanceOverdraftClearedDefinition.Key(): wantLedger,
+		events.TransactionPostedDefinition.Key():       wantLedger,
+		events.TransactionCommittedDefinition.Key():    wantLedger,
+		events.TransactionCanceledDefinition.Key():     wantLedger,
+		events.TransactionRevertedDefinition.Key():     wantLedger,
+		// Fees.
+		events.FeesPackageCreatedDefinition.Key():        wantFee,
+		events.FeesPackageUpdatedDefinition.Key():        wantFee,
+		events.FeesPackageDeletedDefinition.Key():        wantFee,
+		events.FeesBillingPackageCreatedDefinition.Key(): wantFee,
+		events.FeesBillingPackageUpdatedDefinition.Key(): wantFee,
+		events.FeesBillingPackageDeletedDefinition.Key(): wantFee,
+		events.FeesAppliedDefinition.Key():               wantFee,
+		// CRM.
+		events.HolderCreatedDefinition.Key():                 wantCRM,
+		events.HolderUpdatedDefinition.Key():                 wantCRM,
+		events.HolderDeletedDefinition.Key():                 wantCRM,
+		events.InstrumentCreatedDefinition.Key():             wantCRM,
+		events.InstrumentUpdatedDefinition.Key():             wantCRM,
+		events.InstrumentDeletedDefinition.Key():             wantCRM,
+		events.InstrumentRelatedPartyDeletedDefinition.Key(): wantCRM,
 	}
 
-	assertRouteTopic(events.AccountCreatedDefinition.Key(), serviceLedger)
-	assertRouteTopic(events.FeesPackageCreatedDefinition.Key(), serviceFee)
-	assertRouteTopic(events.FeesAppliedDefinition.Key(), serviceFee)
-	assertRouteTopic(events.HolderCreatedDefinition.Key(), serviceCRM)
-	assertRouteTopic(events.InstrumentCreatedDefinition.Key(), serviceCRM)
+	// The independent map must cover exactly the registry key set: a missing
+	// event would silently skip its service check, an extra key would mask a
+	// dropped registration.
+	assert.Equal(t, len(defKeys), len(expectedService),
+		"expectedService must enumerate every registered event exactly once")
+	for key := range defKeys {
+		_, ok := expectedService[key]
+		assert.Truef(t, ok, "registered event %q missing from independent expectedService map", key)
+	}
+	for key := range expectedService {
+		_, ok := defKeys[key]
+		assert.Truef(t, ok, "expectedService key %q is not present in the registry", key)
+	}
+
+	// Every actual route's topic must match the INDEPENDENT expected service.
+	for _, r := range routes {
+		want, ok := expectedService[r.DefinitionKey]
+		if !assert.Truef(t, ok, "route %q has no independent expected service", r.DefinitionKey) {
+			continue
+		}
+
+		wantTopic := libStreaming.KafkaTopic(pkgStreaming.TopicName(want, r.DefinitionKey))
+		assert.Equalf(t, wantTopic, r.Destination,
+			"route %q must target %q (independent service lock)", r.DefinitionKey, wantTopic)
+	}
 }
 
 // TestFeesEventsRegistered locks the fee events into the assembled catalog: the
-// fee package / billing-package keys plus fees.applied must be a subset of the
+// fee package / billing-package keys plus fee-charge.applied must be a subset of the
 // catalog keys, so a dropped fee registration is caught before it becomes a
 // silent gap.
 func TestFeesEventsRegistered(t *testing.T) {

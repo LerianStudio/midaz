@@ -280,7 +280,7 @@ func streamingITExpectations() []streamingITExpectation {
 			},
 		},
 		{
-			// ce-subject for fees.applied is the TRANSACTION id, not a package id.
+			// ce-subject for fee-charge.applied is the TRANSACTION id, not a package id.
 			name:       "fee-charge.applied",
 			topic:      pkgStreaming.TopicName("fee", events.FeesAppliedDefinition.Key()),
 			ceType:     "studio.lerian." + events.FeesAppliedDefinition.Key(),

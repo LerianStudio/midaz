@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// feesPackageID is the deterministic aggregate ID reused across fees-package
+// feesPackageID is the deterministic aggregate ID reused across fee-packages
 // tests so Subject/ID assertions are exact-match.
 const feesPackageID = "0190d9e1-7c2a-7000-8000-0000000000f1"
 
-// feesPackageOrgID is the deterministic organization scope for fees-package
+// feesPackageOrgID is the deterministic organization scope for fee-packages
 // event tests.
 const feesPackageOrgID = "0190d9e1-7c2a-7000-8000-0000000000f3"
 
-// feesPackageLedgerID is the deterministic ledger scope for fees-package event
+// feesPackageLedgerID is the deterministic ledger scope for fee-packages event
 // tests.
 const feesPackageLedgerID = "0190d9e1-7c2a-7000-8000-0000000000f2"
 
