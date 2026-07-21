@@ -305,6 +305,11 @@ func IsBusinessError(err error) bool {
 		return true
 	}
 
+	var payloadTooLargeErr PayloadTooLargeError
+	if errors.As(err, &payloadTooLargeErr) {
+		return true
+	}
+
 	var validationKnownFieldsErr ValidationKnownFieldsError
 	if errors.As(err, &validationKnownFieldsErr) {
 		return true

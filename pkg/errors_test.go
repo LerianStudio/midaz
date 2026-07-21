@@ -714,6 +714,8 @@ func TestIsBusinessError(t *testing.T) {
 		{name: "UnauthorizedError", err: UnauthorizedError{Code: "0042", Message: "no token"}, expected: true},
 		{name: "ForbiddenError", err: ForbiddenError{Code: "0043", Message: "denied"}, expected: true},
 		{name: "UnprocessableOperationError", err: UnprocessableOperationError{Code: "0182", Message: "semantic"}, expected: true},
+		{name: "PayloadTooLargeError", err: PayloadTooLargeError{Code: "0143", Message: "too large"}, expected: true},
+		{name: "wrapped PayloadTooLargeError", err: fmt.Errorf("context: %w", PayloadTooLargeError{Code: "0143"}), expected: true},
 		{name: "ValidationKnownFieldsError", err: ValidationKnownFieldsError{Code: "0009", Message: "known"}, expected: true},
 		{name: "ValidationUnknownFieldsError", err: ValidationUnknownFieldsError{Code: "0053", Message: "unknown"}, expected: true},
 		{name: "wrapped EntityNotFoundError", err: fmt.Errorf("context: %w", EntityNotFoundError{Code: "0007"}), expected: true},
@@ -721,6 +723,7 @@ func TestIsBusinessError(t *testing.T) {
 		{name: "InternalServerError is not business", err: InternalServerError{Code: "0046", Message: "boom"}, expected: false},
 		{name: "FailedPreconditionError is not business", err: FailedPreconditionError{Code: "0269", Message: "precondition"}, expected: false},
 		{name: "ServiceUnavailableError is not business", err: ServiceUnavailableError{Code: "0265", Message: "down"}, expected: false},
+		{name: "GatewayTimeoutError is not business", err: GatewayTimeoutError{Code: "0271", Message: "timeout"}, expected: false},
 		{name: "plain error is not business", err: errors.New("boom"), expected: false},
 		{name: "nil error is not business", err: nil, expected: false},
 	}
