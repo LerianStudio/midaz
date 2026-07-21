@@ -63,7 +63,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	if cii.Type == "currency" {
+	if cii.Type == "currency" || cii.Type == "fiat" {
 		if err := utils.ValidateCurrency(cii.Code); err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, constant.EntityAsset)
 
