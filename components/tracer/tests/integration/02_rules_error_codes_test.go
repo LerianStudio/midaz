@@ -26,8 +26,9 @@ import (
 // These tests verify the error codes returned by rule handler operations.
 //
 // Error code mapping:
-//   - Malformed JSON/invalid request body → TRC-0003 (Bad Request)
-//   - Validation errors (invalid field values) → TRC-0001 (Validation Error)
+//   - Malformed JSON/invalid request body → 0094 (ErrInvalidRequestBody), title "Bad Request"
+//   - Validation errors (invalid field values) → specific numeric codes; human text lives in
+//     the RFC 9457 `detail` (the retired `message` field is empty)
 // =============================================================================
 
 // =============================================================================
@@ -35,7 +36,7 @@ import (
 // =============================================================================
 
 // TestCreateRule_MalformedJSON_ReturnsError verifies that completely malformed JSON returns an error.
-// Returns TRC-0003 for malformed JSON/invalid request body
+// Returns 0094 (ErrInvalidRequestBody) for malformed JSON/invalid request body
 func TestCreateRule_MalformedJSON_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -100,15 +101,15 @@ func TestCreateRule_MalformedJSON_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
+			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
 			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, "Invalid request body", errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
 
 // TestCreateRule_EmptyBody_ReturnsError verifies that an empty request body returns an error.
-// Returns TRC-0003 for empty request body
+// Returns a generic 400 (no domain error code) for empty request body
 func TestCreateRule_EmptyBody_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -129,13 +130,13 @@ func TestCreateRule_EmptyBody_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for empty body")
+	assert.Equal(t, "", errResp.Code, "Empty body returns a generic 400 with no domain error code")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "Invalid request body", errResp.Message)
+	assert.Equal(t, "", errResp.Message)
 }
 
 // TestCreateRule_NullBody_ReturnsError verifies that a null JSON body returns an error.
-// Returns TRC-0001 for null JSON body (valid JSON but missing required fields)
+// Returns 0353 (ErrRuleNameRequired) for null JSON body (valid JSON but missing required fields)
 func TestCreateRule_NullBody_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -158,13 +159,13 @@ func TestCreateRule_NullBody_ReturnsError(t *testing.T) {
 
 	// Note: "null" is valid JSON but missing required fields, so it's treated as a validation error
 	// With specific error codes, the first missing required field error is returned
-	assert.Equal(t, "0353", errResp.Code, "Expected TRC-0106 for null body (name is required)")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Equal(t, "name is required", errResp.Message)
+	assert.Equal(t, "0353", errResp.Code, "Expected 0353 (ErrRuleNameRequired) for null body")
+	assert.Equal(t, "Rule Name Required", errResp.Title)
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
 }
 
 // TestCreateRule_ArrayInsteadOfObject_ReturnsError verifies that a JSON array instead of object returns an error.
-// Returns TRC-0003 for array instead of object
+// Returns 0094 (ErrInvalidRequestBody) for array instead of object
 func TestCreateRule_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -186,13 +187,13 @@ func TestCreateRule_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for array instead of object")
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for array instead of object")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "Invalid request body", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // TestCreateRule_BinaryData_ReturnsError verifies that binary data returns an error.
-// Returns TRC-0003 for binary data (not valid JSON)
+// Returns 0094 (ErrInvalidRequestBody) for binary data (not valid JSON)
 func TestCreateRule_BinaryData_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -215,9 +216,9 @@ func TestCreateRule_BinaryData_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for binary data")
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for binary data")
 	assert.Equal(t, "Bad Request", errResp.Title)
-	assert.Equal(t, "Invalid request body", errResp.Message)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 }
 
 // =============================================================================
@@ -253,7 +254,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 		return resp.StatusCode, respBody
 	}
 
-	// Subtest: Malformed JSON cases (TRC-0003)
+	// Subtest: Malformed JSON cases (0094)
 	t.Run("malformed_json", func(t *testing.T) {
 		malformedCases := []struct {
 			name        string
@@ -289,36 +290,36 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 				assert.Equal(t, http.StatusBadRequest, statusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
 
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "0047", errResp.Code, "Test case: %s - Expected TRC-0003 for malformed JSON", tc.description)
+				assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
 				assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-				assert.Equal(t, "Invalid request body", errResp.Message, "Test case: %s", tc.description)
+				assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
 			})
 		}
 	})
 
-	// Subtest: Empty body (TRC-0003)
+	// Subtest: Empty body (generic 400, no code)
 	t.Run("empty_body", func(t *testing.T) {
 		statusCode, respBody := doPatchRequest(t, "")
 
 		assert.Equal(t, http.StatusBadRequest, statusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for empty body")
+		assert.Equal(t, "", errResp.Code, "Empty body returns a generic 400 with no domain error code")
 		assert.Equal(t, "Bad Request", errResp.Title)
-		assert.Equal(t, "Invalid request body", errResp.Message)
+		assert.Equal(t, "", errResp.Message)
 	})
 
-	// Subtest: Empty JSON object (TRC-0002)
+	// Subtest: Empty JSON object (0183 ErrNothingToUpdate)
 	t.Run("empty_json_object", func(t *testing.T) {
 		statusCode, respBody := doPatchRequest(t, "{}")
 
 		assert.Equal(t, http.StatusBadRequest, statusCode, "Response: %s", string(respBody))
 
 		errResp := testutil.ParseErrorResponse(t, respBody)
-		// TRC-0002 for missing required fields (empty object has no fields to update)
-		assert.Equal(t, "0009", errResp.Code, "Expected TRC-0002 for empty object (missing required fields)")
-		assert.Equal(t, "Validation Error", errResp.Title)
-		assert.Equal(t, "At least one field must be provided for update", errResp.Message)
+		// 0183 (ErrNothingToUpdate) for empty object (no fields to update)
+		assert.Equal(t, "0183", errResp.Code, "Expected 0183 (ErrNothingToUpdate) for empty object")
+		assert.Equal(t, "Nothing to Update", errResp.Title)
+		assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", errResp.Detail)
 	})
 }
 
@@ -343,56 +344,56 @@ func TestListRules_InvalidQueryParameters_ReturnsError(t *testing.T) {
 			name:          "invalid_action_filter_lowercase",
 			queryParams:   "action=allow",
 			expectedCode:  "0082",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Invalid Query Parameter",
 			description:   "Action filter with lowercase value",
 		},
 		{
 			name:          "invalid_action_filter_value",
 			queryParams:   "action=INVALID_ACTION",
 			expectedCode:  "0082",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Invalid Query Parameter",
 			description:   "Action filter with invalid enum value",
 		},
 		{
 			name:          "invalid_status_filter_lowercase",
 			queryParams:   "status=draft",
 			expectedCode:  "0082",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Invalid Query Parameter",
 			description:   "Status filter with lowercase value",
 		},
 		{
 			name:          "invalid_status_filter_value",
 			queryParams:   "status=INVALID_STATUS",
 			expectedCode:  "0082",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Invalid Query Parameter",
 			description:   "Status filter with invalid enum value",
 		},
 		{
 			name:          "deleted_status_not_allowed",
 			queryParams:   "status=DELETED",
 			expectedCode:  "0082",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Invalid Query Parameter",
 			description:   "DELETED status is not allowed in filter",
 		},
 		{
 			name:          "limit_zero",
 			queryParams:   "limit=0",
 			expectedCode:  "0331",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Pagination Limit Invalid",
 			description:   "Limit of 0 is invalid",
 		},
 		{
 			name:          "limit_negative",
 			queryParams:   "limit=-1",
 			expectedCode:  "0331",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Pagination Limit Invalid",
 			description:   "Negative limit is invalid",
 		},
 		{
 			name:          "limit_exceeds_max",
 			queryParams:   "limit=101",
 			expectedCode:  "0080",
-			expectedTitle: "Bad Request",
+			expectedTitle: "Pagination Limit Exceeded",
 			description:   "Limit exceeds maximum of 100",
 		},
 	}
@@ -507,8 +508,8 @@ func TestListRules_InvalidCursor_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
-			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
-			assert.Contains(t, errResp.Message, "cursor", "Test case: %s - Error should mention cursor", tc.description)
+			assert.Equal(t, "Invalid Cursor", errResp.Title, "Test case: %s", tc.description)
+			assert.Equal(t, "Invalid or corrupted pagination cursor.", errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -530,16 +531,16 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 			name:            "invalid_sort_column",
 			queryParams:     "sort_by=invalid_column",
 			expectedCode:    "0332",
-			expectedTitle:   "Bad Request",
-			expectedMessage: "sort_by must be one of [created_at updated_at name status]",
+			expectedTitle:   "Invalid Sort Column",
+			expectedMessage: "Sort column not in allowed list.",
 			description:     "Invalid sort column",
 		},
 		{
 			name:            "invalid_sort_order",
 			queryParams:     "sort_order=INVALID",
 			expectedCode:    "0081",
-			expectedTitle:   "Bad Request",
-			expectedMessage: "sort_order must be ASC or DESC",
+			expectedTitle:   "Invalid Sort Order",
+			expectedMessage: "The 'sort_order' field must be 'asc' or 'desc'. Please provide a valid sort order and try again.",
 			description:     "Invalid sort order",
 		},
 		// NOTE: lowercase sort orders (asc, desc) are accepted and normalized by the API,
@@ -564,7 +565,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
 			assert.Equal(t, tc.expectedTitle, errResp.Title, "Test case: %s", tc.description)
-			assert.Equal(t, tc.expectedMessage, errResp.Message, "Test case: %s", tc.description)
+			assert.Equal(t, tc.expectedMessage, errResp.Detail, "Test case: %s", tc.description)
 		})
 	}
 }
@@ -574,7 +575,7 @@ func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
 // =============================================================================
 
 // TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest verifies that
-// valid JSON with wrong types returns TRC-0003 (Bad Request) due to JSON type mismatch.
+// valid JSON with wrong types returns 0094 (ErrInvalidRequestBody), title "Bad Request", due to JSON type mismatch.
 func TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -638,10 +639,10 @@ func TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// TRC-0003 is returned for JSON type mismatch errors (bad request)
-			assert.Equal(t, "0047", errResp.Code, "Expected TRC-0003 for type validation error")
+			// 0094 (ErrInvalidRequestBody) is returned for JSON type mismatch errors (bad request)
+			assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for type validation error")
 			assert.Equal(t, "Bad Request", errResp.Title)
-			assert.Equal(t, "Invalid request body", errResp.Message)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
 		})
 	}
 }
@@ -680,7 +681,7 @@ func TestCreateRule_LargePayload_HandlesCorrectly(t *testing.T) {
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
 	// Validation error for name exceeding max length
-	assert.Equal(t, "0354", errResp.Code, "Expected TRC-0107 for name too long")
-	assert.Equal(t, "Validation Error", errResp.Title)
-	assert.Contains(t, errResp.Message, "name")
+	assert.Equal(t, "0354", errResp.Code, "Expected 0354 (ErrRuleNameTooLong) for name too long")
+	assert.Equal(t, "Rule Name Too Long", errResp.Title)
+	assert.Equal(t, "Rule name exceeds max length (255).", errResp.Detail)
 }

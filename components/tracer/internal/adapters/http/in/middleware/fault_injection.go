@@ -40,7 +40,7 @@ func DefaultFaultInjectionConfig() FaultInjectionConfig {
 //
 // Usage in tests:
 //
-//	req.Header.Set("X-Test-Fault-Injection", "timeout")     // timeout error (503)
+//	req.Header.Set("X-Test-Fault-Injection", "timeout")     // gateway timeout (504)
 //	req.Header.Set("X-Test-Fault-Injection", "unavailable") // service unavailable (503)
 func FaultInjection(config ...FaultInjectionConfig) fiber.Handler {
 	cfg := DefaultFaultInjectionConfig()

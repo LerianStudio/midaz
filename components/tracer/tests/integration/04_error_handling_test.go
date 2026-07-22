@@ -89,9 +89,9 @@ func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 		"Missing requestId should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0413", errorResp.Code, "Error code should be TRC-0220")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "requestId is required", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0413", errorResp.Code, "Error code should be 0413")
+	assert.Equal(t, "Validation Request IDRequired", errorResp.Title, "Error title should match the request-id error")
+	assert.Equal(t, "RequestId is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingAmount verifies 400 when amount is missing.
@@ -135,9 +135,9 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 		"Missing/zero amount should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0415", errorResp.Code, "Error code should be TRC-0222")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "amount must be positive", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0415", errorResp.Code, "Error code should be 0415")
+	assert.Equal(t, "Validation Amount Non Positive", errorResp.Title, "Error title should match the amount error")
+	assert.Equal(t, "Amount must be positive.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingCurrency verifies 400 when currency is missing.
@@ -181,9 +181,9 @@ func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 		"Missing currency should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0416", errorResp.Code, "Error code should be TRC-0223")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "currency is required", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0416", errorResp.Code, "Error code should be 0416")
+	assert.Equal(t, "Validation Currency Required", errorResp.Title, "Error title should match the currency error")
+	assert.Equal(t, "Currency is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingTransactionType verifies 400 when transactionType is missing.
@@ -227,9 +227,9 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 		"Missing transactionType should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0414", errorResp.Code, "Error code should be TRC-0221")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0414", errorResp.Code, "Error code should be 0414")
+	assert.Equal(t, "Validation Invalid Transaction Type", errorResp.Title, "Error title should match the transaction-type error")
+	assert.Equal(t, "Invalid transactionType.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_MissingTransactionTimestamp verifies 400 when transactionTimestamp is missing.
@@ -273,9 +273,9 @@ func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 		"Missing transactionTimestamp should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0418", errorResp.Code, "Error code should be TRC-0225")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "transactionTimestamp is required", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0418", errorResp.Code, "Error code should be 0418")
+	assert.Equal(t, "Validation Timestamp Required", errorResp.Title, "Error title should match the timestamp error")
+	assert.Equal(t, "Timestamp is required.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_ZeroValue verifies 400 when amount is zero.
@@ -319,9 +319,9 @@ func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 		"Amount = 0 should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0415", errorResp.Code, "Error code should be TRC-0222")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "amount must be positive", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0415", errorResp.Code, "Error code should be 0415")
+	assert.Equal(t, "Validation Amount Non Positive", errorResp.Title, "Error title should match the amount error")
+	assert.Equal(t, "Amount must be positive.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_NegativeValue verifies 400 when amount is negative.
@@ -365,9 +365,9 @@ func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 		"Negative amount should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0415", errorResp.Code, "Error code should be TRC-0222")
-	assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-	assert.Equal(t, "amount must be positive", errorResp.Message, "Error message should match exactly")
+	assert.Equal(t, "0415", errorResp.Code, "Error code should be 0415")
+	assert.Equal(t, "Validation Amount Non Positive", errorResp.Title, "Error title should match the amount error")
+	assert.Equal(t, "Amount must be positive.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 }
 
 // TestValidation_ErrorHandling_InvalidAmount_StringValue verifies 400 when amount is string instead of integer.
@@ -409,9 +409,9 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 		"String value for amount should return 400 Bad Request")
 
 	errorResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "0047", errorResp.Code, "Error code should be TRC-0003 for type mismatch")
+	assert.Equal(t, "0094", errorResp.Code, "Error code should be 0094 (invalid request body) for type mismatch")
 	assert.Equal(t, "Bad Request", errorResp.Title, "Error title should be Bad Request")
-	assert.Contains(t, errorResp.Message, "invalid", "Error message should mention invalid request")
+	assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, "invalid", "Error detail should mention invalid request")
 }
 
 // TestValidation_ErrorHandling_InvalidCurrency_MixedCase verifies strict uppercase validation for currency.
@@ -465,9 +465,9 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 				"Non-uppercase currency '%s' should return 400 Bad Request", tc.currency)
 
 			errorResp := testutil.ParseErrorResponse(t, respBody)
-			assert.Equal(t, "0417", errorResp.Code, "Error code should be TRC-0224 for invalid currency")
-			assert.Equal(t, "Validation Error", errorResp.Title, "Error title should be Validation Error")
-			assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errorResp.Message, "Error message should match exactly")
+			assert.Equal(t, "0417", errorResp.Code, "Error code should be 0417 for invalid currency")
+			assert.Equal(t, "Validation Invalid Currency", errorResp.Title, "Error title should match the currency error")
+			assert.Equal(t, "Currency must be valid ISO 4217.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should match exactly")
 		})
 	}
 }

@@ -162,6 +162,38 @@ func (e ServiceUnavailableError) Error() string {
 	return e.Message
 }
 
+// GatewayTimeoutError indicates an upstream/processing deadline was exceeded and
+// the request could not be completed in time. It renders as HTTP 504 (distinct
+// from ServiceUnavailableError's 503): the caller may retry, but the failure is
+// a timeout, not an unavailable dependency.
+type GatewayTimeoutError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e GatewayTimeoutError) Error() string {
+	return e.Message
+}
+
+// PayloadTooLargeError indicates the request body exceeded the accepted size
+// limit. It renders as HTTP 413. The limit (and therefore the human message) is
+// caller-specific, so this type is constructed at the call site with an explicit
+// Message rather than resolved from the shared registry.
+type PayloadTooLargeError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e PayloadTooLargeError) Error() string {
+	return e.Message
+}
+
 // InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
@@ -270,6 +302,11 @@ func IsBusinessError(err error) bool {
 
 	var unprocessableErr UnprocessableOperationError
 	if errors.As(err, &unprocessableErr) {
+		return true
+	}
+
+	var payloadTooLargeErr PayloadTooLargeError
+	if errors.As(err, &payloadTooLargeErr) {
 		return true
 	}
 
@@ -1385,6 +1422,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Payload Too Large",
 			Message:    "The request payload exceeds the maximum allowed size of 64KB.",
 		},
+		constant.ErrRequestHeaderFieldsTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRequestHeaderFieldsTooLarge.Error(),
+			Title:      "Request Header Fields Too Large",
+			Message:    "The request header fields are too large. Please reduce the size of the request headers and try again.",
+		},
 		constant.ErrJSONNestingDepthExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrJSONNestingDepthExceeded.Error(),
@@ -2435,11 +2478,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Validation Timestamp Past",
 			Message:    "Timestamp is too far in the past.",
 		},
-		constant.ErrValidationTimeout: ServiceUnavailableError{
+		constant.ErrValidationTimeout: GatewayTimeoutError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationTimeout.Error(),
-			Title:      "Validation Timeout",
-			Message:    "Validation timeout.",
+			Title:      "Gateway Timeout",
+			Message:    "validation timeout",
 		},
 		constant.ErrValidationSegmentIDRequired: ValidationError{
 			EntityType: entityType,
@@ -2501,11 +2544,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Validation Not Found",
 			Message:    "Transaction validation record not found.",
 		},
-		constant.ErrListValidationsTimeout: ServiceUnavailableError{
+		constant.ErrListValidationsTimeout: GatewayTimeoutError{
 			EntityType: entityType,
 			Code:       constant.ErrListValidationsTimeout.Error(),
-			Title:      "List Validations Timeout",
-			Message:    "List validations query timeout (deadline exceeded).",
+			Title:      "Gateway Timeout",
+			Message:    "query timeout exceeded",
 		},
 		constant.ErrTransactionValidationIDRequired: ValidationError{
 			EntityType: entityType,

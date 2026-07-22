@@ -454,6 +454,14 @@ func classifyLifecycleError(span trace.Span, err error) error {
 // JSON parser). The errors.Is cascade and the canonical mapping are preserved
 // verbatim from the pre-Huma handler.
 func classifyServiceError(span trace.Span, err error) error {
+	// Services pre-classify domain failures into typed business errors via
+	// pkg.ValidateBusinessError (leaving Err nil, so errors.Is on the raw
+	// sentinel below cannot re-match them). Pass those through unchanged so the
+	// service's status/code survives instead of collapsing to a 500.
+	if pkg.IsBusinessError(err) {
+		return err
+	}
+
 	switch {
 	case errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", err)

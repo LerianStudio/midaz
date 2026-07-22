@@ -1358,8 +1358,8 @@ func TestLimits_DeactivateLimit_FromDraft(t *testing.T) {
 	defer resp.Body.Close()
 
 	// DRAFT → INACTIVE is not a valid transition
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Deactivate from DRAFT should return 400 - invalid transition")
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode,
+		"Deactivate from DRAFT should return 422 - invalid transition")
 }
 
 // TestLimits_DeactivateLimit_FromActive tests deactivating an ACTIVE limit (3.7.1)
@@ -1926,11 +1926,11 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Scope without fields should return 400 Bad Request")
 
-	// Verify error response structure (code, title, message)
+	// Verify error response structure (code, title, detail)
 	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "0053", errResp.Code, "Error code should be TRC-0001")
+	assert.Equal(t, "0009", errResp.Code, "Error code should be 0009 (missing fields in request)")
 	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be 'Validation Error'")
-	assert.Equal(t, "scope at index 0 must have at least one field set", errResp.Message, "Error message should indicate scope validation failure")
+	assert.Equal(t, "scope at index 0 must have at least one field set", testutil.ParseErrorResponse(t, body).Detail, "Error detail should indicate scope validation failure")
 }
 
 // =============================================================================
@@ -2062,9 +2062,9 @@ func TestLimits_UpdateLimit_UpdatesScopes(t *testing.T) {
 }
 
 // TestLimits_UpdateLimit_BlocksLimitTypeChange (3.4.5)
-// Verifies that limitType field is silently ignored on PATCH.
-// Note: The API silently ignores immutable fields rather than returning an error.
-// When only immutable fields are sent, it returns 400 "At least one field must be provided".
+// Verifies that limitType is immutable on PATCH.
+// The API rejects a limitType change with 422 (code 0380, "Limit Immutable Field")
+// and leaves the stored limitType unchanged.
 func TestLimits_UpdateLimit_BlocksLimitTypeChange(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -2092,8 +2092,8 @@ func TestLimits_UpdateLimit_BlocksLimitTypeChange(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// API returns 400 because limitType is silently ignored, leaving no valid fields
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Changing limitType should return 400")
+	// API rejects the immutable limitType change with 422 (Limit Immutable Field)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "Changing limitType should return 422")
 
 	// Verify limitType was not changed by fetching the limit
 	getReq, err := http.NewRequest("GET", baseURL+"/v1/limits/"+limitID, nil)
@@ -2115,9 +2115,9 @@ func TestLimits_UpdateLimit_BlocksLimitTypeChange(t *testing.T) {
 }
 
 // TestLimits_UpdateLimit_BlocksCurrencyChange (3.4.6)
-// Verifies that currency field is silently ignored on PATCH.
-// Note: The API silently ignores immutable fields rather than returning an error.
-// When only immutable fields are sent, it returns 400 "At least one field must be provided".
+// Verifies that currency is immutable on PATCH.
+// The API rejects a currency change with 422 (code 0380, "Limit Immutable Field")
+// and leaves the stored currency unchanged.
 func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -2145,8 +2145,8 @@ func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// API returns 400 because currency is silently ignored, leaving no valid fields
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Changing currency should return 400")
+	// API rejects the immutable currency change with 422 (Limit Immutable Field)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "Changing currency should return 422")
 
 	// Verify currency was not changed by fetching the limit
 	getReq, err := http.NewRequest("GET", baseURL+"/v1/limits/"+limitID, nil)
@@ -2249,10 +2249,10 @@ func TestLimits_UpdateLimit_EmptyBody_ReturnsTRC0002(t *testing.T) {
 	// Parse and validate error response
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// TRC-0002 for missing required fields (empty object has no fields to update)
-	assert.Equal(t, "0009", errResp.Code, "Expected TRC-0002 for empty JSON body (no fields to update)")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error title should be 'Validation Error'")
-	assert.Equal(t, "At least one field must be provided for update", errResp.Message, "Error message should indicate at least one field required")
+	// Code 0183 (Nothing to Update) for an empty object with no fields to update
+	assert.Equal(t, "0183", errResp.Code, "Expected 0183 for empty JSON body (no fields to update)")
+	assert.Equal(t, "Nothing to Update", errResp.Title, "Error title should be 'Nothing to Update'")
+	assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", testutil.ParseErrorResponse(t, respBody).Detail, "Error detail should indicate at least one field required")
 
 	// Re-fetch the limit after the failed PATCH and verify state is unchanged
 	getReq2, err := http.NewRequest("GET", baseURL+"/v1/limits/"+limitID, nil)
@@ -2504,8 +2504,8 @@ func TestLimits_DeleteLimit_ActiveLimit(t *testing.T) {
 	defer resp.Body.Close()
 
 	// ACTIVE limits cannot be deleted - must deactivate first
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Delete ACTIVE limit should return 400 - must deactivate first")
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode,
+		"Delete ACTIVE limit should return 422 - must deactivate first")
 }
 
 // TestLimits_DeleteLimit_InactiveLimit (3.8.1c)
@@ -3683,16 +3683,14 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 // ImmutableField Validation Tests
 // =============================================================================
 // These tests verify that attempting to change immutable fields (limitType, currency)
-// via PATCH returns HTTP 400 with error code TRC-0138 (ImmutableField).
+// via PATCH returns HTTP 422 with error code 0380 ("Limit Immutable Field").
 //
-// Per API Design doc:
-// | 400 | ImmutableField | Attempted to change limitType or currency |
-//
-// The API now returns TRC-0138 when immutable fields are included in request body.
+// Immutable-field changes are an unprocessable business rule:
+// | 422 | Limit Immutable Field | Attempted to change limitType or currency |
 // =============================================================================
 
 // TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138 verifies that attempting to change
-// immutable fields (limitType, currency) returns HTTP 400 with error code TRC-0138.
+// immutable fields (limitType, currency) returns HTTP 422 with error code 0380.
 func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -3763,45 +3761,44 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 			respBody, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			// Assert HTTP 400 Bad Request
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-				"[%s] %s should return 400 Bad Request, got %d: %s",
+			// Assert HTTP 422 Unprocessable Entity
+			assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode,
+				"[%s] %s should return 422 Unprocessable Entity, got %d: %s",
 				tc.name, tc.description, resp.StatusCode, string(respBody))
 
 			// Parse and validate error response
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// Assert error code is TRC-0138 (ImmutableField)
+			// Assert error code is 0380 (Limit Immutable Field)
 			assert.Equal(t, "0380", errResp.Code,
-				"[%s] Expected error code TRC-0138 (ImmutableField), got %s",
+				"[%s] Expected error code 0380 (Limit Immutable Field), got %s",
 				tc.name, errResp.Code)
 
 			// Assert error title
-			// Accept either "Immutable Field" or "Validation Error" as valid titles
-			assert.True(t,
-				errResp.Title == "Immutable Field" || errResp.Title == "Validation Error",
-				"[%s] Expected error title 'Immutable Field' or 'Validation Error', got '%s'",
+			assert.Equal(t, "Limit Immutable Field", errResp.Title,
+				"[%s] Expected error title 'Limit Immutable Field', got '%s'",
 				tc.name, errResp.Title)
 
-			// Assert error message mentions the field that cannot be modified (case-insensitive)
-			// For cases with multiple immutable fields, the server may report any of them
+			// Assert error detail mentions the immutable field(s) that cannot be modified (case-insensitive).
+			// The detail lists all immutable fields (limitType, currency), so any target key is present.
+			detail := testutil.ParseErrorResponse(t, respBody).Detail
 			if len(tc.updateBody) > 1 {
-				// Check that message contains at least one of the updateBody keys
-				msgLower := strings.ToLower(errResp.Message)
+				// Check that detail contains at least one of the updateBody keys
+				detailLower := strings.ToLower(detail)
 				foundField := false
 				for key := range tc.updateBody {
-					if strings.Contains(msgLower, strings.ToLower(key)) {
+					if strings.Contains(detailLower, strings.ToLower(key)) {
 						foundField = true
 						break
 					}
 				}
 				assert.True(t, foundField,
-					"[%s] Error message should mention at least one immutable field from %v, got '%s'",
-					tc.name, tc.updateBody, errResp.Message)
+					"[%s] Error detail should mention at least one immutable field from %v, got '%s'",
+					tc.name, tc.updateBody, detail)
 			} else {
-				assert.Contains(t, strings.ToLower(errResp.Message), strings.ToLower(tc.expectedField),
-					"[%s] Error message should mention '%s' field, got '%s'",
-					tc.name, tc.expectedField, errResp.Message)
+				assert.Contains(t, strings.ToLower(detail), strings.ToLower(tc.expectedField),
+					"[%s] Error detail should mention '%s' field, got '%s'",
+					tc.name, tc.expectedField, detail)
 			}
 
 			// Verify the limit was NOT modified by fetching it
@@ -3930,7 +3927,7 @@ func TestLimits_DraftLimit_RejectsActiveLimit(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "ACTIVE → DRAFT should be rejected")
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "ACTIVE → DRAFT should be rejected")
 }
 
 func TestLimits_DraftLimit_RejectsDeletedLimit(t *testing.T) {

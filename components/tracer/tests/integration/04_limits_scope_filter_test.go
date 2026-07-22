@@ -232,6 +232,8 @@ func TestListLimits_4_5_ScopeFiltersWithExistingFilters(t *testing.T) {
 }
 
 // TestListLimits_4_6_InvalidScopeFiltersReturnError verifies validation errors for invalid scope params.
+// Invalid scope/filter query params are canonicalized to code 0082 (Invalid Query Parameter);
+// the RFC 9457 detail references the parameter group generically as 'filters', not the individual field.
 func TestListLimits_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -246,37 +248,37 @@ func TestListLimits_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 			name:        "invalid account_id UUID",
 			queryParams: "account_id=not-a-uuid",
 			expectCode:  "0082",
-			expectMsg:   "account_id",
+			expectMsg:   "filters",
 		},
 		{
 			name:        "invalid segment_id UUID",
 			queryParams: "segment_id=invalid",
 			expectCode:  "0082",
-			expectMsg:   "segment_id",
+			expectMsg:   "filters",
 		},
 		{
 			name:        "invalid portfolio_id UUID",
 			queryParams: "portfolio_id=bad-uuid",
 			expectCode:  "0082",
-			expectMsg:   "portfolio_id",
+			expectMsg:   "filters",
 		},
 		{
 			name:        "invalid merchant_id UUID",
 			queryParams: "merchant_id=xyz",
 			expectCode:  "0082",
-			expectMsg:   "merchant_id",
+			expectMsg:   "filters",
 		},
 		{
 			name:        "invalid transaction_type enum",
 			queryParams: "transaction_type=INVALID_TYPE",
 			expectCode:  "0082",
-			expectMsg:   "transaction_type",
+			expectMsg:   "filters",
 		},
 		{
 			name:        "sub_type exceeds max length",
 			queryParams: "sub_type=" + strings.Repeat("x", 51),
 			expectCode:  "0082",
-			expectMsg:   "sub_type",
+			expectMsg:   "filters",
 		},
 	}
 
@@ -297,7 +299,7 @@ func TestListLimits_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 			assert.Equal(t, tc.expectCode, errResp.Code, "Error code mismatch")
-			assert.Contains(t, errResp.Message, tc.expectMsg, "Error message should mention the invalid field")
+			assert.Contains(t, testutil.ParseErrorResponse(t, respBody).Detail, tc.expectMsg, "Error detail should reference the invalid query parameters")
 		})
 	}
 }

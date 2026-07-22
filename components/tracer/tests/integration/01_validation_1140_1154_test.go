@@ -617,7 +617,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 // The CEL expression engine converts decimal amounts to float64, which loses precision
 // beyond 2^53. The precision guard rejects such amounts to prevent silent rounding errors.
 // A rule must be active so the amount goes through CEL evaluation (no rules → no CEL).
-// Returns HTTP 400 Bad Request with error code TRC-0089.
+// Returns HTTP 422 Unprocessable Entity with error code 0346 (Amount Exceeds Precision).
 func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 	// Create and activate a rule so the validation path invokes CEL.
 	// The expression "amount > 0" matches any positive amount, forcing CEL evaluation.
@@ -654,13 +654,13 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Amount exceeding CEL precision (2^53) should return 400: %s", string(body))
+	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode,
+		"Amount exceeding CEL precision (2^53) should return 422: %s", string(body))
 
-	var errResp map[string]interface{}
+	var errResp map[string]any
 	require.NoError(t, json.Unmarshal(body, &errResp), "Response body should be valid JSON")
-	assert.Equal(t, "0346", errResp["code"], "Error code should be TRC-0089 (amount exceeds precision)")
-	assert.Equal(t, "Bad Request", errResp["title"])
+	assert.Equal(t, "0346", errResp["code"], "Error code should be 0346 (amount exceeds precision)")
+	assert.Equal(t, "Amount Exceeds Precision", errResp["title"])
 }
 
 // Test 1.1.47b: Validation accepts the maximum safe amount for CEL evaluation (2^53).
@@ -840,8 +840,9 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	// Verify structured error response
 	errResp := testutil.ParseErrorResponse(t, body)
 	assert.Equal(t, "0417", errResp.Code, "Error response should have invalid currency error code")
-	assert.Equal(t, "Validation Error", errResp.Title, "Error response should have validation error title")
-	assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errResp.Message, "Error message should indicate valid currency format")
+	assert.Equal(t, "Validation Invalid Currency", errResp.Title, "Error response should have invalid currency title")
+	assert.Empty(t, errResp.Message, "RFC 9457 carries the human message in detail, not message")
+	assert.Equal(t, "Currency must be valid ISO 4217.", errResp.Detail, "RFC 9457 detail carries the human-readable currency validation message")
 }
 
 // Test 1.1.52: Duplicate requestId returns cached response (idempotent behavior)

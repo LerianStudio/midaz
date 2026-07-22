@@ -40,8 +40,8 @@ import (
 const legacyHeadVersion = 12
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 001..016).
-const headVersion = 17
+// the HEAD migrations (unified single-runner, 000001..000020).
+const headVersion = 20
 
 // legacyDevelopRef is the immutable commit representing the last state of
 // origin/develop before the unify-sql-migrations feature branched. Pinned
@@ -64,9 +64,9 @@ const legacyDevelopRef = "0a77ac3e4945db1846626aab91f9899079877365"
 //     (dual-runner layout: `migrations/functions/` + numbered schema
 //     migrations 001..012, tracked in `schema_migrations_functions` +
 //     `schema_migrations`).
-//  2. In-place upgrade to HEAD migrations (unified single-runner, 001..016)
+//  2. In-place upgrade to HEAD migrations (unified single-runner, 000001..000020)
 //     using the exact same boot runner production will use (libPostgres.Migrator).
-//  3. Assertions that the final state matches a fresh install: version=16,
+//  3. Assertions that the final state matches a fresh install: version=headVersion,
 //     legacy tracking table dropped, hash-chain functions installed, audit
 //     trigger operational.
 //
@@ -287,8 +287,10 @@ func extractDevelopMigrations(ctx context.Context, t *testing.T) string {
 	return extracted
 }
 
-// resolveHeadMigrationsDir returns the absolute path of the migrations/ tree
-// in the current working copy (HEAD of the feature branch).
+// resolveHeadMigrationsDir returns the absolute path of the tracer migrations/
+// tree (components/tracer/migrations) in the current working copy; this mirrors
+// the production boot path resolved by the shared integration suite
+// (internal/testutil_integration/testcontainer_suite.go).
 //
 // ctx is threaded into the git subprocess via exec.CommandContext so a
 // cancelled or timed-out test context kills the child process, matching the
@@ -301,7 +303,7 @@ func resolveHeadMigrationsDir(ctx context.Context, t *testing.T) string {
 
 	root := strings.TrimSpace(string(out))
 
-	return filepath.Join(root, "migrations")
+	return filepath.Join(root, "components", "tracer", "migrations")
 }
 
 // withTestDB opens a *sql.DB against dsn, invokes fn, and guarantees Close()
@@ -332,7 +334,8 @@ func withTestDB(t *testing.T, dsn, openMsg string, fn func(db *sql.DB)) {
 func startUpgradePathContainer(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
-	container, err := postgres.Run(ctx,
+	container, err := postgres.Run(
+		ctx,
 		"postgres:16-alpine",
 		postgres.WithDatabase("tracer_test"),
 		postgres.WithUsername("tracer"),
@@ -458,7 +461,8 @@ func applyLegacyFunctionMigrations(ctx context.Context, t *testing.T, dsn, funct
 			_, err = db.ExecContext(ctx, string(body))
 			require.NoError(t, err, "apply legacy function migration %s", fname)
 
-			_, err = db.ExecContext(ctx,
+			_, err = db.ExecContext(
+				ctx,
 				`INSERT INTO schema_migrations_functions (version, name) VALUES ($1, $2)`,
 				versionNum, parts[1],
 			)
@@ -566,7 +570,8 @@ func applyLegacySchemaMigrationsUpTo(ctx context.Context, t *testing.T, dsn, mig
 		dirty   bool
 	)
 
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 	).Scan(&version, &dirty)
 	require.NoError(t, err, "read schema_migrations after legacy apply")
@@ -587,7 +592,8 @@ func assertLegacyState(ctx context.Context, t *testing.T, dsn string, legacyVers
 			dirty   bool
 		)
 
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(
+			ctx,
 			`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 		).Scan(&version, &dirty)
 		require.NoError(t, err, "read legacy schema_migrations.version")
@@ -597,7 +603,8 @@ func assertLegacyState(ctx context.Context, t *testing.T, dsn string, legacyVers
 
 		var functionRows int
 
-		err = db.QueryRowContext(ctx,
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT COUNT(*) FROM schema_migrations_functions`,
 		).Scan(&functionRows)
 		require.NoError(t, err, "count schema_migrations_functions")
@@ -621,7 +628,8 @@ func assertUpgradedState(ctx context.Context, t *testing.T, dsn string) {
 			dirty   bool
 		)
 
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(
+			ctx,
 			`SELECT version, dirty FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 		).Scan(&version, &dirty)
 		require.NoError(t, err, "read upgraded schema_migrations.version")
@@ -647,7 +655,8 @@ func assertUpgradedState(ctx context.Context, t *testing.T, dsn string) {
 		} {
 			var count int
 
-			err = db.QueryRowContext(ctx,
+			err = db.QueryRowContext(
+				ctx,
 				`SELECT COUNT(*) FROM pg_proc WHERE proname = $1`, fn,
 			).Scan(&count)
 			require.NoError(t, err, "pg_proc lookup for %s", fn)
@@ -679,7 +688,8 @@ func assertUpgradedState(ctx context.Context, t *testing.T, dsn string) {
 		//    executed the conversion exactly once (not zero, not twice).
 		var maxAmountType string
 
-		err = db.QueryRowContext(ctx,
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT data_type FROM information_schema.columns
 			 WHERE table_schema = 'public'
 			   AND table_name   = 'limits'
@@ -712,7 +722,8 @@ func assertUpgradedStateForLegacyVersion(ctx context.Context, t *testing.T, dsn 
 		// behavioral proof the guard logic is correct.
 		var constraintCount int
 
-		err := db.QueryRowContext(ctx,
+		err := db.QueryRowContext(
+			ctx,
 			`SELECT COUNT(*) FROM pg_constraint
 			 WHERE conname = 'chk_limits_custom_dates_required'
 			   AND conrelid = 'public.limits'::regclass`,

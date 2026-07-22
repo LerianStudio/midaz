@@ -31,6 +31,14 @@ type Detail struct {
 	libProblem.Detail
 
 	EntityType string `json:"entityType,omitempty"`
+
+	// Message carries the human-readable reason as a top-level field for the
+	// error classes that expose it to clients verbatim (413 payload-too-large,
+	// 504 gateway-timeout). It is populated only for those statuses; for every
+	// other class it stays empty and is dropped by omitempty, so the shared
+	// envelope (and the ledger wire) is unchanged. Distinct from the RFC 9457
+	// `detail`, which the >=500 scrub replaces with "internal error".
+	Message string `json:"message,omitempty"`
 }
 
 // codeStatus is the FROZEN code->status snapshot of the §1 table, keyed by the
@@ -97,6 +105,14 @@ func classifyForProblem(err error) (code, msg, title, entityType string, status 
 
 	if e := (pkg.ServiceUnavailableError{}); errors.As(err, &e) {
 		return e.Code, e.Message, e.Title, e.EntityType, http.StatusServiceUnavailable, true
+	}
+
+	if e := (pkg.GatewayTimeoutError{}); errors.As(err, &e) {
+		return e.Code, e.Message, e.Title, e.EntityType, http.StatusGatewayTimeout, true
+	}
+
+	if e := (pkg.PayloadTooLargeError{}); errors.As(err, &e) {
+		return e.Code, e.Message, e.Title, e.EntityType, http.StatusRequestEntityTooLarge, true
 	}
 
 	// lib-commons Response sub-switch (r3 §1.2), resolved at the same arm position
@@ -178,17 +194,19 @@ func ProblemDetail(err error) (Detail, bool) {
 	var (
 		capturedEntityType string
 		capturedTitle      string
+		capturedMessage    string
 		problemStatus      int
 	)
 
-	// codeOf classifies the type once and stashes status + title + entityType.
-	// MapError calls codeOf then statusOf synchronously in the same call, so
-	// statusOf can return the captured status. See ponytail note above.
+	// codeOf classifies the type once and stashes status + title + entityType +
+	// message. MapError calls codeOf then statusOf synchronously in the same
+	// call, so statusOf can return the captured status. See ponytail note above.
 	codeOf := func(e error) (string, string, bool) {
 		code, msg, title, entityType, status, ok := classifyForProblem(e)
 		if ok {
 			capturedEntityType = entityType
 			capturedTitle = title
+			capturedMessage = msg
 			problemStatus = status
 		}
 
@@ -214,6 +232,15 @@ func ProblemDetail(err error) (Detail, bool) {
 	body := Detail{Detail: *pd, EntityType: capturedEntityType}
 	if errs := fieldsToErrors(err); errs != nil {
 		body.Errors = errs
+	}
+
+	// 413 and 504 expose the reason to clients verbatim via the top-level
+	// message field, using the raw registry message (not the >=500-scrubbed
+	// detail). No other class sets it, so omitempty keeps the shared envelope
+	// unchanged. These two statuses are produced ONLY by PayloadTooLargeError /
+	// GatewayTimeoutError inside this classifier, so gating on status is exact.
+	if problemStatus == http.StatusRequestEntityTooLarge || problemStatus == http.StatusGatewayTimeout {
+		body.Message = capturedMessage
 	}
 
 	return body, true

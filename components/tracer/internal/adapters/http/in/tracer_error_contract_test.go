@@ -170,20 +170,20 @@ func TestTracerErrorContract(t *testing.T) {
 			expectedCode:   "0432",
 			expectedTitle:  "Transaction Validation Not Found",
 		},
-		// --- timeout / cancelled (503) ---
+		// --- timeout (504) / cancelled (503) ---
 		{
-			name:           "validation timeout -> 0422 / 503",
+			name:           "validation timeout -> 0422 / 504",
 			err:            pkg.ValidateBusinessError(constant.ErrValidationTimeout, constant.EntityValidationRequest),
-			expectedStatus: 503,
+			expectedStatus: 504,
 			expectedCode:   "0422",
-			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
+			expectedTitle:  "Gateway Timeout", // >=500: title scrubbed to status text (RFC 9457) == "Gateway Timeout"
 		},
 		{
-			name:           "list validations timeout -> 0433 / 503",
+			name:           "list validations timeout -> 0433 / 504",
 			err:            pkg.ValidateBusinessError(constant.ErrListValidationsTimeout, constant.EntityTransactionValidation),
-			expectedStatus: 503,
+			expectedStatus: 504,
 			expectedCode:   "0433",
-			expectedTitle:  "Service Unavailable", // >=500: title scrubbed to status text (RFC 9457)
+			expectedTitle:  "Gateway Timeout", // >=500: title scrubbed to status text (RFC 9457) == "Gateway Timeout"
 		},
 		{
 			name:           "context cancelled -> 0330 / 503",

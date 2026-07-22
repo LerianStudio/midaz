@@ -24,15 +24,15 @@ import (
 // Rules & Limits Name Uniqueness Tests
 //
 // These tests verify:
-// 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + TRC-0303
+// 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + 0441 (ErrRuleNameAlreadyExistsInCtx)
 // 2. Creating a rule with the same name in a DIFFERENT context returns HTTP 201
 // 3. Creating a rule with a name that was previously soft-deleted returns HTTP 201
-// 4. Creating a limit with a duplicate name (globally unique) returns HTTP 409 + TRC-0304
+// 4. Creating a limit with a duplicate name (globally unique) returns HTTP 409 + 0442 (ErrLimitNameAlreadyExists)
 // 5. Creating a limit with a name that was previously soft-deleted returns HTTP 201
 //
 // Implementation complete:
 // - Unique indexes on rules(context_id, name) and limits(name) with NULLS NOT DISTINCT
-// - TRC-0303 and TRC-0304 error codes for duplicate names
+// - 0441 and 0442 error codes for duplicate names (title is the humanized sentinel name; human text in RFC 9457 detail)
 // - Context-scoped uniqueness for rules (via context_id derived from first scope's segmentId)
 // - Global uniqueness for limits (name must be unique across all non-deleted limits)
 // TODO: update limit tests to include rule_id when limits become rule-scoped
@@ -60,12 +60,13 @@ type nameUniquenessLimitRequest struct {
 type nameUniquenessErrorResponse struct {
 	Code    string `json:"code"`
 	Title   string `json:"title"`
+	Detail  string `json:"detail"`
 	Message string `json:"message"`
 }
 
 // =============================================================================
 // Test 1: CreateRule_DuplicateName_Returns409
-// Same name + same context -> 409 + TRC-0303
+// Same name + same context -> 409 + 0441
 // =============================================================================
 
 func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
@@ -137,7 +138,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 	respBody2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err)
 
-	// Verify duplicate rule name in same context returns 409 + TRC-0303
+	// Verify duplicate rule name in same context returns 409 + 0441
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate rule name in same context should return 409: %s", string(respBody2))
 
 	if resp2.StatusCode == http.StatusConflict {
@@ -145,9 +146,12 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
-		assert.Equal(t, "0441", errResp.Code, "Error code should be TRC-0303 for duplicate rule name in same context")
-		assert.Equal(t, "Conflict", errResp.Title, "Error title should be Conflict")
-		assert.Contains(t, errResp.Message, "name", "Error message should mention name")
+		assert.Equal(t, "0441", errResp.Code, "Error code should be 0441 (ErrRuleNameAlreadyExistsInCtx) for duplicate rule name in same context")
+		assert.Equal(t, "Rule Name Already Exists In Ctx", errResp.Title, "Error title is the humanized sentinel name")
+		// message field is retired under RFC 9457; the human text now lives in `detail`.
+		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Rule name already exists in this context.", errResp.Detail, "detail should state the rule-name conflict")
 	}
 }
 
@@ -341,7 +345,7 @@ func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
 
 // =============================================================================
 // Test 4: CreateLimit_DuplicateName_Returns409
-// Same name (globally unique) -> 409 + TRC-0304
+// Same name (globally unique) -> 409 + 0442
 // =============================================================================
 
 func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
@@ -416,7 +420,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 	respBody2, err := io.ReadAll(resp2.Body)
 	require.NoError(t, err)
 
-	// Verify duplicate limit name returns 409 + TRC-0304
+	// Verify duplicate limit name returns 409 + 0442
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate limit name should return 409: %s", string(respBody2))
 
 	if resp2.StatusCode == http.StatusConflict {
@@ -424,9 +428,12 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
-		assert.Equal(t, "0442", errResp.Code, "Error code should be TRC-0304 for duplicate limit name")
-		assert.Equal(t, "Conflict", errResp.Title, "Error title should be Conflict")
-		assert.Contains(t, errResp.Message, "name", "Error message should mention name")
+		assert.Equal(t, "0442", errResp.Code, "Error code should be 0442 (ErrLimitNameAlreadyExists) for duplicate limit name")
+		assert.Equal(t, "Limit Name Already Exists", errResp.Title, "Error title is the humanized sentinel name")
+		// message field is retired under RFC 9457; the human text now lives in `detail`.
+		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Limit name already exists.", errResp.Detail, "detail should state the limit-name conflict")
 	}
 }
 
