@@ -172,7 +172,7 @@ func defaultOnboardingPostgresMigrator(cfg *Config, logger libLog.Logger) error 
 		PrimaryDSN:     primaryDSN,
 		DatabaseName:   cfg.OnbPrefixedPrimaryDBName,
 		Component:      "ledger",
-		MigrationsPath: "components/ledger/migrations/onboarding",
+		MigrationsPath: "/migrations/onboarding",
 		Logger:         logger,
 	})
 	if err != nil {

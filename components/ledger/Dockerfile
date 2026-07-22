@@ -29,18 +29,11 @@ LABEL org.opencontainers.image.licenses="Elastic-2.0"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
-# The migrator resolves its source via filepath.Abs(os.Getwd()) applied to the
-# CWD-relative "components/ledger/migrations/...". The :nonroot base runs with
-# CWD /home/nonroot, so stage the migrations there and pin WORKDIR to match.
-WORKDIR /home/nonroot
-
 COPY --from=builder /app /app
-COPY --chown=nonroot:nonroot --from=builder \
-  /ledger-app/components/ledger/migrations/onboarding \
-  /home/nonroot/components/ledger/migrations/onboarding
-COPY --chown=nonroot:nonroot --from=builder \
-  /ledger-app/components/ledger/migrations/transaction \
-  /home/nonroot/components/ledger/migrations/transaction
+# Stage migrations at an absolute, world-readable path outside /home/nonroot so
+# the migrator resolves them regardless of CWD or the runtime user.
+COPY --from=builder /ledger-app/components/ledger/migrations/onboarding /migrations/onboarding
+COPY --from=builder /ledger-app/components/ledger/migrations/transaction /migrations/transaction
 
 EXPOSE 3002
 
