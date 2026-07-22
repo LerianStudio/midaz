@@ -172,7 +172,7 @@ func defaultTransactionPostgresMigrator(cfg *Config, logger libLog.Logger) error
 		PrimaryDSN:     primaryDSN,
 		DatabaseName:   cfg.TxnPrefixedPrimaryDBName,
 		Component:      "ledger",
-		MigrationsPath: "components/ledger/migrations/transaction",
+		MigrationsPath: "/migrations/transaction",
 		Logger:         logger,
 	})
 	if err != nil {
