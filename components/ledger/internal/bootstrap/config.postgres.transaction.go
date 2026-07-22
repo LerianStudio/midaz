@@ -95,11 +95,6 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (single-tenant): %w", err)
 	}
 
-	// Run migrations on startup (single-tenant only; multi-tenant handles migrations via tenant-manager).
-	if err := transactionPostgresMigrator(cfg, logger); err != nil {
-		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
-	}
-
 	return &transactionPostgresComponents{
 		connection:           conn,
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
@@ -156,31 +151,4 @@ func buildTransactionPostgresConnection(cfg *Config, logger libLog.Logger) (*lib
 	}
 
 	return conn, nil
-}
-
-// transactionPostgresMigrator runs database migrations for transaction. Package-level variable
-// to allow test injection without requiring a live database.
-var transactionPostgresMigrator = defaultTransactionPostgresMigrator
-
-// defaultTransactionPostgresMigrator executes database migrations for transaction.
-func defaultTransactionPostgresMigrator(cfg *Config, logger libLog.Logger) error {
-	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
-		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
-
-	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-		PrimaryDSN:     primaryDSN,
-		DatabaseName:   cfg.TxnPrefixedPrimaryDBName,
-		Component:      "ledger",
-		MigrationsPath: "/migrations/transaction",
-		Logger:         logger,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create migrator: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	return migrator.Up(ctx)
 }

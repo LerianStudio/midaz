@@ -7,10 +7,15 @@
 package postgres
 
 import (
+	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file" // file:// migration source driver
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,5 +44,32 @@ func FindMigrationsPath(t *testing.T, component string) string {
 		}
 
 		dir = parent
+	}
+}
+
+// ApplyMigrations applies all up migrations for the given module ("onboarding"
+// or "transaction") to db via the golang-migrate library. It resolves the
+// migration source directory with FindMigrationsPath and runs it against the
+// already-open *sql.DB using the postgres database driver.
+//
+// This is the sanctioned way for integration suites to migrate a testcontainer
+// schema now that the application no longer migrates at startup: the migration
+// runner image owns production migrations, so tests must apply their own schema.
+//
+// migrate.WithInstance takes ownership of the driver wrapper only, not the
+// *sql.DB; the caller (SetupContainer) retains responsibility for closing db.
+func ApplyMigrations(t *testing.T, db *sql.DB, module string) {
+	t.Helper()
+
+	migrationsPath := FindMigrationsPath(t, module)
+
+	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
+	require.NoErrorf(t, err, "failed to build migrate driver for module %q", module)
+
+	m, err := migrate.NewWithDatabaseInstance("file://"+migrationsPath, "postgres", driver)
+	require.NoErrorf(t, err, "failed to build migrator for module %q", module)
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		require.NoErrorf(t, err, "failed to apply migrations for module %q", module)
 	}
 }

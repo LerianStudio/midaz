@@ -32,12 +32,8 @@ func withTransactionTestConnector(t *testing.T) {
 	originalConnector := transactionPostgresConnector
 	transactionPostgresConnector = testTransactionPostgresConnector(t)
 
-	originalMigrator := transactionPostgresMigrator
-	transactionPostgresMigrator = func(_ *Config, _ libLog.Logger) error { return nil }
-
 	t.Cleanup(func() {
 		transactionPostgresConnector = originalConnector
-		transactionPostgresMigrator = originalMigrator
 	})
 }
 
