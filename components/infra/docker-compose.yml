@@ -142,6 +142,40 @@ services:
     networks:
       - infra-network
 
+  # One-shot database provisioner. postgres only auto-runs
+  # /docker-entrypoint-initdb.d/*.sql on a FRESH data volume, so an existing
+  # volume that predates a newly-added database (e.g. tracer) never receives it
+  # and that service crash-loops on `database "..." does not exist`. This sidecar
+  # re-applies the idempotent init.sql against the healthy primary on every
+  # `make up`, provisioning any missing role/slot/database without touching
+  # existing data. Runs once, then exits.
+  #
+  # App services (ledger/tracer) live in separate compose files, so they cannot
+  # depend on this sidecar's completion. On a stale volume they may briefly race
+  # it and hit 3D000 before it finishes; their own restart policy / readiness
+  # retry rides out that one-time window — strictly better than the DB never
+  # existing.
+  midaz-postgres-init:
+    container_name: midaz-postgres-init
+    image: postgres:17
+    depends_on:
+      midaz-postgres-primary:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        psql -v ON_ERROR_STOP=1 \
+          -h midaz-postgres-primary -p ${DB_PORT} -U ${DB_USER} -d postgres \
+          -f /init.sql
+    volumes:
+      - ./postgres/init.sql:/init.sql:ro
+    restart: "no"
+    networks:
+      - infra-network
+
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
