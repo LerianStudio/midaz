@@ -38,7 +38,6 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}"
 WORKDIR /app
 
 COPY --from=builder /app/tracer /app/tracer
-COPY --from=builder /tracer-app/components/tracer/migrations /app/migrations
 
 # Explicitly set non-root user for Docker Hub health score compliance
 USER nonroot:nonroot

@@ -9,6 +9,7 @@ package testutil_integration
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -18,6 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
@@ -158,6 +162,24 @@ func SetupTestSuite(m *testing.M) int {
 	// Initialize local env config
 	pkg.InitLocalEnvConfig()
 
+	// Apply the full schema to the container DB BEFORE booting the app. The
+	// service no longer migrates on startup (that is owned by the dedicated
+	// migration runner image), so the harness must bring the schema up itself
+	// or InitServers would boot against an empty database. Applied once here at
+	// container setup; the schema persists across RestartServerWithConfig on
+	// the same container, so restarts do not re-run this.
+	if err := applySuiteMigrations(ctx, migrationsPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to apply migrations: %v\n", err)
+
+		if termErr := pgContainer.Terminate(ctx); termErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to terminate container after migration failure: %v\n", termErr)
+		}
+
+		restoreEnvironment()
+
+		return 1
+	}
+
 	// Start the application server
 	service, err := bootstrap.InitServers(ctx)
 	if err != nil {
@@ -213,6 +235,66 @@ func SetupTestSuite(m *testing.M) int {
 	restoreEnvironment()
 
 	return code
+}
+
+// applySuiteMigrations applies every up-migration in migrationsPath to the
+// suite's container database via golang-migrate. The production service boots
+// against an already-migrated schema (migration is owned by the dedicated
+// runner image), so the integration harness must migrate the throwaway
+// testcontainer itself before InitServers.
+//
+// MultiStatementEnabled stays false: migrations 000001-000003 install PL/pgSQL
+// functions with dollar-quoted bodies ($$...$$), and multi-statement mode
+// splits on semicolons and corrupts those blocks.
+//
+// The *sql.DB opened here is owned by this function (closed on return); the
+// suite owns the container lifecycle. migrate.WithInstance does not close the
+// caller-supplied *sql.DB on m.Close(), so we close it explicitly to avoid
+// leaking the connection pool.
+func applySuiteMigrations(ctx context.Context, migrationsPath string) error {
+	db, err := sql.Open("pgx", testutil.GetTestDSN())
+	if err != nil {
+		return fmt.Errorf("open db for suite migrations: %w", err)
+	}
+
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "close suite migration db: %v\n", closeErr)
+		}
+	}()
+
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping db for suite migrations: %w", err)
+	}
+
+	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{
+		DatabaseName:          "tracer_test",
+		SchemaName:            "public",
+		MultiStatementEnabled: false,
+	})
+	if err != nil {
+		return fmt.Errorf("build suite migrate postgres driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance("file://"+migrationsPath, "tracer_test", driver)
+	if err != nil {
+		return fmt.Errorf("build suite migrate instance: %w", err)
+	}
+
+	defer func() {
+		// Close the source/database wrapper. The dbErr is non-nil by design
+		// when built via WithInstance (the library intentionally does NOT close
+		// the caller-owned *sql.DB); the deferred db.Close() above owns that.
+		if srcErr, _ := m.Close(); srcErr != nil {
+			fmt.Fprintf(os.Stderr, "close suite migrate source: %v\n", srcErr)
+		}
+	}()
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("apply suite migrations up: %w", err)
+	}
+
+	return nil
 }
 
 // getTestDB creates a database connection using the test environment variables.

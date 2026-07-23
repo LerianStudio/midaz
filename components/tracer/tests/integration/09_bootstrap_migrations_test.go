@@ -21,15 +21,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )
 
-// TestBootstrapAppliesAllMigrations verifies that bootstrap.InitServers()
-// applies every migration in migrations/ via a single unified runner and that
-// no legacy artifacts from the previous two-runner architecture remain. This
-// test is the behavioral contract for the boot-time migration path.
+// TestBootstrapAppliesAllMigrations verifies that the full migration set in
+// migrations/ applies cleanly via a single unified golang-migrate runner and
+// that no legacy artifacts from the previous two-runner architecture remain.
+// This test is the behavioral contract for the migration SQL correctness of a
+// fresh install.
 //
 // The global TestMain (see main_test.go) calls testutil_integration.SetupTestSuite,
-// which invokes bootstrap.InitServers() against a fresh testcontainer — that is
-// the boot path under test. We then connect directly to the container and assert
-// the post-boot database state.
+// which migrates a fresh testcontainer (the service itself no longer migrates
+// on boot — that is owned by the dedicated migration runner image) and then
+// boots the app against the migrated schema. We connect directly to the
+// container and assert the post-migration database state.
 //
 // Post-conditions enforced:
 //  1. The three PostgreSQL functions that migrations 000001-000003 install

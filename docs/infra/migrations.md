@@ -3,8 +3,8 @@
 Midaz applies database schema migrations through a dedicated migration-runner
 image, decoupled from the application binary. The ledger app boots against an
 already-migrated schema and no longer migrates at startup. This document covers
-the ledger runner; the tracer equivalent lands in Phase 2 (see
-[Tracer](#tracer-phase-2)).
+the ledger runner; the tracer equivalent (single database) is described in
+[Tracer](#tracer).
 
 ## Overview
 
@@ -160,9 +160,133 @@ dependency-free runner.
   per-tenant loop) at deploy time is owned by the deploy repository, not this
   repository.
 
-## Tracer (Phase 2)
+## Tracer
 
-The tracer service has a single database and will gain an equivalent
-`midaz-tracer-migrations` runner image mirroring the ledger pattern (simplified
-to one database) in Phase 2. This document will be extended with a tracer
-section when that work lands.
+The tracer service owns a **single** PostgreSQL database (rules, limits, usage
+counters, transaction validations, and the hash-chained audit log). It applies
+its schema through the same decoupled runner pattern as the ledger, simplified
+to one database. In-process startup migration was removed (Epic 2.2): the tracer
+app now boots against an already-migrated schema and never migrates on startup.
+
+The migration set lives under `components/tracer/migrations` (a flat,
+unified `000001..NNN` sequence — no per-module or per-runner split).
+
+### The `midaz-tracer-migrations` runner image
+
+The runner is a small image built from `components/tracer/migrations-image/`:
+
+- Base: the pinned [`golang-migrate`](https://github.com/golang-migrate/migrate)
+  image (same pin as the ledger runner).
+- Bundles the single tracer migration set at `/migrations`.
+- Entrypoint: `entrypoint.sh`, a POSIX shell script that assembles one DSN and
+  runs `migrate -path /migrations -database "$DSN" up` exactly once, then exits.
+
+As with the ledger runner, the build context is the repository root and the
+Dockerfile lives in the `migrations-image` subdirectory so the shared release
+workflow can locate a file named `Dockerfile` in that path.
+
+### Environment contract
+
+The entrypoint accepts either a prebuilt URL override or the individual `DB_*`
+variables. The override takes precedence when set.
+
+| URL override    | Assembled from                                                                                                        |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------|
+| `DATABASE_URL`  | `DB_HOST`, `DB_PORT` (default `5432`), `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL_MODE` (default `disable`)          |
+
+When assembling from `DB_*` variables the DSN takes the form:
+
+```text
+postgres://<user>:<encoded-password>@<host>:<port>/<name>?sslmode=<sslmode>
+```
+
+The password is percent-encoded so URI-reserved characters
+(`% @ : / ? # & + space [ ]`) cannot break the DSN. `%` is encoded first so
+already-inserted escapes are not double-encoded.
+
+The entrypoint echoes only `applying tracer migrations` and
+`migrations complete`. It never prints credentials or the assembled DSN.
+
+### Local development
+
+From the repository root, `make up` runs infra, waits for it to be healthy, then
+starts components. The tracer compose stack runs the one-shot `tracer-migrate`
+service as a gate: the app service `depends_on` it with
+`condition: service_completed_successfully`, so the app starts only after the
+tracer database is migrated.
+
+For host-side application, the tracer `Makefile` exposes `make migrate` (and the
+companion `migrate-down` / `migrate-version` / `migrate-force` targets) that run
+the pinned `golang-migrate` CLI directly against the local database at
+`localhost:5701/tracer`, reading connection settings from `.env`.
+
+### Security posture
+
+The runner is designed to run under a hardened pod security context, matching
+the ledger runner:
+
+- **Non-root** — the image runs as `USER 65532:65532`; it does not require root.
+- **UID-agnostic** — migrations are root-owned and world-readable, so any UID can
+  read them; no `--chown` or writable volume is needed.
+- **`readOnlyRootFilesystem`-safe** — `migrate` writes no filesystem state.
+  Migration progress is tracked in the `schema_migrations` table in Postgres, not
+  on disk, so a read-only root filesystem does not break the runner.
+
+These properties let the same image run cleanly under `runAsNonRoot: true`,
+`readOnlyRootFilesystem: true`, and `capabilities: drop [ALL]`.
+
+### Single database (no per-tenant loop in the runner)
+
+Unlike the ledger's two-database layout, the tracer runner migrates **one**
+database per invocation and has **no per-tenant loop** in the entrypoint. When
+tracer runs in multi-tenant mode, per-tenant migration fan-out is a
+**deploy-Job concern**: the deploy runs the runner once per tenant database,
+pointing `DB_*` (or `DATABASE_URL`) at that tenant's database. Keeping the loop
+out of the runner keeps the image simple and its behavior identical in local dev
+and production.
+
+The integration suite exercises the per-tenant dimension itself: it migrates
+per-tenant testcontainer databases by pointing `MIGRATIONS_PATH` at the bundled
+migration set, independent of the runner image.
+
+### Accepted trade-off: TLS via `DB_SSL_MODE`
+
+The shell entrypoint honors the `sslmode` value from `DB_SSL_MODE` (default
+`disable`) but does **not** reproduce lib-commons' in-code TLS enforcement, error
+classification, or telemetry that the application uses for its own connections.
+TLS for migrations is therefore controlled entirely by `DB_SSL_MODE`;
+deployments set `require` in production. This is a deliberate trade-off in
+exchange for a minimal, dependency-free runner.
+
+### Testing
+
+- **Entrypoint DSN assembly** — `components/tracer/migrations-image/entrypoint_test.go`
+  runs the shell entrypoint with a stubbed `migrate` on `PATH` and asserts the
+  `DATABASE_URL` override is used verbatim, `DB_*` assembly percent-encodes the
+  password (`%` first, so `@ : / % space` become `%40 %3A %2F %25 %20`), the
+  port/sslmode defaults apply, and exactly one `migrate -path /migrations ... up`
+  invocation runs (single DB). Runs under `make test-unit` (no build tag, no
+  database).
+- **Migration apply / schema / idempotency** — covered by the integration suite
+  (build tag `integration`, `make test-integration`), not by a duplicate runner
+  test:
+  - `components/tracer/tests/integration/09_bootstrap_migrations_test.go` applies
+    the full migration set on a fresh testcontainer and asserts the hash-chain
+    functions are installed, `schema_migrations` reports the HEAD version and is
+    not dirty, the legacy tracking table is absent, the audit hash-chain trigger
+    is operational, a second `Up()` is an idempotent no-op, and a dirty
+    `schema_migrations` row makes `Up()` refuse to re-apply.
+  - `components/tracer/tests/integration/10_upgrade_path_test.go` proves the
+    in-place upgrade path from the pinned pre-refactor dual-runner layout (and
+    several intermediate legacy versions) to the unified HEAD sequence yields a
+    database structurally equivalent to a fresh install.
+
+### Deferred / owned elsewhere
+
+- **CI build** — the release workflow builds and publishes `midaz-tracer-migrations`
+  as an `extra_builds` entry and maps its tag into GitOps values under
+  `.tracer.migrations.image.tag`. This is owned by the release/GitOps
+  configuration and is deferred.
+- **Helm PreSync Job** — the Kubernetes Job that runs the runner (and any
+  per-tenant loop) at deploy time is owned by the deploy repository, not this
+  repository.

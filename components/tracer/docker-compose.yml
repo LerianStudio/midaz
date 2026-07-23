@@ -1,4 +1,23 @@
 services:
+  # One-shot migration gate. Builds the dedicated golang-migrate runner image
+  # and applies the tracer schema (single DB), then exits.
+  #
+  # No depends_on is possible here: Postgres lives in components/infra
+  # (a separate compose file) and cannot be referenced cross-compose. Postgres
+  # readiness is guaranteed by the root `make up` flow, which runs infra +
+  # wait-for-infra (blocks until midaz-postgres-primary is healthy) BEFORE
+  # bringing up this component. The runner therefore needs no retry/wait loop.
+  tracer-migrate:
+    container_name: midaz-tracer-migrate
+    build:
+      context: ../../
+      dockerfile: ./components/tracer/migrations-image/Dockerfile
+    restart: "no"
+    env_file:
+      - .env
+    networks:
+      - infra-network
+
   tracer:
     container_name: midaz-tracer
     restart: always
@@ -33,6 +52,11 @@ services:
           memory: 128M
     networks:
       - infra-network
+    # Intra-compose gate: the app boots only after migrations run to completion
+    # (the in-process startup migration was removed in Epic 2.2).
+    depends_on:
+      tracer-migrate:
+        condition: service_completed_successfully
 
 networks:
   infra-network:
