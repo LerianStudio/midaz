@@ -9,7 +9,6 @@ package testutil_integration
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libZap "github.com/LerianStudio/lib-observability/zap"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
@@ -238,59 +237,41 @@ func SetupTestSuite(m *testing.M) int {
 }
 
 // applySuiteMigrations applies every up-migration in migrationsPath to the
-// suite's container database via golang-migrate. The production service boots
-// against an already-migrated schema (migration is owned by the dedicated
-// runner image), so the integration harness must migrate the throwaway
-// testcontainer itself before InitServers.
+// suite's container database via lib-commons' Migrator — the same runner the
+// production bootstrap path uses. The production service boots against an
+// already-migrated schema (migration is owned by the dedicated runner image),
+// so the integration harness must migrate the throwaway testcontainer itself
+// before InitServers. This mirrors the sibling helpers
+// (tests/utils/postgres/client.go, testutil_dbsuite/dbsuite.go).
 //
-// MultiStatementEnabled stays false: migrations 000001-000003 install PL/pgSQL
+// AllowMultiStatements stays false: migrations 000001-000003 install PL/pgSQL
 // functions with dollar-quoted bodies ($$...$$), and multi-statement mode
 // splits on semicolons and corrupts those blocks.
 //
-// The *sql.DB opened here is owned by this function (closed on return); the
-// suite owns the container lifecycle. migrate.WithInstance does not close the
-// caller-supplied *sql.DB on m.Close(), so we close it explicitly to avoid
-// leaking the connection pool.
+// The Logger is a minimal libZap instance at ERROR level so successful runs
+// stay quiet while real failures still surface.
 func applySuiteMigrations(ctx context.Context, migrationsPath string) error {
-	db, err := sql.Open("pgx", testutil.GetTestDSN())
-	if err != nil {
-		return fmt.Errorf("open db for suite migrations: %w", err)
-	}
-
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			fmt.Fprintf(os.Stderr, "close suite migration db: %v\n", closeErr)
-		}
-	}()
-
-	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("ping db for suite migrations: %w", err)
-	}
-
-	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{
-		DatabaseName:          "tracer_test",
-		SchemaName:            "public",
-		MultiStatementEnabled: false,
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentProduction,
+		Level:           "ERROR",
+		OTelLibraryName: "tracer-test",
 	})
 	if err != nil {
-		return fmt.Errorf("build suite migrate postgres driver: %w", err)
+		return fmt.Errorf("create suite migration logger: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance("file://"+migrationsPath, "tracer_test", driver)
+	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+		PrimaryDSN:           testutil.GetTestDSN(),
+		DatabaseName:         "tracer_test",
+		MigrationsPath:       migrationsPath,
+		AllowMultiStatements: false,
+		Logger:               logger,
+	})
 	if err != nil {
-		return fmt.Errorf("build suite migrate instance: %w", err)
+		return fmt.Errorf("build suite migrator: %w", err)
 	}
 
-	defer func() {
-		// Close the source/database wrapper. The dbErr is non-nil by design
-		// when built via WithInstance (the library intentionally does NOT close
-		// the caller-owned *sql.DB); the deferred db.Close() above owns that.
-		if srcErr, _ := m.Close(); srcErr != nil {
-			fmt.Fprintf(os.Stderr, "close suite migrate source: %v\n", srcErr)
-		}
-	}()
-
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err := migrator.Up(ctx); err != nil {
 		return fmt.Errorf("apply suite migrations up: %w", err)
 	}
 

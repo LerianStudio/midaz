@@ -96,6 +96,12 @@ func TestIntegration_LedgerMigrations_UpDownIdempotency(t *testing.T) {
 // newMigrator builds a *migrate.Migrate bound to an already-open *sql.DB for the
 // given module. migrate takes ownership of the driver wrapper only; the caller
 // (SetupContainer's t.Cleanup) retains responsibility for closing db.
+//
+// This test uses raw golang-migrate rather than lib-commons' Migrator on
+// purpose: lib-commons exposes only Up (forward-only), but this test needs the
+// bounded Steps(-1) single-step rollback plus repeated Up to exercise the
+// down/up round-trip. That control flow cannot be expressed through the
+// Up-only Migrator, so the raw *migrate.Migrate handle is required here.
 func newMigrator(t *testing.T, db *sql.DB, module string) *migrate.Migrate {
 	t.Helper()
 

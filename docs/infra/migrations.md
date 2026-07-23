@@ -194,6 +194,10 @@ variables. The override takes precedence when set.
 |-----------------|-----------------------------------------------------------------------------------------------------------------------|
 | `DATABASE_URL`  | `DB_HOST`, `DB_PORT` (default `5432`), `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL_MODE` (default `disable`)          |
 
+The `5432` default is the entrypoint's fallback when `DB_PORT` is unset. Note
+that the shipped local `.env` files set `DB_PORT=5701`, so local runs use `5701`
+and never hit the `5432` fallback.
+
 When assembling from `DB_*` variables the DSN takes the form:
 
 ```text
@@ -246,8 +250,11 @@ out of the runner keeps the image simple and its behavior identical in local dev
 and production.
 
 The integration suite exercises the per-tenant dimension itself: it migrates
-per-tenant testcontainer databases by pointing `MIGRATIONS_PATH` at the bundled
-migration set, independent of the runner image.
+testcontainer databases via the shared migrate helper (lib-commons' `Migrator`,
+resolving the migration set with `FindMigrationsPath`), independent of the
+runner image. The multi-tenant isolation test additionally reads the
+`MIGRATIONS_PATH` env var the suite sets at boot to migrate per-tenant
+databases.
 
 ### Accepted trade-off: TLS via `DB_SSL_MODE`
 
@@ -263,7 +270,8 @@ exchange for a minimal, dependency-free runner.
 - **Entrypoint DSN assembly** — `components/tracer/migrations-image/entrypoint_test.go`
   runs the shell entrypoint with a stubbed `migrate` on `PATH` and asserts the
   `DATABASE_URL` override is used verbatim, `DB_*` assembly percent-encodes the
-  password (`%` first, so `@ : / % space` become `%40 %3A %2F %25 %20`), the
+  password across all 11 reserved characters (`%` first, so
+  `% @ : / ? # & + space [ ]` become `%25 %40 %3A %2F %3F %23 %26 %2B %20 %5B %5D`), the
   port/sslmode defaults apply, and exactly one `migrate -path /migrations ... up`
   invocation runs (single DB). Runs under `make test-unit` (no build tag, no
   database).

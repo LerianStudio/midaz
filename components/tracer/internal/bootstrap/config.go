@@ -1734,7 +1734,8 @@ func initClock() clock.Clock {
 }
 
 // InitServers initiate http and grpc servers. The ctx flows through
-// initPostgresConnection (bounds migration + pool connect) and through the
+// initPostgresConnection (bounds the pool connect attempt; schema migration is
+// owned by the dedicated runner image, not this boot path) and through the
 // rule-cache WarmUp (bounds cache hydration). Other bootstrap log-only
 // context.Background() calls in this package remain as pre-existing debt and
 // are rerouted separately.
