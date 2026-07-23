@@ -19,10 +19,12 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability"
 	libLog "github.com/LerianStudio/lib-observability/log"
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // Service is the application glue where we put all top level components to be used.
@@ -76,6 +78,23 @@ type Service struct {
 	// StreamingEnabled mirrors cfg.StreamingEnabled so Run() can decide
 	// whether to register the producer-drain Launcher app.
 	StreamingEnabled bool
+
+	// ServiceDiscovery is the lib-service-discovery Manager. It is always
+	// non-nil (a working no-op when discovery is disabled), so callers can
+	// invoke Register/Deregister/Resolve unconditionally.
+	ServiceDiscovery *libsd.Manager
+	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
+	// to register the discovery register/deregister Launcher app.
+	ServiceDiscoveryEnabled bool
+	// ServiceDescriptor is the descriptor advertised to the registry. It is
+	// built at wiring time only when discovery is enabled (so a malformed
+	// SERVER_ADDRESS never aborts boot with discovery off) and reused by the
+	// service-discovery runnable. It is zero-value when discovery is disabled.
+	ServiceDescriptor libsd.Service
+	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
+	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
+	// so no SD metrics are emitted with SD off.
+	ServiceDiscoveryMetrics pkgsd.MetricsRecorder
 }
 
 // Run starts the application.
@@ -109,6 +128,15 @@ func (app *Service) Run() {
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("HTTP Service", app.HTTPServer),
+	}
+
+	// Service discovery: register only when discovery is enabled so boot parity
+	// is preserved (no extra Launcher entry / goroutine otherwise). The 30s TTL
+	// on the descriptor is the backstop that drops a stale instance from the
+	// registry if a deregister is missed.
+	if shouldRegisterServiceDiscovery(app.ServiceDiscoveryEnabled, app.ServiceDiscovery) {
+		opts = append(opts, libCommons.RunApp("Service Discovery",
+			pkgsd.NewRunnable(app.ServiceDiscovery, app.ServiceDescriptor, app.Logger, app.ServiceDiscoveryMetrics)))
 	}
 
 	// gRPC reservation seam (opt-in via TRACER_GRPC_PORT). Registered as its own
@@ -229,6 +257,15 @@ func (app *Service) installDrainHandler() func() {
 // is present. The disabled path (NoopEmitter) registers nothing.
 func shouldRegisterStreamingProducer(enabled bool, closeHook func() error) bool {
 	return enabled && closeHook != nil
+}
+
+// shouldRegisterServiceDiscovery reports whether the service-discovery
+// register/deregister runnable should be registered with the Launcher. It is a
+// pure predicate: registration happens only when discovery is enabled AND a
+// Manager is present. The disabled path registers nothing so the Launcher app
+// list stays lean and boot parity is preserved.
+func shouldRegisterServiceDiscovery(enabled bool, mgr *libsd.Manager) bool {
+	return enabled && mgr != nil
 }
 
 // streamingProducerRunnable adapts the lib-streaming producer's Close hook to

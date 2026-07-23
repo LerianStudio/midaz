@@ -22,6 +22,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/tracing"
 	libZap "github.com/LerianStudio/lib-observability/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"google.golang.org/grpc"
 
@@ -43,6 +44,7 @@ import (
 	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/resilience"
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -1077,6 +1079,7 @@ func initHTTPServer(
 	mtComponents *componentsMT,
 	mtMetrics metrics.MultiTenantMetrics,
 	txBeginner pgdb.TxBeginner,
+	authHost string,
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
 	// Init Transaction Validation repository and queries
@@ -1156,8 +1159,10 @@ func initHTTPServer(
 		SwaggerEnabled:       cfg.SwaggerEnabled,
 	}
 
-	// Create auth guard with all authentication configuration.
-	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
+	// Create auth guard with all authentication configuration. authHost is the
+	// plugin-auth host resolved via service discovery (or the static
+	// PLUGIN_AUTH_ADDRESS when discovery is disabled or resolution fails).
+	authClient := authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, &logger)
 	// Note: NewAuthGuard builds APIKeyAuth which is a Fiber
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber
@@ -1892,10 +1897,30 @@ func InitServers(ctx context.Context) (*Service, error) {
 		healthChecker.SetTenantManagerProber(newTenantManagerHealthProber(mtComponents.tmClient, cfg.ApplicationName))
 	}
 
+	// Service discovery: build the Manager (no-op when disabled), parse the
+	// advertised port + descriptor (gated on enabled), and resolve plugin-auth
+	// through discovery — mirroring the ledger's wireServiceDiscovery. The
+	// recorder is a no-op unless discovery is enabled, so SD off emits zero SD
+	// metrics. The factory is read nil-safely (telemetry is nil when
+	// ENABLE_TELEMETRY=false).
+	sd, err := wireServiceDiscovery(cfg, logger, metricsFactoryFromTelemetry(telemetry))
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the boot-time-Resolve watcher goroutine if boot fails after SD
+	// wiring. When SD is enabled, ResolveAuthHost lazy-spawns a background
+	// watcher via the Manager; on a partial-boot failure below the Service is
+	// never built and the launcher's Runnable never runs, so that watcher would
+	// leak. On success the closer is disarmed and the Runnable owns the graceful
+	// close.
+	sdBootCloser := pkgsd.NewBootCloser(logger, sd.manager)
+	defer sdBootCloser.CloseOnBootFailure()
+
 	// Init HTTP server with all services. mtComponents is nil in single-tenant
 	// mode; the HTTP server builder threads pgManager + supervisor through to
 	// the TenantMiddleware when non-nil.
-	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner)
+	serverAPI, reservationService, err := initHTTPServer(ctx, cfg, pgConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk, mtComponents, mtMetrics, txBeginner, sd.authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -1909,10 +1934,100 @@ func InitServers(ctx context.Context) (*Service, error) {
 		return nil, err
 	}
 
+	// Hand the service-discovery outputs to the Service so Run() can register the
+	// discovery Launcher app (only when enabled) and drive graceful deregister.
+	svc.ServiceDiscovery = sd.manager
+	svc.ServiceDiscoveryEnabled = sd.enabled
+	svc.ServiceDescriptor = sd.descriptor
+	svc.ServiceDiscoveryMetrics = sd.recorder
+
+	// The launcher Runnable now owns the manager's graceful close; disarm the
+	// boot-failure closer so it does not double-close on the success path.
+	sdBootCloser.Disarm()
+
 	// Mark initialization as successful; defer cleanup will not close the connection.
 	initSuccess = true
 
 	return svc, nil
+}
+
+// metricsFactoryFromTelemetry reads the MetricsFactory off the telemetry handle
+// nil-safely: telemetry is nil when ENABLE_TELEMETRY=false, in which case the
+// downstream recorder degrades to a no-op.
+func metricsFactoryFromTelemetry(telemetry *libOtel.Telemetry) *libMetrics.MetricsFactory {
+	if telemetry == nil {
+		return nil
+	}
+
+	return telemetry.MetricsFactory
+}
+
+// serviceDiscoveryWiring holds the service-discovery outputs consumed by the
+// composition root: the Manager, whether discovery is enabled, the descriptor to
+// register, the plugin-auth host resolved (or degraded) via discovery, and the
+// metrics recorder threaded through the SD call paths. The recorder is a no-op
+// unless discovery is enabled, upholding the invariant that SD off emits zero
+// SD metrics.
+type serviceDiscoveryWiring struct {
+	manager    *libsd.Manager
+	enabled    bool
+	descriptor libsd.Service
+	authHost   string
+	recorder   pkgsd.MetricsRecorder
+}
+
+// wireServiceDiscovery builds the discovery Manager (fail-fast on
+// misconfiguration) and resolves the plugin-auth host — degrading to the static
+// PLUGIN_AUTH_ADDRESS when auth is disabled or resolution fails so a discovery
+// outage never fails boot.
+//
+// The advertised port is parsed and the descriptor built ONLY when discovery is
+// enabled: the descriptor is consumed solely by the discovery runnable (wired
+// only when enabled), so a malformed SERVER_ADDRESS must not abort boot with
+// discovery off. The resolve timeout is created only when auth is enabled, since
+// ResolveAuthHost returns the static host without touching the context otherwise.
+//
+// The metrics recorder is built AFTER BuildManager reports enabled so it is a
+// NopMetricsRecorder whenever discovery is disabled: with SD off, resolve (and
+// every downstream SD metric) emits nothing, even though metricsFactory is
+// non-nil. When enabled it is the OTel-backed recorder.
+func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *libMetrics.MetricsFactory) (serviceDiscoveryWiring, error) {
+	manager, enabled, err := pkgsd.BuildManager(logger)
+	if err != nil {
+		return serviceDiscoveryWiring{}, err
+	}
+
+	recorder := pkgsd.MetricsRecorder(pkgsd.NopMetricsRecorder{})
+	if enabled {
+		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
+	}
+
+	var descriptor libsd.Service
+
+	if enabled {
+		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
+		if portErr != nil {
+			return serviceDiscoveryWiring{}, portErr
+		}
+
+		descriptor = pkgsd.BuildServiceDescriptor("midaz-tracer", serverPort)
+	}
+
+	authHost := cfg.PluginAuthAddress
+	if cfg.PluginAuthEnabled {
+		resolveCtx, cancel := context.WithTimeout(context.Background(), pkgsd.ResolveTimeout)
+		authHost = pkgsd.ResolveAuthHost(resolveCtx, manager, cfg.PluginAuthEnabled, cfg.PluginAuthAddress, recorder)
+
+		cancel()
+	}
+
+	return serviceDiscoveryWiring{
+		manager:    manager,
+		enabled:    enabled,
+		descriptor: descriptor,
+		authHost:   authHost,
+		recorder:   recorder,
+	}, nil
 }
 
 // initRuleCacheStack builds the clock, rule cache, rule-sync repository, and
