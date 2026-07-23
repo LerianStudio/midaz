@@ -20,6 +20,9 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libZap "github.com/LerianStudio/lib-observability/zap"
+
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg"
@@ -158,6 +161,24 @@ func SetupTestSuite(m *testing.M) int {
 	// Initialize local env config
 	pkg.InitLocalEnvConfig()
 
+	// Apply the full schema to the container DB BEFORE booting the app. The
+	// service no longer migrates on startup (that is owned by the dedicated
+	// migration runner image), so the harness must bring the schema up itself
+	// or InitServers would boot against an empty database. Applied once here at
+	// container setup; the schema persists across RestartServerWithConfig on
+	// the same container, so restarts do not re-run this.
+	if err := applySuiteMigrations(ctx, migrationsPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to apply migrations: %v\n", err)
+
+		if termErr := pgContainer.Terminate(ctx); termErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to terminate container after migration failure: %v\n", termErr)
+		}
+
+		restoreEnvironment()
+
+		return 1
+	}
+
 	// Start the application server
 	service, err := bootstrap.InitServers(ctx)
 	if err != nil {
@@ -213,6 +234,48 @@ func SetupTestSuite(m *testing.M) int {
 	restoreEnvironment()
 
 	return code
+}
+
+// applySuiteMigrations applies every up-migration in migrationsPath to the
+// suite's container database via lib-commons' Migrator — the same runner the
+// production bootstrap path uses. The production service boots against an
+// already-migrated schema (migration is owned by the dedicated runner image),
+// so the integration harness must migrate the throwaway testcontainer itself
+// before InitServers. This mirrors the sibling helpers
+// (tests/utils/postgres/client.go, testutil_dbsuite/dbsuite.go).
+//
+// AllowMultiStatements stays false: migrations 000001-000003 install PL/pgSQL
+// functions with dollar-quoted bodies ($$...$$), and multi-statement mode
+// splits on semicolons and corrupts those blocks.
+//
+// The Logger is a minimal libZap instance at ERROR level so successful runs
+// stay quiet while real failures still surface.
+func applySuiteMigrations(ctx context.Context, migrationsPath string) error {
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentProduction,
+		Level:           "ERROR",
+		OTelLibraryName: "tracer-test",
+	})
+	if err != nil {
+		return fmt.Errorf("create suite migration logger: %w", err)
+	}
+
+	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+		PrimaryDSN:           testutil.GetTestDSN(),
+		DatabaseName:         "tracer_test",
+		MigrationsPath:       migrationsPath,
+		AllowMultiStatements: false,
+		Logger:               logger,
+	})
+	if err != nil {
+		return fmt.Errorf("build suite migrator: %w", err)
+	}
+
+	if err := migrator.Up(ctx); err != nil {
+		return fmt.Errorf("apply suite migrations up: %w", err)
+	}
+
+	return nil
 }
 
 // getTestDB creates a database connection using the test environment variables.

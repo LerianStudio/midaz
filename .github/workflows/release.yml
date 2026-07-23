@@ -19,9 +19,10 @@ jobs:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
       app_name_prefix: "midaz"
-      # Image/release filter: the two image-bearing components. CRM rolls up under
+      # Image/release filter: the two app image-bearing components. CRM rolls up under
       # components/ledger (a ledger package tree, not a standalone image); reporter
-      # was extracted out of this repo entirely.
+      # was extracted out of this repo entirely. The dedicated migration-runner images
+      # are built separately via extra_builds below.
       filter_paths: |
         components/ledger
         components/tracer
@@ -30,6 +31,27 @@ jobs:
         go.sum
         pkg/
         Makefile
+      # Dedicated migration-runner images (FROM migrate/migrate), built from the
+      # repo root so the migration SQL is bundled. force_full_matrix ensures the
+      # image tag exists on every release, so the deploy PreSync Job never
+      # ImagePullBackOffs when a release doesn't touch migrations-image/.
+      extra_builds: |
+        [
+          {
+            "filter_paths": "components/ledger/migrations-image",
+            "path_level": 1,
+            "app_name_overrides": "migrations-image:midaz-ledger-migrations",
+            "force_full_matrix": true,
+            "shared_paths": "components/ledger/migrations\ncomponents/ledger/migrations-image"
+          },
+          {
+            "filter_paths": "components/tracer/migrations-image",
+            "path_level": 1,
+            "app_name_overrides": "migrations-image:midaz-tracer-migrations",
+            "force_full_matrix": true,
+            "shared_paths": "components/tracer/migrations\ncomponents/tracer/migrations-image"
+          }
+        ]
       enable_gitops_artifacts: true
       enable_ungoliant_release_diff: true
       ungoliant_env_type: chaos
@@ -41,14 +63,17 @@ jobs:
       # but never deploy.
       helm_values_key_mappings: '{"midaz-ledger": "ledger", "midaz-tracer": "tracer"}'
       # Distinct schema from helm_values_key_mappings: keys carry a .tag suffix and
-      # values are full dotted YAML paths (.image.tag).
-      gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag"}'
+      # values are full dotted YAML paths (.image.tag). The *-migrations tags nest
+      # under the parent service block (.ledger/.tracer .migrations.image.tag).
+      gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag", "midaz-ledger-migrations.tag": ".ledger.migrations.image.tag", "midaz-tracer-migrations.tag": ".tracer.migrations.image.tag"}'
       enable_apidog_e2e: true
       enable_e2e_tests: true
       e2e_modules: "midaz-ledger,midaz-crm"
       e2e_tenancy: st
-      # Publish ledger (onboarding + transaction) and tracer migrations to S3 for the
-      # managed-Postgres deploy pipeline. This S3 copy is additive: tracer still applies
-      # its migrations in-cluster via its own bootstrap runner.
+      # Publish ledger (onboarding + transaction) and tracer migration SQL to S3 for the
+      # managed-Postgres deploy pipeline. Neither app self-migrates at startup anymore
+      # (in-process migration was removed); schema is applied out-of-band — via this S3
+      # pipeline (managed Postgres) or the dedicated migration-runner images / PreSync
+      # Job (see extra_builds above).
       s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
     secrets: inherit

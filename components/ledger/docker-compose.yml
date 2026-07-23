@@ -1,4 +1,23 @@
 services:
+  # One-shot migration gate. Builds the dedicated golang-migrate runner image
+  # and applies BOTH the onboarding and transaction schemas, then exits.
+  #
+  # No depends_on is possible here: Postgres lives in components/infra
+  # (a separate compose file) and cannot be referenced cross-compose. Postgres
+  # readiness is guaranteed by the root `make up` flow, which runs infra +
+  # wait-for-infra (blocks until midaz-postgres-primary is healthy) BEFORE
+  # bringing up this component. The runner therefore needs no retry/wait loop.
+  ledger-migrate:
+    container_name: midaz-ledger-migrate
+    build:
+      context: ../../
+      dockerfile: ./components/ledger/migrations-image/Dockerfile
+    restart: "no"
+    env_file:
+      - .env
+    networks:
+      - infra-network
+
   ledger:
     container_name: midaz-ledger
     restart: always
@@ -11,6 +30,11 @@ services:
       - ${SERVER_PORT}:${SERVER_PORT}
     networks:
       - infra-network
+    # Intra-compose gate: the app boots only after migrations run to completion
+    # (the in-process startup migration was removed in Epic 1.2).
+    depends_on:
+      ledger-migrate:
+        condition: service_completed_successfully
 
 networks:
   infra-network:

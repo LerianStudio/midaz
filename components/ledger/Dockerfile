@@ -30,10 +30,6 @@ LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
 COPY --from=builder /app /app
-# Stage migrations at an absolute, world-readable path outside /home/nonroot so
-# the migrator resolves them regardless of CWD or the runtime user.
-COPY --from=builder /ledger-app/components/ledger/migrations/onboarding /migrations/onboarding
-COPY --from=builder /ledger-app/components/ledger/migrations/transaction /migrations/transaction
 
 EXPOSE 3002
 

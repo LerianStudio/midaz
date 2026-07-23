@@ -37,6 +37,34 @@ include $(MIDAZ_ROOT)/mk/security.mk
 include mk/tests.mk
 
 #-------------------------------------------------------
+# Host migrate coordinates (single DB)
+#-------------------------------------------------------
+# Tracer is single-DB and reuses the shared migrate/migrate-down targets from
+# mk/database.mk — we do NOT redefine them. The only correction needed is the
+# connection string: mk/database.mk's default DATABASE_URL points at port 5432,
+# but the shared infra Postgres is exposed on 5701. This override MUST come
+# AFTER `include mk/database.mk` above and use a plain `=` so it wins over the
+# fragment's `?=` default.
+#
+# The canonical migration path in local dev is the compose `tracer-migrate`
+# service (run automatically by `make up` via the completed-successfully gate).
+# This host target is a thin convenience for running the golang-migrate CLI from
+# the host against the infra Postgres.
+#
+# Connection assumption (host-run): infra maps midaz-postgres-primary as
+# ${DB_PORT}:${DB_PORT} (5701:5701 in .env.example), so the host-exposed port
+# equals the in-network port. The host target therefore reaches Postgres at
+# localhost:$(DB_PORT). Values are read from .env at invocation time; missing
+# values fall back to safe defaults.
+
+# read_env,KEY,DEFAULT — echo the value of KEY from ./.env, or DEFAULT if unset.
+read_env = $(shell v=$$(grep -E "^$(1)=" .env 2>/dev/null | head -1 | cut -d'=' -f2-); echo "$${v:-$(2)}")
+
+# Build the tracer DSN from the DB_* .env values. Host-run targets use localhost
+# (the in-network host name midaz-postgres-primary is not resolvable from the host).
+DATABASE_URL = postgres://$(call read_env,DB_USER,midaz):$(call read_env,DB_PASSWORD,lerian)@localhost:$(call read_env,DB_PORT,5701)/$(call read_env,DB_NAME,tracer)?sslmode=$(call read_env,DB_SSL_MODE,disable)
+
+#-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------
 

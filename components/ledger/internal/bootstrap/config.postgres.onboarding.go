@@ -95,11 +95,6 @@ func initOnboardingSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*onb
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (single-tenant): %w", err)
 	}
 
-	// Run migrations on startup (single-tenant only; multi-tenant handles migrations via tenant-manager).
-	if err := onboardingPostgresMigrator(cfg, logger); err != nil {
-		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
-	}
-
 	return &onboardingPostgresComponents{
 		connection:       conn,
 		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn),
@@ -156,31 +151,4 @@ func buildOnboardingPostgresConnection(cfg *Config, logger libLog.Logger) (*libP
 	}
 
 	return conn, nil
-}
-
-// onboardingPostgresMigrator runs database migrations for onboarding. Package-level variable
-// to allow test injection without requiring a live database.
-var onboardingPostgresMigrator = defaultOnboardingPostgresMigrator
-
-// defaultOnboardingPostgresMigrator executes database migrations for onboarding.
-func defaultOnboardingPostgresMigrator(cfg *Config, logger libLog.Logger) error {
-	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
-		cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
-
-	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-		PrimaryDSN:     primaryDSN,
-		DatabaseName:   cfg.OnbPrefixedPrimaryDBName,
-		Component:      "ledger",
-		MigrationsPath: "/migrations/onboarding",
-		Logger:         logger,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create migrator: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	return migrator.Up(ctx)
 }

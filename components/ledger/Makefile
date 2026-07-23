@@ -27,6 +27,10 @@ include $(MIDAZ_ROOT)/mk/utils.mk
 include $(MIDAZ_ROOT)/mk/docker.mk
 include $(MIDAZ_ROOT)/mk/quality.mk
 include $(MIDAZ_ROOT)/mk/security.mk
+# Database migrations: provides ensure-migrate, MIGRATE_BIN, MIGRATE_VERSION and
+# the single-DB migrate/migrate-down targets. The ledger serves TWO schemas, so
+# the two-DB section below overrides migrate/migrate-down (last definition wins).
+include $(MIDAZ_ROOT)/mk/database.mk
 # Unit test coverage (scoped to ledger via COVERAGE_PACKAGES above).
 include $(MIDAZ_ROOT)/mk/coverage-unit.mk
 
@@ -58,6 +62,14 @@ help:
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
 	@echo "  make up / down / start / stop / restart / rebuild-up / clean-docker / logs"
+	@echo ""
+	@echo "$(BOLD)Migration Commands (two-DB: onboarding + transaction):$(NC)"
+	@echo "  make migrate                     - Apply migrations to BOTH schemas"
+	@echo "  make migrate-onboarding          - Apply onboarding migrations only"
+	@echo "  make migrate-transaction         - Apply transaction migrations only"
+	@echo "  make migrate-down                - Roll back last migration on BOTH schemas"
+	@echo "  make migrate-down-onboarding     - Roll back last onboarding migration"
+	@echo "  make migrate-down-transaction    - Roll back last transaction migration"
 	@echo ""
 	@echo "$(BOLD)Ledger-Specific Commands:$(NC)"
 	@echo "  make generate-keys               - Generate crypto keys for local testing"
@@ -101,6 +113,72 @@ test:
 
 # API documentation is generated from the repo root: `make generate-docs`
 # (postman/generator/generate-docs.sh covers ledger and tracer).
+
+#-------------------------------------------------------
+# Database Migrations (two-DB: onboarding + transaction)
+#-------------------------------------------------------
+# The ledger binary serves two independent PostgreSQL schemas (onboarding and
+# transaction), so it overrides the single-DB `migrate`/`migrate-down` targets
+# from mk/database.mk with per-DB aggregates. The shared single-DB semantics
+# are left intact for tracer, which includes the same fragment.
+#
+# The canonical migration path in local dev is the compose `ledger-migrate`
+# service (run automatically by `make up` via the completed-successfully gate).
+# These host targets are a thin convenience for running the golang-migrate CLI
+# from the host against the infra Postgres.
+#
+# Connection assumption (host-run): infra maps midaz-postgres-primary as
+# ${DB_PORT}:${DB_PORT} (5701:5701 in .env.example), so the host-exposed port
+# equals the in-network port. Host targets therefore reach Postgres at
+# localhost:$(DB_ONBOARDING_PORT) / localhost:$(DB_TRANSACTION_PORT). Values are
+# read from .env at invocation time; missing values fall back to safe defaults.
+
+# Per-DB migration file locations (baked into the migrations-image the same way).
+ONBOARDING_MIGRATIONS_PATH := ./migrations/onboarding
+TRANSACTION_MIGRATIONS_PATH := ./migrations/transaction
+
+# read_env,KEY,DEFAULT — echo the value of KEY from ./.env, or DEFAULT if unset.
+read_env = $(shell v=$$(grep -E "^$(1)=" .env 2>/dev/null | head -1 | cut -d'=' -f2-); echo "$${v:-$(2)}")
+
+# Build a per-DB DSN from the DB_<PREFIX>_* .env values. Host-run targets use
+# localhost (the in-network host name is not resolvable from the host).
+define ledger_db_url
+postgres://$(call read_env,DB_$(1)_USER,midaz):$(call read_env,DB_$(1)_PASSWORD,lerian)@localhost:$(call read_env,DB_$(1)_PORT,5701)/$(call read_env,DB_$(1)_NAME,$(2))?sslmode=$(call read_env,DB_$(1)_SSLMODE,disable)
+endef
+
+.PHONY: migrate-onboarding
+migrate-onboarding: ensure-migrate
+	$(call title1,"Applying onboarding migrations")
+	@$(MIGRATE_BIN) -database "$(call ledger_db_url,ONBOARDING,onboarding)" -path $(ONBOARDING_MIGRATIONS_PATH) up
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Onboarding migrations applied successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: migrate-transaction
+migrate-transaction: ensure-migrate
+	$(call title1,"Applying transaction migrations")
+	@$(MIGRATE_BIN) -database "$(call ledger_db_url,TRANSACTION,transaction)" -path $(TRANSACTION_MIGRATIONS_PATH) up
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Transaction migrations applied successfully$(GREEN) ✔️$(NC)"
+
+# Aggregate override: apply BOTH schemas (shadows the single-DB mk/database.mk target).
+.PHONY: migrate
+migrate: migrate-onboarding migrate-transaction
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) All ledger migrations applied successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: migrate-down-onboarding
+migrate-down-onboarding: ensure-migrate
+	$(call title1,"Rolling back last onboarding migration")
+	@$(MIGRATE_BIN) -database "$(call ledger_db_url,ONBOARDING,onboarding)" -path $(ONBOARDING_MIGRATIONS_PATH) down 1
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last onboarding migration rolled back successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: migrate-down-transaction
+migrate-down-transaction: ensure-migrate
+	$(call title1,"Rolling back last transaction migration")
+	@$(MIGRATE_BIN) -database "$(call ledger_db_url,TRANSACTION,transaction)" -path $(TRANSACTION_MIGRATIONS_PATH) down 1
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last transaction migration rolled back successfully$(GREEN) ✔️$(NC)"
+
+# Aggregate override: roll back BOTH schemas (shadows the single-DB mk/database.mk target).
+.PHONY: migrate-down
+migrate-down: migrate-down-onboarding migrate-down-transaction
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last ledger migration rolled back on both schemas$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Setup Commands

@@ -92,7 +92,6 @@ type Config struct {
 	DBName         string `env:"DB_NAME"`
 	DBPort         string `env:"DB_PORT"`
 	DBSSLMode      string `env:"DB_SSL_MODE"`
-	MigrationPath  string `env:"MIGRATIONS_PATH"`
 	// DBMaxOpenConns / DBMaxIdleConns bound the per-pool sql.DB sizes for the
 	// primary AND replica pools opened by libPostgres.New. When 0 (default) the
 	// lib-commons defaults apply (25 max-open, 10 max-idle each → up to 50
@@ -834,61 +833,12 @@ func buildPostgresDSN(cfg *Config) string {
 }
 
 // initPostgresConnection creates and connects a PostgreSQL connection pool.
-// The ctx is used to bound migration and connect attempts so a wedged advisory
-// lock or unreachable database cannot hang the boot sequence indefinitely.
+// Schema migration is owned by the dedicated migration runner image, not by
+// this service: the app boots against an already-migrated schema. The ctx
+// bounds the connect attempt so an unreachable database cannot hang the boot
+// sequence indefinitely.
 func initPostgresConnection(ctx context.Context, cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
 	postgresSQLSource := buildPostgresDSN(cfg)
-
-	// Run all migrations (functions + schema) in a single pass via lib-commons.
-	// lib-commons's Migrator emits the `postgres.migrate_up` OpenTelemetry span
-	// automatically and owns its own DB connection, so the pooled libPostgres
-	// client below is independent of the migration lifecycle.
-	//
-	// AllowMultiStatements must stay false because migrations 000001-000003 install
-	// PL/pgSQL functions using dollar-quoted bodies ($$...$$); golang-migrate's
-	// multi-statement mode splits on semicolons and corrupts dollar-quoted blocks.
-	//
-	// INVARIANT: migrations run BEFORE libPostgres.New so the runtime pool
-	// lifecycle is decoupled from migration errors — there is no pool to close
-	// on migration failure, which simplifies the fail-fast path above.
-	if cfg.MigrationPath != "" {
-		migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-			PrimaryDSN:           postgresSQLSource,
-			DatabaseName:         cfg.DBName,
-			MigrationsPath:       cfg.MigrationPath,
-			AllowMultiStatements: false,
-			Logger:               logger,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create migrator: %w", err)
-		}
-
-		// Bound the migration run so a wedged advisory lock (two boot instances
-		// racing, or an orphaned lock from a killed boot) surfaces as a clean
-		// timeout error rather than hanging past any liveness/startup probe
-		// window. 5 minutes is generous for the 16 migrations this service
-		// ships today while still letting K8s or the operator intervene.
-		migCtx, migCancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer migCancel()
-
-		if err := migrator.Up(migCtx); err != nil {
-			return nil, fmt.Errorf("failed to apply migrations: %w", err)
-		}
-
-		// "up-to-date" truthfully covers both the "applied N new migrations"
-		// path and the no-op path where lib-commons swallowed migrate.ErrNoChange
-		// (e.g. a rolling-deploy boot against a DB a peer already migrated).
-		// lib-commons itself emits a structured log for the work that actually
-		// happened, so this line is a boot-sequence marker, not a duplicate.
-		logger.Log(ctx, libLog.LevelInfo, "Migrations up-to-date")
-	} else {
-		// Silent skip is an ops footgun: a misconfigured deployment (MIGRATIONS_PATH
-		// unset or empty-stringed by a templating bug) would boot successfully
-		// against whatever schema the DB happens to have. Warn-log it so the
-		// condition is visible in the startup trail.
-		logger.Log(ctx, libLog.LevelWarn,
-			"MIGRATIONS_PATH is empty, skipping migration runner (service will boot against existing schema)")
-	}
 
 	postgresConn, err := libPostgres.New(libPostgres.Config{
 		PrimaryDSN: postgresSQLSource,
@@ -1789,7 +1739,8 @@ func initClock() clock.Clock {
 }
 
 // InitServers initiate http and grpc servers. The ctx flows through
-// initPostgresConnection (bounds migration + pool connect) and through the
+// initPostgresConnection (bounds the pool connect attempt; schema migration is
+// owned by the dedicated runner image, not this boot path) and through the
 // rule-cache WarmUp (bounds cache hydration). Other bootstrap log-only
 // context.Background() calls in this package remain as pre-existing debt and
 // are rerouted separately.

@@ -32,12 +32,8 @@ func withOnboardingTestConnector(t *testing.T) {
 	originalConnector := onboardingPostgresConnector
 	onboardingPostgresConnector = testOnboardingPostgresConnector(t)
 
-	originalMigrator := onboardingPostgresMigrator
-	onboardingPostgresMigrator = func(_ *Config, _ libLog.Logger) error { return nil }
-
 	t.Cleanup(func() {
 		onboardingPostgresConnector = originalConnector
-		onboardingPostgresMigrator = originalMigrator
 	})
 }
 

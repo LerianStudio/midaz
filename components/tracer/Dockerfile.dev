@@ -41,7 +41,6 @@ RUN addgroup -g 1000 tracer && \
     adduser -u 1000 -G tracer -s /bin/sh -D tracer
 
 COPY --from=builder /app/tracer /app/tracer
-COPY --from=builder /tracer-app/components/tracer/migrations /app/migrations
 
 # Set ownership
 RUN chown -R tracer:tracer /app

@@ -23,7 +23,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"net"
 	stdhttp "net/http"
 	"net/http/httptest"
@@ -32,9 +31,7 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libLog "github.com/LerianStudio/lib-observability/log"
 	libZap "github.com/LerianStudio/lib-observability/zap"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -90,42 +87,6 @@ func setupOnboardingBootstrapChaosInfra(t *testing.T) *onboardingChaosBootstrapI
 		proxy:      proxy,
 		proxyHost:  containerInfo.ProxyListen,
 	}
-}
-
-// useAbsoluteOnboardingMigrationsPath overrides onboardingPostgresMigrator so
-// migrations run against an absolute path. The production migrator uses the
-// CWD-relative "components/ledger/migrations/onboarding", which lib-commons
-// resolves via filepath.Abs: correct in the container (WORKDIR /) but doubled
-// under `go test` (CWD is the package dir). FindMigrationsPath walks up to the
-// repo and returns an absolute, "..".-free path that sanitizePath accepts.
-func useAbsoluteOnboardingMigrationsPath(t *testing.T) {
-	t.Helper()
-
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
-	original := onboardingPostgresMigrator
-	onboardingPostgresMigrator = func(cfg *Config, logger libLog.Logger) error {
-		primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-			cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
-			cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
-
-		migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-			PrimaryDSN:     primaryDSN,
-			DatabaseName:   cfg.OnbPrefixedPrimaryDBName,
-			MigrationsPath: migrationsPath,
-			Logger:         logger,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create migrator: %w", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		return migrator.Up(ctx)
-	}
-
-	t.Cleanup(func() { onboardingPostgresMigrator = original })
 }
 
 // buildOnboardingProxiedConfig creates a Config that routes PG traffic through the
@@ -188,8 +149,6 @@ func TestIntegration_Chaos_InitOnboardingPostgres_SingleTenantConnectionLoss(t *
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
 	t.Cleanup(func() { onboardingPostgresConnector = original })
-
-	useAbsoluteOnboardingMigrationsPath(t)
 
 	// --- Phase 1: Normal ---
 	// Verify initSingleTenantPostgres succeeds through the proxy.
@@ -422,8 +381,6 @@ func TestIntegration_Chaos_InitOnboardingPostgres_PostInitConnectionLoss(t *test
 	original := onboardingPostgresConnector
 	onboardingPostgresConnector = defaultOnboardingPostgresConnector
 	t.Cleanup(func() { onboardingPostgresConnector = original })
-
-	useAbsoluteOnboardingMigrationsPath(t)
 
 	// --- Phase 1: Normal ---
 	t.Log("Phase 1 (Normal): initializing single-tenant and verifying queries succeed")
