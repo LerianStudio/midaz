@@ -26,7 +26,6 @@ import (
 const defaultAuditEmitTimeout = 5 * time.Second
 
 // AuditWriter emits protection audit events on a best-effort basis.
-//
 // Audit is non-blocking by design: neither method returns an error. A failed
 // write is recorded as a warning and never propagated to, nor allowed to block,
 // the caller. The caller's primary operation must succeed or fail on its own
