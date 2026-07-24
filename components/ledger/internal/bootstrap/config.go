@@ -32,7 +32,6 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -1221,9 +1220,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 // unless discovery is enabled, upholding the invariant that SD off emits zero
 // SD metrics.
 type serviceDiscoveryWiring struct {
-	manager    *libsd.Manager
+	manager    *pkgsd.Manager
 	enabled    bool
-	descriptor libsd.Service
+	descriptor pkgsd.Descriptor
 	authHost   string
 	recorder   pkgsd.MetricsRecorder
 }
@@ -1254,7 +1253,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *met
 		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
-	var descriptor libsd.Service
+	var descriptor pkgsd.Descriptor
 
 	if enabled {
 		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)

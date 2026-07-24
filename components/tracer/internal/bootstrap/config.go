@@ -22,7 +22,6 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	libsd "github.com/LerianStudio/lib-service-discovery"
 	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"google.golang.org/grpc"
 
@@ -1969,9 +1968,9 @@ func metricsFactoryFromTelemetry(telemetry *libOtel.Telemetry) *libMetrics.Metri
 // unless discovery is enabled, upholding the invariant that SD off emits zero
 // SD metrics.
 type serviceDiscoveryWiring struct {
-	manager    *libsd.Manager
+	manager    *pkgsd.Manager
 	enabled    bool
-	descriptor libsd.Service
+	descriptor pkgsd.Descriptor
 	authHost   string
 	recorder   pkgsd.MetricsRecorder
 }
@@ -2002,7 +2001,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *lib
 		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
-	var descriptor libsd.Service
+	var descriptor pkgsd.Descriptor
 
 	if enabled {
 		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)

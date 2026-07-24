@@ -2,6 +2,8 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//go:build libsd
+
 package servicediscovery
 
 import (
@@ -22,7 +24,7 @@ import (
 // react at shutdown.
 type Runnable struct {
 	manager *libsd.Manager
-	svc     libsd.Service
+	svc     Descriptor
 	logger  libLog.Logger
 	metrics MetricsRecorder
 
@@ -35,8 +37,13 @@ type Runnable struct {
 // NewRunnable builds a Runnable that registers svc against manager on start and
 // deregisters it on SIGINT/SIGTERM. A nil recorder is safe: it is replaced by a
 // no-op recorder so the lifecycle never dereferences nil.
-func NewRunnable(manager *libsd.Manager, svc libsd.Service, logger libLog.Logger, recorder MetricsRecorder) *Runnable {
-	return &Runnable{manager: manager, svc: svc, logger: logger, metrics: orNop(recorder)}
+func NewRunnable(manager *Manager, svc Descriptor, logger libLog.Logger, recorder MetricsRecorder) *Runnable {
+	var inner *libsd.Manager
+	if manager != nil {
+		inner = manager.inner
+	}
+
+	return &Runnable{manager: inner, svc: svc, logger: logger, metrics: orNop(recorder)}
 }
 
 // Run registers the service asynchronously against the signal-scoped context,
@@ -60,7 +67,7 @@ func (r *Runnable) Run(_ *libCommons.Launcher) error {
 	// RegisterAsync is non-blocking and retries in the background until sigCtx
 	// is cancelled. It needs the app-lifetime (signal) context, not a
 	// request-scoped one.
-	r.manager.RegisterAsync(sigCtx, r.svc)
+	r.manager.RegisterAsync(sigCtx, r.svc.toService())
 	metrics.RegisterInitiated(sigCtx)
 
 	<-sigCtx.Done()
