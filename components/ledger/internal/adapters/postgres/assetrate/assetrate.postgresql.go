@@ -13,19 +13,20 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 var assetRateColumnList = []string{
@@ -122,7 +123,8 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO asset_rate VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+	result, err := db.ExecContext(
+		ctx, `INSERT INTO asset_rate VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
 		&record.ID,
 		&record.OrganizationID,
 		&record.LedgerID,
@@ -452,7 +454,8 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 	record.UpdatedAt = time.Now()
 
-	updates = append(updates,
+	updates = append(
+		updates,
 		"updated_at = $"+strconv.Itoa(len(args)+1),
 		"rate = $"+strconv.Itoa(len(args)+2),
 		"rate_scale = $"+strconv.Itoa(len(args)+3),

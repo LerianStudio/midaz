@@ -11,15 +11,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func TestMetadataIndexHandler_MongoManagerSelection(t *testing.T) {

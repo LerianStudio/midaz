@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/api"

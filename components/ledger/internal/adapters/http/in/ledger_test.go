@@ -14,6 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	redisAdapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
@@ -23,11 +29,6 @@ import (
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestHandler_CreateLedger(t *testing.T) {
@@ -148,7 +149,8 @@ func TestHandler_CreateLedger(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
@@ -293,7 +295,8 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id",
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -423,7 +426,8 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -718,7 +722,8 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
@@ -844,7 +849,8 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id",
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -919,7 +925,8 @@ func TestHandler_CountLedgers(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/metrics/count",
+			app.Head(
+				"/v1/organizations/:organization_id/ledgers/metrics/count",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
@@ -992,7 +999,8 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
@@ -1133,7 +1141,8 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -1323,7 +1332,8 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			handler := &LedgerHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)

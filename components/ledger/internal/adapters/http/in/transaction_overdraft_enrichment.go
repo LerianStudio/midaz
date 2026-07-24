@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 

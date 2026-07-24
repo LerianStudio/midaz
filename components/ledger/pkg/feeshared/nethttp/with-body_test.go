@@ -9,13 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Test structs for testing

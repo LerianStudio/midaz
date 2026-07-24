@@ -7,8 +7,9 @@ package http
 import (
 	"errors"
 
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/gofiber/fiber/v2"
 )
 
 // WithError serializes err as the RFC 9457 problem+json envelope (Detail).

@@ -14,14 +14,15 @@ import (
 	"reflect"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -277,7 +278,8 @@ func TestEncryption_Provision(t *testing.T) {
 			tenantID := tt.tenantID
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/encryption/provision",
+			app.Post(
+				"/v1/organizations/:organization_id/encryption/provision",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
 					// Simulate the tenant middleware: in multi-tenant mode it
@@ -396,7 +398,8 @@ func TestEncryptionHandler_GetProvisioningStatus(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/encryption/status",
+			app.Get(
+				"/v1/organizations/:organization_id/encryption/status",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
 					return c.Next()

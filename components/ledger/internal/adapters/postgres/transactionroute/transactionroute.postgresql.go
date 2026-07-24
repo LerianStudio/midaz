@@ -12,23 +12,24 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/Masterminds/squirrel"
+	"github.com/bxcodec/dbresolver/v2"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/bxcodec/dbresolver/v2"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // transactionRouteColumnList is the canonical, ordered list of columns
@@ -213,7 +214,8 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		for _, operationRoute := range transactionRoute.OperationRoutes {
 			relationID := uuid.Must(libCommons.GenerateUUIDv7())
 
-			_, err := tx.ExecContext(ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
+			_, err := tx.ExecContext(
+				ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
 				operationRoute.ID,
 				record.ID,
@@ -789,7 +791,8 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 			relationID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now()
 
-			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
+			_, err := tx.ExecContext(
+				ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
 				operationRouteID,
 				transactionRouteID,

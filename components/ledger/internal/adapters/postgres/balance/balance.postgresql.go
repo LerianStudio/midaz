@@ -15,23 +15,24 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 var balanceColumnList = []string{
@@ -1143,7 +1144,8 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	_, spanQuery := tracer.Start(ctx, "postgres.delete.exec")
 
-	result, err := db.ExecContext(ctx, `
+	result, err := db.ExecContext(
+		ctx, `
 		UPDATE balance 
 		SET deleted_at = NOW()
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
@@ -1215,7 +1217,8 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 	ctxExec, spanExec := tracer.Start(ctx, "postgres.delete_balances.exec")
 	defer spanExec.End()
 
-	result, err := tx.ExecContext(ctxExec, `
+	result, err := tx.ExecContext(
+		ctxExec, `
 		UPDATE balance
 		SET deleted_at = NOW()
 		WHERE organization_id = $1
@@ -1492,7 +1495,8 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 		return 0, err
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "UpdateMany completed",
+	logger.Log(
+		ctx, libLog.LevelDebug, "UpdateMany completed",
 		libLog.Int("updated", int(totalUpdated)),
 		libLog.Int("total", len(balances)),
 	)

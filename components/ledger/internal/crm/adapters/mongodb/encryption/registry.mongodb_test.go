@@ -8,10 +8,11 @@ import (
 	"context"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func TestRegistryMongoDBRepositoryImplementsRepository(t *testing.T) {

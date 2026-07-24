@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"

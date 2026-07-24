@@ -5,8 +5,8 @@
 package middleware
 
 import (
-	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	"github.com/gofiber/fiber/v2"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"

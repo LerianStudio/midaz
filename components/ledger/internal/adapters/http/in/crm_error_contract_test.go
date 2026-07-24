@@ -13,17 +13,18 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // transformedCRMCodeRegex matches the CRM-00xx codes that the deleted
@@ -126,7 +127,8 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			// canonical-error-code assertions below are unaffected by this source
 			// change — they exercise body/validation paths that fail before org is used.
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/holders",
+			app.Post(
+				"/v1/organizations/:organization_id/holders",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -183,7 +185,8 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	// Org and holder both arrive as path-validated UUID locals (seeded here as the
 	// real ParseUUIDPathParameters chain would store them); the header scope is gone.
 	app := fiber.New()
-	app.Get("/v1/organizations/:organization_id/holders/:id",
+	app.Get(
+		"/v1/organizations/:organization_id/holders/:id",
 		func(c *fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("id", holderID)

@@ -18,7 +18,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )
 

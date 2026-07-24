@@ -9,7 +9,7 @@ import (
 	"context"
 	"sync"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
 // LogCall represents a single logging call with its level, message, and fields.

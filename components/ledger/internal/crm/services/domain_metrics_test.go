@@ -9,13 +9,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func newReaderFactory(t *testing.T) (*sdkmetric.ManualReader, *metrics.MetricsFactory) {

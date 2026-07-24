@@ -9,15 +9,16 @@ import (
 	"errors"
 	"testing"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // recordingContext wires an in-memory SpanRecorder into the lib-observability

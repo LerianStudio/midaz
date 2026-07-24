@@ -21,10 +21,11 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
-	libZap "github.com/LerianStudio/lib-observability/zap"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/rabbitmq"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -127,7 +128,8 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	})
 
 	// Create tmrabbitmq.Manager using the client
-	manager := tmrabbitmq.NewManager(client, "ledger",
+	manager := tmrabbitmq.NewManager(
+		client, "ledger",
 		tmrabbitmq.WithLogger(logger),
 		tmrabbitmq.WithModule("transaction"),
 	)
@@ -276,7 +278,8 @@ func createVHost(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost string) {
 func setVHostPermissions(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost, user string) {
 	t.Helper()
 
-	managementAPICall(t, rmq,
+	managementAPICall(
+		t, rmq,
 		fmt.Sprintf("/api/permissions/%s/%s", vhost, user),
 		`{"configure":".*","write":".*","read":".*"}`,
 	)

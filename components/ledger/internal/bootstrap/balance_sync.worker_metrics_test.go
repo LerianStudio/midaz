@@ -8,11 +8,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // TestBalanceSyncWorker_WithMetricsFactory verifies the fluent setter wires the

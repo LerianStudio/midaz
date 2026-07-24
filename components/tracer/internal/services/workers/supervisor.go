@@ -11,11 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/metrics"

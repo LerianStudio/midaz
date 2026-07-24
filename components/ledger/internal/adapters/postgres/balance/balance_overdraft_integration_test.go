@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // ============================================================================
@@ -48,7 +49,8 @@ func TestIntegration_BalanceOverdraft_DirectionPersisted(t *testing.T) {
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := container.DB.Exec(`
+	_, err := container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at, direction)
@@ -82,7 +84,8 @@ func TestIntegration_BalanceOverdraft_SchemaDefaults(t *testing.T) {
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := container.DB.Exec(`
+	_, err := container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at)
@@ -98,7 +101,8 @@ func TestIntegration_BalanceOverdraft_SchemaDefaults(t *testing.T) {
 	var overdraftUsed decimal.Decimal
 	var settingsRaw []byte
 
-	err = container.DB.QueryRow(`
+	err = container.DB.QueryRow(
+		`
 		SELECT direction, overdraft_used, settings
 		FROM balance WHERE id = $1`, balanceID,
 	).Scan(&direction, &overdraftUsed, &settingsRaw)
@@ -132,7 +136,8 @@ func TestIntegration_BalanceOverdraft_SettingsJSONBRoundTrip(t *testing.T) {
 	settingsJSON, err := json.Marshal(inputSettings)
 	require.NoError(t, err, "marshalling settings to JSON")
 
-	_, err = container.DB.Exec(`
+	_, err = container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at,
@@ -178,7 +183,8 @@ func TestIntegration_BalanceOverdraft_UpdateOverdraftUsedViaSQLBatch(t *testing.
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := container.DB.Exec(`
+	_, err := container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at,
@@ -192,7 +198,8 @@ func TestIntegration_BalanceOverdraft_UpdateOverdraftUsedViaSQLBatch(t *testing.
 	require.NoError(t, err, "inserting initial balance")
 
 	// Act — update overdraft_used via batch-style UPDATE … FROM (VALUES …)
-	_, err = container.DB.Exec(`
+	_, err = container.DB.Exec(
+		`
 		UPDATE balance AS b
 		SET overdraft_used = v.overdraft_used,
 		    version = v.version,
@@ -228,7 +235,8 @@ func TestIntegration_BalanceOverdraft_NilSettingsDoesNotCauseParseError(t *testi
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := container.DB.Exec(`
+	_, err := container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at)
@@ -263,7 +271,8 @@ func TestIntegration_BalanceOverdraft_ListByAliasesReturnsOverdraftColumns(t *te
 	now := time.Now().Truncate(time.Microsecond)
 	alias := "@list-od-test"
 
-	_, err := container.DB.Exec(`
+	_, err := container.DB.Exec(
+		`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key,
 			asset_code, available, on_hold, version, account_type,
 			allow_sending, allow_receiving, created_at, updated_at,
@@ -280,7 +289,8 @@ func TestIntegration_BalanceOverdraft_ListByAliasesReturnsOverdraftColumns(t *te
 	var direction string
 	var overdraftUsed decimal.Decimal
 
-	err = container.DB.QueryRow(`
+	err = container.DB.QueryRow(
+		`
 		SELECT direction, overdraft_used
 		FROM balance
 		WHERE organization_id = $1

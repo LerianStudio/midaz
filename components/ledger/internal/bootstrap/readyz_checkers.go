@@ -13,13 +13,14 @@ import (
 	"strings"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 )
 
 // PostgresChecker probes a PostgreSQL connection using SELECT 1.

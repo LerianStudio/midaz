@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkg "github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/trace/noop"
+
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 )
 
 // spyChannel captures Publish calls so tests can assert republish behavior without

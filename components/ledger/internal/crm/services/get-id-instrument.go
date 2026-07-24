@@ -7,10 +7,11 @@ package services
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // GetInstrumentByID retrieves an instrument by ID and holder ID.

@@ -9,19 +9,20 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // DeleteOperationRouteByID deletes an operation route by ID.
@@ -53,7 +54,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to check transaction route links", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to check transaction route links",
+		logger.Log(
+			ctx, libLog.LevelError, "Failed to check transaction route links",
 			libLog.Err(err),
 			libLog.String("operation_route_id", id.String()),
 		)
@@ -66,7 +68,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is linked to transaction routes", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Operation route is linked to transaction routes",
+		logger.Log(
+			ctx, libLog.LevelWarn, "Operation route is linked to transaction routes",
 			libLog.String("operation_route_id", id.String()),
 		)
 
@@ -79,7 +82,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route not found", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Operation route not found",
+			logger.Log(
+				ctx, libLog.LevelWarn, "Operation route not found",
 				libLog.String("operation_route_id", id.String()),
 			)
 
@@ -88,7 +92,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanError(span, "Failed to delete operation route", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route",
+		logger.Log(
+			ctx, libLog.LevelError, "Failed to delete operation route",
 			libLog.Err(err),
 			libLog.String("operation_route_id", id.String()),
 		)

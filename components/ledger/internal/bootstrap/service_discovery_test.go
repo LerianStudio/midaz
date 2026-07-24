@@ -7,11 +7,12 @@ package bootstrap
 import (
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // launcherAppNames extracts the ordered display names from the service's

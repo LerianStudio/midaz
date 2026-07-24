@@ -5,12 +5,12 @@ go 1.26.4
 toolchain go1.26.5
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.9.0
+	github.com/LerianStudio/lib-auth/v3 v3.1.0-beta.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
-	github.com/gofiber/fiber/v2 v2.52.14
+	github.com/gofiber/fiber/v3 v3.4.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/lib/pq v1.12.3
 	github.com/rabbitmq/amqp091-go v1.13.0
@@ -84,8 +84,8 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-commons/v5 v5.10.0
-	github.com/LerianStudio/lib-observability v1.1.0
+	github.com/LerianStudio/lib-commons/v6 v6.2.0-beta.1
+	github.com/LerianStudio/lib-observability/v2 v2.1.0
 	github.com/LerianStudio/lib-service-discovery v1.1.0
 	github.com/LerianStudio/lib-streaming v1.9.0
 	github.com/Shopify/toxiproxy/v2 v2.12.0
@@ -94,7 +94,6 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.39.0
 	github.com/docker/go-connections v0.7.0
 	github.com/go-playground/validator/v10 v10.30.3
-	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/contrib/otelfiber/v2 v2.2.3
 	github.com/google/cel-go v0.29.2
 	github.com/hashicorp/vault/api v1.23.0
@@ -122,6 +121,8 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/LerianStudio/lib-commons/v5 v5.8.0 // indirect
+	github.com/LerianStudio/lib-observability v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -141,9 +142,9 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/gofiber/fiber/v3 v3.3.0 // indirect
-	github.com/gofiber/schema v1.7.1 // indirect
-	github.com/gofiber/utils/v2 v2.0.6 // indirect
+	github.com/gofiber/fiber/v2 v2.52.13 // indirect
+	github.com/gofiber/schema v1.8.0 // indirect
+	github.com/gofiber/utils/v2 v2.1.1 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
 	github.com/hashicorp/consul/api v1.34.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -195,13 +196,14 @@ require (
 	go.opentelemetry.io/contrib v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0

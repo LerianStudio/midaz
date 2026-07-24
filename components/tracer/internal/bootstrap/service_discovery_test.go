@@ -8,13 +8,14 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	libsd "github.com/LerianStudio/lib-service-discovery"
-	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // clearServiceDiscoveryEnv wipes the discovery-toggle and advertise env vars so a

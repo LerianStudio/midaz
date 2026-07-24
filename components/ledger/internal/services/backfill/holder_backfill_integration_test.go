@@ -13,7 +13,13 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	crmservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
@@ -24,11 +30,6 @@ import (
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // fixedTime is a deterministic timestamp for fixture inserts (no time.Now() in tests).

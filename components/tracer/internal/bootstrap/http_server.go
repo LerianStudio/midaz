@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"net"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
-	libObsLog "github.com/LerianStudio/lib-observability/log"
-	libObsOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
+	libObsLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObsOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 )
 
 // HTTPServer represents the http server for Tracer services.

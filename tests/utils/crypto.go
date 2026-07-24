@@ -10,8 +10,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libCrypto "github.com/LerianStudio/lib-commons/v6/commons/crypto"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/require"
 )
 

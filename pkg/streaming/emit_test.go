@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libStreaming "github.com/LerianStudio/lib-streaming"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,9 +22,10 @@ type emitTestLogger struct{}
 
 func (emitTestLogger) Log(context.Context, libLog.Level, string, ...libLog.Field) {}
 func (emitTestLogger) With(...libLog.Field) libLog.Logger                         { return emitTestLogger{} }
-func (emitTestLogger) WithGroup(string) libLog.Logger                             { return emitTestLogger{} }
-func (emitTestLogger) Enabled(libLog.Level) bool                                  { return true }
-func (emitTestLogger) Sync(context.Context) error                                 { return nil }
+
+func (emitTestLogger) WithGroup(string) libLog.Logger { return emitTestLogger{} }
+func (emitTestLogger) Enabled(libLog.Level) bool      { return true }
+func (emitTestLogger) Sync(context.Context) error     { return nil }
 
 type deadlineCapturingEmitter struct {
 	deadline time.Time

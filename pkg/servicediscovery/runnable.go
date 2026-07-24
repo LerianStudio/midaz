@@ -10,8 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 )
 

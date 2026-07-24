@@ -12,22 +12,23 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 var portfolioColumnList = []string{
@@ -127,7 +128,8 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 	inserted := &PortfolioPostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, insertQuery,
+	row := db.QueryRowContext(
+		ctx, insertQuery,
 		record.ID,
 		record.Name,
 		record.EntityID,
@@ -217,7 +219,8 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 		&portfolio.StatusDescription,
 		&portfolio.CreatedAt,
 		&portfolio.UpdatedAt,
-		&portfolio.DeletedAt); err != nil {
+		&portfolio.DeletedAt,
+	); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
@@ -309,7 +312,8 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&portfolio.StatusDescription,
 			&portfolio.CreatedAt,
 			&portfolio.UpdatedAt,
-			&portfolio.DeletedAt); err != nil {
+			&portfolio.DeletedAt,
+		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
 			return nil, err
@@ -376,7 +380,8 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&portfolio.StatusDescription,
 		&portfolio.CreatedAt,
 		&portfolio.UpdatedAt,
-		&portfolio.DeletedAt); err != nil {
+		&portfolio.DeletedAt,
+	); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
@@ -446,7 +451,8 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&portfolio.StatusDescription,
 			&portfolio.CreatedAt,
 			&portfolio.UpdatedAt,
-			&portfolio.DeletedAt); err != nil {
+			&portfolio.DeletedAt,
+		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
 			return nil, err

@@ -11,14 +11,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // stubHolderAccountsReader is a hand-written stub for HolderAccountsReader.
@@ -122,7 +123,8 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 			handler := &HolderAccountsHandler{Reader: tt.reader}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/holders/:id/accounts",
+			app.Get(
+				"/v1/organizations/:organization_id/holders/:id/accounts",
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)

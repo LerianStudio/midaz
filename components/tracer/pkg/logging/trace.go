@@ -8,7 +8,7 @@ package logging
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"go.opentelemetry.io/otel/trace"
 )
 

@@ -8,13 +8,14 @@ import (
 	"context"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	libObs "github.com/LerianStudio/lib-observability/v2"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+	"github.com/shopspring/decimal"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
-	"github.com/shopspring/decimal"
 )
 
 // SendBalanceChangedEvents emits one generic, domain-agnostic balance.changed

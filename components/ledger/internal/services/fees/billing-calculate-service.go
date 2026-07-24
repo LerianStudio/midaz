@@ -11,10 +11,14 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
+
 	billing_package "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	midaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
@@ -22,9 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // BillingCalculateService handles the orchestration of billing calculations

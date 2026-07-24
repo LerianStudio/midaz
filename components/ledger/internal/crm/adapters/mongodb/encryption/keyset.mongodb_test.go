@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func TestNewKeysetMongoDBRepository_NilConnection(t *testing.T) {

@@ -7,11 +7,12 @@ package services
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Instrument, error) {

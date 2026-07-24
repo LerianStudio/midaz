@@ -12,14 +12,15 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TestMain verifies no goroutines leak across the whole package test run. The

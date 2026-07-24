@@ -25,8 +25,8 @@ import (
 	"context"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libMetrics "github.com/LerianStudio/lib-observability/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
 )
 
 // allowedDeps and allowedStatuses bound the cardinality of the readyz

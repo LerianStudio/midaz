@@ -10,10 +10,11 @@ import (
 	"sort"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // BalanceCompositeKey uniquely identifies a balance for aggregation purposes.
@@ -29,7 +30,8 @@ type BalanceCompositeKey struct {
 // String returns a string representation of the composite key.
 // Format: "orgID:ledgerID:accountID:assetCode:partitionKey"
 func (k BalanceCompositeKey) String() string {
-	return fmt.Sprintf("%s:%s:%s:%s:%s",
+	return fmt.Sprintf(
+		"%s:%s:%s:%s:%s",
 		k.OrganizationID.String(),
 		k.LedgerID.String(),
 		k.AccountID,

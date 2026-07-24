@@ -7,16 +7,17 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // CompositionHandler exposes the holder-account composition route. It owns no
@@ -60,7 +61,8 @@ func (handler *CompositionHandler) createHolderAccount(ctx context.Context, orga
 			logLevel = libLog.LevelWarn
 		}
 
-		logger.Log(ctx, logLevel, "Failed to create holder account",
+		logger.Log(
+			ctx, logLevel, "Failed to create holder account",
 			libLog.String("holder_id", holderID.String()),
 			libLog.Err(err),
 		)

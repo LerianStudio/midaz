@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -349,7 +349,8 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 	// First, get the internal ID for this event
 	var internalID int64
 
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		"SELECT id FROM audit_events WHERE event_id = $1",
 		eventID,
 	).Scan(&internalID)
@@ -369,7 +370,8 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 		errorDetail    sql.NullString
 	)
 
-	err = db.QueryRowContext(ctx,
+	err = db.QueryRowContext(
+		ctx,
 		"SELECT is_valid, first_invalid_id, total_checked, error_detail FROM verify_audit_hash_chain(1, $1)",
 		internalID,
 	).Scan(&isValid, &firstInvalidID, &totalChecked, &errorDetail)

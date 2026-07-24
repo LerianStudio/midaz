@@ -21,7 +21,7 @@ import (
 	"database/sql"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	mongoonb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	mongotxn "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -42,7 +42,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"

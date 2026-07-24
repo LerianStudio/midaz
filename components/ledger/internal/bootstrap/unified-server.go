@@ -9,19 +9,20 @@ import (
 	"os"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber router.

@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
@@ -156,7 +157,8 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	bufLen := len(c.buffer)
 	c.mu.Unlock()
 
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
+	c.logger.Log(
+		ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
 		libLog.Int("fetched", len(keys)),
 		libLog.Int("buffer", bufLen),
 		libLog.Int("batch_size", c.batchSize),
@@ -174,7 +176,8 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	// SIZE trigger: buffer full → flush immediately and reset the timeout
 	// window for the next batch cycle.
 	if bufLen >= c.batchSize {
-		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
+		c.logger.Log(
+			ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
 			libLog.Int("buffer", bufLen),
 			libLog.Int("batch_size", c.batchSize),
 		)
@@ -199,7 +202,8 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 	case <-ctx.Done():
 		return
 	case <-timer.C:
-		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
+		c.logger.Log(
+			ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
 			libLog.String("flush_timeout", c.flushTimeout.String()),
 			libLog.Int("buffer", bufLen),
 		)
@@ -247,7 +251,8 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
 
-		c.logger.Log(flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
+		c.logger.Log(
+			flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
 			libLog.Int("remaining_keys", len(remaining)),
 		)
 

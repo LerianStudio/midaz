@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
+	libCrypto "github.com/LerianStudio/lib-commons/v6/commons/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

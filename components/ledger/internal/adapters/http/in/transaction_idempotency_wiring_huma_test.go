@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

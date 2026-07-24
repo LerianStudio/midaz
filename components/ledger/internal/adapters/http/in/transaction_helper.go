@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -174,7 +174,8 @@ func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.U
 		if mtransaction.IsDoubleEntrySource(amount) {
 			op1, op2 := mtransaction.SplitDoubleEntryOps(amount)
 
-			ops = append(ops,
+			ops = append(
+				ops,
 				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op1, InternalKey: ref.internalKey},
 				mmodel.BalanceOperation{Balance: ref.balance, Alias: alias, Amount: op2, InternalKey: ref.internalKey},
 			)

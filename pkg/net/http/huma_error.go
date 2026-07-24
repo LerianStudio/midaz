@@ -8,9 +8,10 @@ import (
 	"errors"
 	"net/http"
 
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	"github.com/LerianStudio/midaz/v4/pkg"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // HumaProblem converts a canonical Midaz error into the frozen RFC 9457 *Detail,

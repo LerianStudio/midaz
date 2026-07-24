@@ -14,8 +14,8 @@ import (
 
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 
-	"github.com/LerianStudio/lib-commons/v5/commons"
-	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	"github.com/LerianStudio/lib-commons/v6/commons"
+	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	"github.com/google/uuid"
 )
 

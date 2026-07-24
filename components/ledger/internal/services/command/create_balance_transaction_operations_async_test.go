@@ -10,7 +10,15 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -19,13 +27,6 @@ import (
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
-	"go.uber.org/mock/gomock"
 )
 
 // Int64Ptr returns a pointer to the given int64 value
@@ -38,9 +39,12 @@ type MockLogger struct{}
 
 func (m *MockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
 func (m *MockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
-func (m *MockLogger) WithGroup(_ string) libLog.Logger                                   { return m }
-func (m *MockLogger) Enabled(_ libLog.Level) bool                                        { return true }
-func (m *MockLogger) Sync(_ context.Context) error                                       { return nil }
+
+func (m *MockLogger) WithGroup(_ string) libLog.Logger { return m }
+
+func (m *MockLogger) Enabled(_ libLog.Level) bool { return true }
+
+func (m *MockLogger) Sync(_ context.Context) error { return nil }
 
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success_append_only_transaction_and_operations", func(t *testing.T) {

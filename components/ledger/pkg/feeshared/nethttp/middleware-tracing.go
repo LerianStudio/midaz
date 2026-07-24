@@ -7,11 +7,12 @@ package http
 import (
 	"encoding/json"
 
-	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/gofiber/fiber/v2"
+	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // bodyParsingHandler holds the struct source for body parsing without coupling to a handler.

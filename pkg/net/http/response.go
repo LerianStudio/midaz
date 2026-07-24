@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/gofiber/fiber/v2"
 )
 
 // Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.

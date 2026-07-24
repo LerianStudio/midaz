@@ -14,14 +14,15 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/gofiber/fiber/v2"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestValidateParameters_DefaultValues(t *testing.T) {

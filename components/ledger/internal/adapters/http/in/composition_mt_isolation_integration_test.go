@@ -18,15 +18,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"golang.org/x/sync/errgroup"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
@@ -47,14 +56,6 @@ import (
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
-	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"golang.org/x/sync/errgroup"
 )
 
 // compositionTenant holds the per-tenant scaffolding the isolation gate needs:
@@ -397,7 +398,8 @@ func holderAccountAliases(t *testing.T, db *sql.DB, orgID, ledgerID, holderID uu
 
 	rows, err := db.Query(
 		`SELECT alias FROM account WHERE organization_id = $1 AND ledger_id = $2 AND holder_id = $3 AND deleted_at IS NULL`,
-		orgID, ledgerID, holderID)
+		orgID, ledgerID, holderID,
+	)
 	require.NoError(t, err, "failed to query accounts by holder")
 	defer func() { _ = rows.Close() }()
 

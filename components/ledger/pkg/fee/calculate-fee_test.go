@@ -12,12 +12,13 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Unit test for CalculateFee in pkg/fee

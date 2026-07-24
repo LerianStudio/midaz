@@ -11,14 +11,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	"github.com/gofiber/fiber/v3"
+	"go.opentelemetry.io/otel/attribute"
+
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/gofiber/fiber/v2"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // DependencyStatus represents the health status of a dependency.
@@ -399,7 +400,8 @@ func buildReadyzHandler(
 
 	// Build RabbitMQ URI for TLS detection
 	rmqURI := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost,
+	)
 
 	var checkers []DependencyChecker
 

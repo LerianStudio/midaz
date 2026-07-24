@@ -8,9 +8,10 @@ import (
 	"context"
 	"fmt"
 
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libStreaming "github.com/LerianStudio/lib-streaming"
+
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feesmidaz "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"

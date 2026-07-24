@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	"github.com/sony/gobreaker"
 )

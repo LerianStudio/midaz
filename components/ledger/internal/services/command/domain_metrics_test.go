@@ -9,16 +9,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // newReaderFactory builds a real MetricsFactory backed by a manual reader so the

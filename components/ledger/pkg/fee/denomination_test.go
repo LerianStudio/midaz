@@ -12,11 +12,12 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // P4-T24 — fee legs MUST be denominated in the transaction's Send.Asset, never

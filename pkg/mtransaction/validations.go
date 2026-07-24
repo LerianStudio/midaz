@@ -10,14 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/v5/commons"
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/tracing"
+	"github.com/LerianStudio/lib-commons/v6/commons"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/shopspring/decimal"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/shopspring/decimal"
 )
 
 // CheckTransactionDate validates the transactionDate field and returns the

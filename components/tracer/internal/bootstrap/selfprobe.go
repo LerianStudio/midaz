@@ -14,7 +14,7 @@ import (
 	"time"
 	"unicode"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 )

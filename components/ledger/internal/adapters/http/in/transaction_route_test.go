@@ -12,7 +12,13 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
@@ -23,11 +29,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
@@ -165,7 +166,8 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			handler := &TransactionRouteHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -298,7 +300,8 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			handler := &TransactionRouteHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -471,7 +474,8 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -598,7 +602,8 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 			handler := &TransactionRouteHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -849,7 +854,8 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			handler := &TransactionRouteHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)

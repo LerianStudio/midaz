@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -322,7 +322,8 @@ func (s *ReservationService) Confirm(ctx context.Context, reservationID uuid.UUI
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminate(ctx, span, logger, reservationID,
+	return s.terminate(
+		ctx, span, logger, reservationID,
 		model.StatusConfirmed,
 		model.AuditEventReservationConfirmed,
 		model.AuditActionConfirm,
@@ -343,7 +344,8 @@ func (s *ReservationService) Release(ctx context.Context, reservationID uuid.UUI
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminate(ctx, span, logger, reservationID,
+	return s.terminate(
+		ctx, span, logger, reservationID,
 		model.StatusReleased,
 		model.AuditEventReservationReleased,
 		model.AuditActionRelease,
@@ -370,7 +372,8 @@ func (s *ReservationService) ConfirmByTransaction(ctx context.Context, transacti
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminateByTransaction(ctx, span, logger, transactionID,
+	return s.terminateByTransaction(
+		ctx, span, logger, transactionID,
 		model.StatusConfirmed,
 		model.AuditEventReservationConfirmed,
 		model.AuditActionConfirm,
@@ -392,7 +395,8 @@ func (s *ReservationService) ReleaseByTransaction(ctx context.Context, transacti
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.terminateByTransaction(ctx, span, logger, transactionID,
+	return s.terminateByTransaction(
+		ctx, span, logger, transactionID,
 		model.StatusReleased,
 		model.AuditEventReservationReleased,
 		model.AuditActionRelease,
