@@ -26,8 +26,8 @@ import (
 //
 // Reuse this handler in every fiber.Config{ErrorHandler: ...} so all Midaz fiber
 // apps share one error envelope.
-func CanonicalFiberErrorHandler(c *fiber.Ctx, err error) error {
-	ctx := c.UserContext()
+func CanonicalFiberErrorHandler(c fiber.Ctx, err error) error {
+	ctx := c.Context()
 	if ctx != nil {
 		span := trace.SpanFromContext(ctx)
 		libOpentelemetry.HandleSpanError(span, "handler error", err)
@@ -59,7 +59,7 @@ func CanonicalFiberErrorHandler(c *fiber.Ctx, err error) error {
 // for classes (405, 413) that the WithError status table does not produce. The
 // explicit status overrides the code->status table (r3 §0, §1.3); the code is
 // still carried verbatim (money path).
-func renderCanonical(c *fiber.Ctx, status int, err error) error {
+func renderCanonical(c fiber.Ctx, status int, err error) error {
 	if responseErr := (pkg.ResponseError{}); errors.As(err, &responseErr) {
 		return withProblemStatus(c, status, pkg.ValidationError{
 			EntityType: responseErr.EntityType,
@@ -72,7 +72,7 @@ func renderCanonical(c *fiber.Ctx, status int, err error) error {
 	return withProblemStatus(c, status, err)
 }
 
-func logError(ctx context.Context, c *fiber.Ctx, err error) {
+func logError(ctx context.Context, c fiber.Ctx, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}

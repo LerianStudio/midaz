@@ -19,7 +19,7 @@ func VersionHandler(version string) fiber.Handler {
 		version = "0.0.0"
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		info := Get()
 
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{

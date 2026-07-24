@@ -41,14 +41,14 @@ func buildRecoverOpts(opts ...RecoverMiddlewareOption) *recoverMiddleware {
 }
 
 func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		mid := buildRecoverOpts(opts...)
 
 		defer func() {
 			if r := recover(); r != nil {
 				logger := mid.Logger
 
-				ctxLogger, _, _, _ := libObservability.NewTrackingFromContext(c.UserContext())
+				ctxLogger, _, _, _ := libObservability.NewTrackingFromContext(c.Context())
 
 				if ctxLogger != nil {
 					logger = ctxLogger
@@ -58,11 +58,11 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 				panicType := fmt.Sprintf("%T", r)
 
 				logger.Log(
-					c.UserContext(), libLog.LevelError, "panic recovered",
+					c.Context(), libLog.LevelError, "panic recovered",
 					libLog.String("panic_type", panicType),
 				)
 
-				span := trace.SpanFromContext(c.UserContext())
+				span := trace.SpanFromContext(c.Context())
 				if span.IsRecording() {
 					span.RecordError(panicErr)
 					span.SetStatus(codes.Error, "panic recovered")

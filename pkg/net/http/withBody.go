@@ -32,7 +32,7 @@ import (
 // DecodeHandlerFunc is a handler which works with withBody decorator.
 // It receives a struct which was decoded by withBody decorator before.
 // Ex: json -> withBody -> DecodeHandlerFunc.
-type DecodeHandlerFunc func(p any, c *fiber.Ctx) error
+type DecodeHandlerFunc func(p any, c fiber.Ctx) error
 
 // PayloadContextValue is a wrapper type used to keep Context.Locals safe.
 type PayloadContextValue string
@@ -56,7 +56,7 @@ func newOfType(s any) any {
 
 // FiberHandlerFunc is a method on the decoderHandler struct. It decodes the incoming request's body to a Go struct,
 // validates it, checks for any extraneous fields not defined in the struct, and finally calls the wrapped handler function.
-func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
+func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
 	var s any
 
 	if d.constructor != nil {
@@ -152,7 +152,7 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 // serves as a secondary guard and checks Content-Length first to avoid buffering
 // oversized requests when the header is present.
 func WithBodyLimit(maxBytes int) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// Check Content-Length header first to avoid buffering oversized requests
 		contentLength := c.Request().Header.ContentLength()
 		if contentLength > maxBytes {
@@ -171,14 +171,14 @@ func WithBodyLimit(maxBytes int) fiber.Handler {
 
 // SetBodyInContext is a higher-order function that wraps a Fiber handler, injecting the decoded body into the request context.
 func SetBodyInContext(handler fiber.Handler) DecodeHandlerFunc {
-	return func(s any, c *fiber.Ctx) error {
+	return func(s any, c fiber.Ctx) error {
 		c.Locals(string(PayloadContextValue("payload")), s)
 		return handler(c)
 	}
 }
 
 // GetPayloadFromContext retrieves the decoded request payload from the Fiber context.
-func GetPayloadFromContext(c *fiber.Ctx) any {
+func GetPayloadFromContext(c fiber.Ctx) any {
 	return c.Locals(string(PayloadContextValue("payload")))
 }
 
@@ -247,8 +247,13 @@ func ValidateStruct(s any) error {
 // entityName is a snake_case string used to identify id name, for example the "organization" entity name will result in "app.request.organization_id"
 // otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id"
 func ParseUUIDPathParameters(entityName string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		for param, value := range c.AllParams() {
+	return func(c fiber.Ctx) error {
+		// Fiber v3 removed the whole-map param accessor: iterate the route's
+		// declared param names and read each value via Params. c.Route().Params
+		// holds the case-sensitive param keys in route-declaration order.
+		for _, param := range c.Route().Params {
+			value := c.Params(param)
+
 			if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
 				c.Locals(param, value)
 				continue

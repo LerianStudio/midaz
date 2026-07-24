@@ -27,7 +27,7 @@ import (
 // Resolution is order-dependent: the first matching arm wins, and because every
 // platform error type has an Unwrap, errors.As walks the whole chain — so nesting
 // platform errors makes the OUTERMOST class drive the status.
-func WithError(c *fiber.Ctx, err error) error {
+func WithError(c fiber.Ctx, err error) error {
 	// ResponseError (0094) is the status-in-Code quirk: its status is
 	// strconv.Atoi(Code), not a table lookup, so it is dispatched on its own
 	// branch BEFORE the code->status table (r3 §2.2).

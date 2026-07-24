@@ -76,7 +76,7 @@ func DecodeValidateBody(bodyBytes []byte, s any) (map[string]any, error) {
 // struct. It delegates the decode+validate sequence to DecodeValidateBody (the shared
 // transport-agnostic core) and, on error, renders the canonical BadRequest envelope,
 // keeping the Fiber and Huma paths byte-identical.
-func (b *bodyParsingHandler) parseBody(c *fiber.Ctx) (any, error) {
+func (b *bodyParsingHandler) parseBody(c fiber.Ctx) (any, error) {
 	s := newOfType(b.structSource)
 
 	if _, err := DecodeValidateBody(c.Body(), s); err != nil {
@@ -96,8 +96,8 @@ func (b *bodyParsingHandler) parseBody(c *fiber.Ctx) (any, error) {
 func WithBodyTracing(s any, h DecodeHandlerFunc) fiber.Handler {
 	parsingHandler := &bodyParsingHandler{structSource: s}
 
-	return func(c *fiber.Ctx) error {
-		parentCtx := c.UserContext()
+	return func(c fiber.Ctx) error {
+		parentCtx := c.Context()
 
 		_, tracer, reqID, _ := libObservability.NewTrackingFromContext(parentCtx)
 
@@ -111,7 +111,7 @@ func WithBodyTracing(s any, h DecodeHandlerFunc) fiber.Handler {
 			attribute.Int("http.request.body.size", len(c.Body())),
 		)
 
-		c.SetUserContext(spanCtx)
+		c.SetContext(spanCtx)
 
 		parsed, err := parsingHandler.parseBody(c)
 		if err != nil {
@@ -123,7 +123,7 @@ func WithBodyTracing(s any, h DecodeHandlerFunc) fiber.Handler {
 
 		span.End()
 
-		c.SetUserContext(parentCtx)
+		c.SetContext(parentCtx)
 
 		return h(parsed, c)
 	}

@@ -497,7 +497,7 @@ func normalizeLegacyCursor(cursor string) (string, error) {
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
-func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
+func GetIdempotencyKeyAndTTL(c fiber.Ctx) (string, time.Duration) {
 	ikey := strings.Clone(c.Get(libConstants.IdempotencyKey))
 
 	return ikey, ParseIdempotencyTTL(c.Get(libConstants.IdempotencyTTL))
@@ -519,7 +519,7 @@ func ParseIdempotencyTTL(headerValue string) time.Duration {
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
-func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
+func GetFileFromHeader(ctx fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
 	if err != nil {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
@@ -577,13 +577,13 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 	}
 }
 
-func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
+func GetBooleanParam(c fiber.Ctx, queryParamName string) bool {
 	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
 }
 
 // GetUUIDFromLocals safely extracts a UUID from fiber context locals.
 // Returns an error if the value is nil or not a valid UUID.
-func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
+func GetUUIDFromLocals(c fiber.Ctx, key string) (uuid.UUID, error) {
 	val := c.Locals(key)
 	if val == nil {
 		return uuid.Nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "", key)
