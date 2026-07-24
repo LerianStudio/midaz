@@ -66,8 +66,8 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 	}, nil
 }
 
-func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
-	result, err := h.validate(c.UserContext(), c.Body())
+func (h *ValidationHandler) Validate(c fiber.Ctx) error {
+	result, err := h.validate(c.Context(), c.Body())
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}

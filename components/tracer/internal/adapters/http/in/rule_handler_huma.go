@@ -46,8 +46,8 @@ import (
 //  2. Handler funcs: func(ctx, *In) (*Out, error). They delegate to the
 //     transport-agnostic core on *Handler (createRule/getRule), which owns the
 //     span, imperative validation, the service call, and the success log. The
-//     Huma ctx is the humafiber v2 adapter's copy of c.UserContext() — so the
-//     tenant/DB the tenant middleware injected (c.SetUserContext) reaches the
+//     Huma ctx is the humafiber v2 adapter's copy of c.Context() — so the
+//     tenant/DB the tenant middleware injected (c.SetContext) reaches the
 //     service through this ctx with NO bridge. That is the whole reason the API
 //     is mounted on the SAME /v1 group that carries the tenant middleware.
 //

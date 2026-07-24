@@ -33,7 +33,7 @@ type ContextKeyPrincipal struct{}
 // WithPrincipal returns a derived context that carries the given principal.
 //
 // Callers should also propagate the new context to Fiber via
-// c.SetUserContext(...) so downstream handlers see the same value.
+// c.SetContext(...) so downstream handlers see the same value.
 //
 // A nil ctx is normalized to context.Background() so the middleware can
 // stamp a Principal even on contexts whose lifecycle wasn't fully attached.

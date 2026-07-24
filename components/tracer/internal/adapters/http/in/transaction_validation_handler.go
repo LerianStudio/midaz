@@ -48,8 +48,8 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 	}
 }
 
-func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) error {
-	result, err := h.getTransactionValidation(c.UserContext(), c.Params("id"))
+func (h *TransactionValidationHandler) GetTransactionValidation(c fiber.Ctx) error {
+	result, err := h.getTransactionValidation(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -93,9 +93,9 @@ func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Cont
 	return result, nil
 }
 
-func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) error {
-	// Fiber binds the query with QueryParser; the shared core owns the rest.
-	response, err := h.listTransactionValidations(c.UserContext(), c.QueryParser)
+func (h *TransactionValidationHandler) ListTransactionValidations(c fiber.Ctx) error {
+	// Fiber binds the query via Bind().Query; the shared core owns the rest.
+	response, err := h.listTransactionValidations(c.Context(), c.Bind().Query)
 	if err != nil {
 		return http.WithError(c, err)
 	}

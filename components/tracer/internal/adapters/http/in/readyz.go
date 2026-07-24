@@ -106,8 +106,8 @@ const (
 // K8s probes are unauthenticated and a 401 here would be interpreted by
 // the kubelet as "not ready" and kill the pod.
 func (h *HealthChecker) ReadyzHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		ctx := c.UserContext()
+	return func(c fiber.Ctx) error {
+		ctx := c.Context()
 
 		logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

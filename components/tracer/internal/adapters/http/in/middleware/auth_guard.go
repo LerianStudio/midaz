@@ -86,7 +86,7 @@ func (g *AuthGuard) Protect(resource, method string) fiber.Handler {
 	if g.cfg.PluginAuthEnabled {
 		authorize := g.authClient.Authorize(g.cfg.AppName, resource, method)
 
-		return func(c *fiber.Ctx) error {
+		return func(c fiber.Ctx) error {
 			rejected, err := extractPrincipalFromBearer(c)
 			if rejected {
 				return err
@@ -114,7 +114,7 @@ func (g *AuthGuard) With(resource, method string, forceAPIKeyAuth bool) fiber.Ha
 }
 
 // extractPrincipalFromBearer parses the Authorization: Bearer <token> header
-// and stamps a contextutil.Principal onto the Fiber UserContext.
+// and stamps a contextutil.Principal onto the Fiber Context.
 //
 // Return values:
 //   - rejected: true when the middleware has WRITTEN a 401 response and the
@@ -148,7 +148,7 @@ func (g *AuthGuard) With(resource, method string, forceAPIKeyAuth bool) fiber.Ha
 // ParseUnverified is deliberate — lib-auth uses the same primitive internally
 // for its authorization round-trip, so no additional trust is placed on this
 // extraction step.
-func extractPrincipalFromBearer(c *fiber.Ctx) (rejected bool, err error) {
+func extractPrincipalFromBearer(c fiber.Ctx) (rejected bool, err error) {
 	token := bearerToken(c)
 	if token == "" {
 		return false, nil
@@ -177,7 +177,7 @@ func extractPrincipalFromBearer(c *fiber.Ctx) (rejected bool, err error) {
 	}
 
 	principal := contextutil.Principal{Type: string(model.ActorTypeUser), ID: sub, Name: name}
-	c.SetUserContext(contextutil.WithPrincipal(c.UserContext(), principal))
+	c.SetContext(contextutil.WithPrincipal(c.Context(), principal))
 
 	return false, nil
 }

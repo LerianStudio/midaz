@@ -62,8 +62,8 @@ func NewReservationHandler(service ReservationService, clk clock.Clock) (*Reserv
 	}, nil
 }
 
-func (h *ReservationHandler) Reserve(c *fiber.Ctx) error {
-	response, err := h.reserve(c.UserContext(), c.Body())
+func (h *ReservationHandler) Reserve(c fiber.Ctx) error {
+	response, err := h.reserve(c.Context(), c.Body())
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}
@@ -156,8 +156,8 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 	}, nil
 }
 
-func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
-	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
+func (h *ReservationHandler) Confirm(c fiber.Ctx) error {
+	response, err := h.terminate(c.Context(), c.Params("id"), "handler.reservations.confirm", string(model.StatusConfirmed), h.service.Confirm)
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}
@@ -165,8 +165,8 @@ func (h *ReservationHandler) Confirm(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-func (h *ReservationHandler) Release(c *fiber.Ctx) error {
-	response, err := h.terminate(c.UserContext(), c.Params("id"), "handler.reservations.release", string(model.StatusReleased), h.service.Release)
+func (h *ReservationHandler) Release(c fiber.Ctx) error {
+	response, err := h.terminate(c.Context(), c.Params("id"), "handler.reservations.release", string(model.StatusReleased), h.service.Release)
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}
@@ -174,8 +174,8 @@ func (h *ReservationHandler) Release(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
-	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
+func (h *ReservationHandler) ConfirmByTransaction(c fiber.Ctx) error {
+	response, err := h.terminateByTransaction(c.Context(), c.Params("transaction_id"), "handler.reservations.confirm_by_transaction", string(model.StatusConfirmed), h.service.ConfirmByTransaction)
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}
@@ -183,8 +183,8 @@ func (h *ReservationHandler) ConfirmByTransaction(c *fiber.Ctx) error {
 	return pkgHTTP.OK(c, response)
 }
 
-func (h *ReservationHandler) ReleaseByTransaction(c *fiber.Ctx) error {
-	response, err := h.terminateByTransaction(c.UserContext(), c.Params("transaction_id"), "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)
+func (h *ReservationHandler) ReleaseByTransaction(c fiber.Ctx) error {
+	response, err := h.terminateByTransaction(c.Context(), c.Params("transaction_id"), "handler.reservations.release_by_transaction", string(model.StatusReleased), h.service.ReleaseByTransaction)
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}

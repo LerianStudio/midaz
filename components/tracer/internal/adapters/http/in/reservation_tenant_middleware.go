@@ -32,12 +32,12 @@ import (
 // (HTTP 422 via the typed business-error path) and NEVER resolves a
 // default/wrong pool. In single-tenant (no-op) mode the resolver passes through.
 func reservationTenantMiddleware(resolver *seamtenant.Resolver) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if !resolver.Active() {
 			return c.Next()
 		}
 
-		ctx := c.UserContext()
+		ctx := c.Context()
 
 		_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -60,7 +60,7 @@ func reservationTenantMiddleware(resolver *seamtenant.Resolver) fiber.Handler {
 			return pkgHTTP.WithError(c, err)
 		}
 
-		c.SetUserContext(resolvedCtx)
+		c.SetContext(resolvedCtx)
 
 		return c.Next()
 	}

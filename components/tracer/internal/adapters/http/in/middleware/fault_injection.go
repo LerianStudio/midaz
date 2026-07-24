@@ -48,7 +48,7 @@ func FaultInjection(config ...FaultInjectionConfig) fiber.Handler {
 		cfg = config[0]
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// Skip if not enabled (production safety)
 		if !cfg.Enabled {
 			return c.Next()

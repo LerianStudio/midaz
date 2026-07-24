@@ -52,8 +52,8 @@ func NewLimitHandler(service LimitService) *LimitHandler {
 	}
 }
 
-func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
-	result, err := h.createLimit(c.UserContext(), c.Body())
+func (h *LimitHandler) CreateLimit(c fiber.Ctx) error {
+	result, err := h.createLimit(c.Context(), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -102,8 +102,8 @@ func (h *LimitHandler) createLimit(ctx context.Context, rawBody []byte) (*model.
 	return result, nil
 }
 
-func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
-	result, err := h.getLimit(c.UserContext(), c.Params("id"))
+func (h *LimitHandler) GetLimit(c fiber.Ctx) error {
+	result, err := h.getLimit(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -142,9 +142,9 @@ func (h *LimitHandler) getLimit(ctx context.Context, idParam string) (*model.Lim
 	return result, nil
 }
 
-func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
-	// Fiber binds the query with QueryParser; the shared core owns the rest.
-	response, err := h.listLimits(c.UserContext(), c.QueryParser)
+func (h *LimitHandler) ListLimits(c fiber.Ctx) error {
+	// Fiber binds the query via Bind().Query; the shared core owns the rest.
+	response, err := h.listLimits(c.Context(), c.Bind().Query)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -204,8 +204,8 @@ func (h *LimitHandler) listLimits(ctx context.Context, bind func(any) error) (*L
 	return response, nil
 }
 
-func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
-	result, err := h.updateLimit(c.UserContext(), c.Params("id"), c.Body())
+func (h *LimitHandler) UpdateLimit(c fiber.Ctx) error {
+	result, err := h.updateLimit(c.Context(), c.Params("id"), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -280,8 +280,8 @@ func (h *LimitHandler) updateLimit(ctx context.Context, idParam string, rawBody 
 	return result, nil
 }
 
-func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
-	limit, err := h.activateLimit(c.UserContext(), c.Params("id"))
+func (h *LimitHandler) ActivateLimit(c fiber.Ctx) error {
+	limit, err := h.activateLimit(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -319,8 +319,8 @@ func (h *LimitHandler) activateLimit(ctx context.Context, idParam string) (*mode
 	return limit, nil
 }
 
-func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
-	limit, err := h.deactivateLimit(c.UserContext(), c.Params("id"))
+func (h *LimitHandler) DeactivateLimit(c fiber.Ctx) error {
+	limit, err := h.deactivateLimit(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -358,8 +358,8 @@ func (h *LimitHandler) deactivateLimit(ctx context.Context, idParam string) (*mo
 	return limit, nil
 }
 
-func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
-	limit, err := h.draftLimit(c.UserContext(), c.Params("id"))
+func (h *LimitHandler) DraftLimit(c fiber.Ctx) error {
+	limit, err := h.draftLimit(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -397,8 +397,8 @@ func (h *LimitHandler) draftLimit(ctx context.Context, idParam string) (*model.L
 	return limit, nil
 }
 
-func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
-	if err := h.deleteLimit(c.UserContext(), c.Params("id")); err != nil {
+func (h *LimitHandler) DeleteLimit(c fiber.Ctx) error {
+	if err := h.deleteLimit(c.Context(), c.Params("id")); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -434,8 +434,8 @@ func (h *LimitHandler) deleteLimit(ctx context.Context, idParam string) error {
 	return nil
 }
 
-func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
-	snapshot, err := h.getLimitUsage(c.UserContext(), c.Params("id"))
+func (h *LimitHandler) GetLimitUsage(c fiber.Ctx) error {
+	snapshot, err := h.getLimitUsage(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}

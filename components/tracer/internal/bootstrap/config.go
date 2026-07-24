@@ -1165,7 +1165,7 @@ func initHTTPServer(
 	// Note: NewAuthGuard builds APIKeyAuth which is a Fiber
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber
-	// uses its own request-scoped UserContext that's set per-request).
+	// uses its own request-scoped Context that's set per-request).
 	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
 		APIKey:            cfg.APIKey,
 		APIKeyEnabled:     cfg.APIKeyEnabled,
@@ -1192,7 +1192,7 @@ func initHTTPServer(
 	}
 
 	// Note: NewRoutes wires ReadyzHandler which is a Fiber
-	// handler closure that receives ctx per-request via c.UserContext();
+	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
