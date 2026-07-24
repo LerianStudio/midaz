@@ -1,4 +1,4 @@
-# =============================================================================
+# ============================================================================
 # Dedicated Postgres migration runner image for the Midaz tracer.
 #
 # Bundles the golang-migrate binary with the tracer SQL migrations and applies
@@ -16,7 +16,7 @@
 #     filesystem — migration progress lives in the Postgres schema_migrations
 #     table. Root-owned, world-readable files are intentional: they are read
 #     only, so any non-owner UID can execute the entrypoint and read the SQL.
-# =============================================================================
+# ============================================================================
 
 FROM migrate/migrate:v4.19.1
 
