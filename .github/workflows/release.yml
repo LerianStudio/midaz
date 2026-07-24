@@ -40,14 +40,14 @@ jobs:
           {
             "filter_paths": "components/ledger/migrations-image",
             "path_level": 1,
-            "app_name_overrides": "migrations-image:midaz-ledger-migrations",
+            "app_name_overrides": "components/ledger/migrations-image:midaz-ledger-migrations",
             "force_full_matrix": true,
             "shared_paths": "components/ledger/migrations\ncomponents/ledger/migrations-image"
           },
           {
             "filter_paths": "components/tracer/migrations-image",
             "path_level": 1,
-            "app_name_overrides": "migrations-image:midaz-tracer-migrations",
+            "app_name_overrides": "components/tracer/migrations-image:midaz-tracer-migrations",
             "force_full_matrix": true,
             "shared_paths": "components/tracer/migrations\ncomponents/tracer/migrations-image"
           }
