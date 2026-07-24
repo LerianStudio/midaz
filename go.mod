@@ -5,7 +5,7 @@ go 1.26.4
 toolchain go1.26.5
 
 require (
-	github.com/LerianStudio/lib-auth/v3 v3.1.0-beta.1
+	github.com/LerianStudio/lib-auth/v3 v3.0.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -84,8 +84,8 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-commons/v6 v6.2.0-beta.1
-	github.com/LerianStudio/lib-observability/v2 v2.1.0
+	github.com/LerianStudio/lib-commons/v6 v6.0.0
+	github.com/LerianStudio/lib-observability/v2 v2.0.0
 	github.com/LerianStudio/lib-service-discovery v1.1.0
 	github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1
 	github.com/Shopify/toxiproxy/v2 v2.12.0
@@ -193,7 +193,6 @@ require (
 	github.com/yuin/gopher-lua v1.1.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
