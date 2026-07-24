@@ -17,8 +17,8 @@ import (
 )
 
 // GetAllTransactions method that get all transactions created before
-func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) GetAllTransactions(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

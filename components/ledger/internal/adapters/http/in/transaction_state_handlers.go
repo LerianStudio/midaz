@@ -28,8 +28,8 @@ import (
 )
 
 // CommitTransaction method that commit transaction created before
-func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -85,8 +85,8 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 }
 
 // CancelTransaction method that cancel pre transaction created before
-func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CancelTransaction(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -112,8 +112,8 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 }
 
 // RevertTransaction method that revert transaction created before
-func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -242,8 +242,8 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 }
 
 // UpdateTransaction method that patch transaction created before
-func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) UpdateTransaction(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

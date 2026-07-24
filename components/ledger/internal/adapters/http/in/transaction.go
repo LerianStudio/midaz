@@ -49,15 +49,15 @@ type TransactionHandler struct {
 }
 
 // CreateTransactionJSON method that create transaction using JSON
-func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionJSON(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
@@ -101,15 +101,15 @@ func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransactio
 //	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block [post]
-func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionBlock(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_block")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := handler.buildOverriddenTransaction(input, constant.BLOCK)
@@ -142,15 +142,15 @@ func (handler *TransactionHandler) CreateTransactionBlock(p any, c *fiber.Ctx) e
 //	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock [post]
-func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionUnblock(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_unblock")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := handler.buildOverriddenTransaction(input, constant.UNBLOCK)
@@ -162,15 +162,15 @@ func (handler *TransactionHandler) CreateTransactionUnblock(p any, c *fiber.Ctx)
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
-func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_annotation")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
@@ -182,15 +182,15 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
-func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionInflow(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionInflowInput)
 	transactionInput := input.BuildInflowEntry()
@@ -202,15 +202,15 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 }
 
 // CreateTransactionOutflow method that creates a transaction without specifying a distribution
-func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionOutflow(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	input := p.(*mtransaction.CreateTransactionOutflowInput)
 	transactionInput := input.BuildOutflowEntry()
@@ -222,15 +222,15 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 }
 
 // CreateTransactionDSL method that create transaction using DSL
-func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CreateTransactionDSL(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_dsl")
 	defer span.End()
 
-	c.SetUserContext(ctx)
+	c.SetContext(ctx)
 
 	c.Set("Deprecation", "true")
 	c.Set("Sunset", "Sat, 01 Aug 2026 00:00:00 GMT")
@@ -288,8 +288,8 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 }
 
 // GetTransaction method that get transaction created before
-func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) GetTransaction(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

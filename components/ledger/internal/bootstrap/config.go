@@ -1659,7 +1659,7 @@ func buildUnifiedRouteSetup(
 // across all Midaz endpoints (code/title/message JSON envelope).
 //
 //nolint:unused // Will be wired into the multi-tenant middleware error handler.
-func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
+func midazErrorMapper(c fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
 	}

@@ -32,7 +32,7 @@ type PortfolioHandler struct {
 // The createPortfolio/updatePortfolio/... methods below own the span, imperative
 // query binding, the service call and the success log. They take primitive args
 // (parsed UUIDs, the decoded payload, the query map) so BOTH transports feed them:
-// the Fiber wrappers pull those from *fiber.Ctx (Locals + WithBody payload +
+// the Fiber wrappers pull those from fiber.Ctx (Locals + WithBody payload +
 // c.Queries) and the Huma handlers (portfolio_handler_huma.go) pull them from the
 // request envelope. Every canonical Midaz error the cores return is rendered by the
 // caller — http.WithError on the Fiber path, http.HumaProblem on the Huma path — so
@@ -187,15 +187,15 @@ func (handler *PortfolioHandler) countPortfolios(ctx context.Context, organizati
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
 // shared core. NOTE: once wired, the LIVE portfolio routes are
 // Huma (see portfolio_handler_huma.go + RegisterPortfolioRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 
 // CreatePortfolio is a method that creates portfolio information.
-func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) CreatePortfolio(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -216,8 +216,8 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 }
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
-func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) GetAllPortfolios(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -238,8 +238,8 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 }
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
-func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) GetPortfolioByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -265,8 +265,8 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 }
 
 // UpdatePortfolio is a method that updates Portfolio information.
-func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) UpdatePortfolio(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -292,8 +292,8 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 }
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
-func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) DeletePortfolioByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -318,8 +318,8 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 }
 
 // CountPortfolios is a method that returns the total count of portfolios for a specific organization and ledger.
-func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PortfolioHandler) CountPortfolios(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

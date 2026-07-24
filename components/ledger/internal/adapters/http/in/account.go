@@ -36,7 +36,7 @@ type AccountHandler struct {
 // The createAccount/updateAccount/... cores below own the span, the imperative
 // query binding, the service call(s) and the success log/metric. They take
 // primitive args (parsed UUIDs, the already-decoded payload, the query map) so
-// BOTH transports feed them: the Fiber wrappers pull those from *fiber.Ctx
+// BOTH transports feed them: the Fiber wrappers pull those from fiber.Ctx
 // (Locals + WithBody-decoded payload + c.Queries) and the Huma handlers
 // (account_handler_huma.go) pull them from the request envelope. Every canonical
 // Midaz error the cores return is rendered by the caller — http.WithError on the
@@ -257,15 +257,15 @@ func (handler *AccountHandler) countAccounts(ctx context.Context, organizationID
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// handler methods directly; each pulls the transport inputs from fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and
 // delegates to the shared core. NOTE: the LIVE account routes are Huma now (see
 // account_handler_huma.go + RegisterAccountRoutesToApp); these Fiber wrappers are
 // not mounted by the unified server.
 
 // CreateAccount is a method that creates account information.
-func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) CreateAccount(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -286,8 +286,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 }
 
 // GetAllAccounts is a method that retrieves all Accounts.
-func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) GetAllAccounts(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -308,8 +308,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 }
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
-func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) GetAccountByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -335,8 +335,8 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 }
 
 // GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
-func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) GetAccountExternalByCode(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -359,8 +359,8 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 }
 
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
-func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) GetAccountByAlias(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -381,8 +381,8 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 }
 
 // UpdateAccount is a method that updates Account information.
-func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) UpdateAccount(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -408,8 +408,8 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 }
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
-func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) DeleteAccountByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -434,8 +434,8 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 }
 
 // CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
-func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountHandler) CountAccounts(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

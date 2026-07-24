@@ -98,8 +98,8 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 }
 
 // CreateHolder is a method that creates Holder information.
-func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderHandler) CreateHolder(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	payload, ok := p.(*mmodel.CreateHolderInput)
 	if !ok || payload == nil {
@@ -152,8 +152,8 @@ func (handler *HolderHandler) getHolderByID(ctx context.Context, organizationID,
 }
 
 // GetHolderByID retrieves Holder details by a given id
-func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderHandler) GetHolderByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
@@ -203,8 +203,8 @@ func (handler *HolderHandler) updateHolder(ctx context.Context, organizationID, 
 }
 
 // UpdateHolder is a method that updates Holder information.
-func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderHandler) UpdateHolder(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -267,8 +267,8 @@ func (handler *HolderHandler) deleteHolder(ctx context.Context, organizationID, 
 }
 
 // DeleteHolderByID is a method that removes Holder information by a given id.
-func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderHandler) DeleteHolderByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
@@ -333,8 +333,8 @@ func (handler *HolderHandler) getAllHolders(ctx context.Context, organizationID 
 }
 
 // GetAllHolders retrieves Holder details by a given id
-func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderHandler) GetAllHolders(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

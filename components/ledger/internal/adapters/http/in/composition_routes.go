@@ -27,7 +27,7 @@ import (
 func RegisterCompositionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions) {
 	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
 
-	group.Post(path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder"))...)
+	routePost(group, path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder")))
 
 	RegisterCompositionRoutes(api, ch)
 }

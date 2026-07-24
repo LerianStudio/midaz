@@ -70,13 +70,13 @@ var allowedAuditOutcomes = map[string]struct{}{
 }
 
 // GetAuditEvents handles the retrieval of protection audit events for an organization.
-func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
+func (handler *AuditHandler) GetAuditEvents(c fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	envelope, err := handler.getAuditEvents(c.UserContext(), organizationID, c.Queries())
+	envelope, err := handler.getAuditEvents(c.Context(), organizationID, c.Queries())
 	if err != nil {
 		return http.WithError(c, err)
 	}

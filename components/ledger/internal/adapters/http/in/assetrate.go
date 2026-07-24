@@ -31,7 +31,7 @@ type AssetRateHandler struct {
 // methods below own the span, the service call and the success log. They take
 // primitive args (parsed UUIDs, the raw asset-code string, the decoded payload, the
 // query map) so BOTH transports feed them: the Fiber wrappers pull those from
-// *fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the Huma
+// fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the Huma
 // handlers (assetrate_handler_huma.go) pull them from the request envelope. Every
 // canonical Midaz error the cores return is rendered by the caller — http.WithError
 // on the Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status
@@ -123,15 +123,15 @@ func (handler *AssetRateHandler) getAllAssetRatesByAssetCode(ctx context.Context
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// handler methods directly; each pulls the transport inputs from fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `p`) and
 // delegates to the shared core. NOTE: the LIVE asset-rate routes are Huma now
 // (see assetrate_handler_huma.go + RegisterAssetRateRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.
-func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -152,8 +152,8 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 }
 
 // GetAssetRateByExternalID retrieves an asset rate.
-func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetRateHandler) GetAssetRateByExternalID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -179,8 +179,8 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 }
 
 // GetAllAssetRatesByAssetCode retrieves an asset rate.
-func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

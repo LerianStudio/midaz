@@ -33,8 +33,8 @@ type OperationRouteHandler struct {
 }
 
 // Create an Operation Route.
-func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) CreateOperationRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -118,8 +118,8 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 }
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
-func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) GetOperationRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -163,8 +163,8 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 }
 
 // UpdateOperationRoute is a method that updates Operation Route information.
-func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -283,8 +283,8 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
-func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) DeleteOperationRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -326,8 +326,8 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 }
 
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
-func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) GetAllOperationRoutes(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

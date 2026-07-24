@@ -36,7 +36,7 @@ type LedgerHandler struct {
 // The createLedger/updateLedger/... methods below own the span, the service call
 // and the success log. They take primitive args (parsed UUIDs, the already-decoded
 // payload, the query map) so BOTH transports feed them: the Fiber wrappers pull
-// those from *fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the
+// those from fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the
 // Huma handlers (ledger_handler_huma.go) pull them from the request envelope. Every
 // canonical Midaz error the cores return is rendered by the caller — http.WithError
 // on the Fiber path, http.HumaProblem on the Huma path — so code + HTTP status are
@@ -275,13 +275,13 @@ func (handler *LedgerHandler) updateLedgerSettings(ctx context.Context, organiza
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// handler methods directly; each pulls the transport inputs from fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload) and
 // delegates to the shared core. NOTE: once RegisterLedgerRoutesToApp is wired, the
 // LIVE ledger routes are Huma (see ledger_handler_huma.go); these Fiber wrappers are
 // the inline routes.go handlers and keep compiling until the integration task.
-func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) CreateLedger(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -297,8 +297,8 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 }
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
-func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) GetLedgerByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -319,8 +319,8 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 }
 
 // GetAllLedgers is a method that retrieves all ledgers.
-func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) GetAllLedgers(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -336,8 +336,8 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 }
 
 // UpdateLedger is a method that updates Ledger information.
-func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) UpdateLedger(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	id, err := http.GetUUIDFromLocals(c, "ledger_id")
 	if err != nil {
@@ -358,8 +358,8 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 }
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
-func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) DeleteLedgerByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -379,8 +379,8 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 }
 
 // CountLedgers is a method that returns the total count of ledgers for a specific organization.
-func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) CountLedgers(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -399,8 +399,8 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 }
 
 // GetLedgerSettings retrieves the settings for a specific ledger.
-func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) GetLedgerSettings(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -421,8 +421,8 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 }
 
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
-func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *LedgerHandler) UpdateLedgerSettings(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

@@ -31,8 +31,8 @@ var validTransactionStatuses = map[string]bool{
 }
 
 // CountTransactionsByFilters counts transactions matching optional filters.
-func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) CountTransactionsByFilters(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -78,7 +78,7 @@ func (handler *TransactionHandler) countTransactionsByFilters(ctx context.Contex
 
 // parseCountFilter extracts optional query parameters from the Fiber context and
 // delegates validation to the transport-agnostic buildCountFilter core.
-func parseCountFilter(c *fiber.Ctx) (transaction.CountFilter, error) {
+func parseCountFilter(c fiber.Ctx) (transaction.CountFilter, error) {
 	return buildCountFilter(c.Query("route"), c.Query("status"), c.Query("start_date"), c.Query("end_date"))
 }
 

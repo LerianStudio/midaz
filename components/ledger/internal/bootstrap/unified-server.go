@@ -63,9 +63,18 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:               "Midaz Ledger API",
-		DisableStartupMessage: true,
-		ErrorHandler:          midazhttp.CanonicalFiberErrorHandler,
+		AppName:      "Midaz Ledger API",
+		ErrorHandler: midazhttp.CanonicalFiberErrorHandler,
+	})
+
+	// Suppress the Fiber startup banner. The banner is gated at listen time via
+	// ListenConfig, which the lib-commons ServerManager owns (it calls app.Listen
+	// with no config), so the pre-startup hook is the only seam available here to
+	// keep boot silent.
+	app.Hooks().OnPreStartupMessage(func(data *fiber.PreStartupMessageData) error {
+		data.PreventDefault = true
+
+		return nil
 	})
 
 	// Add common middleware (only once for all routes).
@@ -105,7 +114,7 @@ func NewUnifiedServer(
 	// before any huma.Register and is idempotent (sync.Once). The Huma API binds to
 	// a /v1 Fiber GROUP with Servers ["/v1"] and GROUP-RELATIVE op paths, so the
 	// humafiber v2 adapter registers on that group (Fiber prepends /v1) and the
-	// adapter's ctx (built from c.UserContext()) reaches the migrated handlers with
+	// adapter's ctx (built from c.Context()) reaches the migrated handlers with
 	// the per-route tenant/DB intact — the auth+tenant middleware chain is attached
 	// on the SAME group inside humaMount, before each Huma terminal.
 	if humaMount != nil {
@@ -167,12 +176,14 @@ func NewUnifiedServer(
 			return nil
 		})
 
-		// Register OnShutdown hook to enable graceful drain.
+		// Register OnPreShutdown hook to enable graceful drain. Fiber v3 split the
+		// v2 OnShutdown hook into OnPreShutdown (runs before shutdown begins) and
+		// OnPostShutdown; the drain-before-close behavior maps to OnPreShutdown.
 		// When SIGTERM is received, this hook:
 		// 1. Calls StartDrain() so readyz returns 503
 		// 2. Waits DefaultDrainDelay (12s) for load balancers to stop routing traffic
 		// 3. Returns, allowing Fiber to proceed with connection draining
-		app.Hooks().OnShutdown(func() error {
+		app.Hooks().OnPreShutdown(func() error {
 			readyzHandler.StartDrain()
 			logger.Log(context.Background(), libLog.LevelInfo,
 				"Graceful drain started, waiting for load balancers to update",

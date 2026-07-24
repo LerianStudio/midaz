@@ -32,7 +32,7 @@ type CompositionHandler struct {
 // composition. It owns the handler span (attributes + business/error-class
 // recording + level-split logging) and the Service call, taking already-parsed
 // UUIDs and an already-decoded+validated payload so BOTH transports feed it: the
-// Fiber wrapper pulls those from *fiber.Ctx (Locals + WithBody + c.Get), the Huma
+// Fiber wrapper pulls those from fiber.Ctx (Locals + WithBody + c.Get), the Huma
 // shell (composition_handler_huma.go) pulls them from the request envelope. Every
 // canonical Midaz error it returns is rendered by the caller — http.WithError on
 // the Fiber path, http.HumaProblem on the Huma path — so code + status are
@@ -75,8 +75,8 @@ func (handler *CompositionHandler) createHolderAccount(ctx context.Context, orga
 
 // CreateHolderAccount opens a holder-owned account and, when instrument fields
 // are present, an instrument linked to it, in a single call.
-func (handler *CompositionHandler) CreateHolderAccount(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *CompositionHandler) CreateHolderAccount(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	payload, ok := p.(*mmodel.CreateHolderAccountInput)
 	if !ok || payload == nil {

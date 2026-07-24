@@ -203,7 +203,7 @@ func (h *ReadyzHandler) checkLifecycleState() (string, bool) {
 
 // HandleReadyz handles the /readyz endpoint for global health checks.
 // All configured dependency checkers are probed and their status is returned.
-func (h *ReadyzHandler) HandleReadyz(c *fiber.Ctx) error {
+func (h *ReadyzHandler) HandleReadyz(c fiber.Ctx) error {
 	// Check lifecycle state first (self-probe and graceful drain)
 	if reason, ok := h.checkLifecycleState(); !ok {
 		return c.Status(http.StatusServiceUnavailable).JSON(ReadyzResponse{

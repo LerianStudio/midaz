@@ -39,8 +39,8 @@ type BillingPackageHandler struct {
 }
 
 // CreateBillingPackage is a method that creates a BillingPackage.
-func (handler *BillingPackageHandler) CreateBillingPackage(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingPackageHandler) CreateBillingPackage(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -100,8 +100,8 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 }
 
 // GetAllBillingPackages is a method that retrieves all BillingPackages.
-func (handler *BillingPackageHandler) GetAllBillingPackages(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingPackageHandler) GetAllBillingPackages(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -204,8 +204,8 @@ func (handler *BillingPackageHandler) getAllBillingPackages(ctx context.Context,
 }
 
 // GetBillingPackageByID is a method that retrieves a BillingPackage by ID.
-func (handler *BillingPackageHandler) GetBillingPackageByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingPackageHandler) GetBillingPackageByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -259,8 +259,8 @@ func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context,
 }
 
 // UpdateBillingPackage is a method that updates a BillingPackage by ID.
-func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingPackageHandler) UpdateBillingPackage(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -330,8 +330,8 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 }
 
 // DeleteBillingPackage is a method that soft-deletes a BillingPackage by ID.
-func (handler *BillingPackageHandler) DeleteBillingPackage(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingPackageHandler) DeleteBillingPackage(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

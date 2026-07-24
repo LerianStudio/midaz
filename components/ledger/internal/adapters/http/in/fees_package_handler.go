@@ -42,8 +42,8 @@ type PackageHandler struct {
 }
 
 // CreatePackage is a method that creates Package information.
-func (handler *PackageHandler) CreatePackage(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PackageHandler) CreatePackage(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -127,8 +127,8 @@ func (handler *PackageHandler) createPackage(ctx context.Context, organizationID
 }
 
 // GetAllPackages is a method that retrieves all Package information.
-func (handler *PackageHandler) GetAllPackages(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PackageHandler) GetAllPackages(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -198,8 +198,8 @@ func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationI
 }
 
 // GetPackageByID is a method that retrieves a Package information by a given id.
-func (handler *PackageHandler) GetPackageByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PackageHandler) GetPackageByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -247,8 +247,8 @@ func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationI
 }
 
 // UpdatePackageByID is a method that updates a Package information by a given id.
-func (handler *PackageHandler) UpdatePackageByID(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PackageHandler) UpdatePackageByID(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -331,8 +331,8 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 }
 
 // DeletePackageByID is a method that removes a package information by a given id.
-func (handler *PackageHandler) DeletePackageByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *PackageHandler) DeletePackageByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

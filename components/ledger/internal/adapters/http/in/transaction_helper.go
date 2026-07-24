@@ -31,7 +31,7 @@ type transactionPathParams struct {
 
 // readPathParams extracts organization, ledger, and (optional) transaction
 // IDs from Fiber locals populated by the UUID-parsing middleware.
-func readPathParams(c *fiber.Ctx) (*transactionPathParams, error) {
+func readPathParams(c fiber.Ctx) (*transactionPathParams, error) {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return nil, err

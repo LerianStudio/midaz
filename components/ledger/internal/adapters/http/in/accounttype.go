@@ -29,7 +29,7 @@ type AccountTypeHandler struct {
 // The createAccountType/updateAccountType/... methods below own the span, the
 // service call and the success log. They take primitive args (parsed UUIDs, the
 // already-decoded payload, the query map) so BOTH transports feed them: the Fiber
-// wrappers pull those from *fiber.Ctx (Locals + the WithBody-decoded payload +
+// wrappers pull those from fiber.Ctx (Locals + the WithBody-decoded payload +
 // c.Queries) and the Huma handlers (accounttype_handler_huma.go) pull them from the
 // request envelope. Every canonical Midaz error the cores return is rendered by the
 // caller — http.WithError on the Fiber path, http.HumaProblem on the Huma path — so
@@ -168,8 +168,8 @@ func (handler *AccountTypeHandler) getAllAccountTypes(ctx context.Context, organ
 }
 
 // Create an Account Type.
-func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountTypeHandler) CreateAccountType(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -190,8 +190,8 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 }
 
 // GetAccountTypeByID is a method that retrieves Account Type information by a given account type id.
-func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountTypeHandler) GetAccountTypeByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -217,8 +217,8 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 }
 
 // Update an Account Type.
-func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountTypeHandler) UpdateAccountType(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -244,8 +244,8 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 }
 
 // DeleteAccountTypeByID is a method that deletes Account Type information.
-func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountTypeHandler) DeleteAccountTypeByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -270,8 +270,8 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 }
 
 // GetAllAccountTypes is a method that retrieves all Account Types.
-func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AccountTypeHandler) GetAllAccountTypes(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

@@ -32,7 +32,7 @@ type AssetHandler struct {
 // The createAsset/updateAsset/... methods below own the span, imperative body
 // decode+validation, the service call and the success log. They take primitive
 // args (parsed UUIDs, raw body bytes, the query map) so BOTH transports feed them:
-// the Fiber wrappers pull those from *fiber.Ctx (Locals + c.Body + c.Queries) and
+// the Fiber wrappers pull those from fiber.Ctx (Locals + c.Body + c.Queries) and
 // the Huma handlers (asset_handler_huma.go) pull them from the request envelope.
 // Every canonical Midaz error the cores return is rendered by the caller —
 // http.WithError on the Fiber path, http.HumaProblem on the Huma path — so the
@@ -189,15 +189,15 @@ func (handler *AssetHandler) countAssets(ctx context.Context, organizationID, le
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from *fiber.Ctx
+// handler methods directly; each pulls the transport inputs from fiber.Ctx
 // (Locals set by ParseUUIDPathParameters, the WithBody-decoded payload as `a`) and
 // delegates to the shared core. NOTE: the LIVE asset routes are Huma now (see
 // asset_handler_huma.go + RegisterAssetRoutesToApp); these Fiber wrappers are not
 // mounted by the unified server.
 
 // CreateAsset is a method that creates asset information.
-func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) CreateAsset(a any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -218,8 +218,8 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 }
 
 // GetAllAssets is a method that retrieves all Assets.
-func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) GetAllAssets(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -240,8 +240,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 }
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
-func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) GetAssetByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -267,8 +267,8 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 }
 
 // UpdateAsset is a method that updates Asset information.
-func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) UpdateAsset(a any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -294,8 +294,8 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 }
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
-func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) DeleteAssetByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -320,8 +320,8 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 }
 
 // CountAssets is a method that returns the total count of assets for a specific ledger in an organization.
-func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *AssetHandler) CountAssets(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

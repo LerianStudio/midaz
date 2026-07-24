@@ -985,7 +985,7 @@ func (handler *TransactionHandler) buildStandardOp(
 }
 
 // createTransaction is the transport-neutral create core. It is called by BOTH the
-// Fiber wrappers (which read the path params + idempotency headers off *fiber.Ctx and
+// Fiber wrappers (which read the path params + idempotency headers off fiber.Ctx and
 // write the response) and the Huma shells (which read them off the request envelope and
 // project onto the typed Out). It returns the built transaction and the idempotency
 // `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
@@ -1003,12 +1003,12 @@ func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, 
 }
 
 // createTransactionFiber is the Fiber transport adapter: it reads the path params and
-// idempotency key/TTL off *fiber.Ctx, delegates to the transport-neutral core, projects
+// idempotency key/TTL off fiber.Ctx, delegates to the transport-neutral core, projects
 // the replayed flag onto the X-Idempotency-Replayed response header, and writes the
 // created transaction (or the canonical error). It preserves the exact Fiber-path
 // behavior the four create wrappers relied on before the Huma migration.
-func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) createTransactionFiber(c fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
+	ctx := c.Context()
 
 	params, err := readPathParams(c)
 	if err != nil {

@@ -35,7 +35,7 @@ type BalanceHandler struct {
 // Each core below owns the span, imperative query/date validation, the service
 // call and the success log. They take primitive args (parsed UUIDs, raw path
 // strings, the query map) so BOTH transports feed them: the Fiber wrappers pull
-// those from *fiber.Ctx (Locals + c.Queries + c.Params) and the Huma handlers
+// those from fiber.Ctx (Locals + c.Queries + c.Params) and the Huma handlers
 // (balance_handler_huma.go) pull them from the request envelope. Every canonical
 // Midaz error the cores return is rendered by the caller — http.WithError on the
 // Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status are
@@ -335,14 +335,14 @@ func parseBalanceHistoryDate(ctx context.Context, span trace.Span, logger libLog
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the
-// handler methods directly; each pulls the transport inputs from *fiber.Ctx and
+// handler methods directly; each pulls the transport inputs from fiber.Ctx and
 // delegates to the shared core. NOTE: the LIVE balance routes are Huma now (see
 // balance_handler_huma.go + RegisterBalanceRoutes); these Fiber wrappers are
 // not mounted by the unified server.
 
 // GetAllBalances retrieves all balances.
-func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetAllBalances(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -363,8 +363,8 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 }
 
 // GetAllBalancesByAccountID retrieves all balances.
-func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetAllBalancesByAccountID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -390,8 +390,8 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 }
 
 // GetBalanceByID retrieves a balance by ID.
-func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetBalanceByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -417,8 +417,8 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 }
 
 // DeleteBalanceByID delete a balance by ID.
-func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) DeleteBalanceByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -443,8 +443,8 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 }
 
 // UpdateBalance method that patch balance created before
-func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) UpdateBalance(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -470,8 +470,8 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 }
 
 // GetBalancesByAlias retrieves balances by Alias.
-func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetBalancesByAlias(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -492,8 +492,8 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 }
 
 // GetBalancesExternalByCode retrieves external balances by code.
-func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetBalancesExternalByCode(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -514,8 +514,8 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 }
 
 // CreateAdditionalBalance handles the creation of a new balance using the provided payload and context.
-func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) CreateAdditionalBalance(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -541,8 +541,8 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 }
 
 // GetBalanceAtTimestamp retrieves a balance at a specific point in time.
-func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetBalanceAtTimestamp(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -568,8 +568,8 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 }
 
 // GetAccountBalancesAtTimestamp retrieves all balances for an account at a specific point in time.
-func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

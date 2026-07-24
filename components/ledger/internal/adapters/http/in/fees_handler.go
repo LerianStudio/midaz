@@ -33,8 +33,8 @@ type FeeHandler struct {
 }
 
 // EstimateFeeCalculation is a method that creates a Fee estimate calculation.
-func (handler *FeeHandler) EstimateFeeCalculation(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *FeeHandler) EstimateFeeCalculation(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

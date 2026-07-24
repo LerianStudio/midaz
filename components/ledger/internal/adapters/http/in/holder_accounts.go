@@ -85,8 +85,8 @@ func (handler *HolderAccountsHandler) getAccountsByHolder(ctx context.Context, o
 }
 
 // GetAccountsByHolder lists the accounts owned by a holder.
-func (handler *HolderAccountsHandler) GetAccountsByHolder(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *HolderAccountsHandler) GetAccountsByHolder(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	holderID, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {

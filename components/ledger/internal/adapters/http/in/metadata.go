@@ -190,13 +190,13 @@ func isValidEntity(entityName string) bool {
 }
 
 // CreateMetadataIndex creates a new metadata index.
-func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
+func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c fiber.Ctx) error {
 	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
 	if !ok {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityMetadataIndex))
 	}
 
-	metadataIndex, err := handler.createMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Queries(), payload)
+	metadataIndex, err := handler.createMetadataIndex(c.Context(), c.Params("entity_name"), c.Queries(), payload)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -280,8 +280,8 @@ func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, en
 }
 
 // GetAllMetadataIndexes retrieves all metadata indexes.
-func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
-	indexes, err := handler.getAllMetadataIndexes(c.UserContext(), c.Queries())
+func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c fiber.Ctx) error {
+	indexes, err := handler.getAllMetadataIndexes(c.Context(), c.Queries())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -415,8 +415,8 @@ func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, 
 }
 
 // DeleteMetadataIndex deletes a metadata index.
-func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
-	if err := handler.deleteMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Params("index_key")); err != nil {
+func (handler *MetadataIndexHandler) DeleteMetadataIndex(c fiber.Ctx) error {
+	if err := handler.deleteMetadataIndex(c.Context(), c.Params("entity_name"), c.Params("index_key")); err != nil {
 		return http.WithError(c, err)
 	}
 

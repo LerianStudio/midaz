@@ -32,7 +32,7 @@ type SegmentHandler struct {
 // The createSegment/updateSegment/... methods below own the span, the service call
 // and the success log. They take primitive args (parsed UUIDs, already-decoded
 // payload, the query map) so BOTH transports feed them: the Fiber wrappers pull
-// those from *fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the
+// those from fiber.Ctx (Locals + the WithBody-decoded payload + c.Queries) and the
 // Huma handlers (segment_handler_huma.go) pull them from the request envelope. Every
 // canonical error the cores return is rendered by the caller — http.WithError on the
 // Fiber path, http.HumaProblem on the Huma path — so code + HTTP status are identical
@@ -186,15 +186,15 @@ func (handler *SegmentHandler) countSegments(ctx context.Context, organizationID
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
 // shared core. NOTE: the LIVE segment routes become Huma via segment_handler_huma.go +
 // RegisterSegmentRoutesToApp; these Fiber wrappers keep the inline routes compiling
 // until integration wires the mount.
 
 // CreateSegment is a method that creates segment information.
-func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) CreateSegment(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -215,8 +215,8 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 }
 
 // GetAllSegments is a method that retrieves all Segments.
-func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) GetAllSegments(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -237,8 +237,8 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 }
 
 // GetSegmentByID is a method that retrieves Segment information by a given id.
-func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) GetSegmentByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -264,8 +264,8 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 }
 
 // UpdateSegment is a method that updates Segment information.
-func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) UpdateSegment(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -291,8 +291,8 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 }
 
 // DeleteSegmentByID is a method that removes Segment information by a given ids.
-func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) DeleteSegmentByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -317,8 +317,8 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 }
 
 // CountSegments is a method that counts all segments for a given organization and ledger.
-func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *SegmentHandler) CountSegments(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
