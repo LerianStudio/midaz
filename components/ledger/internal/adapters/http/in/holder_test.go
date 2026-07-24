@@ -277,7 +277,7 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/holders",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
@@ -436,7 +436,7 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -612,7 +612,7 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("patchRemove", []string{})
 					c.Locals("organization_id", orgUUID)
@@ -801,7 +801,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -1101,7 +1101,7 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/holders",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},

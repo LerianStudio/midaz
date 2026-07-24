@@ -43,9 +43,9 @@ var debugFunnelLogs = false
 func (h *feeHarness) newApp() *fiber.App {
 	app := fiber.New()
 
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		if debugFunnelLogs {
-			c.SetUserContext(libObservability.ContextWithLogger(c.UserContext(), &libLog.GoLogger{Level: libLog.LevelDebug}))
+			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
 		}
 		if v := c.Params("organization_id"); v != "" {
 			id, _ := uuid.Parse(v)
@@ -99,7 +99,7 @@ func (h *feeHarness) post(t *testing.T, app *fiber.App, path, body string, heade
 		req.Header.Set(k, v)
 	}
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request failed")
 
 	rb, err := io.ReadAll(resp.Body)

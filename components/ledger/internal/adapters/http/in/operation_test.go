@@ -271,7 +271,7 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -426,7 +426,7 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -633,7 +633,7 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)

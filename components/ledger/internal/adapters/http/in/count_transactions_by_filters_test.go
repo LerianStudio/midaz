@@ -148,7 +148,7 @@ func TestTransactionHandler_CountTransactionsByFilters(t *testing.T) {
 			app := fiber.New()
 			app.Head(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

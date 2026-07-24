@@ -125,7 +125,7 @@ func TestHolderAccountsHandler_GetAccountsByHolder(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/holders/:id/accounts",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
 

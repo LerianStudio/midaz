@@ -140,7 +140,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/account-types",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -292,7 +292,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)
@@ -427,7 +427,7 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)
@@ -702,7 +702,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/account-types",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -808,7 +808,7 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)

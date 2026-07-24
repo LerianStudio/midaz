@@ -41,7 +41,7 @@ func newAuditTestApp(handler *AuditHandler, orgID string) *fiber.App {
 	app := fiber.New()
 	app.Get(
 		"/v1/organizations/:organization_id/protection/audit",
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", uuid.MustParse(orgID))
 			return c.Next()
 		},

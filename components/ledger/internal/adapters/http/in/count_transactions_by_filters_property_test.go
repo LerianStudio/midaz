@@ -55,7 +55,7 @@ func boundString(s string, maxLen int) string {
 func callParseCountFilter(route, status, startDate, endDate string) (errResult error) {
 	app := fiber.New()
 
-	app.Get("/prop", func(c *fiber.Ctx) error {
+	app.Get("/prop", func(c fiber.Ctx) error {
 		_, errResult = parseCountFilter(c)
 		return c.SendStatus(200)
 	})

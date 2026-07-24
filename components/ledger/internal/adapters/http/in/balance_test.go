@@ -170,7 +170,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/balances",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -331,7 +331,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -481,7 +481,7 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/:alias",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -616,7 +616,7 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -763,7 +763,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -916,7 +916,7 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/accounts/external/:code/balances",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1101,14 +1101,14 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateBalance(tt.payload, c)
 				},
 			)
@@ -1382,14 +1382,14 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateAdditionalBalance(tt.payload, c)
 				},
 			)
@@ -1650,7 +1650,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/balances/:balance_id/history",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -1927,7 +1927,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/test/:organization_id/:ledger_id/accounts/:account_id/balances/history",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)

@@ -43,8 +43,7 @@ func buildHumaBillingPackageApp(t *testing.T, handler *BillingPackageHandler, au
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
@@ -76,8 +75,7 @@ func buildHumaBillingCalculateApp(t *testing.T, handler *BillingCalculateHandler
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
@@ -115,7 +113,7 @@ func TestHuma_CreateBillingPackage_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewBufferString(validBillingPackageJSON()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -139,7 +137,7 @@ func TestHuma_CreateBillingPackage_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -155,7 +153,7 @@ func TestHuma_CreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing-packages", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -178,7 +176,7 @@ func TestHuma_GetBillingPackageByID_Success(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -199,7 +197,7 @@ func TestHuma_GetBillingPackageByID_BadUUID_Canonical400(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -224,7 +222,7 @@ func TestHuma_GetAllBillingPackages_Success(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?limit=5&page=2&type=volume&ledgerId="+ledgerID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -251,7 +249,7 @@ func TestHuma_GetAllBillingPackages_BadLimit_Canonical400(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -270,7 +268,7 @@ func TestHuma_GetAllBillingPackages_BadLedgerID_Canonical400(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/billing-packages?ledgerId=not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -295,7 +293,7 @@ func TestHuma_UpdateBillingPackage_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -322,7 +320,7 @@ func TestHuma_UpdateBillingPackage_Empty_NothingToUpdate(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -345,7 +343,7 @@ func TestHuma_DeleteBillingPackage_204Empty(t *testing.T) {
 	app := buildHumaBillingPackageApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/billing-packages/"+bpID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -374,7 +372,7 @@ func TestHuma_CalculateBilling_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -400,7 +398,7 @@ func TestHuma_CalculateBilling_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -421,7 +419,7 @@ func TestHuma_CalculateBilling_MissingLedger_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{"period":"2026-01"}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -446,7 +444,7 @@ func TestHuma_CalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(`{"ledgerId":"not-a-uuid","period":"2026-01"}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -470,7 +468,7 @@ func TestHuma_CalculateBilling_ServiceError_Mapped(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/billing/calculate", bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

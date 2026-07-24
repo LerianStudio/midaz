@@ -176,7 +176,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	// Org/ledger setup for the account leg are created directly through the use
 	// cases on a side app (the onboarding routes are not part of the composition
 	// surface). The composition route itself is mounted on infra.app.
-	infra.app = fiber.New(fiber.Config{DisableStartupMessage: true})
+	infra.app = fiber.New(fiber.Config{})
 	mountCompositionHuma(infra.app, auth, compositionHandler, nil)
 
 	t.Cleanup(func() {
@@ -258,7 +258,7 @@ func (infra *compositionTestInfra) postComposition(t *testing.T, orgID, ledgerID
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer test-token")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

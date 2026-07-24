@@ -200,7 +200,7 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			app := fiber.New()
 			app.Put(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -338,7 +338,7 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("external_id", externalID)
@@ -525,7 +525,7 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

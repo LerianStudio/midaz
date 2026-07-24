@@ -36,7 +36,7 @@ func captureBearerToken(t *testing.T, authHeader string) string {
 
 	var got string
 
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/", func(c fiber.Ctx) error {
 		got = bearerToken(c)
 		return c.SendStatus(http.StatusOK)
 	})
@@ -46,7 +46,7 @@ func captureBearerToken(t *testing.T, authHeader string) string {
 		req.Header.Set("Authorization", authHeader)
 	}
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

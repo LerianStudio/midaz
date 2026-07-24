@@ -151,11 +151,11 @@ func TestHandler_CreateLedger(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateLedger(tt.payload, c)
 				},
 			)
@@ -297,12 +297,12 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateLedger(tt.payload, c)
 				},
 			)
@@ -428,7 +428,7 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -724,7 +724,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -851,7 +851,7 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -927,7 +927,7 @@ func TestHandler_CountLedgers(t *testing.T) {
 			app := fiber.New()
 			app.Head(
 				"/v1/organizations/:organization_id/ledgers/metrics/count",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -1001,7 +1001,7 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					return c.Next()
 				},
@@ -1143,7 +1143,7 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1334,12 +1334,12 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/settings",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateLedgerSettings(&tt.requestBody, c)
 				},
 			)

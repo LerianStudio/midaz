@@ -220,7 +220,7 @@ func TestTracerErrorContract(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
-			app.Get("/probe", func(c *fiber.Ctx) error {
+			app.Get("/probe", func(c fiber.Ctx) error {
 				return http.WithError(c, tt.err)
 			})
 

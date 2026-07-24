@@ -180,7 +180,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Post("/test", func(c *fiber.Ctx) error {
+			app.Post("/test", func(c fiber.Ctx) error {
 				result := midazErrorMapper(c, tt.err, tt.tenantID)
 				if result != nil {
 					return result
@@ -253,7 +253,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 		t.Parallel()
 
 		registrar := func(router fiber.Router) {
-			router.Get("/test", func(c *fiber.Ctx) error {
+			router.Get("/test", func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusNoContent)
 			})
 		}

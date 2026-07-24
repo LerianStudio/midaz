@@ -45,15 +45,14 @@ func buildHumaHolderApp(t *testing.T, handler *HolderHandler, authOK bool) *fibe
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	apiV1 := f.Group("/v1")
 
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -107,7 +106,7 @@ func TestHuma_CreateHolder_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -139,7 +138,7 @@ func TestHuma_CreateHolder_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -162,7 +161,7 @@ func TestHuma_CreateHolder_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/holders", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -196,7 +195,7 @@ func TestHuma_GetHolderByID_Success(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -224,7 +223,7 @@ func TestHuma_GetHolderByID_BadUUID_Canonical400(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -272,7 +271,7 @@ func TestHuma_UpdateHolder_MergePatch_NullFieldRemoved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -305,7 +304,7 @@ func TestHuma_DeleteHolder_204Empty(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -329,7 +328,7 @@ func TestHuma_GetAllHolders_Success(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders?limit=10&page=1", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -349,8 +348,7 @@ func buildHumaHolderAccountsApp(t *testing.T, handler *HolderAccountsHandler) *f
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
@@ -378,7 +376,7 @@ func TestHuma_GetAccountsByHolder_Success(t *testing.T) {
 	app := buildHumaHolderAccountsApp(t, handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/accounts?limit=10&page=1", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -411,7 +409,7 @@ func TestHuma_GetAllHolders_BadQuery_Canonical400(t *testing.T) {
 	app := buildHumaHolderApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/holders?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

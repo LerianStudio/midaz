@@ -280,13 +280,13 @@ func TestEncryption_Provision(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/encryption/provision",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
 					// Simulate the tenant middleware: in multi-tenant mode it
 					// stores a non-empty tenant id; in single-tenant mode it does
 					// not run, so the context carries no tenant id.
 					if tenantID != "" {
-						c.SetUserContext(tmcore.ContextWithTenantID(c.UserContext(), tenantID))
+						c.SetContext(tmcore.ContextWithTenantID(c.Context(), tenantID))
 					}
 					return c.Next()
 				},
@@ -400,7 +400,7 @@ func TestEncryptionHandler_GetProvisioningStatus(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/encryption/status",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", uuid.MustParse(tt.organizationID))
 					return c.Next()
 				},

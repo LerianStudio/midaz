@@ -183,7 +183,7 @@ func seedLedgerSettings(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) {
 // setupRoutes registers handler routes on the Fiber app.
 func (infra *testInfra) setupRoutes() {
 	// Middleware to inject path params as locals
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		orgIDStr := c.Params("organization_id")
 		ledgerIDStr := c.Params("ledger_id")
 		txIDStr := c.Params("transaction_id")
@@ -355,7 +355,7 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T)
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 
 	// Assert: HTTP Response
 	require.NoError(t, err, "HTTP request should not fail")
@@ -758,7 +758,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 // setupRoutes registers handler routes on the Fiber app for async infra.
 func (infra *testAsyncInfra) setupRoutes() {
 	// Middleware to inject path params as locals
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		orgIDStr := c.Params("organization_id")
 		ledgerIDStr := c.Params("ledger_id")
 		txIDStr := c.Params("transaction_id")
@@ -931,7 +931,7 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 
 	// Assert: HTTP Response (immediate response with CREATED status)
 	require.NoError(t, err, "HTTP request should not fail")
@@ -1138,7 +1138,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1223,7 +1223,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 		nil)
 	commitReq.Header.Set("Content-Type", "application/json")
 
-	commitResp, err := infra.app.Test(commitReq, -1)
+	commitResp, err := infra.app.Test(commitReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "commit HTTP request should not fail")
 
 	commitBody, err := io.ReadAll(commitResp.Body)
@@ -1354,7 +1354,7 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1378,7 +1378,7 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 		nil)
 	commitReq.Header.Set("Content-Type", "application/json")
 
-	commitResp, err := infra.app.Test(commitReq, -1)
+	commitResp, err := infra.app.Test(commitReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "commit HTTP request should not fail")
 
 	commitBody, err := io.ReadAll(commitResp.Body)
@@ -1442,7 +1442,7 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1466,7 +1466,7 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 		nil)
 	revertReq.Header.Set("Content-Type", "application/json")
 
-	revertResp, err := infra.app.Test(revertReq, -1)
+	revertResp, err := infra.app.Test(revertReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "revert HTTP request should not fail")
 
 	revertBody, err := io.ReadAll(revertResp.Body)
@@ -1538,7 +1538,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1565,7 +1565,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 		nil)
 	commitReq.Header.Set("Content-Type", "application/json")
 
-	commitResp, err := infra.app.Test(commitReq, -1)
+	commitResp, err := infra.app.Test(commitReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "commit HTTP request should not fail")
 
 	commitBody, err := io.ReadAll(commitResp.Body)
@@ -1596,7 +1596,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 		nil)
 	revertReq.Header.Set("Content-Type", "application/json")
 
-	revertResp, err := infra.app.Test(revertReq, -1)
+	revertResp, err := infra.app.Test(revertReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "revert HTTP request should not fail")
 
 	revertBody, err := io.ReadAll(revertResp.Body)
@@ -1728,7 +1728,7 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1785,7 +1785,7 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 		nil)
 	cancelReq.Header.Set("Content-Type", "application/json")
 
-	cancelResp, err := infra.app.Test(cancelReq, -1)
+	cancelResp, err := infra.app.Test(cancelReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "cancel HTTP request should not fail")
 
 	cancelBody, err := io.ReadAll(cancelResp.Body)
@@ -1892,7 +1892,7 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 		bytes.NewBufferString(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	body, err := io.ReadAll(resp.Body)
@@ -1916,7 +1916,7 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 		nil)
 	cancelReq.Header.Set("Content-Type", "application/json")
 
-	cancelResp, err := infra.app.Test(cancelReq, -1)
+	cancelResp, err := infra.app.Test(cancelReq, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "cancel HTTP request should not fail")
 
 	cancelBody, err := io.ReadAll(cancelResp.Body)
@@ -2010,7 +2010,7 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 			bytes.NewBufferString(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := infra.app.Test(req, -1)
+		resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 		if err != nil {
 			return 0, err
 		}
@@ -2041,7 +2041,7 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 			bytes.NewBufferString(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := infra.app.Test(req, -1)
+		resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 		if err != nil {
 			return 0, err
 		}
@@ -2195,7 +2195,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	req1.Header.Set("X-Idempotency", idempotencyKey)
 	req1.Header.Set("X-TTL", "60")
 
-	resp1, err := infra.app.Test(req1, -1)
+	resp1, err := infra.app.Test(req1, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "first request should not fail")
 
 	body1, err := io.ReadAll(resp1.Body)
@@ -2221,7 +2221,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	req2.Header.Set("X-Idempotency", idempotencyKey)
 	req2.Header.Set("X-TTL", "60")
 
-	resp2, err := infra.app.Test(req2, -1)
+	resp2, err := infra.app.Test(req2, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "second request should not fail")
 
 	body2, err := io.ReadAll(resp2.Body)
@@ -2345,7 +2345,7 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	req1.Header.Set("X-Idempotency", idempotencyKey)
 	req1.Header.Set("X-TTL", "60")
 
-	resp1, err := infra.app.Test(req1, -1)
+	resp1, err := infra.app.Test(req1, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "first request should not fail")
 
 	body1, err := io.ReadAll(resp1.Body)
@@ -2366,7 +2366,7 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	req2.Header.Set("X-Idempotency", idempotencyKey)
 	req2.Header.Set("X-TTL", "60")
 
-	resp2, err := infra.app.Test(req2, -1)
+	resp2, err := infra.app.Test(req2, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "second request should not fail")
 
 	body2, err := io.ReadAll(resp2.Body)
@@ -2486,7 +2486,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	req1.Header.Set("X-Idempotency", idempotencyKey)
 	req1.Header.Set("X-TTL", "60")
 
-	resp1, err := infra.app.Test(req1, -1)
+	resp1, err := infra.app.Test(req1, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "first request should not fail")
 
 	body1, err := io.ReadAll(resp1.Body)
@@ -2510,7 +2510,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 	req2.Header.Set("X-Idempotency", idempotencyKey)
 	req2.Header.Set("X-TTL", "60")
 
-	resp2, err := infra.app.Test(req2, -1)
+	resp2, err := infra.app.Test(req2, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "second request should not fail")
 
 	body2, err := io.ReadAll(resp2.Body)
@@ -2614,7 +2614,7 @@ func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 				bytes.NewBufferString(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := infra.app.Test(req, -1)
+			resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err, "request should not fail")
 
 			// Property: Should never return 5xx (except known overflow errors)
@@ -2696,7 +2696,7 @@ func TestIntegration_Property_Protocol_RapidFire(t *testing.T) {
 				bytes.NewBufferString(requestBody))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := infra.app.Test(req, -1)
+			resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 			if err != nil {
 				results <- 500
 				return
@@ -2785,7 +2785,7 @@ func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 		req.Header.Set("X-Idempotency", idempotencyKey)
 		req.Header.Set("X-TTL", "60")
 
-		resp, err := infra.app.Test(req, -1)
+		resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err, "request %d should not fail", i)
 
 		results = append(results, resp.StatusCode)

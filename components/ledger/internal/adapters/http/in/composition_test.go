@@ -173,7 +173,7 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 				http.ParseUUIDPathParameters("holder"),
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateHolderAccount(tt.payload, c)
 				},
 			)
@@ -211,7 +211,7 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 	app.Post(
 		"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 		http.ParseUUIDPathParameters("holder"),
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			// Wrong payload type forces the type-assertion guard.
 			return handler.CreateHolderAccount(&mmodel.CreateAccountInput{}, c)
 		},

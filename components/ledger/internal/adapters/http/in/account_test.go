@@ -270,12 +270,12 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateAccount(tt.payload, c)
 				},
 			)
@@ -641,7 +641,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -787,7 +787,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
@@ -927,7 +927,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1064,7 +1064,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1296,13 +1296,13 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateAccount(tt.payload, c)
 				},
 			)
@@ -1428,7 +1428,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
@@ -1506,7 +1506,7 @@ func TestAccountHandler_CountAccounts(t *testing.T) {
 			app := fiber.New()
 			app.Head(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

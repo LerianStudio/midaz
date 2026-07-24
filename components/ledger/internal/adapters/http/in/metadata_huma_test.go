@@ -44,8 +44,7 @@ func buildHumaMetadataApp(t *testing.T, handler *MetadataIndexHandler, authOK bo
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
@@ -54,7 +53,7 @@ func buildHumaMetadataApp(t *testing.T, handler *MetadataIndexHandler, authOK bo
 
 	// Auth shim: stands in for auth.Authorize("midaz","settings",verb). A rejected
 	// request (authOK=false) must never reach Huma — it returns the ledger 401.
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -107,7 +106,7 @@ func TestHuma_CreateMetadataIndex_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -147,12 +146,12 @@ func TestHuma_CreateMetadataIndex_TenantCaptured(t *testing.T) {
 			return &mmodel.MetadataIndex{IndexName: "metadata.tier_1", EntityName: "transaction", MetadataKey: "tier"}, nil
 		}).Times(1)
 
-	f := fiber.New(fiber.Config{DisableStartupMessage: true, ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
+	f := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
 	libProblem.Install()
 	apiV1 := f.Group("/v1")
 	// Shim marks the user context, standing in for the tenant middleware.
-	apiV1.Use(func(c *fiber.Ctx) error {
-		c.SetUserContext(context.WithValue(c.UserContext(), ctxKey{}, "tenant-marker"))
+	apiV1.Use(func(c fiber.Ctx) error {
+		c.SetContext(context.WithValue(c.Context(), ctxKey{}, "tenant-marker"))
 		return c.Next()
 	})
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
@@ -162,7 +161,7 @@ func TestHuma_CreateMetadataIndex_TenantCaptured(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := f.Test(req, -1)
+	resp, err := f.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -185,7 +184,7 @@ func TestHuma_CreateMetadataIndex_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -206,7 +205,7 @@ func TestHuma_CreateMetadataIndex_InvalidEntity_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/not_an_entity", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -236,7 +235,7 @@ func TestHuma_CreateMetadataIndex_ValidationError_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -263,7 +262,7 @@ func TestHuma_CreateMetadataIndex_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -292,7 +291,7 @@ func TestHuma_GetAllMetadataIndexes_FilteredSuccess(t *testing.T) {
 	app := buildHumaMetadataApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes?entity_name=transaction", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -317,7 +316,7 @@ func TestHuma_GetAllMetadataIndexes_InvalidEntity_Canonical400(t *testing.T) {
 	app := buildHumaMetadataApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes?entity_name=not_an_entity", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -343,7 +342,7 @@ func TestHuma_DeleteMetadataIndex_204Empty(t *testing.T) {
 	app := buildHumaMetadataApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities/transaction/key/tier", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -373,7 +372,7 @@ func TestHuma_DeleteMetadataIndex_NotFound_CanonicalMapped(t *testing.T) {
 	app := buildHumaMetadataApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities/transaction/key/ghost", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

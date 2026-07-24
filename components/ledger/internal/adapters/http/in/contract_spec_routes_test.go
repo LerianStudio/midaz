@@ -35,9 +35,9 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	auth := &middleware.AuthClient{Enabled: false}
 
 	// Mirror the unified server's public infra routes (unified-server.go).
-	app.Get("/health", func(c *fiber.Ctx) error { return nil })
-	app.Get("/version", func(c *fiber.Ctx) error { return nil })
-	app.Get("/readyz", func(c *fiber.Ctx) error { return nil })
+	app.Get("/health", func(c fiber.Ctx) error { return nil })
+	app.Get("/version", func(c fiber.Ctx) error { return nil })
+	app.Get("/readyz", func(c fiber.Ctx) error { return nil })
 
 	RegisterMetadataRoutesToApp(app, auth, &MetadataIndexHandler{}, nil)
 	RegisterOnboardingRoutesToApp(app, auth,

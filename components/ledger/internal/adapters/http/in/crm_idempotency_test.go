@@ -90,7 +90,7 @@ func TestHolderHandler_CreateHolder_IdempotentReplay(t *testing.T) {
 	app := fiber.New()
 	app.Post(
 		"/v1/organizations/:organization_id/holders",
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			return c.Next()
 		},
@@ -174,7 +174,7 @@ func TestInstrumentHandler_CreateInstrument_IdempotentReplay(t *testing.T) {
 	app := fiber.New()
 	app.Post(
 		"/v1/organizations/:organization_id/holders/:holder_id/instruments",
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("holder_id", holderID)
 			return c.Next()

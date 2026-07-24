@@ -129,7 +129,7 @@ func TestErrorContract_CanonicalCodes(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/holders",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
@@ -187,7 +187,7 @@ func TestErrorContract_SurvivingDomainCodeUnchanged(t *testing.T) {
 	app := fiber.New()
 	app.Get(
 		"/v1/organizations/:organization_id/holders/:id",
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("id", holderID)
 			return c.Next()

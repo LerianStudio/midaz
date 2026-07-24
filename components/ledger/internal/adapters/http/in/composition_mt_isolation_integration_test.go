@@ -199,8 +199,7 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 	compositionHandler := &CompositionHandler{Service: composition.NewService(commandUC, crmUC)}
 
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+		ErrorHandler: func(ctx fiber.Ctx, err error) error {
 			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
@@ -357,7 +356,7 @@ func postComposition(app *fiber.App, tn *compositionTenant) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+compositionTenantJWT(tn.tenantID))
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	if err != nil {
 		return err
 	}

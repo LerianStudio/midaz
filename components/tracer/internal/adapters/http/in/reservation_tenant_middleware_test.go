@@ -36,8 +36,8 @@ func mwStubDB(t *testing.T) dbresolver.DB {
 // records the resolved request context for assertion.
 func newReservationTenantApp(resolver *seamtenant.Resolver, captured *context.Context) *fiber.App {
 	app := fiber.New()
-	app.Post("/v1/reservations", reservationTenantMiddleware(resolver), func(c *fiber.Ctx) error {
-		*captured = c.UserContext()
+	app.Post("/v1/reservations", reservationTenantMiddleware(resolver), func(c fiber.Ctx) error {
+		*captured = c.Context()
 		return c.SendStatus(http.StatusCreated)
 	})
 

@@ -287,7 +287,7 @@ func runErrorContractCases(t *testing.T, tests []struct {
 			capturedErr := tt.err
 
 			app := fiber.New()
-			app.Get("/probe", func(c *fiber.Ctx) error {
+			app.Get("/probe", func(c fiber.Ctx) error {
 				return http.WithError(c, capturedErr)
 			})
 

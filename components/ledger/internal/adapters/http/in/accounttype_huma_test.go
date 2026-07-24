@@ -51,8 +51,7 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
@@ -63,7 +62,7 @@ func buildHumaAccountTypeApp(t *testing.T, handler *AccountTypeHandler, authOK b
 	// Auth shim: stands in for protectedRouting -> auth.Authorize("routing",
 	// "account-types", verb). A rejected request (authOK=false) must never reach
 	// Huma — it returns the ledger 401.
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -125,7 +124,7 @@ func TestHuma_CreateAccountType_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -163,7 +162,7 @@ func TestHuma_CreateAccountType_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -191,7 +190,7 @@ func TestHuma_CreateAccountType_ValidationError_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -227,7 +226,7 @@ func TestHuma_CreateAccountType_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -263,7 +262,7 @@ func TestHuma_GetAccountTypeByID_Success(t *testing.T) {
 	app := buildHumaAccountTypeApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -295,7 +294,7 @@ func TestHuma_GetAccountTypeByID_BadUUID_Canonical400(t *testing.T) {
 	app := buildHumaAccountTypeApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -327,7 +326,7 @@ func TestHuma_GetAllAccountTypes_Success(t *testing.T) {
 	app := buildHumaAccountTypeApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?limit=10", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -356,7 +355,7 @@ func TestHuma_GetAllAccountTypes_BadQuery_Canonical400(t *testing.T) {
 	app := buildHumaAccountTypeApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -399,7 +398,7 @@ func TestHuma_UpdateAccountType_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -430,7 +429,7 @@ func TestHuma_DeleteAccountType_204Empty(t *testing.T) {
 	app := buildHumaAccountTypeApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

@@ -153,7 +153,7 @@ func TestRoutes_PublicEndpoints_NoAuthRequired(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			// Note: NO X-API-Key header
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 
 			// Public endpoints should NOT require authentication (should NOT return 401)
@@ -213,7 +213,7 @@ func TestRoutes_ProtectedEndpoints_RequireAuth(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			// Note: NO X-API-Key header
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -288,7 +288,7 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			req.Header.Set("X-API-Key", validAPIKey)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -335,7 +335,7 @@ func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			// Note: NO X-API-Key header
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -376,7 +376,7 @@ func TestRoutes_ReservationEndpoints_Mounted(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			// No X-API-Key header: a mounted+guarded route must reply 401, not 404.
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -402,7 +402,7 @@ func TestRoutes_ReservationEndpoints_NotMountedWhenServiceNil(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -418,14 +418,14 @@ func TestWriteTenantCapReached(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/__test/cap", func(c *fiber.Ctx) error {
+	app.Get("/__test/cap", func(c fiber.Ctx) error {
 		c.Set("Retry-After", tenantCapRetryAfterHeader())
 
 		return writeTenantCapReached(c)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/__test/cap", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	defer func() {
@@ -461,43 +461,43 @@ func TestGetCORSAllowedOrigins(t *testing.T) {
 	tests := []struct {
 		name       string
 		configured string
-		expected   string
+		expected   []string
 	}{
 		{
-			name:       "Success - empty returns default (restrictive)",
+			name:       "Success - empty returns nil (allow-all, restrictive default)",
 			configured: "",
-			expected:   "",
+			expected:   nil,
 		},
 		{
 			name:       "Success - wildcard for development",
 			configured: "*",
-			expected:   "*",
+			expected:   []string{"*"},
 		},
 		{
 			name:       "Success - single origin for production",
 			configured: "https://app.example.com",
-			expected:   "https://app.example.com",
+			expected:   []string{"https://app.example.com"},
 		},
 		{
 			name:       "Success - multiple origins for production",
 			configured: "https://app.example.com,https://admin.example.com",
-			expected:   "https://app.example.com,https://admin.example.com",
+			expected:   []string{"https://app.example.com", "https://admin.example.com"},
 		},
-		// Edge cases - passed through as-is (CORS middleware handles validation)
+		// Edge cases - the parser splits on comma, trims each entry, and drops empties.
 		{
-			name:       "Edge case - whitespace in origins passed through",
+			name:       "Edge case - whitespace around origins is trimmed",
 			configured: "https://app.example.com, https://admin.example.com",
-			expected:   "https://app.example.com, https://admin.example.com",
+			expected:   []string{"https://app.example.com", "https://admin.example.com"},
 		},
 		{
-			name:       "Edge case - trailing comma passed through",
+			name:       "Edge case - trailing comma yields no empty entry",
 			configured: "https://app.example.com,",
-			expected:   "https://app.example.com,",
+			expected:   []string{"https://app.example.com"},
 		},
 		{
-			name:       "Edge case - whitespace only passed through",
+			name:       "Edge case - whitespace only returns nil",
 			configured: "   ",
-			expected:   "   ",
+			expected:   nil,
 		},
 	}
 

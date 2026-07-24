@@ -183,8 +183,8 @@ func TestClientIPMiddleware_InjectsIntoContext(t *testing.T) {
 
 	var captured string
 
-	app.Get("/test", func(c *fiber.Ctx) error {
-		captured = contextutil.GetClientIP(c.UserContext())
+	app.Get("/test", func(c fiber.Ctx) error {
+		captured = contextutil.GetClientIP(c.Context())
 		return c.SendString("ok")
 	})
 

@@ -47,15 +47,14 @@ func buildHumaSegmentApp(t *testing.T, handler *SegmentHandler, authOK bool) *fi
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	apiV1 := f.Group("/v1")
 
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -117,7 +116,7 @@ func TestHuma_CreateSegment_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -154,7 +153,7 @@ func TestHuma_CreateSegment_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -182,7 +181,7 @@ func TestHuma_CreateSegment_ValidationError_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -218,7 +217,7 @@ func TestHuma_CreateSegment_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments", bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -254,7 +253,7 @@ func TestHuma_GetSegmentByID_Success(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -286,7 +285,7 @@ func TestHuma_GetSegmentByID_BadUUID_Canonical400(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -314,7 +313,7 @@ func TestHuma_GetAllSegments_Success(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments?limit=10&page=1", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -342,7 +341,7 @@ func TestHuma_GetAllSegments_BadQuery_Canonical400(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -371,7 +370,7 @@ func TestHuma_DeleteSegment_204Empty(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/"+segmentID.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -396,7 +395,7 @@ func TestHuma_CountSegments_204WithHeader(t *testing.T) {
 	app := buildHumaSegmentApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/segments/metrics/count", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

@@ -131,8 +131,8 @@ func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
 				MetadataKey: "tier",
 			},
 			registerRoute: func(app *fiber.App, handler *MetadataIndexHandler, payload any) {
-				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-					c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c fiber.Ctx) error {
+					c.SetContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
 
 					return handler.CreateMetadataIndex(payload, c)
 				})
@@ -202,16 +202,16 @@ func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
 }
 
 func registerGetAllMetadataRoute(app *fiber.App, handler *MetadataIndexHandler, _ any) {
-	app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-		c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
+	app.Get("/v1/settings/metadata-indexes", func(c fiber.Ctx) error {
+		c.SetContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
 
 		return handler.GetAllMetadataIndexes(c)
 	})
 }
 
 func registerDeleteMetadataRoute(app *fiber.App, handler *MetadataIndexHandler, _ any) {
-	app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-		c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
+	app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c fiber.Ctx) error {
+		c.SetContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
 
 		return handler.DeleteMetadataIndex(c)
 	})

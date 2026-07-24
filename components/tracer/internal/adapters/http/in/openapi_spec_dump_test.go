@@ -41,8 +41,7 @@ const humaSpecPath = "../../../../api/openapi.huma.yaml"
 // runtime — this just reads it offline, no server or DB.
 func buildTracerHumaAPI() huma.API {
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
@@ -91,7 +90,7 @@ func buildTracerHumaAPI() huma.API {
 		TransactionValidation: &TransactionValidationHandler{},
 		Validation:            &ValidationHandler{},
 		Reservation:           &ReservationHandler{},
-		ResTenantMW:           func(c *fiber.Ctx) error { return c.Next() },
+		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
 		AuditEvent:            &AuditEventHandler{},
 	})
 

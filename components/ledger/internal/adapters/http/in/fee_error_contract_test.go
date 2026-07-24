@@ -173,7 +173,7 @@ func TestFeeErrorContract_CanonicalCodes(t *testing.T) {
 			capturedErr := tt.err
 
 			app := fiber.New()
-			app.Get("/probe", func(c *fiber.Ctx) error {
+			app.Get("/probe", func(c fiber.Ctx) error {
 				return http.WithError(c, capturedErr)
 			})
 

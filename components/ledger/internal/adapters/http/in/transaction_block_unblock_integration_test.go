@@ -133,7 +133,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 	// parseParam resolves a UUID path parameter into c.Locals. A malformed value
 	// surfaces as an HTTP 400 instead of silently becoming the zero UUID (which
 	// would mask a routing/derivation bug behind a confusing not-found later).
-	parseParam := func(c *fiber.Ctx, name string) error {
+	parseParam := func(c fiber.Ctx, name string) error {
 		v := c.Params(name)
 		if v == "" {
 			return nil
@@ -150,7 +150,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 		return nil
 	}
 
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		for _, name := range []string{"organization_id", "ledger_id", "transaction_id", "account_id"} {
 			if err := parseParam(c, name); err != nil {
 				return err
@@ -208,7 +208,7 @@ func (infra *blockUnblockInfra) createTransfer(t *testing.T, endpoint, sourceAli
 		bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "create request should not fail")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -237,7 +237,7 @@ func (infra *blockUnblockInfra) getJSON(t *testing.T, path string) map[string]an
 	req := httptest.NewRequest("GET",
 		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+path, nil)
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "GET %s should not fail", path)
 	defer func() { _ = resp.Body.Close() }()
 

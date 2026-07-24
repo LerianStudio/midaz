@@ -44,15 +44,14 @@ func buildHumaOperationRouteApp(t *testing.T, handler *OperationRouteHandler, au
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	apiV1 := f.Group("/v1")
 
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -108,7 +107,7 @@ func TestHuma_CreateOperationRoute_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -142,7 +141,7 @@ func TestHuma_CreateOperationRoute_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -177,7 +176,7 @@ func TestHuma_CreateOperationRoute_UnknownAccountingEntryKey_Canonical400(t *tes
 	req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -207,7 +206,7 @@ func TestHuma_GetOperationRouteByID_Success(t *testing.T) {
 	app := buildHumaOperationRouteApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -236,7 +235,7 @@ func TestHuma_GetOperationRouteByID_BadUUID_Canonical400(t *testing.T) {
 	app := buildHumaOperationRouteApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -267,7 +266,7 @@ func TestHuma_DeleteOperationRoute_204Empty(t *testing.T) {
 	app := buildHumaOperationRouteApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -294,7 +293,7 @@ func TestHuma_GetAllOperationRoutes_Success(t *testing.T) {
 	app := buildHumaOperationRouteApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes?limit=10", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -320,7 +319,7 @@ func TestHuma_GetAllOperationRoutes_BadQuery_Canonical400(t *testing.T) {
 	app := buildHumaOperationRouteApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -427,7 +426,7 @@ func TestHuma_UpdateOperationRoute_MergePatch(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+id.String(), bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 

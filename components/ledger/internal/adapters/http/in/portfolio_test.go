@@ -133,12 +133,12 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreatePortfolio(tt.payload, c)
 				},
 			)
@@ -300,13 +300,13 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdatePortfolio(tt.payload, c)
 				},
 			)
@@ -452,7 +452,7 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
@@ -726,7 +726,7 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -832,7 +832,7 @@ func TestHandler_DeletePortfolioByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
@@ -910,7 +910,7 @@ func TestHandler_CountPortfolios(t *testing.T) {
 			app := fiber.New()
 			app.Head(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

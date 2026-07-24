@@ -15,21 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Tests that snake_case query params are bound correctly by Fiber's QueryParser.
-// These tests exercise the struct tags directly via Fiber's query binding.
+// Tests that snake_case query params are bound correctly by Fiber v3's
+// Bind().Query. These tests exercise the struct tags directly via Fiber's
+// query binding.
 
 func TestSnakeCaseQueryParamBinding(t *testing.T) {
 	tests := []struct {
 		name     string
-		handler  func(*fiber.Ctx) error
+		handler  func(fiber.Ctx) error
 		url      string
 		expected map[string]interface{}
 	}{
 		{
 			name: "ListRulesInput",
-			handler: func(c *fiber.Ctx) error {
+			handler: func(c fiber.Ctx) error {
 				var input ListRulesInput
-				if err := c.QueryParser(&input); err != nil {
+				if err := c.Bind().Query(&input); err != nil {
 					return c.SendStatus(fiber.StatusBadRequest)
 				}
 
@@ -46,9 +47,9 @@ func TestSnakeCaseQueryParamBinding(t *testing.T) {
 		},
 		{
 			name: "ListLimitsInput",
-			handler: func(c *fiber.Ctx) error {
+			handler: func(c fiber.Ctx) error {
 				var input ListLimitsInput
-				if err := c.QueryParser(&input); err != nil {
+				if err := c.Bind().Query(&input); err != nil {
 					return c.SendStatus(fiber.StatusBadRequest)
 				}
 
@@ -64,9 +65,9 @@ func TestSnakeCaseQueryParamBinding(t *testing.T) {
 		},
 		{
 			name: "ListAuditEventsInput",
-			handler: func(c *fiber.Ctx) error {
+			handler: func(c fiber.Ctx) error {
 				var input ListAuditEventsInput
-				if err := c.QueryParser(&input); err != nil {
+				if err := c.Bind().Query(&input); err != nil {
 					return c.SendStatus(fiber.StatusBadRequest)
 				}
 
@@ -88,9 +89,9 @@ func TestSnakeCaseQueryParamBinding(t *testing.T) {
 		},
 		{
 			name: "ListTransactionValidationsInput",
-			handler: func(c *fiber.Ctx) error {
+			handler: func(c fiber.Ctx) error {
 				var input ListTransactionValidationsInput
-				if err := c.QueryParser(&input); err != nil {
+				if err := c.Bind().Query(&input); err != nil {
 					return c.SendStatus(fiber.StatusBadRequest)
 				}
 
@@ -132,9 +133,9 @@ func TestSnakeCaseQueryParamBinding(t *testing.T) {
 
 func TestListRulesInput_CamelCaseIgnored(t *testing.T) {
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		var input ListRulesInput
-		if err := c.QueryParser(&input); err != nil {
+		if err := c.Bind().Query(&input); err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
 		}
 
@@ -160,9 +161,9 @@ func TestListRulesInput_CamelCaseIgnored(t *testing.T) {
 
 func TestListLimitsInput_CamelCaseIgnored(t *testing.T) {
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		var input ListLimitsInput
-		if err := c.QueryParser(&input); err != nil {
+		if err := c.Bind().Query(&input); err != nil {
 			return c.SendStatus(400)
 		}
 
@@ -186,9 +187,9 @@ func TestListLimitsInput_CamelCaseIgnored(t *testing.T) {
 
 func TestListAuditEventsInput_CamelCaseIgnored(t *testing.T) {
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		var input ListAuditEventsInput
-		if err := c.QueryParser(&input); err != nil {
+		if err := c.Bind().Query(&input); err != nil {
 			return c.SendStatus(400)
 		}
 
@@ -212,9 +213,9 @@ func TestListAuditEventsInput_CamelCaseIgnored(t *testing.T) {
 
 func TestListTransactionValidationsInput_CamelCaseIgnored(t *testing.T) {
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		var input ListTransactionValidationsInput
-		if err := c.QueryParser(&input); err != nil {
+		if err := c.Bind().Query(&input); err != nil {
 			return c.SendStatus(400)
 		}
 

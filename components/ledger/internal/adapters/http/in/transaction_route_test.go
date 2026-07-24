@@ -168,7 +168,7 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -302,7 +302,7 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
@@ -476,7 +476,7 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
@@ -604,7 +604,7 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
@@ -856,7 +856,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

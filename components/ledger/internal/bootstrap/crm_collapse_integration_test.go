@@ -198,7 +198,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 			"/v1/organizations/"+uuid.New().String()+"/holders", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -238,8 +238,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		const panicMessage = "forced CRM route panic"
 
 		app := fiber.New(fiber.Config{
-			DisableStartupMessage: true,
-			ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			ErrorHandler: func(ctx fiber.Ctx, err error) error {
 				return libHTTP.FiberErrorHandler(ctx, err)
 			},
 		})
@@ -248,7 +247,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		auth := middleware.NewAuthClient("", false, nil)
 		panicOptions := &http.ProtectedRouteOptions{
 			PostAuthMiddlewares: []fiber.Handler{
-				func(c *fiber.Ctx) error { panic(panicMessage) },
+				func(c fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
 		mountCRMHuma(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
@@ -256,7 +255,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 		req := httptest.NewRequest(fiber.MethodGet,
 			"/v1/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err, "connection must NOT be dropped on panic")
 		defer func() { _ = resp.Body.Close() }()
 
@@ -352,8 +351,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 	instrumentHandler := &httpin.InstrumentHandler{Service: useCases}
 
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+		ErrorHandler: func(ctx fiber.Ctx, err error) error {
 			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
@@ -417,8 +415,7 @@ func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.Holder
 // and the WithRecover hoist, mirroring how NewUnifiedServer hosts CRM routes.
 func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fiber.App {
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+		ErrorHandler: func(ctx fiber.Ctx, err error) error {
 			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
@@ -526,7 +523,7 @@ func createHolderHTTP(t *testing.T, app *fiber.App, tenantID, orgID, name, docum
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -549,7 +546,7 @@ func getHolderStatusHTTP(t *testing.T, app *fiber.App, tenantID, orgID, holderID
 		"/v1/organizations/"+orgID+"/holders/"+holderID, nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -563,7 +560,7 @@ func listHolderNamesHTTP(t *testing.T, app *fiber.App, tenantID, orgID string) [
 		"/v1/organizations/"+orgID+"/holders?limit=100", nil)
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer "+tenantJWT(t, tenantID))
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

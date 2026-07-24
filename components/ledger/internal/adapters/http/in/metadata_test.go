@@ -163,8 +163,8 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			}
 
 			app := newMetadataHandlerTestApp(func(app *fiber.App) {
-				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-					c.SetUserContext(context.Background())
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c fiber.Ctx) error {
+					c.SetContext(context.Background())
 					return handler.CreateMetadataIndex(tt.payload, c)
 				})
 			})
@@ -234,8 +234,8 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 			}
 
 			app := newMetadataHandlerTestApp(func(app *fiber.App) {
-				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-					c.SetUserContext(context.Background())
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c fiber.Ctx) error {
+					c.SetContext(context.Background())
 					return handler.CreateMetadataIndex(tt.payload, c)
 				})
 			})
@@ -271,8 +271,8 @@ func TestMetadataIndexHandler_CreateMetadataIndex_EmptyEntityName(t *testing.T) 
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
 		// Route without :entity_name param so c.Params("entity_name") returns ""
-		app.Post("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Post("/v1/settings/metadata-indexes/entities", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.CreateMetadataIndex(payload, c)
 		})
 	})
@@ -492,8 +492,8 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			}
 
 			app := newMetadataHandlerTestApp(func(app *fiber.App) {
-				app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-					c.SetUserContext(context.Background())
+				app.Get("/v1/settings/metadata-indexes", func(c fiber.Ctx) error {
+					c.SetContext(context.Background())
 					return handler.GetAllMetadataIndexes(c)
 				})
 			})
@@ -604,8 +604,8 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			}
 
 			app := newMetadataHandlerTestApp(func(app *fiber.App) {
-				app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-					c.SetUserContext(context.Background())
+				app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c fiber.Ctx) error {
+					c.SetContext(context.Background())
 					return handler.DeleteMetadataIndex(c)
 				})
 			})
@@ -636,8 +636,8 @@ func TestMetadataIndexHandler_CreateMetadataIndex_NilRepo(t *testing.T) {
 	}
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
-		app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.CreateMetadataIndex(payload, c)
 		})
 	})
@@ -662,8 +662,8 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes_NilRepoForFilteredEntity(t *
 	handler := &MetadataIndexHandler{}
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
-		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Get("/v1/settings/metadata-indexes", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.GetAllMetadataIndexes(c)
 		})
 	})
@@ -684,8 +684,8 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_NilRepo(t *testing.T) {
 	handler := &MetadataIndexHandler{}
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
-		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.DeleteMetadataIndex(c)
 		})
 	})
@@ -715,8 +715,8 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) 
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
 		// Route without :entity_name param so c.Params("entity_name") returns ""
-		app.Delete("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Delete("/v1/settings/metadata-indexes/entities", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.DeleteMetadataIndex(c)
 		})
 	})
@@ -745,8 +745,8 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
 
 	app := newMetadataHandlerTestApp(func(app *fiber.App) {
 		// Route without :index_key param so c.Params("index_key") returns ""
-		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			return handler.DeleteMetadataIndex(c)
 		})
 	})

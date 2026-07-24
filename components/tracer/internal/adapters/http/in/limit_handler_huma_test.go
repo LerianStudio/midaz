@@ -32,7 +32,7 @@ import (
 // tenantSpyLimitService is a LimitService stub that records the tenant ID it
 // sees on its incoming context — the ctx-threading probe (see the rule test's
 // tenantSpyService for the full chain rationale). A non-empty capturedTenant
-// proves the tenant the middleware put on c.UserContext() reached the service
+// proves the tenant the middleware put on c.Context() reached the service
 // through the Huma handler ctx with no bridge.
 type tenantSpyLimitService struct {
 	capturedTenant string
@@ -115,16 +115,15 @@ func buildHumaLimitApp(t *testing.T, svc LimitService, tenantID string) *fiber.A
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -169,7 +168,7 @@ func TestHuma_CreateLimit_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits", bytes.NewReader(validCreateLimitBody()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -188,7 +187,7 @@ func TestHuma_CreateLimit_Success(t *testing.T) {
 	assert.Equal(t, id.String(), got["limitId"], "limitId is model.Limit json tag for ID — body is model.Limit verbatim")
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 func TestHuma_CreateLimit_ValidationError(t *testing.T) {
@@ -206,7 +205,7 @@ func TestHuma_CreateLimit_ValidationError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -230,7 +229,7 @@ func TestHuma_CreateLimit_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits", bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -254,7 +253,7 @@ func TestHuma_GetLimit_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-beta")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/limits/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -275,7 +274,7 @@ func TestHuma_GetLimit_BadUUID(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-epsilon")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/limits/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -303,7 +302,7 @@ func TestHuma_UpdateLimit_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/limits/"+id.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -328,7 +327,7 @@ func TestHuma_UpdateLimit_BadUUID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/limits/not-a-uuid", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -350,7 +349,7 @@ func TestHuma_UpdateLimit_EmptyBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/limits/"+id.String(), bytes.NewReader([]byte("{}")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -372,7 +371,7 @@ func TestHuma_UpdateLimit_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/limits/"+id.String(), bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -408,7 +407,7 @@ func TestHuma_UpdateLimit_ImmutableField(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPatch, "/v1/limits/"+id.String(), bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -434,7 +433,7 @@ func TestHuma_ListLimits_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/limits?limit=25&status=ACTIVE&sort_by=name&sort_order=asc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -464,7 +463,7 @@ func TestHuma_ListLimits_Defaults(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/limits", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -501,7 +500,7 @@ func TestHuma_ListLimits_InvalidQuery(t *testing.T) {
 			app := buildHumaLimitApp(t, svc, "tenant-gamma")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/limits?"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -539,7 +538,7 @@ func TestHuma_ListLimits_PresentButEmptyQueryParity(t *testing.T) {
 			app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/limits"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -572,7 +571,7 @@ func TestHuma_ListLimits_PresentButEmptyQueryParity(t *testing.T) {
 			app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/limits"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -602,7 +601,7 @@ func TestHuma_ListLimits_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/limits"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -636,7 +635,7 @@ func TestHuma_ListLimits_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/limits"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -664,7 +663,7 @@ func TestHuma_ActivateLimit_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits/"+id.String()+"/activate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -689,7 +688,7 @@ func TestHuma_DeactivateLimit_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits/"+id.String()+"/deactivate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -711,7 +710,7 @@ func TestHuma_DraftLimit_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits/"+id.String()+"/draft", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -730,7 +729,7 @@ func TestHuma_ActivateLimit_BadUUID(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/limits/not-a-uuid/activate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -750,7 +749,7 @@ func TestHuma_DeleteLimit_Success204NoBody(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/limits/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -767,7 +766,7 @@ func TestHuma_DeleteLimit_BadUUID(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/limits/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -792,7 +791,7 @@ func TestHuma_GetLimitUsage_Success(t *testing.T) {
 	app := buildHumaLimitApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/limits/"+id.String()+"/usage", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

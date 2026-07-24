@@ -146,7 +146,7 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateOrganization(tt.payload, c)
 				},
 			)
@@ -289,11 +289,11 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", orgID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateOrganization(tt.payload, c)
 				},
 			)
@@ -418,7 +418,7 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", orgID)
 					return c.Next()
 				},
@@ -816,7 +816,7 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("id", orgID)
 					return c.Next()
 				},
@@ -1354,7 +1354,7 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 		app := fiber.New()
 		app.Post(
 			"/v1/organizations",
-			func(c *fiber.Ctx) error {
+			func(c fiber.Ctx) error {
 				return handler.CreateOrganization(payload, c)
 			},
 		)

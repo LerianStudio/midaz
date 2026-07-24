@@ -427,7 +427,7 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			app := fiber.New()
 			app.Post(
 				"/v1/organizations/:organization_id/holders/:holder_id/instruments",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -594,7 +594,7 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -855,7 +855,7 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			app := fiber.New()
 			app.Patch(
 				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -979,7 +979,7 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -1091,7 +1091,7 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			app := fiber.New()
 			app.Delete(
 				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("related_party_id", relatedPartyID)
@@ -1332,7 +1332,7 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			app := fiber.New()
 			app.Get(
 				"/v1/organizations/:organization_id/instruments",
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},

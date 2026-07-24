@@ -114,10 +114,9 @@ func driveWithError(t *testing.T, err error) (status int, code string) {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          CanonicalFiberErrorHandler,
+		ErrorHandler: CanonicalFiberErrorHandler,
 	})
-	app.Get("/probe", func(c *fiber.Ctx) error { return WithError(c, err) })
+	app.Get("/probe", func(c fiber.Ctx) error { return WithError(c, err) })
 
 	resp, testErr := app.Test(httptest.NewRequest(fiber.MethodGet, "/probe", nil))
 	require.NoError(t, testErr)
@@ -742,15 +741,14 @@ func TestGolden_UnmarshallingStatusInCode(t *testing.T) {
 	// i.e. the dispatcher writes that status onto the fiber response. Read the raw
 	// fasthttp status (app.Test would reject 94 as malformed HTTP).
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          CanonicalFiberErrorHandler,
+		ErrorHandler: CanonicalFiberErrorHandler,
 	})
 
 	var writtenStatus int
 
 	var writtenBody string
 
-	app.Get("/probe", func(c *fiber.Ctx) error {
+	app.Get("/probe", func(c fiber.Ctx) error {
 		dispatchErr := WithError(c, respErr)
 		writtenStatus = c.Response().StatusCode()
 		writtenBody = string(c.Response().Body())
@@ -804,10 +802,9 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New(fiber.Config{
-				DisableStartupMessage: true,
-				ErrorHandler:          CanonicalFiberErrorHandler,
+				ErrorHandler: CanonicalFiberErrorHandler,
 			})
-			app.Get("/probe", func(c *fiber.Ctx) error {
+			app.Get("/probe", func(c fiber.Ctx) error {
 				return fiber.NewError(tc.fiberCode, "escaped error")
 			})
 

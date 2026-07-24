@@ -63,7 +63,7 @@ func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
 	middlewareCalled := false
 	options := &pkgHTTP.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{
-			func(c *fiber.Ctx) error {
+			func(c fiber.Ctx) error {
 				middlewareCalled = true
 				return c.Next()
 			},

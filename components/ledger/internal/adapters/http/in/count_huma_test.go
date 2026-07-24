@@ -39,8 +39,7 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
@@ -49,7 +48,7 @@ func buildHumaCountApp(t *testing.T, handler *TransactionHandler, authOK bool) *
 
 	// Auth shim: stands in for auth.Authorize("midaz","transactions","head"). A
 	// rejected request (authOK=false) must never reach Huma — it returns the ledger 401.
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -85,7 +84,7 @@ func TestHuma_CountTransactions_204WithHeader(t *testing.T) {
 	app := buildHumaCountApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/metrics/count", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -110,7 +109,7 @@ func TestHuma_CountTransactions_AuthPreserved(t *testing.T) {
 	app := buildHumaCountApp(t, handler, false)
 
 	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/metrics/count", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -132,7 +131,7 @@ func TestHuma_CountTransactions_BadStatus_Canonical400(t *testing.T) {
 	app := buildHumaCountApp(t, handler, true)
 
 	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/metrics/count?status=BOGUS", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -158,7 +157,7 @@ func TestHuma_CountTransactions_BadUUID_Canonical400(t *testing.T) {
 
 	_ = ledgerID
 	req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/not-a-uuid/transactions/metrics/count", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
