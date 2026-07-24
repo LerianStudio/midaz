@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TransactionPostedDefinition is the routing contract for

@@ -87,7 +87,7 @@ require (
 	github.com/LerianStudio/lib-commons/v6 v6.2.0-beta.1
 	github.com/LerianStudio/lib-observability/v2 v2.1.0
 	github.com/LerianStudio/lib-service-discovery v1.1.0
-	github.com/LerianStudio/lib-streaming v1.9.0
+	github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/cucumber/godog v0.15.1
@@ -121,7 +121,6 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/LerianStudio/lib-commons/v5 v5.8.0 // indirect
 	github.com/LerianStudio/lib-observability v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

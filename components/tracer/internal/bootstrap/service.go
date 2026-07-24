@@ -20,7 +20,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libsd "github.com/LerianStudio/lib-service-discovery"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"

@@ -6,7 +6,7 @@ package command
 
 import (
 	"github.com/LerianStudio/lib-observability/v2/metrics"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"

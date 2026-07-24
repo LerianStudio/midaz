@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"

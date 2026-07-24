@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge locks the

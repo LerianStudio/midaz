@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 )
 
 // PortfolioDeletedDefinition is the routing contract for portfolio.deleted.
