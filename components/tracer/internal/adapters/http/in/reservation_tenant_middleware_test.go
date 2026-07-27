@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
@@ -36,8 +36,8 @@ func mwStubDB(t *testing.T) dbresolver.DB {
 // records the resolved request context for assertion.
 func newReservationTenantApp(resolver *seamtenant.Resolver, captured *context.Context) *fiber.App {
 	app := fiber.New()
-	app.Post("/v1/reservations", reservationTenantMiddleware(resolver), func(c *fiber.Ctx) error {
-		*captured = c.UserContext()
+	app.Post("/v1/reservations", reservationTenantMiddleware(resolver), func(c fiber.Ctx) error {
+		*captured = c.Context()
 		return c.SendStatus(http.StatusCreated)
 	})
 

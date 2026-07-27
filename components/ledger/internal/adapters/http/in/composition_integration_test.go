@@ -14,11 +14,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
@@ -40,10 +45,6 @@ import (
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // mountCompositionHuma wires the Huma-migrated composition registrar on app,
@@ -175,7 +176,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	// Org/ledger setup for the account leg are created directly through the use
 	// cases on a side app (the onboarding routes are not part of the composition
 	// surface). The composition route itself is mounted on infra.app.
-	infra.app = fiber.New(fiber.Config{DisableStartupMessage: true})
+	infra.app = fiber.New(fiber.Config{})
 	mountCompositionHuma(infra.app, auth, compositionHandler, nil)
 
 	t.Cleanup(func() {
@@ -257,7 +258,7 @@ func (infra *compositionTestInfra) postComposition(t *testing.T, orgID, ledgerID
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(fiber.HeaderAuthorization, "Bearer test-token")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

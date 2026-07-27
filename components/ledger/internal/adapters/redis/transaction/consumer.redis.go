@@ -15,19 +15,20 @@ import (
 	"strings"
 	"time"
 
-	tmvalkey "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/valkey"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 //go:embed scripts/balance_atomic_operation.lua
@@ -720,7 +721,8 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 		// Each group of luaArgsPerOperation (24) values maps to one iteration
 		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
 		// See: scripts/balance_atomic_operation.lua.
-		plan.args = append(plan.args,
+		plan.args = append(
+			plan.args,
 			prefixedInternalKey,        // ARGV[i+0]  → redisBalanceKey
 			isPending,                  // ARGV[i+1]  → isPending
 			transactionStatus,          // ARGV[i+2]  → transactionStatus
@@ -857,7 +859,8 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
 		if balance == nil {
-			logger.Log(ctx, libLog.LevelWarn, "Balance not found in map during snapshot collection",
+			logger.Log(
+				ctx, libLog.LevelWarn, "Balance not found in map during snapshot collection",
 				libLog.String("phase", phase),
 				libLog.String("alias", balanceRedis.Alias),
 				libLog.String("balance_id", balanceRedis.ID),
@@ -945,7 +948,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Lua script executed successfully",
+	logger.Log(
+		ctx, libLog.LevelDebug, "Lua script executed successfully",
 		libLog.String("backup_queue", prefixedKeys[0]),
 		libLog.String("transaction_key", prefixedKeys[1]),
 	)

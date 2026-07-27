@@ -16,9 +16,17 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	operationroute "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
@@ -31,13 +39,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
-	"go.uber.org/mock/gomock"
 )
 
 func TestTransactionHandler_GetTransaction(t *testing.T) {
@@ -278,8 +279,9 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -409,8 +411,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -511,8 +514,9 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -586,8 +590,9 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -674,8 +679,9 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -736,8 +742,9 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -812,8 +819,9 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -902,8 +910,9 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1020,11 +1029,11 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
 		},
 	})
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
 				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
@@ -1032,8 +1041,9 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 		}()
 		return c.Next()
 	})
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1149,8 +1159,9 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1246,11 +1257,11 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
 		},
 	})
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		defer func() {
 			if r := recover(); r != nil {
 				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
@@ -1258,8 +1269,9 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 		}()
 		return c.Next()
 	})
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1367,8 +1379,9 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1429,8 +1442,9 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1542,8 +1556,9 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1651,8 +1666,9 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 	app := fiber.New()
-	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/test/:organization_id/:ledger_id/transactions/:transaction_id/commit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -1709,8 +1725,9 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/json",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/json",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1788,8 +1805,9 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/inflow",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/inflow",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1864,8 +1882,9 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/outflow",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/outflow",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2120,8 +2139,9 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			handler := &TransactionHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/transactions",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/transactions",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2354,8 +2374,9 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Patch("/test/:organization_id/:ledger_id/transactions/:transaction_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -2411,8 +2432,9 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/annotation",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/annotation",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2587,8 +2609,9 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/dsl",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2644,8 +2667,9 @@ func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
 			handler := &TransactionHandler{}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/dsl",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/dsl",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -2967,8 +2991,9 @@ func TestCancelTransaction(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/transactions/:transaction_id/cancel",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
@@ -3038,7 +3063,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	// No TransactionRepo mock -> proves Postgres is never called
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3046,7 +3071,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.Equal(t, 200, resp.StatusCode)
@@ -3087,7 +3112,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3095,7 +3120,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
@@ -3150,7 +3175,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3158,7 +3183,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Response is an error (from SetNX), but the important thing is Find WAS called (fallback worked)
@@ -3201,7 +3226,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3209,7 +3234,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
@@ -3250,7 +3275,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3258,7 +3283,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
@@ -3313,7 +3338,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3321,7 +3346,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but Find WAS called (fallback worked)
@@ -3364,7 +3389,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 		Times(1)
 
 	app := fiber.New()
-	app.Post("/test", func(c *fiber.Ctx) error {
+	app.Post("/test", func(c fiber.Ctx) error {
 		c.Locals("organization_id", orgID)
 		c.Locals("ledger_id", ledgerID)
 		c.Locals("transaction_id", tranID)
@@ -3372,7 +3397,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called

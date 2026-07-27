@@ -2,6 +2,8 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//go:build libsd
+
 package servicediscovery
 
 import (
@@ -12,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,7 +218,7 @@ func TestRunnable_DeregisterErrorSwallowed(t *testing.T) {
 		registeredCh:  make(chan struct{}, 1),
 	}
 	mgr := newStubManager(t, stub)
-	svc := BuildServiceDescriptor("midaz-crm", 4003)
+	svc := BuildServiceDescriptor("midaz-tracer", 4020)
 	recorder := &stubRecorder{}
 
 	sigCtx, cancel := context.WithCancel(context.Background())
@@ -260,7 +262,7 @@ func TestRunnable_NilRecorderNoOp(t *testing.T) {
 	mgr := newStubManager(t, stub)
 	svc := BuildServiceDescriptor("midaz-ledger", 3002)
 
-	r := NewRunnable(mgr, svc, libLog.NewNop(), nil)
+	r := NewRunnable(&Manager{inner: mgr}, svc, libLog.NewNop(), nil)
 
 	sigCtx, cancel := context.WithCancel(context.Background())
 	r.notifyContext = func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
@@ -299,7 +301,7 @@ func TestRunnable_NilManagerNoOp(t *testing.T) {
 // closes the manager exactly once and only after deregistering (deregister
 // before close). goleak guards that the RegisterAsync goroutine is torn down and
 // no goroutine survives Run. This test never calls Resolve, so no watcher is
-// spawned; the boot-time watcher teardown is covered in boot_closer_test.go.
+// spawned; the boot-time watcher teardown is covered in boot_closer_libsd_test.go.
 func TestRunnable_ClosesManagerAfterDeregister(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
@@ -341,7 +343,7 @@ func TestRunnable_ClosesManagerEvenWhenDeregisterFails(t *testing.T) {
 		registeredCh:  make(chan struct{}, 1),
 	}
 	mgr := newStubManager(t, stub)
-	svc := BuildServiceDescriptor("midaz-crm", 4003)
+	svc := BuildServiceDescriptor("midaz-tracer", 4020)
 	recorder := &stubRecorder{}
 
 	sigCtx, cancel := context.WithCancel(context.Background())
@@ -377,8 +379,8 @@ func TestRunnable_NilManagerDoesNotClose(t *testing.T) {
 	assert.Equal(t, 0, stub.closeCalls(), "nil-manager Run must not close anything")
 }
 
-// TestNewRunnable verifies the constructor wires the manager, descriptor,
-// logger, and recorder, leaving notifyContext nil so production uses
+// TestNewRunnable verifies the constructor unwraps the manager and wires the
+// descriptor, logger, and recorder, leaving notifyContext nil so production uses
 // signal.NotifyContext.
 func TestNewRunnable(t *testing.T) {
 	t.Parallel()
@@ -389,7 +391,7 @@ func TestNewRunnable(t *testing.T) {
 	logger := libLog.NewNop()
 	recorder := &stubRecorder{}
 
-	r := NewRunnable(mgr, svc, logger, recorder)
+	r := NewRunnable(&Manager{inner: mgr}, svc, logger, recorder)
 
 	require.NotNil(t, r)
 	assert.Same(t, mgr, r.manager)
@@ -407,7 +409,7 @@ func TestNewRunnable_NilRecorderStoresNop(t *testing.T) {
 	mgr := newStubManager(t, stub)
 	svc := BuildServiceDescriptor("midaz-ledger", 3002)
 
-	r := NewRunnable(mgr, svc, libLog.NewNop(), nil)
+	r := NewRunnable(&Manager{inner: mgr}, svc, libLog.NewNop(), nil)
 
 	require.NotNil(t, r)
 	require.NotNil(t, r.metrics)

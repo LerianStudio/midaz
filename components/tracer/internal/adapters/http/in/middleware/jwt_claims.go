@@ -7,7 +7,7 @@ package middleware
 import (
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 
@@ -19,7 +19,7 @@ const bearerPrefix = "Bearer "
 
 // bearerToken extracts the raw JWT from the Authorization header.
 // Returns empty string when the header is missing or not a Bearer scheme.
-func bearerToken(c *fiber.Ctx) string {
+func bearerToken(c fiber.Ctx) string {
 	header := c.Get(bearerHeader)
 	if header == "" {
 		return ""

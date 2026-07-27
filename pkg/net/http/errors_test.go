@@ -11,11 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // TestWithError_TypedArms_WrappedAndUnwrapped asserts that every typed error arm
@@ -106,7 +107,7 @@ func TestWithError_TypedArms_WrappedAndUnwrapped(t *testing.T) {
 					}
 
 					app := fiber.New()
-					app.Get("/test", func(c *fiber.Ctx) error {
+					app.Get("/test", func(c fiber.Ctx) error {
 						return WithError(c, err)
 					})
 
@@ -187,7 +188,7 @@ func TestWithError_DeclarationOrderWins(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Get("/test", func(c *fiber.Ctx) error {
+			app.Get("/test", func(c fiber.Ctx) error {
 				return WithError(c, tt.err)
 			})
 
@@ -253,7 +254,7 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Get("/test", func(c *fiber.Ctx) error {
+			app.Get("/test", func(c fiber.Ctx) error {
 				return WithError(c, tt.err)
 			})
 
@@ -274,7 +275,7 @@ func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return WithError(c, pkg.EntityNotFoundError{
 			EntityType: "Account",
 			Code:       constant.ErrEntityNotFound.Error(),
@@ -298,7 +299,7 @@ func TestWithError_ValidationError_Returns400(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return WithError(c, pkg.ValidationError{
 			Code:    "0099",
 			Title:   "Validation Error",
@@ -321,7 +322,7 @@ func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return WithError(c, pkg.UnprocessableOperationError{
 			Code:    constant.ErrInsufficientFunds.Error(),
 			Title:   "Insufficient Funds",
@@ -344,7 +345,7 @@ func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return WithError(c, pkg.UnauthorizedError{
 			Code:    "0098",
 			Title:   "Unauthorized",
@@ -367,7 +368,7 @@ func TestWithError_ForbiddenError_Returns403(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New()
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return WithError(c, pkg.ForbiddenError{
 			Code:    "0097",
 			Title:   "Forbidden",

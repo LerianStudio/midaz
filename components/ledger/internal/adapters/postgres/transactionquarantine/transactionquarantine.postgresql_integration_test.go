@@ -29,7 +29,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 
 	"github.com/google/uuid"
@@ -86,7 +87,8 @@ func TestIntegration_Quarantine_Insert_NonJSONPayload(t *testing.T) {
 
 	// Round-trip: the stored bytes must equal what we wrote, verbatim.
 	var got []byte
-	queryErr := db.QueryRowContext(ctx,
+	queryErr := db.QueryRowContext(
+		ctx,
 		`SELECT payload FROM transaction_backup_quarantine WHERE redis_key = $1`,
 		record.RedisKey,
 	).Scan(&got)
@@ -123,7 +125,8 @@ func TestIntegration_Quarantine_Insert_Idempotent(t *testing.T) {
 	require.NoError(t, repo.Insert(ctx, newRecord()), "conflicting re-insert must be a successful no-op")
 
 	var count int
-	require.NoError(t, db.QueryRowContext(ctx,
+	require.NoError(t, db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM transaction_backup_quarantine WHERE redis_key = $1`,
 		redisKey,
 	).Scan(&count))

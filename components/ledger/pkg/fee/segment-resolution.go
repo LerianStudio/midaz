@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 )
 
 // resolveSegmentWaivedAccounts splits a waivedAccounts slice into two groups:

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,15 +37,14 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	apiV1 := f.Group("/v1")
 
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -110,7 +109,7 @@ func TestHuma_CreateTransaction_BadUUID_Canonical400(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"send":{}}`))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -136,7 +135,7 @@ func TestHuma_CreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{not-json`))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -162,7 +161,7 @@ func TestHuma_CreateTransaction_AuthPreserved(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"send":{}}`))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -190,7 +189,7 @@ func TestHuma_StateTransaction_BadUUID_Canonical400(t *testing.T) {
 			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/not-a-uuid/" + op
 			req := httptest.NewRequest(http.MethodPost, url, nil)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -213,7 +212,7 @@ func TestHuma_StateTransaction_AuthPreserved(t *testing.T) {
 			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/" + op
 			req := httptest.NewRequest(http.MethodPost, url, nil)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -234,7 +233,7 @@ func TestHuma_UpdateTransaction_BadUUID_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{"description":"x"}`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -254,7 +253,7 @@ func TestHuma_UpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{not-json`))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -272,7 +271,7 @@ func TestHuma_GetTransaction_BadUUID_Canonical400(t *testing.T) {
 	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/not-a-uuid"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -290,7 +289,7 @@ func TestHuma_GetAllTransactions_AuthPreserved(t *testing.T) {
 	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -310,7 +309,7 @@ func TestHuma_GetAllTransactions_BadQueryParam_Canonical400(t *testing.T) {
 	url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions?limit=not-a-number"
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

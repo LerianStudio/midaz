@@ -7,7 +7,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.26.4 (`go.mod` `go 1.26.4`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v5` v5.8.0; `lib-observability` v1.1.0.
+- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.0.0; `lib-observability/v2` v2.1.0.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
@@ -33,8 +33,8 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 
 ## Dependencies
 
-- lib-commons v5 (`github.com/LerianStudio/lib-commons/v5/commons/...`, currently v5.8.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
-- Observability is a separate module `github.com/LerianStudio/lib-observability`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
+- lib-commons v6 (`github.com/LerianStudio/lib-commons/v6/commons/...`, currently v6.0.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
+- Observability is a separate module `github.com/LerianStudio/lib-observability/v2`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
 - TLS enforcement: the postgres/mongo/redis/rabbitmq constructors enforce TLS by the security tier derived from `ENV_NAME` and refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`). Set in the `.env.example` files; connection-building unit tests set it in their `TestMain`.
 - MongoDB driver: `go.mongodb.org/mongo-driver/v2`. `bson/primitive` is consolidated into `bson` (`bson.ObjectID`, `bson.NewObjectID`). v2 decodes nested documents into `bson.D` (ordered), not `bson.M`; code that type-asserts nested values as `bson.M` must also handle `bson.D` (`bson.D` has no `.Map()`).
 - CRM field encryption (envelope mode): `github.com/hashicorp/vault/api` v1.23.0 (Vault Transit KMS client) and `github.com/tink-crypto/tink-go/v2` v2.7.0 (Tink AEAD + PRF keysets for field encryption / search tokens). See `## CRM Field Encryption / KMS`.
@@ -162,7 +162,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 
 ## HTTP
 
-- HTTP layer runs Huma v2 (OAS 3.1) over Fiber v2: Fiber is the runtime router / auth chain / middleware; Huma sits on top to generate the API contract and validate requests via typed input/output structs. Handlers live in `*_handler_huma.go` files.
+- HTTP layer runs Huma v2 (OAS 3.1) over Fiber v3: Fiber is the runtime router / auth chain / middleware; Huma sits on top to generate the API contract and validate requests via typed input/output structs. Handlers live in `*_handler_huma.go` files.
 - `pkg/net/http` `WithError` serializes the RFC 9457 `application/problem+json` envelope (`type`, `title`, `status`, `detail`, `instance`, plus `code` and `entityType`). The `(code, HTTP status)` money-path tuple is preserved; only the envelope shape changed.
 - All routes use `http.ProtectedRouteChain()`.
 - Route protection includes auth, optional post-auth middlewares, body parsing, UUID path validation, and handler.
@@ -191,7 +191,7 @@ Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.
 - IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. Durability is the outbox's job. CRITICAL events use outbox-only (atomic with DB), no direct emit.
 - Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- lib-streaming is pinned at v1.6.2, which exports Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`). The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`); wire `WithOutboxRepository(repo)` when outbox lands.
+- lib-streaming is pinned at v2.0.0-beta.1, which exports Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`). The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`); wire `WithOutboxRepository(repo)` when outbox lands.
 
 ### Event modeling (`pkg/streaming/events`)
 

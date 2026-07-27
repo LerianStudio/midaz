@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -180,7 +180,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Post("/test", func(c *fiber.Ctx) error {
+			app.Post("/test", func(c fiber.Ctx) error {
 				result := midazErrorMapper(c, tt.err, tt.tenantID)
 				if result != nil {
 					return result
@@ -253,7 +253,7 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 		t.Parallel()
 
 		registrar := func(router fiber.Router) {
-			router.Get("/test", func(c *fiber.Ctx) error {
+			router.Get("/test", func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusNoContent)
 			})
 		}

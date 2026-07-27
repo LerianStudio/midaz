@@ -23,10 +23,10 @@ import (
 	"strings"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -215,7 +215,8 @@ func (c *TracerClient) Reserve(ctx context.Context, req ReserveRequest) (*Reserv
 		return nil, fmt.Errorf("decode reserve response: %w", err)
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Reservation processed",
+	logger.Log(
+		ctx, libLog.LevelDebug, "Reservation processed",
 		libLog.String("transaction_id", req.TransactionID.String()),
 		libLog.Bool("denied", result.Denied),
 		libLog.Int("reservations", len(result.ReservationIDs)),

@@ -11,16 +11,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feehttp "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // readBody drains and unmarshals a JSON response body into a generic map.
@@ -189,7 +190,7 @@ func TestBillingPackageHandler_CreateBillingPackage(t *testing.T) {
 			handler := &BillingPackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/billing-packages", func(c *fiber.Ctx) error {
+			app.Post("/v1/organizations/:organization_id/billing-packages", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.CreateBillingPackage(tt.payload, c)
@@ -307,7 +308,7 @@ func TestBillingPackageHandler_GetAllBillingPackages(t *testing.T) {
 			handler := &BillingPackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/billing-packages", func(c *fiber.Ctx) error {
+			app.Get("/v1/organizations/:organization_id/billing-packages", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.GetAllBillingPackages(c)
@@ -363,7 +364,7 @@ func TestBillingPackageHandler_GetBillingPackageByID(t *testing.T) {
 			handler := &BillingPackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/billing-packages/:id", func(c *fiber.Ctx) error {
+			app.Get("/v1/organizations/:organization_id/billing-packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 
@@ -468,7 +469,7 @@ func TestBillingPackageHandler_UpdateBillingPackage(t *testing.T) {
 			handler := &BillingPackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/billing-packages/:id", func(c *fiber.Ctx) error {
+			app.Patch("/v1/organizations/:organization_id/billing-packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 
@@ -526,7 +527,7 @@ func TestBillingPackageHandler_DeleteBillingPackage(t *testing.T) {
 			handler := &BillingPackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/billing-packages/:id", func(c *fiber.Ctx) error {
+			app.Delete("/v1/organizations/:organization_id/billing-packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 
@@ -674,7 +675,7 @@ func TestBillingCalculateHandler_CalculateBilling(t *testing.T) {
 			handler := &BillingCalculateHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/billing/calculate", func(c *fiber.Ctx) error {
+			app.Post("/v1/organizations/:organization_id/billing/calculate", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.CalculateBilling(tt.payload, c)
@@ -788,7 +789,7 @@ func TestFeeHandler_EstimateFeeCalculation(t *testing.T) {
 			handler := &FeeHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/estimates", func(c *fiber.Ctx) error {
+			app.Post("/v1/organizations/:organization_id/estimates", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.EstimateFeeCalculation(tt.payload, c)
@@ -1018,7 +1019,7 @@ func TestPackageHandler_CreatePackage(t *testing.T) {
 			handler := &PackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/packages", func(c *fiber.Ctx) error {
+			app.Post("/v1/organizations/:organization_id/packages", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.CreatePackage(tt.payload, c)
@@ -1098,7 +1099,7 @@ func TestPackageHandler_GetAllPackages(t *testing.T) {
 			handler := &PackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/packages", func(c *fiber.Ctx) error {
+			app.Get("/v1/organizations/:organization_id/packages", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 
 				return handler.GetAllPackages(c)
@@ -1153,7 +1154,7 @@ func TestPackageHandler_GetPackageByID(t *testing.T) {
 			handler := &PackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/packages/:id", func(c *fiber.Ctx) error {
+			app.Get("/v1/organizations/:organization_id/packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 
@@ -1268,7 +1269,7 @@ func TestPackageHandler_UpdatePackageByID(t *testing.T) {
 			handler := &PackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/packages/:id", func(c *fiber.Ctx) error {
+			app.Patch("/v1/organizations/:organization_id/packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 
@@ -1325,7 +1326,7 @@ func TestPackageHandler_DeletePackageByID(t *testing.T) {
 			handler := &PackageHandler{Service: tt.stub}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/packages/:id", func(c *fiber.Ctx) error {
+			app.Delete("/v1/organizations/:organization_id/packages/:id", func(c fiber.Ctx) error {
 				c.Locals("organization_id", orgUUID)
 				c.Locals("id", id)
 

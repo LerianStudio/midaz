@@ -8,11 +8,17 @@ import (
 	"context"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -20,11 +26,6 @@ import (
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	events "github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // CreatePackage creates a new pack persists data in the repository.

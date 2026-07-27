@@ -12,20 +12,19 @@ import (
 	"os"
 	"strings"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/adaptor/v2"
-	"github.com/gofiber/contrib/otelfiber/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
@@ -45,7 +44,7 @@ import (
 //
 // Caller is responsible for setting the Retry-After header before invoking
 // this helper; the helper only writes status + body.
-func writeTenantCapReached(c *fiber.Ctx) error {
+func writeTenantCapReached(c fiber.Ctx) error {
 	return pkgHTTP.ServiceUnavailable(
 		c,
 		constant.ErrTenantCapReached.Error(),
@@ -63,20 +62,30 @@ type WorkerEnsurer interface {
 	EnsureWorkers(ctx context.Context, tenantID string) error
 }
 
-// defaultCORSOrigins is the restrictive default when CORS_ALLOWED_ORIGINS is not set.
-// This prevents accidental exposure in production. Operators must explicitly configure origins.
-const defaultCORSOrigins = ""
-
-// getCORSAllowedOrigins returns the configured CORS origins or empty string (restrictive).
+// getCORSAllowedOrigins parses the comma-separated CORS_ALLOWED_ORIGINS value
+// into the []string that Fiber v3's cors.Config.AllowOrigins expects, returning
+// nil when unset. An empty AllowOrigins + nil AllowOriginsFunc is treated by the
+// cors middleware as "allow all origins" — the same effect the v2 middleware
+// produced for the empty string, so this conversion preserves behavior.
 // Operators should set CORS_ALLOWED_ORIGINS explicitly:
 // - Production: "https://app.example.com,https://admin.example.com"
 // - Development: "*" (only if explicitly needed)
-func getCORSAllowedOrigins(configured string) string {
+func getCORSAllowedOrigins(configured string) []string {
+	configured = strings.TrimSpace(configured)
 	if configured == "" {
-		return defaultCORSOrigins
+		return nil
 	}
 
-	return configured
+	parts := strings.Split(configured, ",")
+	origins := make([]string, 0, len(parts))
+
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			origins = append(origins, p)
+		}
+	}
+
+	return origins
 }
 
 // RouteConfig holds non-auth configuration for route setup.
@@ -118,16 +127,13 @@ func isReservationPath(path string) bool {
 	return path == reservationPathPrefix || strings.HasPrefix(path, reservationPathPrefix+"/")
 }
 
-// skipTelemetryPaths returns true for paths that should skip detailed telemetry.
-// Health/readiness probes generate high-frequency, low-value spans.
-func skipTelemetryPaths(c *fiber.Ctx) bool {
-	switch c.Path() {
-	case "/health", "/readyz", "/metrics":
-		return true
-	default:
-		return false
-	}
-}
+// skipTelemetryPaths lists the request paths excluded from detailed telemetry.
+// Health/readiness/metrics probes generate high-frequency, low-value spans, so
+// they are handed to lib-observability's WithTelemetry as excluded routes. This
+// is the exact path set the removed OTel-Fiber WithNext predicate skipped;
+// folding it into the telemetry middleware the tracer already installs first
+// matches the ledger's posture (which never used that middleware).
+var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 
 // RoutesDeps bundles every dependency NewRoutes needs. Using a struct keeps
 // the call site readable (13+ positional parameters became unmanageable as the
@@ -190,8 +196,19 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	supervisor := deps.Supervisor
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
+	})
+
+	// Suppress the Fiber startup banner. Fiber v3 dropped the Config-level
+	// startup-message flag; it now lives on ListenConfig, which is owned by the lib-commons ServerManager
+	// on the plaintext path (it calls Listen with no config) and would also need repeating
+	// on the mTLS Listener path. The pre-startup hook is the single seam that silences both
+	// (Listen and Listener both run printMessages → executeOnPreStartupMessageHooks). Mirrors
+	// the ledger's unified-server.go approach.
+	f.Hooks().OnPreStartupMessage(func(data *fiber.PreStartupMessageData) error {
+		data.PreventDefault = true
+
+		return nil
 	})
 	// Check if telemetry should be skipped to avoid data race in lib-commons ContextWithLogger.
 	// The race occurs when multiple goroutines call WithTelemetry concurrently in tests.
@@ -200,10 +217,13 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
 
 	// Middleware order is CRITICAL per Ring Standards:
-	// 1. WithTelemetry - First: injects tracer/logger into context
+	// 1. WithTelemetry - First: injects tracer/logger into context. The health/
+	//    readiness/metrics probe paths are passed as excluded routes so they skip
+	//    detailed telemetry (the responsibility the removed OTel-Fiber WithNext
+	//    predicate used to carry).
 	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
 	if !skipTelemetry {
-		f.Use(tlMid.WithTelemetry(tl))
+		f.Use(tlMid.WithTelemetry(tl, skipTelemetryPaths...))
 	}
 
 	// 2. Recover - Second: captures panics before they propagate
@@ -216,30 +236,25 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// 3. CORS - Third: handles preflight before auth
 	f.Use(cors.New(cors.Config{
 		AllowOrigins:     getCORSAllowedOrigins(cfg.CORSAllowedOrigins),
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-API-Key",
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID", "X-API-Key"},
 		AllowCredentials: false,
 		MaxAge:           3600,
 	}))
 
-	// 4. OTel Fiber - Fourth: HTTP metrics and request tracing
-	f.Use(otelfiber.Middleware(
-		otelfiber.WithNext(skipTelemetryPaths),
-	))
-
-	// 5. Client IP - Fifth: extract and inject client IP into context for audit trail.
+	// 4. Client IP - Fourth: extract and inject client IP into context for audit trail.
 	// XFF is honored only for hops behind the configured trusted proxies; with
 	// none configured the client-controlled header is ignored and the socket
 	// peer IP is recorded.
 	f.Use(middleware.ClientIPMiddlewareWithTrustedProxies(cfg.TrustedProxyCIDRs))
 
-	// 6. HTTP Logging - Sixth: structured request/response logging
+	// 5. HTTP Logging - Fifth: structured request/response logging
 	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
 	if !skipTelemetry {
 		f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
 	}
 
-	// 7. Fault Injection - Seventh: ONLY for integration tests
+	// 6. Fault Injection - Sixth: ONLY for integration tests
 	// Enabled via FAULT_INJECTION_ENABLED=true environment variable.
 	// NEVER enable in production - allows simulating 504/503 errors.
 	f.Use(middleware.FaultInjection())
@@ -280,7 +295,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		// (it would 401 the seam for lacking a Bearer token). Skip the shared
 		// middleware on /v1/reservations* and leave it intact for every other
 		// /v1 user route.
-		api.Use(func(c *fiber.Ctx) error {
+		api.Use(func(c fiber.Ctx) error {
 			if isReservationPath(c.Path()) {
 				return c.Next()
 			}
@@ -302,19 +317,19 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		// surface 503 + Retry-After to the client. Cap events must be visible,
 		// not swallowed.
 		if supervisor != nil {
-			api.Use(func(c *fiber.Ctx) error {
-				tid := tmcore.GetTenantIDContext(c.UserContext())
+			api.Use(func(c fiber.Ctx) error {
+				tid := tmcore.GetTenantIDContext(c.Context())
 				if tid == "" {
 					return c.Next()
 				}
 
-				if err := supervisor.EnsureWorkers(c.UserContext(), tid); err != nil {
+				if err := supervisor.EnsureWorkers(c.Context(), tid); err != nil {
 					if errors.Is(err, workers.ErrTenantCapReached) {
 						lg.With(
 							libLog.String("operation", "routes.lazy_spawn_workers"),
 							libLog.String("tenant_id", tid),
 							libLog.String("error.message", err.Error()),
-						).Log(c.UserContext(), libLog.LevelWarn,
+						).Log(c.Context(), libLog.LevelWarn,
 							"Tenant worker cap reached; responding 503 so client backs off")
 
 						c.Set("Retry-After", tenantCapRetryAfterHeader())
@@ -326,7 +341,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 						libLog.String("operation", "routes.lazy_spawn_workers"),
 						libLog.String("tenant_id", tid),
 						libLog.String("error.message", err.Error()),
-					).Log(c.UserContext(), libLog.LevelWarn,
+					).Log(c.Context(), libLog.LevelWarn,
 						"Failed to ensure workers for tenant; request will proceed but background sync may be unavailable")
 				}
 
@@ -339,7 +354,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// huma.NewError to the org-wide RFC 9457 model; it MUST run before any
 	// huma.Register (runtime + spec-gen) and is idempotent (sync.Once). The Huma
 	// API binds to the SAME /v1 group `api` that carries the tenant middleware —
-	// so the humafiber v2 adapter's ctx (built from c.UserContext()) reaches the
+	// so the humafiber v2 adapter's ctx (built from c.Context()) reaches the
 	// migrated handlers with the tenant/DB intact, no bridge needed.
 	problem.Install()
 

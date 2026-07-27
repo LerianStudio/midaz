@@ -9,12 +9,12 @@ import (
 	"os"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
@@ -41,8 +41,7 @@ const humaSpecPath = "../../../../api/openapi.huma.yaml"
 // runtime — this just reads it offline, no server or DB.
 func buildTracerHumaAPI() huma.API {
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
@@ -91,7 +90,7 @@ func buildTracerHumaAPI() huma.API {
 		TransactionValidation: &TransactionValidationHandler{},
 		Validation:            &ValidationHandler{},
 		Reservation:           &ReservationHandler{},
-		ResTenantMW:           func(c *fiber.Ctx) error { return c.Next() },
+		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
 		AuditEvent:            &AuditEventHandler{},
 	})
 

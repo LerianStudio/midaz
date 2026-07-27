@@ -13,11 +13,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +34,8 @@ import (
 
 // tenantSpyService is a RuleService stub that records the tenant ID it sees on
 // its incoming context. It is the ctx-threading probe: the tenant middleware
-// writes the tenant into c.UserContext(), the humafiber v2 adapter builds the
-// Huma handler ctx from c.UserContext(), the handler passes that ctx to the
+// writes the tenant into c.Context(), the humafiber v2 adapter builds the
+// Huma handler ctx from c.Context(), the handler passes that ctx to the
 // service — so a non-empty capturedTenant proves the whole chain end to end
 // without a ctx bridge.
 type tenantSpyService struct {
@@ -106,7 +106,7 @@ func (s *tenantSpyService) DeleteRule(ctx context.Context, _ uuid.UUID) error {
 // is built with openapi.New over the SAME /v1 group that holds the tenant MW,
 // and RegisterRuleRoutes registers all eight rule ops. The injected tenant
 // stands in for tmmiddleware (which needs a live Tenant Manager); it uses the
-// identical c.SetUserContext(tmctx.ContextWithTenantID(...)) mechanism the real
+// identical c.SetContext(tmctx.ContextWithTenantID(...)) mechanism the real
 // middleware uses at tenant.go:184/225.
 //
 // MUST-NOT-PARALLELIZE (also applies to every 2b copy of this helper): tests
@@ -129,17 +129,16 @@ func buildHumaRuleApp(t *testing.T, svc RuleService, tenantID string) *fiber.App
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -178,7 +177,7 @@ func TestHuma_CreateRule_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -204,10 +203,10 @@ func TestHuma_CreateRule_Success(t *testing.T) {
 	// ruleId is the model.Rule json tag for ID — proves body is model.Rule verbatim.
 	assert.Equal(t, testutil.MustDeterministicUUID(1).String(), got["ruleId"])
 
-	// ctxThreadingProof: the tenant the MW put on c.UserContext() reached the
+	// ctxThreadingProof: the tenant the MW put on c.Context() reached the
 	// service through the Huma handler ctx — no bridge.
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 func TestHuma_GetRule_Success(t *testing.T) {
@@ -229,7 +228,7 @@ func TestHuma_GetRule_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules/"+id.String(), nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -250,7 +249,7 @@ func TestHuma_GetRule_Success(t *testing.T) {
 	assert.Equal(t, id.String(), got["ruleId"])
 
 	assert.Equal(t, "tenant-beta", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 // TestHuma_CreateRule_ValidationError asserts the RFC 9457 error contract is
@@ -276,7 +275,7 @@ func TestHuma_CreateRule_ValidationError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -312,7 +311,7 @@ func TestHuma_GetRule_BadUUID(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-epsilon")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -349,7 +348,7 @@ func TestHuma_CreateRule_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules", bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -385,7 +384,7 @@ func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
 
 	id := testutil.MustDeterministicUUID(3)
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -396,10 +395,10 @@ func TestHuma_ErrorBodyMatchesFiberEnvelope(t *testing.T) {
 	// what every rule Fiber wrapper now does — render classifyServiceError's
 	// canonical error through pkgHTTP.WithError.
 	ref := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
-	ref.Get("/probe", func(c *fiber.Ctx) error {
-		return pkgHTTP.WithError(c, classifyServiceError(trace.SpanFromContext(c.UserContext()), constant.ErrRuleNotFound))
+	ref.Get("/probe", func(c fiber.Ctx) error {
+		return pkgHTTP.WithError(c, classifyServiceError(trace.SpanFromContext(c.Context()), constant.ErrRuleNotFound))
 	})
-	refResp, err := ref.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), -1)
+	refResp, err := ref.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = refResp.Body.Close() }()
 
@@ -437,7 +436,7 @@ func TestHuma_MigratedRoutes_AuthStillEnforced(t *testing.T) {
 		} {
 			app := createTestRouter(t, guardCfg)
 			req := httptest.NewRequest(tc.method, tc.path, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 
@@ -458,7 +457,7 @@ func TestHuma_MigratedRoutes_AuthStillEnforced(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/v1/rules/"+id.String(), nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -495,7 +494,7 @@ func TestHuma_UpdateRule_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -520,7 +519,7 @@ func TestHuma_UpdateRule_BadUUID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/not-a-uuid", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -546,7 +545,7 @@ func TestHuma_UpdateRule_EmptyBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader([]byte("{}")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -571,7 +570,7 @@ func TestHuma_UpdateRule_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/v1/rules/"+id.String(), bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -604,7 +603,7 @@ func TestHuma_ListRules_Success(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=25&status=ACTIVE&sort_by=name&sort_order=asc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -637,7 +636,7 @@ func TestHuma_ListRules_Defaults(t *testing.T) {
 
 	// No query params at all -> SetDefaults() must fill limit + sort.
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -667,7 +666,7 @@ func TestHuma_ListRules_InvalidLimit(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=101", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -696,7 +695,7 @@ func TestHuma_ListRules_NonNumericLimit(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -743,7 +742,7 @@ func TestHuma_ListRules_PresentButEmptyQueryParity(t *testing.T) {
 			app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -776,7 +775,7 @@ func TestHuma_ListRules_PresentButEmptyQueryParity(t *testing.T) {
 			app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -806,7 +805,7 @@ func TestHuma_ActivateRule_Success(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/activate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -829,7 +828,7 @@ func TestHuma_DeactivateRule_Success(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/deactivate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -851,7 +850,7 @@ func TestHuma_DraftRule_Success(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+id.String()+"/draft", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -872,7 +871,7 @@ func TestHuma_ActivateRule_BadUUID(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/not-a-uuid/activate", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -894,7 +893,7 @@ func TestHuma_DeleteRule_Success204NoBody(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -913,7 +912,7 @@ func TestHuma_DeleteRule_BadUUID(t *testing.T) {
 	app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -947,7 +946,7 @@ func TestHuma_ListRules_InvalidEnumParams(t *testing.T) {
 			app := buildHumaRuleApp(t, svc, "tenant-gamma")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules?"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -999,7 +998,7 @@ func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -1038,7 +1037,7 @@ func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaRuleApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -1069,7 +1068,7 @@ func TestHuma_ListRules_RepeatedKeyParity(t *testing.T) {
 func TestHuma_RuleRoutes_SecurityMetadata(t *testing.T) {
 	// NOT parallel: openapi.New over a shared Fiber app mutates process-global
 	// Huma state (libProblem is installed by sibling tests). See buildHumaRuleApp.
-	f := fiber.New(fiber.Config{DisableStartupMessage: true})
+	f := fiber.New(fiber.Config{})
 	api := f.Group("/v1")
 	hAPI := openapi.New(f, api, openapi.Config{Title: "tracer-test", Version: "test", Servers: []string{"/v1"}})
 	RegisterRuleRoutes(hAPI, NewHandler(&tenantSpyService{}))

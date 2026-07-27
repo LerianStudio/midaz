@@ -9,10 +9,14 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeUtils "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
@@ -21,9 +25,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // CalculateFee creates a new pack persists data in the repository.

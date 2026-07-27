@@ -8,16 +8,17 @@ import (
 	"context"
 	"errors"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/google/uuid"
 
 	// GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
 func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {

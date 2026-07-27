@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -173,7 +173,8 @@ func TestWarmUp_ContextCancellation(t *testing.T) {
 		func(_ context.Context, _ string) (any, error) {
 			cancel() // Cancel after first compile
 			return "prog", nil
-		}).Times(1)
+		},
+	).Times(1)
 
 	c := cache.NewRuleCache(clk)
 	_, _, err := cache.WarmUp(ctx, c, mockRepo, mockCompiler, logger, clk)

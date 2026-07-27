@@ -140,7 +140,7 @@ flag.
 Migrations live in `components/tracer/migrations/` as a single numbered sequence (no
 function/schema split — all SQL, including functions and triggers, lives in the same numbered
 `.up.sql` / `.down.sql` pairs and is applied in order). Applied via
-`lib-commons/v5/commons/postgres.Migrator` (wraps `golang-migrate/migrate/v4`). Seeds in
+`lib-commons/v6/commons/postgres.Migrator` (wraps `golang-migrate/migrate/v4`). Seeds in
 `migrations/seeds/` (`make seed`). Validate with `make migrate-version`.
 
 ### Rollback note (tracker table)
@@ -159,7 +159,7 @@ CREATE TABLE schema_migrations_functions (
 ```
 
 > Directory-traversal safety (`os.OpenRoot`) and advisory locking (`pg_advisory_lock`) for
-> migration files are handled by `lib-commons/v5/commons/postgres.Migrator`, the single source
+> migration files are handled by `lib-commons/v6/commons/postgres.Migrator`, the single source
 > of truth for the PostgreSQL migration path. Any future non-PostgreSQL migrator should
 > reproduce those patterns from the deleted `pkg/migration` runner — see git history on
 > `origin/develop`.

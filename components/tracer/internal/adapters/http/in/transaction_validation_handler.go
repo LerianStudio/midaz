@@ -11,10 +11,10 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
@@ -48,8 +48,8 @@ func NewTransactionValidationHandler(service TransactionValidationService) *Tran
 	}
 }
 
-func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) error {
-	result, err := h.getTransactionValidation(c.UserContext(), c.Params("id"))
+func (h *TransactionValidationHandler) GetTransactionValidation(c fiber.Ctx) error {
+	result, err := h.getTransactionValidation(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -93,9 +93,9 @@ func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Cont
 	return result, nil
 }
 
-func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) error {
-	// Fiber binds the query with QueryParser; the shared core owns the rest.
-	response, err := h.listTransactionValidations(c.UserContext(), c.QueryParser)
+func (h *TransactionValidationHandler) ListTransactionValidations(c fiber.Ctx) error {
+	// Fiber binds the query via Bind().Query; the shared core owns the rest.
+	response, err := h.listTransactionValidations(c.Context(), c.Bind().Query)
 	if err != nil {
 		return http.WithError(c, err)
 	}

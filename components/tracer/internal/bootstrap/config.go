@@ -13,17 +13,16 @@ import (
 	"strings"
 	"time"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libMetrics "github.com/LerianStudio/lib-observability/metrics"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	libsd "github.com/LerianStudio/lib-service-discovery"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -1166,7 +1165,7 @@ func initHTTPServer(
 	// Note: NewAuthGuard builds APIKeyAuth which is a Fiber
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber
-	// uses its own request-scoped UserContext that's set per-request).
+	// uses its own request-scoped Context that's set per-request).
 	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
 		APIKey:            cfg.APIKey,
 		APIKeyEnabled:     cfg.APIKeyEnabled,
@@ -1193,7 +1192,7 @@ func initHTTPServer(
 	}
 
 	// Note: NewRoutes wires ReadyzHandler which is a Fiber
-	// handler closure that receives ctx per-request via c.UserContext();
+	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
@@ -1969,9 +1968,9 @@ func metricsFactoryFromTelemetry(telemetry *libOtel.Telemetry) *libMetrics.Metri
 // unless discovery is enabled, upholding the invariant that SD off emits zero
 // SD metrics.
 type serviceDiscoveryWiring struct {
-	manager    *libsd.Manager
+	manager    *pkgsd.Manager
 	enabled    bool
-	descriptor libsd.Service
+	descriptor pkgsd.Descriptor
 	authHost   string
 	recorder   pkgsd.MetricsRecorder
 }
@@ -2002,7 +2001,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *lib
 		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
-	var descriptor libsd.Service
+	var descriptor pkgsd.Descriptor
 
 	if enabled {
 		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)

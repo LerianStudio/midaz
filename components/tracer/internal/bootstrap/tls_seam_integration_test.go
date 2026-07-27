@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	libObsOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObsOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -179,8 +179,8 @@ func startFiberMTLSServer(t *testing.T, cfg *Config, serverTLS *tls.Config) stri
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/health", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	app := fiber.New(fiber.Config{})
+	app.Get("/health", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	hs, err := NewHTTPServer(cfg, app, serverTLS, testutil.NewMockLogger(), &libObsOtel.Telemetry{})
 	require.NoError(t, err)

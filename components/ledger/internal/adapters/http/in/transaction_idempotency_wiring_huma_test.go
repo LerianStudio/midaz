@@ -15,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func TestHuma_CreateTransaction_CanonicalIdempotencyHeaderReachesCore(t *testing
 			req.Header.Set(libConstants.IdempotencyKey, stableKey) // "X-Idempotency"
 			req.Header.Set(libConstants.IdempotencyTTL, customTTLSec)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -190,7 +191,7 @@ func TestHuma_CreateTransaction_IdempotencyTTLDefaultsWhenAbsent(t *testing.T) {
 	req.Header.Set(libConstants.IdempotencyKey, stableKey)
 	// No X-TTL header on purpose.
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -240,7 +241,7 @@ func TestHuma_CreateHolder_CanonicalIdempotencyHeaderReachesCore(t *testing.T) {
 	req.Header.Set(libConstants.IdempotencyKey, stableKey)
 	req.Header.Set(libConstants.IdempotencyTTL, customTTLSec)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

@@ -8,11 +8,12 @@ import (
 	"context"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // noopEmitterReference is a NoopEmitter constructed independently of the

@@ -15,12 +15,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -100,8 +100,8 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 }
 
 // CreateInstrument is a method that creates Instrument information linked with a specified Holder.
-func (handler *InstrumentHandler) CreateInstrument(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) CreateInstrument(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	payload, ok := p.(*mmodel.CreateInstrumentInput)
 	if !ok || payload == nil {
@@ -160,8 +160,8 @@ func (handler *InstrumentHandler) getInstrumentByID(ctx context.Context, organiz
 }
 
 // GetInstrumentByID retrieves Instrument details by a given id
-func (handler *InstrumentHandler) GetInstrumentByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) GetInstrumentByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	id, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
@@ -217,8 +217,8 @@ func (handler *InstrumentHandler) updateInstrument(ctx context.Context, organiza
 }
 
 // UpdateInstrument is a method that updates Instrument information.
-func (handler *InstrumentHandler) UpdateInstrument(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) UpdateInstrument(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -287,8 +287,8 @@ func (handler *InstrumentHandler) deleteInstrument(ctx context.Context, organiza
 }
 
 // DeleteInstrumentByID removes an instrument by a given id
-func (handler *InstrumentHandler) DeleteInstrumentByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) DeleteInstrumentByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	id, err := http.GetUUIDFromLocals(c, "instrument_id")
 	if err != nil {
@@ -375,8 +375,8 @@ func (handler *InstrumentHandler) getAllInstruments(ctx context.Context, organiz
 }
 
 // GetAllInstruments retrieves instruments
-func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) GetAllInstruments(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -418,8 +418,8 @@ func (handler *InstrumentHandler) deleteRelatedParty(ctx context.Context, organi
 }
 
 // DeleteRelatedParty removes a related party from an instrument
-func (handler *InstrumentHandler) DeleteRelatedParty(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *InstrumentHandler) DeleteRelatedParty(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
 	if err != nil {

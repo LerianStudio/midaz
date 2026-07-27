@@ -14,14 +14,15 @@ import (
 	"context"
 	"errors"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // instrumentFailureStatus is the typed partial-failure status surfaced when the
@@ -113,7 +114,8 @@ func (s *Service) CreateHolderAccount(ctx context.Context, organizationID, ledge
 		reason := instrumentFailureReason(err)
 
 		libOpentelemetry.HandleSpanError(span, "Failed to create instrument; account remains persisted", err)
-		logger.Log(ctx, libLog.LevelWarn, "Instrument create failed after account committed; account remains persisted",
+		logger.Log(
+			ctx, libLog.LevelWarn, "Instrument create failed after account committed; account remains persisted",
 			libLog.String("instrument_failure_reason", reason),
 			libLog.Err(err),
 		)

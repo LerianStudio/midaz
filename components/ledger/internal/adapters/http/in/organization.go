@@ -9,19 +9,20 @@ import (
 	"fmt"
 	"os"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -36,7 +37,7 @@ type OrganizationHandler struct {
 // service call, the success log and every organization-specific guard (the list
 // status + name-filter checks and the delete production-environment guard). They
 // take primitive args (parsed UUIDs, raw body payload, the query map) so BOTH
-// transports feed them: the Fiber wrappers pull those from *fiber.Ctx (Locals +
+// transports feed them: the Fiber wrappers pull those from fiber.Ctx (Locals +
 // the WithBody-decoded payload) and the Huma handlers (organization_handler_huma.go)
 // pull them from the request envelope. Every canonical Midaz error the cores return
 // is rendered by the caller — http.WithError on the Fiber path, http.HumaProblem on
@@ -224,15 +225,15 @@ func (handler *OrganizationHandler) countOrganizations(ctx context.Context) (int
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload) and delegates to the shared
 // core. NOTE: the LIVE organization routes are Huma now (see
 // organization_handler_huma.go + RegisterOrganizationRoutesToApp); these Fiber
 // wrappers are not mounted by the unified server.
 
 // CreateOrganization is a method that creates Organization information.
-func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
-	organization, err := handler.createOrganization(c.UserContext(), p.(*mmodel.CreateOrganizationInput))
+func (handler *OrganizationHandler) CreateOrganization(p any, c fiber.Ctx) error {
+	organization, err := handler.createOrganization(c.Context(), p.(*mmodel.CreateOrganizationInput))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -241,13 +242,13 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // UpdateOrganization is a method that updates Organization information.
-func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
+func (handler *OrganizationHandler) UpdateOrganization(p any, c fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	organization, err := handler.updateOrganization(c.UserContext(), id, p.(*mmodel.UpdateOrganizationInput))
+	organization, err := handler.updateOrganization(c.Context(), id, p.(*mmodel.UpdateOrganizationInput))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -256,13 +257,13 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
-func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
+func (handler *OrganizationHandler) GetOrganizationByID(c fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	organization, err := handler.getOrganizationByID(c.UserContext(), id)
+	organization, err := handler.getOrganizationByID(c.Context(), id)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -271,8 +272,8 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 }
 
 // GetAllOrganizations is a method that retrieves all Organizations.
-func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
-	pagination, err := handler.getAllOrganizations(c.UserContext(), c.Queries())
+func (handler *OrganizationHandler) GetAllOrganizations(c fiber.Ctx) error {
+	pagination, err := handler.getAllOrganizations(c.Context(), c.Queries())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -281,13 +282,13 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
-func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
+func (handler *OrganizationHandler) DeleteOrganizationByID(c fiber.Ctx) error {
 	id, err := http.GetUUIDFromLocals(c, "id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if err := handler.deleteOrganization(c.UserContext(), id); err != nil {
+	if err := handler.deleteOrganization(c.Context(), id); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -295,8 +296,8 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 }
 
 // CountOrganizations is a method that returns the total count of organizations.
-func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
-	count, err := handler.countOrganizations(c.UserContext())
+func (handler *OrganizationHandler) CountOrganizations(c fiber.Ctx) error {
+	count, err := handler.countOrganizations(c.Context())
 	if err != nil {
 		return http.WithError(c, err)
 	}

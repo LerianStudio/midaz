@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // DeleteRelatedParty removes a related party from an instrument by ID (hard delete)

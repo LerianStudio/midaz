@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,8 +39,9 @@ func validCursorToken(t *testing.T) string {
 // (mirroring encryption_test.go) and registers the audit handler at a GET route.
 func newAuditTestApp(handler *AuditHandler, orgID string) *fiber.App {
 	app := fiber.New()
-	app.Get("/v1/organizations/:organization_id/protection/audit",
-		func(c *fiber.Ctx) error {
+	app.Get(
+		"/v1/organizations/:organization_id/protection/audit",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", uuid.MustParse(orgID))
 			return c.Next()
 		},

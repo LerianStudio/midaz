@@ -12,10 +12,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,7 @@ import (
 // tenantSpyAuditEventService is an AuditEventService stub that records the tenant
 // ID it sees on its incoming context. It is the ctx-threading probe (see
 // tenantSpyService in rule_handler_huma_test.go): a non-empty capturedTenant
-// proves the tenant the middleware put on c.UserContext() reached the service
+// proves the tenant the middleware put on c.Context() reached the service
 // through the Huma handler ctx with NO bridge. It also captures the filter the
 // core built from the query, so tests can assert the imperative binding/defaults
 // produced the same filter the Fiber QueryParser path would.
@@ -80,17 +80,16 @@ func buildHumaAuditEventApp(t *testing.T, svc AuditEventService, tenantID string
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -125,7 +124,7 @@ func TestHuma_ListAuditEvents_Success(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?event_type=RULE_CREATED&limit=25&sort_by=event_type&sort_order=asc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -143,7 +142,7 @@ func TestHuma_ListAuditEvents_Success(t *testing.T) {
 	assert.True(t, got.HasMore)
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 
 	// Imperative binding + typed-pointer conversion produced the same filter the
 	// Fiber QueryParser path would.
@@ -160,7 +159,7 @@ func TestHuma_ListAuditEvents_Defaults(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -205,7 +204,7 @@ func TestHuma_ListAuditEvents_InvalidEnumParams(t *testing.T) {
 			app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -243,7 +242,7 @@ func TestHuma_ListAuditEvents_InvalidUUIDParam(t *testing.T) {
 			app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -269,7 +268,7 @@ func TestHuma_ListAuditEvents_InvalidDate(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?start_date=invalid-date", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -294,7 +293,7 @@ func TestHuma_ListAuditEvents_InvalidLimit(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?limit=1001", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -320,7 +319,7 @@ func TestHuma_ListAuditEvents_NonNumericLimit(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -358,7 +357,7 @@ func TestHuma_ListAuditEvents_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -382,7 +381,7 @@ func TestHuma_ListAuditEvents_RepeatedKeyParity(t *testing.T) {
 		app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?event_type=garbage&event_type=RULE_CREATED", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -418,7 +417,7 @@ func TestHuma_ListAuditEvents_PresentButEmptyQueryParity(t *testing.T) {
 			app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -443,7 +442,7 @@ func TestHuma_ListAuditEvents_PresentButEmptyQueryParity(t *testing.T) {
 		app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?actor_id=", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -472,7 +471,7 @@ func TestHuma_GetAuditEvent_Success(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-beta")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -494,7 +493,7 @@ func TestHuma_GetAuditEvent_BadUUID(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -518,7 +517,7 @@ func TestHuma_GetAuditEvent_NotFound(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-delta")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -543,7 +542,7 @@ func TestHuma_VerifyHashChain_Success(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+id.String()+"/verify", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -565,7 +564,7 @@ func TestHuma_VerifyHashChain_BadUUID(t *testing.T) {
 	app := buildHumaAuditEventApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/not-a-uuid/verify", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -590,7 +589,7 @@ func TestHuma_AuditEventErrorBodyMatchesFiberEnvelope(t *testing.T) {
 
 	id := testutil.MustDeterministicUUID(3)
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -599,10 +598,10 @@ func TestHuma_AuditEventErrorBodyMatchesFiberEnvelope(t *testing.T) {
 
 	// Reference: the same error through the frozen Fiber envelope.
 	ref := fiber.New(fiber.Config{ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler})
-	ref.Get("/probe", func(c *fiber.Ctx) error {
-		return pkgHTTP.WithError(c, classifyAuditEventError(trace.SpanFromContext(c.UserContext()), constant.ErrAuditEventNotFound))
+	ref.Get("/probe", func(c fiber.Ctx) error {
+		return pkgHTTP.WithError(c, classifyAuditEventError(trace.SpanFromContext(c.Context()), constant.ErrAuditEventNotFound))
 	})
-	refResp, err := ref.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), -1)
+	refResp, err := ref.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = refResp.Body.Close() }()
 

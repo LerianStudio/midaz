@@ -13,18 +13,19 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // fakeCRMIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics,
@@ -87,8 +88,9 @@ func TestHolderHandler_CreateHolder_IdempotentReplay(t *testing.T) {
 	handler := &HolderHandler{Service: uc}
 
 	app := fiber.New()
-	app.Post("/v1/organizations/:organization_id/holders",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/v1/organizations/:organization_id/holders",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			return c.Next()
 		},
@@ -170,8 +172,9 @@ func TestInstrumentHandler_CreateInstrument_IdempotentReplay(t *testing.T) {
 	handler := &InstrumentHandler{Service: uc}
 
 	app := fiber.New()
-	app.Post("/v1/organizations/:organization_id/holders/:holder_id/instruments",
-		func(c *fiber.Ctx) error {
+	app.Post(
+		"/v1/organizations/:organization_id/holders/:holder_id/instruments",
+		func(c fiber.Ctx) error {
 			c.Locals("organization_id", orgUUID)
 			c.Locals("holder_id", holderID)
 			return c.Next()

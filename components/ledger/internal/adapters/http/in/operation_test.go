@@ -12,7 +12,14 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -20,12 +27,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
@@ -268,8 +269,9 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			handler := &OperationHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -422,8 +424,9 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			handler := &OperationHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -628,8 +631,9 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)

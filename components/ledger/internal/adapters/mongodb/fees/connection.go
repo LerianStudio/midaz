@@ -8,8 +8,8 @@ import (
 	"context"
 	"sync"
 
-	base "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	base "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	mg "go.mongodb.org/mongo-driver/v2/mongo"
 )
 

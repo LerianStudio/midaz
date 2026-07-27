@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ import (
 
 // reservationSpyService is a ReservationService stub that records the tenant ID it
 // sees on its incoming ctx AND which action was invoked. It is the ctx-threading
-// probe (tenant from c.UserContext() must reach the service via the Huma handler
+// probe (tenant from c.Context() must reach the service via the Huma handler
 // ctx with no bridge) AND the shell-wiring probe: capturedAction proves each of the
 // four lifecycle shells (ConfirmHuma/ReleaseHuma/ConfirmByTransactionHuma/
 // ReleaseByTransactionHuma) delegates to the right service method with the right
@@ -99,17 +99,16 @@ func buildHumaReservationApp(t *testing.T, svc ReservationService, tenantID stri
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -144,7 +143,7 @@ func TestHuma_Reserve_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", bytes.NewReader(validReserveBody(t)))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -162,7 +161,7 @@ func TestHuma_Reserve_Success(t *testing.T) {
 	assert.Equal(t, testutil.MustDeterministicUUID(1), got.TransactionID)
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 // TestHuma_Reserve_PayloadTooLarge pins the payload-size contract: a body over
@@ -177,7 +176,7 @@ func TestHuma_Reserve_PayloadTooLarge(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", bytes.NewReader([]byte(big)))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -204,7 +203,7 @@ func TestHuma_Reserve_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations", bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -229,7 +228,7 @@ func TestHuma_Confirm_Success(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/"+id.String()+"/confirm", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -257,7 +256,7 @@ func TestHuma_Release_Success(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-beta")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/"+id.String()+"/release", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -284,7 +283,7 @@ func TestHuma_ConfirmByTransaction_Success(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/"+txID.String()+"/confirm", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -313,7 +312,7 @@ func TestHuma_ReleaseByTransaction_Success(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-beta")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/"+txID.String()+"/release", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -342,7 +341,7 @@ func TestHuma_Confirm_BadUUID(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/not-a-uuid/confirm", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -368,7 +367,7 @@ func TestHuma_ConfirmByTransaction_BadUUID(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/transaction/not-a-uuid/confirm", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -394,7 +393,7 @@ func TestHuma_Confirm_NotFound(t *testing.T) {
 	app := buildHumaReservationApp(t, svc, "tenant-delta")
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/reservations/"+id.String()+"/confirm", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

@@ -13,16 +13,17 @@ import (
 	"fmt"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // QuarantineRecord is the durable financial copy of a poison backup-queue
@@ -185,7 +186,8 @@ func (r *QuarantinePostgreSQLRepository) Insert(ctx context.Context, record *Qua
 	// rowsAffected == 0 means the record was already quarantined (ON CONFLICT
 	// DO NOTHING). That is a successful, idempotent outcome: the durable copy
 	// exists, so the caller may safely delete the Redis copy.
-	logger.Log(ctx, libLog.LevelDebug, "Quarantine record persisted",
+	logger.Log(
+		ctx, libLog.LevelDebug, "Quarantine record persisted",
 		libLog.String("redis_key", record.RedisKey),
 		libLog.Int("attempts", record.Attempts),
 	)

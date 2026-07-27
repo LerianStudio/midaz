@@ -12,15 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
-	libsd "github.com/LerianStudio/lib-service-discovery"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
@@ -79,10 +78,12 @@ type Service struct {
 	// whether to register the producer-drain Launcher app.
 	StreamingEnabled bool
 
-	// ServiceDiscovery is the lib-service-discovery Manager. It is always
+	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
-	// invoke Register/Deregister/Resolve unconditionally.
-	ServiceDiscovery *libsd.Manager
+	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager
+	// is a no-op in the default build and wraps lib-service-discovery only under
+	// //go:build libsd (see pkg/servicediscovery TODO(3482)).
+	ServiceDiscovery *pkgsd.Manager
 	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
 	// to register the discovery register/deregister Launcher app.
 	ServiceDiscoveryEnabled bool
@@ -90,7 +91,7 @@ type Service struct {
 	// built at wiring time only when discovery is enabled (so a malformed
 	// SERVER_ADDRESS never aborts boot with discovery off) and reused by the
 	// service-discovery runnable. It is zero-value when discovery is disabled.
-	ServiceDescriptor libsd.Service
+	ServiceDescriptor pkgsd.Descriptor
 	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
 	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
 	// so no SD metrics are emitted with SD off.
@@ -264,7 +265,7 @@ func shouldRegisterStreamingProducer(enabled bool, closeHook func() error) bool 
 // pure predicate: registration happens only when discovery is enabled AND a
 // Manager is present. The disabled path registers nothing so the Launcher app
 // list stays lean and boot parity is preserved.
-func shouldRegisterServiceDiscovery(enabled bool, mgr *libsd.Manager) bool {
+func shouldRegisterServiceDiscovery(enabled bool, mgr *pkgsd.Manager) bool {
 	return enabled && mgr != nil
 }
 

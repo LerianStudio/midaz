@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 )
 
 func newTestMetricsFactory(t *testing.T) *metrics.MetricsFactory {

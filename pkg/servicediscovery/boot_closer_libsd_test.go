@@ -2,6 +2,8 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//go:build libsd
+
 package servicediscovery
 
 import (
@@ -10,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,7 +93,7 @@ func TestBootCloser_ArmedClosesManagerAndReapsWatcher(t *testing.T) {
 	// channel) that only exits when Close cancels the manager base context.
 	_, _ = mgr.Resolve(context.Background(), "plugin-auth", "fallback:4000")
 
-	closer := NewBootCloser(libLog.NewNop(), mgr)
+	closer := NewBootCloser(libLog.NewNop(), &Manager{inner: mgr})
 	closer.CloseOnBootFailure()
 
 	assert.Equal(t, 1, stub.closeCount(), "armed CloseOnBootFailure must close the manager exactly once")
@@ -108,7 +110,7 @@ func TestBootCloser_DisarmedDoesNotClose(t *testing.T) {
 
 	_, _ = mgr.Resolve(context.Background(), "plugin-auth", "fallback:4000")
 
-	closer := NewBootCloser(libLog.NewNop(), mgr)
+	closer := NewBootCloser(libLog.NewNop(), &Manager{inner: mgr})
 	closer.Disarm()
 	closer.CloseOnBootFailure()
 

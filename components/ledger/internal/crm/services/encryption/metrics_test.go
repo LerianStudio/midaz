@@ -9,12 +9,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/lib-observability/metrics"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // exerciseAllMethods calls every protectionMetrics emitter once. It is shared by

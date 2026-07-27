@@ -11,15 +11,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // stubAccountCreator satisfies composition.AccountCreator for handler tests.
@@ -169,9 +170,10 @@ func TestCompositionHandler_CreateHolderAccount(t *testing.T) {
 			// stores them in locals — the same chain the production router runs. The
 			// handler reads org/ledger/holder from those locals; no scoping headers.
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 				http.ParseUUIDPathParameters("holder"),
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateHolderAccount(tt.payload, c)
 				},
 			)
@@ -206,9 +208,10 @@ func TestCompositionHandler_CreateHolderAccount_PayloadAssertion(t *testing.T) {
 	ledgerID := uuid.New()
 
 	app := fiber.New()
-	app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
+	app.Post(
+		"/v1/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts",
 		http.ParseUUIDPathParameters("holder"),
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			// Wrong payload type forces the type-assertion guard.
 			return handler.CreateHolderAccount(&mmodel.CreateAccountInput{}, c)
 		},

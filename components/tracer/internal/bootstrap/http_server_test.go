@@ -7,11 +7,11 @@ package bootstrap
 import (
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )

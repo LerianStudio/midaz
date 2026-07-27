@@ -9,13 +9,14 @@ import (
 	"errors"
 	"fmt"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/shopspring/decimal"
+
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/shopspring/decimal"
 )
 
 // BuildVolumePayload assembles a 1:1 Midaz Transaction for a volume billing package.

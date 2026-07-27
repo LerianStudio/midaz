@@ -12,9 +12,9 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 
-	"github.com/LerianStudio/lib-commons/v5/commons"
-	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	"github.com/gofiber/fiber/v2"
+	"github.com/LerianStudio/lib-commons/v6/commons"
+	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 )
 
@@ -33,7 +33,7 @@ type sanitizeCacheEntry struct {
 // DecodeHandlerFunc is a handler which works with withBody decorator.
 // It receives a struct which was decoded by withBody decorator before.
 // Ex: json -> withBody -> DecodeHandlerFunc.
-type DecodeHandlerFunc func(p any, c *fiber.Ctx) error
+type DecodeHandlerFunc func(p any, c fiber.Ctx) error
 
 // PayloadContextValue is a wrapper type used to keep Context.Locals safe.
 type PayloadContextValue string
@@ -219,7 +219,7 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 
 // FiberHandlerFunc is a method on the decoderHandler struct. It decodes the incoming request's body to a Go struct,
 // validates it, checks for any extraneous fields not defined in the struct, and finally calls the wrapped handler function.
-func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
+func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
 	var s any
 
 	if d.constructor != nil {

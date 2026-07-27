@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -110,7 +110,7 @@ func TestAPIKeyAuth(t *testing.T) {
 			// Setup Fiber app with middleware
 			app := fiber.New()
 			app.Use(APIKeyAuth(tt.config))
-			app.Get("/test", func(c *fiber.Ctx) error {
+			app.Get("/test", func(c fiber.Ctx) error {
 				return c.SendString("success")
 			})
 
@@ -121,7 +121,7 @@ func TestAPIKeyAuth(t *testing.T) {
 			}
 
 			// Execute request
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -200,14 +200,14 @@ func TestAPIKeyAuth_ConstantTimeComparison(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
 			app.Use(APIKeyAuth(tt.config))
-			app.Get("/test", func(c *fiber.Ctx) error {
+			app.Get("/test", func(c fiber.Ctx) error {
 				return c.SendString("success")
 			})
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.Header.Set("X-API-Key", tt.apiKey)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -228,13 +228,13 @@ func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
 
 	app := fiber.New()
 	app.Use(APIKeyAuth(config))
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString("success")
 	})
 
 	// Test missing key
 	reqMissing := httptest.NewRequest(http.MethodGet, "/test", nil)
-	respMissing, err := app.Test(reqMissing, -1)
+	respMissing, err := app.Test(reqMissing, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer respMissing.Body.Close()
 
@@ -244,7 +244,7 @@ func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
 	// Test invalid key
 	reqInvalid := httptest.NewRequest(http.MethodGet, "/test", nil)
 	reqInvalid.Header.Set("X-API-Key", "wrong-key")
-	respInvalid, err := app.Test(reqInvalid, -1)
+	respInvalid, err := app.Test(reqInvalid, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer respInvalid.Body.Close()
 
@@ -283,12 +283,12 @@ func TestMetricAuthFailures_Definition(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // apikeyPrincipalCapture runs APIKeyAuth in front of a probe handler that
-// surfaces the Principal stored in c.UserContext() as JSON so the test can
+// surfaces the Principal stored in c.Context() as JSON so the test can
 // assert on its fields.
 func apikeyPrincipalCapture(cfg APIKeyConfig) *fiber.App {
 	app := fiber.New()
-	app.Get("/test", APIKeyAuth(cfg), func(c *fiber.Ctx) error {
-		p, ok := contextutil.GetPrincipal(c.UserContext())
+	app.Get("/test", APIKeyAuth(cfg), func(c fiber.Ctx) error {
+		p, ok := contextutil.GetPrincipal(c.Context())
 
 		return c.JSON(fiber.Map{
 			"hasPrincipal": ok,
@@ -307,7 +307,7 @@ func TestAPIKeyAuth_Disabled_NoPrincipalStamped(t *testing.T) {
 	app := apikeyPrincipalCapture(APIKeyConfig{Enabled: false})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -325,7 +325,7 @@ func TestAPIKeyAuth_MissingKey_NoPrincipalAnd401(t *testing.T) {
 	app := apikeyPrincipalCapture(APIKeyConfig{Enabled: true, Key: "expected", Label: "tracer-default"})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -340,7 +340,7 @@ func TestAPIKeyAuth_InvalidKey_NoPrincipalAnd401(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(HeaderAPIKey, "wrong")
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -355,7 +355,7 @@ func TestAPIKeyAuth_ValidKey_StampsAPIKeyPrincipal(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(HeaderAPIKey, "secret-key")
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -378,7 +378,7 @@ func TestAPIKeyAuth_BlankLabel_FallsBackToDefault(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(HeaderAPIKey, "secret-key")
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

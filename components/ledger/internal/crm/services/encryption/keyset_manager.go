@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto/tink"

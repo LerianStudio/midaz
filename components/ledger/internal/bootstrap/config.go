@@ -15,24 +15,29 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	tmredis "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/redis"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -43,11 +48,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const ApplicationName = "ledger"
@@ -1057,7 +1057,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
 	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
 		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
 	)
 
@@ -1219,9 +1220,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 // unless discovery is enabled, upholding the invariant that SD off emits zero
 // SD metrics.
 type serviceDiscoveryWiring struct {
-	manager    *libsd.Manager
+	manager    *pkgsd.Manager
 	enabled    bool
-	descriptor libsd.Service
+	descriptor pkgsd.Descriptor
 	authHost   string
 	recorder   pkgsd.MetricsRecorder
 }
@@ -1252,7 +1253,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *met
 		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
-	var descriptor libsd.Service
+	var descriptor pkgsd.Descriptor
 
 	if enabled {
 		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
@@ -1613,7 +1614,8 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
+	logger.Log(
+		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("modules", "onboarding,transaction,crm-api,plugin-fees"),
 	)
 
@@ -1657,7 +1659,7 @@ func buildUnifiedRouteSetup(
 // across all Midaz endpoints (code/title/message JSON envelope).
 //
 //nolint:unused // Will be wired into the multi-tenant middleware error handler.
-func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
+func midazErrorMapper(c fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
 	}

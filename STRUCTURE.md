@@ -158,8 +158,8 @@ Cross-component Go libraries (root module; non-exhaustive — additional package
 
 > Logging, telemetry, tracing, panic recovery, HTTP toolkit, and tenant-manager symbols
 > (`libLog`, `libHTTP`, etc.) come from the external libraries
-> `github.com/LerianStudio/lib-commons/v5` (v5.5.0) and
-> `github.com/LerianStudio/lib-observability` (v1.0.1) — they are **not** subpackages of `./pkg`.
+> `github.com/LerianStudio/lib-commons/v6` (v6.0.0) and
+> `github.com/LerianStudio/lib-observability/v2` (v2.1.0) — they are **not** subpackages of `./pkg`.
 
 #### Miscellaneous
 

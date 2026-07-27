@@ -25,8 +25,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 

@@ -12,10 +12,10 @@ import (
 	"errors"
 	"fmt"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -66,8 +66,8 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 	}, nil
 }
 
-func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
-	result, err := h.validate(c.UserContext(), c.Body())
+func (h *ValidationHandler) Validate(c fiber.Ctx) error {
+	result, err := h.validate(c.Context(), c.Body())
 	if err != nil {
 		return pkgHTTP.WithError(c, err)
 	}

@@ -2,12 +2,14 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//go:build libsd
+
 package servicediscovery
 
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libsd "github.com/LerianStudio/lib-service-discovery"
 )
 
@@ -29,8 +31,13 @@ type BootCloser struct {
 // NewBootCloser returns an armed BootCloser bound to the given manager. Defer
 // CloseOnBootFailure immediately after construction and call Disarm on the
 // success path once the launcher Runnable owns the manager.
-func NewBootCloser(logger libLog.Logger, manager *libsd.Manager) *BootCloser {
-	return &BootCloser{logger: logger, manager: manager, armed: true}
+func NewBootCloser(logger libLog.Logger, manager *Manager) *BootCloser {
+	var inner *libsd.Manager
+	if manager != nil {
+		inner = manager.inner
+	}
+
+	return &BootCloser{logger: logger, manager: inner, armed: true}
 }
 
 // Disarm marks the closer inactive so a subsequent CloseOnBootFailure is a

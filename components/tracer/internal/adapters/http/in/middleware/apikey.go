@@ -9,7 +9,7 @@ import (
 	"crypto/subtle"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -74,7 +74,7 @@ func validateAPIKey(apiKey, expectedKey string) string {
 //   - Never logs the API key value
 //
 // On a successful key match, the middleware stamps a contextutil.Principal of
-// type "api_key" with ID=label onto the Fiber UserContext so the audit writer
+// type "api_key" with ID=label onto the Fiber Context so the audit writer
 // can attribute downstream actions to a specific deployment instead of falling
 // back to the generic "system/svc_tracer" actor.
 //
@@ -88,7 +88,7 @@ func APIKeyAuth(cfg APIKeyConfig) fiber.Handler {
 		label = defaultAPIKeyLabel
 	}
 
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		// Skip authentication if disabled (dev mode)
 		if !cfg.Enabled {
 			return c.Next()
@@ -99,7 +99,7 @@ func APIKeyAuth(cfg APIKeyConfig) fiber.Handler {
 		}
 
 		principal := contextutil.Principal{Type: string(model.ActorTypeAPIKey), ID: label}
-		c.SetUserContext(contextutil.WithPrincipal(c.UserContext(), principal))
+		c.SetContext(contextutil.WithPrincipal(c.Context(), principal))
 
 		return c.Next()
 	}

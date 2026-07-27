@@ -9,12 +9,13 @@ import (
 	"reflect"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // handleSpanByErrorClass records err onto span using the helper appropriate to

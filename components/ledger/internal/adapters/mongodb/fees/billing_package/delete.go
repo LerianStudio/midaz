@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
+
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // SoftDelete performs a soft delete on a billing package entity in MongoDB.

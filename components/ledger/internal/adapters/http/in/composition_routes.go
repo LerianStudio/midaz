@@ -7,9 +7,9 @@ package in
 import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // RegisterCompositionRoutesToApp wires the Huma-migrated holder-account composition
@@ -27,7 +27,7 @@ import (
 func RegisterCompositionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions) {
 	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
 
-	group.Post(path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder"))...)
+	routePost(group, path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder")))
 
 	RegisterCompositionRoutes(api, ch)
 }

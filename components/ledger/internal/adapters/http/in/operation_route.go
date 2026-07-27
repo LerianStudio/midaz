@@ -10,20 +10,21 @@ import (
 	"fmt"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type OperationRouteHandler struct {
@@ -32,8 +33,8 @@ type OperationRouteHandler struct {
 }
 
 // Create an Operation Route.
-func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) CreateOperationRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -117,8 +118,8 @@ func (handler *OperationRouteHandler) createOperationRoute(ctx context.Context, 
 }
 
 // GetOperationRouteByID is a method that retrieves Operation Route information by a given operation route id.
-func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) GetOperationRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -162,8 +163,8 @@ func (handler *OperationRouteHandler) getOperationRouteByID(ctx context.Context,
 }
 
 // UpdateOperationRoute is a method that updates Operation Route information.
-func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -282,8 +283,8 @@ func (handler *OperationRouteHandler) updateOperationRoute(ctx context.Context, 
 }
 
 // DeleteOperationRouteByID is a method that deletes Operation Route information.
-func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) DeleteOperationRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -325,8 +326,8 @@ func (handler *OperationRouteHandler) deleteOperationRouteByID(ctx context.Conte
 }
 
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
-func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationRouteHandler) GetAllOperationRoutes(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

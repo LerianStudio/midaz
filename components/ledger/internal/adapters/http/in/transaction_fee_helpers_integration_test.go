@@ -14,18 +14,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/require"
 )
 
 // ─── HTTP app wiring ─────────────────────────────────────────────────────────
@@ -42,9 +43,9 @@ var debugFunnelLogs = false
 func (h *feeHarness) newApp() *fiber.App {
 	app := fiber.New()
 
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		if debugFunnelLogs {
-			c.SetUserContext(libObservability.ContextWithLogger(c.UserContext(), &libLog.GoLogger{Level: libLog.LevelDebug}))
+			c.SetContext(libObservability.ContextWithLogger(c.Context(), &libLog.GoLogger{Level: libLog.LevelDebug}))
 		}
 		if v := c.Params("organization_id"); v != "" {
 			id, _ := uuid.Parse(v)
@@ -98,7 +99,7 @@ func (h *feeHarness) post(t *testing.T, app *fiber.App, path, body string, heade
 		req.Header.Set(k, v)
 	}
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request failed")
 
 	rb, err := io.ReadAll(resp.Body)

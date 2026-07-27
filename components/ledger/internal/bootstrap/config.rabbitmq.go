@@ -11,22 +11,23 @@ import (
 	"strings"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	tmconsumer "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/consumer"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // shouldUseBulkMode determines if bulk processing should be used for RabbitMQ message consumption.
@@ -45,7 +46,8 @@ func shouldUseBulkMode(cfg *Config) bool {
 func logBulkConfiguration(ctx context.Context, logger libLog.Logger, cfg *Config) {
 	bulkMode := shouldUseBulkMode(cfg)
 
-	logger.Log(ctx, libLog.LevelInfo, "Bulk recorder configuration",
+	logger.Log(
+		ctx, libLog.LevelInfo, "Bulk recorder configuration",
 		libLog.Bool("bulk_mode_active", bulkMode),
 		libLog.Bool("rabbitmq_transaction_async", cfg.RabbitMQTransactionAsync),
 		libLog.Bool("bulk_recorder_enabled", cfg.BulkRecorderEnabled),
@@ -55,7 +57,8 @@ func logBulkConfiguration(ctx context.Context, logger libLog.Logger, cfg *Config
 	)
 
 	if bulkMode {
-		logger.Log(ctx, libLog.LevelInfo, "Bulk mode is ACTIVE: messages will be accumulated and processed in batches",
+		logger.Log(
+			ctx, libLog.LevelInfo, "Bulk mode is ACTIVE: messages will be accumulated and processed in batches",
 			libLog.Int("bulk_size", cfg.BulkRecorderSize),
 			libLog.Int("flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
 		)
@@ -299,7 +302,8 @@ func initSingleTenantRabbitMQ(
 
 	// Producer connection
 	rabbitSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost,
+	)
 
 	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
@@ -393,7 +397,8 @@ func initSingleTenantRabbitMQ(
 	rmq.wireConsumer = func(useCase *command.UseCase) error {
 		rabbitConsumerSource := buildRabbitMQConnectionString(
 			cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass,
-			cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
+			cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost,
+		)
 
 		rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
 			ConnectionStringSource: rabbitConsumerSource,
@@ -425,7 +430,8 @@ func initSingleTenantRabbitMQ(
 				FlushTimeout: time.Duration(cfg.BulkRecorderFlushTimeoutMs) * time.Millisecond,
 			})
 
-			logger.Log(context.Background(), libLog.LevelInfo, "Bulk mode configured for consumer",
+			logger.Log(
+				context.Background(), libLog.LevelInfo, "Bulk mode configured for consumer",
 				libLog.Int("bulk_size", cfg.BulkRecorderSize),
 				libLog.Int("flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
 			)

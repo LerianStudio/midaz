@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,7 +46,7 @@ func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
 
 			for _, p := range specPaths {
 				req := httptest.NewRequest(http.MethodGet, p, nil)
-				resp, err := app.Test(req, -1)
+				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 				require.NoError(t, err)
 				require.NoError(t, resp.Body.Close())
 

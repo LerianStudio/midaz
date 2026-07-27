@@ -10,7 +10,7 @@ Universal entry point for any AI coding agent working on the Tracer codebase.
 - **Architecture**: Hexagonal Architecture (Ports & Adapters) + CQRS
 - **Database**: PostgreSQL 17
 - **Rule Engine**: Google CEL (cel-go v0.28.1) with in-memory cache
-- **Auth**: lib-auth/v2 (v2.8.0) (API Key + Access Manager plugin)
+- **Auth**: lib-auth/v3 (v3.0.0) (API Key + Access Manager plugin)
 - **License**: Elastic License 2.0
 
 ## Quick Start

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -150,7 +150,7 @@ func TestRoutes_SingleTenant_NoTenantMiddleware(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			resp, err := router.app.Test(req, -1)
+			resp, err := router.app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 
@@ -188,7 +188,7 @@ func TestRoutes_MultiTenant_PublicEndpointsBypass(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			// Explicitly NO Authorization or X-API-Key headers.
-			resp, err := router.app.Test(req, -1)
+			resp, err := router.app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 
@@ -217,7 +217,7 @@ func TestRoutes_MultiTenant_ProtectedRequiresAuth(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/validations", nil)
 	// Deliberately no X-API-Key or Authorization header.
-	resp, err := router.app.Test(req, -1)
+	resp, err := router.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
@@ -264,7 +264,7 @@ func TestRoutes_MultiTenant_MiddlewareDisabledWhenPgManagerNil(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/rules", nil)
 	req.Header.Set("X-API-Key", testAPIKey)
-	resp, err := router.app.Test(req, -1)
+	resp, err := router.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 

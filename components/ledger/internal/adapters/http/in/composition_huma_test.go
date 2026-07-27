@@ -12,9 +12,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,15 +42,14 @@ func buildHumaCompositionApp(t *testing.T, handler *CompositionHandler, authOK b
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	libProblem.Install()
 
 	apiV1 := f.Group("/v1")
 
-	apiV1.Use(func(c *fiber.Ctx) error {
+	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
 			return pkgHTTP.Unauthorized(c, "0001", "Unauthorized", "auth required")
 		}
@@ -102,7 +101,7 @@ func TestHuma_CreateHolderAccount_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, compositionURL(orgID, ledgerID, holderID), bytes.NewReader(validCompositionBody()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -134,7 +133,7 @@ func TestHuma_CreateHolderAccount_AuthPreserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, compositionURL(orgID, ledgerID, holderID), bytes.NewReader(validCompositionBody()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -157,7 +156,7 @@ func TestHuma_CreateHolderAccount_ValidationError_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, compositionURL(orgID, ledgerID, holderID), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -185,7 +184,7 @@ func TestHuma_CreateHolderAccount_MalformedBody_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, compositionURL(orgID, ledgerID, holderID), bytes.NewReader([]byte("{not valid json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -215,7 +214,7 @@ func TestHuma_CreateHolderAccount_BadUUID_Canonical400(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, url, bytes.NewReader(validCompositionBody()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -247,7 +246,7 @@ func TestHuma_CreateHolderAccount_BusinessError_Preserved(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, compositionURL(orgID, ledgerID, holderID), bytes.NewReader(validCompositionBody()))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

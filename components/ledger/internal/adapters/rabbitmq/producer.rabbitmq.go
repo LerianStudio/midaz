@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

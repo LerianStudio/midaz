@@ -9,16 +9,17 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 func TestCreateHolder(t *testing.T) {

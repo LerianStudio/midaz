@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	libZap "github.com/LerianStudio/lib-observability/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -114,7 +114,8 @@ func SetupTestDBSuite(m *testing.M, opts ...Option) int {
 
 // startPostgres creates a throwaway PostgreSQL container.
 func startPostgres(ctx context.Context) (*postgres.PostgresContainer, string, string, string, error) {
-	container, err := postgres.Run(ctx,
+	container, err := postgres.Run(
+		ctx,
 		"postgres:16-alpine",
 		postgres.WithDatabase(testDBName),
 		postgres.WithUsername("tracer"),

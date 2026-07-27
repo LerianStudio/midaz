@@ -10,20 +10,21 @@ import (
 	"os"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/vmihailenco/msgpack/v5"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type MultiQueueConsumer struct {
@@ -187,7 +188,8 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 		recordBulkOTelMetrics(ctx, metricsFactory, result, payloads, duration)
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "Bulk processing completed successfully",
+	logger.Log(
+		ctx, libLog.LevelDebug, "Bulk processing completed successfully",
 		libLog.Int("payload_count", len(payloads)),
 		libLog.Any("transactions_attempted", result.TransactionsAttempted),
 		libLog.Any("transactions_inserted", result.TransactionsInserted),

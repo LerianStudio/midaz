@@ -291,7 +291,7 @@ tracer/
 | Layer                | Technology                  | Purpose                                   |
 |----------------------|-----------------------------|-------------------------------------------|
 | **Language**         | Go 1.26.4                   | Performance, concurrency, static typing   |
-| **HTTP Framework**   | Fiber v2.52.13              | Fast, Express-like API framework          |
+| **HTTP Framework**   | Fiber v3.4.0                | Fast, Express-like API framework          |
 | **Database**         | PostgreSQL 17               | ACID transactions, JSON support           |
 | **Expression Engine**| CEL (google/cel-go v0.28.1) | Type-safe rule evaluation                 |
 | **Observability**    | OpenTelemetry + Jaeger      | Distributed tracing                       |

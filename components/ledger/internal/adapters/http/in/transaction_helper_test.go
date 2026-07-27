@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -66,8 +66,8 @@ func TestReadPathParams(t *testing.T) {
 		transactionID := uuid.New()
 
 		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
+		app.Get("/scope", func(c fiber.Ctx) error {
+			c.SetContext(context.Background())
 			c.Locals("organization_id", organizationID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
@@ -99,7 +99,7 @@ func TestReadPathParams(t *testing.T) {
 		ledgerID := uuid.New()
 
 		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
+		app.Get("/scope", func(c fiber.Ctx) error {
 			c.Locals("organization_id", organizationID)
 			c.Locals("ledger_id", ledgerID)
 

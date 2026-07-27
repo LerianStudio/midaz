@@ -9,20 +9,21 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // AuditHandler handles HTTP requests for protection audit event queries.
@@ -69,13 +70,13 @@ var allowedAuditOutcomes = map[string]struct{}{
 }
 
 // GetAuditEvents handles the retrieval of protection audit events for an organization.
-func (handler *AuditHandler) GetAuditEvents(c *fiber.Ctx) error {
+func (handler *AuditHandler) GetAuditEvents(c fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	envelope, err := handler.getAuditEvents(c.UserContext(), organizationID, c.Queries())
+	envelope, err := handler.getAuditEvents(c.Context(), organizationID, c.Queries())
 	if err != nil {
 		return http.WithError(c, err)
 	}

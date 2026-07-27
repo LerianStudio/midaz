@@ -12,12 +12,15 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -26,8 +29,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
-	"github.com/gofiber/fiber/v2"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
@@ -984,7 +985,7 @@ func (handler *TransactionHandler) buildStandardOp(
 }
 
 // createTransaction is the transport-neutral create core. It is called by BOTH the
-// Fiber wrappers (which read the path params + idempotency headers off *fiber.Ctx and
+// Fiber wrappers (which read the path params + idempotency headers off fiber.Ctx and
 // write the response) and the Huma shells (which read them off the request envelope and
 // project onto the typed Out). It returns the built transaction and the idempotency
 // `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
@@ -1002,12 +1003,12 @@ func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, 
 }
 
 // createTransactionFiber is the Fiber transport adapter: it reads the path params and
-// idempotency key/TTL off *fiber.Ctx, delegates to the transport-neutral core, projects
+// idempotency key/TTL off fiber.Ctx, delegates to the transport-neutral core, projects
 // the replayed flag onto the X-Idempotency-Replayed response header, and writes the
 // created transaction (or the canonical error). It preserves the exact Fiber-path
 // behavior the four create wrappers relied on before the Huma migration.
-func (handler *TransactionHandler) createTransactionFiber(c *fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	ctx := c.UserContext()
+func (handler *TransactionHandler) createTransactionFiber(c fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
+	ctx := c.Context()
 
 	params, err := readPathParams(c)
 	if err != nil {

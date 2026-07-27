@@ -12,10 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 )
 

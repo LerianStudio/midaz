@@ -13,6 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
@@ -20,11 +26,6 @@ import (
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestInstrumentEntityFieldContract locks the R43 contract: the typed business
@@ -424,8 +425,9 @@ func TestInstrumentHandler_CreateInstrument(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/holders/:holder_id/instruments",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/holders/:holder_id/instruments",
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -590,8 +592,9 @@ func TestInstrumentHandler_GetInstrumentByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -850,8 +853,9 @@ func TestInstrumentHandler_UpdateInstrument(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -973,8 +977,9 @@ func TestInstrumentHandler_DeleteInstrumentByID(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id",
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("organization_id", orgUUID)
@@ -1084,8 +1089,9 @@ func TestInstrumentHandler_DeleteRelatedParty(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id/related-parties/:related_party_id",
+				func(c fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Locals("instrument_id", instrumentID)
 					c.Locals("related_party_id", relatedPartyID)
@@ -1324,8 +1330,9 @@ func TestInstrumentHandler_GetAllInstruments(t *testing.T) {
 			handler := &InstrumentHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/instruments",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/instruments",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},

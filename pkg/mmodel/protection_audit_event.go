@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/google/uuid"
 )
 
 // AuditEventType classifies the kind of protection operation being audited.

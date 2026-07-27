@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	"github.com/shopspring/decimal"
 )
 

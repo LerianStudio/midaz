@@ -23,11 +23,12 @@ import (
 	"context"
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // =============================================================================

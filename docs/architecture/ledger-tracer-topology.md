@@ -202,7 +202,7 @@ and the insecure default is gated off (`len(conf.dialOptions)==0`) so it cannot 
 **ledger's** client leaf (`tracer/config.go:68-72`, `tls_seam.go:83-86`).
 
 **Rotation / hot-reload:** both sides load their cert/key through the lib-commons
-`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v5/commons/certificate"`, both
+`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v6/commons/certificate"`, both
 `tls_seam.go:14`). The seam therefore inherits **cert rotation without restart**: the ledger serves the
 latest cert via `GetClientCertificate → certManager.TLSCertificate()`
 (`ledger/tls_seam.go:82-102`), the tracer via `GetCertificate → certManager.GetCertificateFunc()`

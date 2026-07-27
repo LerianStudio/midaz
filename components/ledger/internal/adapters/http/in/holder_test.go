@@ -14,6 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services"
@@ -21,11 +27,6 @@ import (
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestHolderHandler_CreateHolder(t *testing.T) {
@@ -274,8 +275,9 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/holders",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/holders",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},
@@ -432,8 +434,9 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/holders/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -607,8 +610,9 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/holders/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("patchRemove", []string{})
 					c.Locals("organization_id", orgUUID)
@@ -795,8 +799,9 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/holders/:id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/holders/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
@@ -1094,8 +1099,9 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			handler := &HolderHandler{Service: uc}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/holders",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/holders",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgUUID)
 					return c.Next()
 				},

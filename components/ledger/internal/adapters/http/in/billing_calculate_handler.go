@@ -9,16 +9,16 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
 	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	commonsHttp "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -35,8 +35,8 @@ type BillingCalculateHandler struct {
 }
 
 // CalculateBilling performs a billing calculation for the given request.
-func (handler *BillingCalculateHandler) CalculateBilling(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *BillingCalculateHandler) CalculateBilling(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

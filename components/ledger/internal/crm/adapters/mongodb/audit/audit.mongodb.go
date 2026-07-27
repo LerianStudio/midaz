@@ -12,20 +12,21 @@ import (
 	"strings"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // auditCollection is the single shared collection for protection audit events.
@@ -194,7 +195,8 @@ func containsForbiddenContent(event *mmodel.ProtectionAuditEvent) bool {
 	candidates := []string{event.Reason}
 
 	if event.Details != nil {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			event.Details.ProviderReference,
 			event.Details.ErrorCode,
 			event.Details.PreviousStatus,
@@ -362,7 +364,8 @@ func (r *MongoDBRepository) FindByOrganization(ctx context.Context, organization
 
 	span.SetAttributes(attribute.Int("db.rows_returned", len(events)))
 
-	logger.Log(ctx, libLog.LevelDebug, "audit events queried",
+	logger.Log(
+		ctx, libLog.LevelDebug, "audit events queried",
 		libLog.Int("rows_returned", len(events)),
 		libLog.Bool("has_next_page", pagination.Next != ""),
 		libLog.Bool("has_prev_page", pagination.Prev != ""),

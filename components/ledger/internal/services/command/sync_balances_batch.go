@@ -7,15 +7,16 @@ package command
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/google/uuid"
+
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction/balance"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // SyncBalancesBatchResult holds the result of a batch sync operation.
@@ -232,7 +233,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	result.KeysRemoved = removed
 
-	logger.Log(ctx, libLog.LevelDebug, "SyncBalancesBatch completed",
+	logger.Log(
+		ctx, libLog.LevelDebug, "SyncBalancesBatch completed",
 		libLog.Int("processed", result.KeysProcessed),
 		libLog.Int("aggregated", result.BalancesAggregated),
 		libLog.Int("synced", int(result.BalancesSynced)),

@@ -10,15 +10,16 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 )
 
 // testLogger is initialized once for all tests to avoid race conditions

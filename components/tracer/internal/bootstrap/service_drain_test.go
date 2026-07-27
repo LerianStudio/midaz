@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +23,7 @@ import (
 func newDrainTestService(t *testing.T, cfg *Config) (*Service, *in.HealthChecker) {
 	t.Helper()
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{})
 	logger := libLog.NewNop()
 	tel := libOtel.Telemetry{}
 
@@ -114,7 +114,7 @@ func TestService_Shutdown_RespectsParentContext(t *testing.T) {
 // healthChecker (defensive — should not panic). Belt-and-braces for paths
 // that build a partial Service in tests.
 func TestService_Shutdown_NoHealthChecker(t *testing.T) {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{})
 	logger := libLog.NewNop()
 	tel := libOtel.Telemetry{}
 

@@ -5,10 +5,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 const (
@@ -83,12 +84,12 @@ func RegisterAssetRoutesToApp(group fiber.Router, api huma.API, auth *middleware
 
 	parse := http.ParseUUIDPathParameters("asset")
 
-	group.Post(listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse)...)
-	group.Patch(idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse)...)
-	group.Get(listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse)...)
-	group.Delete(idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse)...)
-	group.Head(countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse)...)
+	routePost(group, listPath, protectedMidaz(auth, "assets", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "assets", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "assets", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "assets", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, "assets", "head", routeOptions, parse))
 
 	RegisterAssetRoutes(api, ih)
 }
@@ -116,16 +117,16 @@ func RegisterBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 
 	parse := http.ParseUUIDPathParameters("balance")
 
-	group.Get(balancesPath, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Get(balanceIDPath, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Patch(balanceIDPath, protectedMidaz(auth, "balances", "patch", routeOptions, parse)...)
-	group.Delete(balanceIDPath, protectedMidaz(auth, "balances", "delete", routeOptions, parse)...)
-	group.Get(balanceHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Get(acctBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Post(acctBalances, protectedMidaz(auth, "balances", "post", routeOptions, parse)...)
-	group.Get(acctHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Get(aliasBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
-	group.Get(codeBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse)...)
+	routeGet(group, balancesPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, balanceIDPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routePatch(group, balanceIDPath, protectedMidaz(auth, "balances", "patch", routeOptions, parse))
+	routeDelete(group, balanceIDPath, protectedMidaz(auth, "balances", "delete", routeOptions, parse))
+	routeGet(group, balanceHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, acctBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routePost(group, acctBalances, protectedMidaz(auth, "balances", "post", routeOptions, parse))
+	routeGet(group, acctHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, aliasBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, codeBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
 
 	RegisterBalanceRoutes(api, bh)
 }
@@ -147,11 +148,11 @@ func RegisterOperationRoutesToApp(group fiber.Router, api huma.API, auth *middle
 	parse := http.ParseUUIDPathParameters("operation")
 
 	// Two READ ops — ("operations","get").
-	group.Get(listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse)...)
+	routeGet(group, listPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "operations", "get", routeOptions, parse))
 
 	// PATCH (money-write leg) — ("operations","patch").
-	group.Patch(patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse)...)
+	routePatch(group, patchPath, protectedMidaz(auth, "operations", "patch", routeOptions, parse))
 
 	RegisterOperationRoutes(api, oh)
 }
@@ -165,7 +166,7 @@ func RegisterCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	parse := http.ParseUUIDPathParameters("transaction")
 
-	group.Head(countPath, protectedMidaz(auth, "transactions", "head", routeOptions, parse)...)
+	routeHead(group, countPath, protectedMidaz(auth, "transactions", "head", routeOptions, parse))
 
 	RegisterCountTransactionRoutes(api, th)
 }
@@ -188,24 +189,24 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	parse := http.ParseUUIDPathParameters("transaction")
 
 	// Six CREATE ops — ("transactions","post").
-	group.Post(listPath+"/json", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(listPath+"/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(listPath+"/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(listPath+"/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(listPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(listPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
+	routePost(group, listPath+"/json", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 
 	// Three STATE ops (id-only, bodiless) — ("transactions","post").
-	group.Post(idPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(idPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
-	group.Post(idPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse)...)
+	routePost(group, idPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 
 	// PATCH — ("transactions","patch").
-	group.Patch(idPath, protectedMidaz(auth, "transactions", "patch", routeOptions, parse)...)
+	routePatch(group, idPath, protectedMidaz(auth, "transactions", "patch", routeOptions, parse))
 
 	// Two READ ops — ("transactions","get").
-	group.Get(idPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse)...)
-	group.Get(listPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse)...)
+	routeGet(group, idPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
 
 	RegisterTransactionRoutes(api, th)
 }
@@ -222,11 +223,11 @@ func RegisterOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 
 	parse := http.ParseUUIDPathParameters("operation_route")
 
-	group.Post(listPath, protectedRouting(auth, "operation-routes", "post", routeOptions, parse)...)
-	group.Get(listPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse)...)
-	group.Patch(idPath, protectedRouting(auth, "operation-routes", "patch", routeOptions, parse)...)
-	group.Delete(idPath, protectedRouting(auth, "operation-routes", "delete", routeOptions, parse)...)
+	routePost(group, listPath, protectedRouting(auth, "operation-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedRouting(auth, "operation-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedRouting(auth, "operation-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedRouting(auth, "operation-routes", "delete", routeOptions, parse))
 
 	RegisterOperationRouteRoutes(api, orh)
 }
@@ -243,11 +244,11 @@ func RegisterTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	parse := http.ParseUUIDPathParameters("transaction_route")
 
-	group.Post(listPath, protectedRouting(auth, "transaction-routes", "post", routeOptions, parse)...)
-	group.Get(listPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse)...)
-	group.Patch(idPath, protectedRouting(auth, "transaction-routes", "patch", routeOptions, parse)...)
-	group.Delete(idPath, protectedRouting(auth, "transaction-routes", "delete", routeOptions, parse)...)
+	routePost(group, listPath, protectedRouting(auth, "transaction-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedRouting(auth, "transaction-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedRouting(auth, "transaction-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedRouting(auth, "transaction-routes", "delete", routeOptions, parse))
 
 	RegisterTransactionRouteRoutes(api, trh)
 }
@@ -265,7 +266,7 @@ func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient,
 	// ParseUUIDPathParameters ("transaction") chains are attached on the /v1 group by
 	// RegisterTransactionHumaRoutesToApp, called from the unified server's humaMount. The
 	// (appName, resource, verb) tuples are preserved byte-for-byte there.
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)...)
+	routePost(f, "/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL))
 
 	// Transaction-count HEAD — Wave-2 MIGRATED TO HUMA (see RegisterCountTransactionRoutesToApp).
 	// The metrics/count HEAD op no longer registers inline here; its terminal lives on the
@@ -313,4 +314,42 @@ func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeO
 
 func protectedRouting(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(routingName, resource, action), routeOptions, handlers...)
+}
+
+// registerRoute registers a protected handler chain on a Fiber v3 router. Fiber
+// v3's route methods take (handler any, handlers ...any) and a []fiber.Handler
+// cannot be spread into ...any, so the chain is split across the fixed first
+// handler and the variadic tail. The chain always carries at least the auth
+// handler, so index 0 is safe.
+func registerRoute(r fiber.Router, method, path string, chain []fiber.Handler) {
+	tail := make([]any, len(chain)-1)
+	for i, h := range chain[1:] {
+		tail[i] = h
+	}
+
+	r.Add([]string{method}, path, chain[0], tail...)
+}
+
+func routePost(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPost, path, chain)
+}
+
+func routeGet(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodGet, path, chain)
+}
+
+func routePatch(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPatch, path, chain)
+}
+
+func routePut(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPut, path, chain)
+}
+
+func routeDelete(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodDelete, path, chain)
+}
+
+func routeHead(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodHead, path, chain)
 }

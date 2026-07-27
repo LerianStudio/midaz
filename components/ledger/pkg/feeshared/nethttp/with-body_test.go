@@ -9,13 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Test structs for testing
@@ -1220,7 +1221,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Valid JSON body",
 			body:       `{"name": "test"}`,
 			structType: &simpleTestStruct{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				s := p.(*simpleTestStruct)
 				assert.Equal(t, "test", s.Name)
 				return c.SendStatus(fiber.StatusOK)
@@ -1232,7 +1233,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Invalid JSON body",
 			body:       `{"name": "test", invalid json}`,
 			structType: &testStruct{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			},
 			wantErr:        true,
@@ -1242,7 +1243,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Unknown fields",
 			body:       `{"name": "test", "unknown": "field"}`,
 			structType: &testStruct{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			},
 			wantErr:        true,
@@ -1252,7 +1253,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Validation error",
 			body:       `{"name": "", "email": "invalid-email"}`,
 			structType: &testStructWithValidation{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			},
 			wantErr:        true,
@@ -1262,7 +1263,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Handler error",
 			body:       `{"name": "test"}`,
 			structType: &simpleTestStruct{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				return fiber.NewError(fiber.StatusInternalServerError, "handler error")
 			},
 			wantErr:        true,
@@ -1272,7 +1273,7 @@ func TestWithBody_FiberHandlerFunc(t *testing.T) {
 			name:       "Empty body",
 			body:       `{}`,
 			structType: &simpleTestStruct{},
-			handler: func(p any, c *fiber.Ctx) error {
+			handler: func(p any, c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			},
 			wantErr:        false,
@@ -1473,7 +1474,7 @@ func TestWithBody_WithConstructor(t *testing.T) {
 		return &testStruct{}
 	}
 
-	handler := func(p any, c *fiber.Ctx) error {
+	handler := func(p any, c fiber.Ctx) error {
 		s := p.(*testStruct)
 		// Name will be sanitized, so "test" becomes "test" (no special chars)
 		assert.Equal(t, "test", s.Name)
@@ -1504,7 +1505,7 @@ func TestWithBody_WithConstructor(t *testing.T) {
 func TestWithBody_UnmarshalErrors(t *testing.T) {
 	app := fiber.New()
 
-	handler := func(p any, c *fiber.Ctx) error {
+	handler := func(p any, c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	}
 

@@ -10,13 +10,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
-	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmconsumer "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
@@ -51,10 +51,12 @@ type Service struct {
 	// client) so Run() can skip registering a no-op Launcher app. Non-nil
 	// only for transports that expose Close() error.
 	TracerClose func() error
-	// ServiceDiscovery is the lib-service-discovery Manager. It is always
+	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
-	// invoke Register/Deregister/Resolve unconditionally.
-	ServiceDiscovery *libsd.Manager
+	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager
+	// is a no-op in the default build and wraps lib-service-discovery only under
+	// //go:build libsd (see pkg/servicediscovery TODO(3482)).
+	ServiceDiscovery *pkgsd.Manager
 	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
 	// to register the discovery register/deregister Launcher app.
 	ServiceDiscoveryEnabled bool
@@ -62,7 +64,7 @@ type Service struct {
 	// built at wiring time only when discovery is enabled (so a malformed
 	// SERVER_ADDRESS never aborts boot with discovery off) and reused by the
 	// service-discovery runnable. It is zero-value when discovery is disabled.
-	ServiceDescriptor libsd.Service
+	ServiceDescriptor pkgsd.Descriptor
 	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
 	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
 	// so no SD metrics are emitted with SD off.
@@ -201,7 +203,8 @@ func (r *tracerCloseRunnable) Run(_ *libCommons.Launcher) error {
 	<-ctx.Done()
 
 	if err := r.close(); err != nil && r.logger != nil {
-		r.logger.Log(context.Background(), libLog.LevelWarn,
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
 			"tracer reservation client Close returned error",
 			libLog.String("error", err.Error()),
 		)

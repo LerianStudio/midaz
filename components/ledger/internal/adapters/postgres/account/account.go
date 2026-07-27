@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database

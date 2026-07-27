@@ -11,7 +11,13 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -20,11 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
@@ -337,13 +338,14 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			handler := &OperationRouteHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateOperationRoute(tt.payload, c)
 				},
 			)
@@ -513,8 +515,9 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			handler := &OperationRouteHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
@@ -771,14 +774,15 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateOperationRoute(tt.payload, c)
 				},
 			)
@@ -944,8 +948,9 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			handler := &OperationRouteHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
@@ -1207,8 +1212,9 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			handler := &OperationRouteHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

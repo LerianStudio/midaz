@@ -7,9 +7,10 @@ package in
 import (
 	"os"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
-	"github.com/gofiber/fiber/v2"
 )
 
 // SelfProbeGate is the contract LivenessHandler depends on to decide whether
@@ -51,7 +52,7 @@ func SetSelfProbeGate(gate SelfProbeGate) {
 // Re-probing is /readyz's job; mixing the two creates the /health/live +
 // /health/ready split anti-pattern (#3).
 func (h *HealthChecker) LivenessHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		gate := defaultSelfProbeGate
 		if gate != nil && !gate() {
 			// Use libHTTP.Respond so the response goes through the canonical
@@ -71,6 +72,6 @@ func (h *HealthChecker) LivenessHandler() fiber.Handler {
 // the buildinfo provenance fields (commit/buildTime/dirty) to the wire shape.
 var versionHandler = buildinfo.VersionHandler(os.Getenv("VERSION"))
 
-func Version(c *fiber.Ctx) error {
+func Version(c fiber.Ctx) error {
 	return versionHandler(c)
 }

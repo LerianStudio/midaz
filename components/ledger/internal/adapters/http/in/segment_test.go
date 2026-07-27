@@ -11,6 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -18,11 +24,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestHandler_CreateSegment(t *testing.T) {
@@ -162,13 +163,14 @@ func TestHandler_CreateSegment(t *testing.T) {
 			handler := &SegmentHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateSegment(tt.payload, c)
 				},
 			)
@@ -376,14 +378,15 @@ func TestHandler_UpdateSegment(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", segmentID)
 					return c.Next()
 				},
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateSegment(tt.payload, c)
 				},
 			)
@@ -527,8 +530,9 @@ func TestHandler_GetSegmentByID(t *testing.T) {
 			handler := &SegmentHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", segmentID)
@@ -800,8 +804,9 @@ func TestHandler_GetAllSegments(t *testing.T) {
 			handler := &SegmentHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -905,8 +910,9 @@ func TestHandler_DeleteSegmentByID(t *testing.T) {
 			handler := &SegmentHandler{Command: cmdUC}
 
 			app := fiber.New()
-			app.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", segmentID)
@@ -982,8 +988,9 @@ func TestHandler_CountSegments(t *testing.T) {
 			handler := &SegmentHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count",
-				func(c *fiber.Ctx) error {
+			app.Head(
+				"/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()

@@ -12,10 +12,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +30,8 @@ import (
 
 // tvTenantSpyService is a TransactionValidationService stub that records the
 // tenant ID it sees on its incoming ctx. It is the ctx-threading probe: the
-// tenant middleware writes the tenant into c.UserContext(), the humafiber v2
-// adapter builds the Huma handler ctx from c.UserContext(), and the handler
+// tenant middleware writes the tenant into c.Context(), the humafiber v2
+// adapter builds the Huma handler ctx from c.Context(), and the handler
 // passes that ctx to the service — a non-empty capturedTenant proves the whole
 // chain end to end without a bridge. Distinct name from the rule test's
 // tenantSpyService (same package) since the interface is different.
@@ -72,17 +72,16 @@ func buildHumaTransactionValidationApp(t *testing.T, svc TransactionValidationSe
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -119,7 +118,7 @@ func TestHuma_GetTransactionValidation_Success(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-beta")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -142,7 +141,7 @@ func TestHuma_GetTransactionValidation_Success(t *testing.T) {
 	assert.Equal(t, "All checks passed", got["reason"])
 
 	assert.Equal(t, "tenant-beta", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 // TestHuma_GetTransactionValidation_BadUUID pins the malformed-path-param
@@ -155,7 +154,7 @@ func TestHuma_GetTransactionValidation_BadUUID(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-epsilon")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations/not-a-uuid", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -185,7 +184,7 @@ func TestHuma_GetTransactionValidation_ErrorBodyMatchesFiberEnvelope(t *testing.
 
 	id := testutil.MustDeterministicUUID(3)
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations/"+id.String(), nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -204,7 +203,7 @@ func TestHuma_GetTransactionValidation_ErrorBodyMatchesFiberEnvelope(t *testing.
 	// The service IS reached here (it is what returns the not-found), so the tenant
 	// threaded through the Huma handler ctx — proving ctx-threading on the error path too.
 	assert.Equal(t, "tenant-delta", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 func TestHuma_ListTransactionValidations_Success(t *testing.T) {
@@ -232,7 +231,7 @@ func TestHuma_ListTransactionValidations_Success(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations?limit=25&decision=ALLOW&sort_by=created_at&sort_order=asc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -265,7 +264,7 @@ func TestHuma_ListTransactionValidations_Defaults(t *testing.T) {
 
 	// No query params -> SetDefaults() must fill limit + sort.
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -293,7 +292,7 @@ func TestHuma_ListTransactionValidations_InvalidLimit(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations?limit=1001", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -318,7 +317,7 @@ func TestHuma_ListTransactionValidations_NonNumericLimit(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-gamma")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations?limit=abc", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -357,7 +356,7 @@ func TestHuma_ListTransactionValidations_InvalidParams(t *testing.T) {
 			app := buildHumaTransactionValidationApp(t, svc, "tenant-gamma")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/validations?"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -401,7 +400,7 @@ func TestHuma_ListTransactionValidations_RepeatedKeyParity(t *testing.T) {
 			app := buildHumaTransactionValidationApp(t, svc, "tenant-alpha")
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/validations"+tc.query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -426,7 +425,7 @@ func TestHuma_ListTransactionValidations_RepeatedKeyParity(t *testing.T) {
 
 		// Fiber last-wins "25" -> 200. First-wins "1001" would 400/0080 (reverse FLIP).
 		req := httptest.NewRequest(http.MethodGet, "/v1/validations?limit=1001&limit=25", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
@@ -449,7 +448,7 @@ func TestHuma_ListTransactionValidations_EmptyLimitParity(t *testing.T) {
 	app := buildHumaTransactionValidationApp(t, svc, "tenant-alpha")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/validations?limit=", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

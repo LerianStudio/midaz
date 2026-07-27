@@ -14,7 +14,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -30,11 +36,6 @@ import (
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // blockUnblockInfra extends the read-path integration harness with an
@@ -132,7 +133,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 	// parseParam resolves a UUID path parameter into c.Locals. A malformed value
 	// surfaces as an HTTP 400 instead of silently becoming the zero UUID (which
 	// would mask a routing/derivation bug behind a confusing not-found later).
-	parseParam := func(c *fiber.Ctx, name string) error {
+	parseParam := func(c fiber.Ctx, name string) error {
 		v := c.Params(name)
 		if v == "" {
 			return nil
@@ -149,7 +150,7 @@ func (infra *blockUnblockInfra) setupRoutes() {
 		return nil
 	}
 
-	paramMiddleware := func(c *fiber.Ctx) error {
+	paramMiddleware := func(c fiber.Ctx) error {
 		for _, name := range []string{"organization_id", "ledger_id", "transaction_id", "account_id"} {
 			if err := parseParam(c, name); err != nil {
 				return err
@@ -207,7 +208,7 @@ func (infra *blockUnblockInfra) createTransfer(t *testing.T, endpoint, sourceAli
 		bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "create request should not fail")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -236,7 +237,7 @@ func (infra *blockUnblockInfra) getJSON(t *testing.T, path string) map[string]an
 	req := httptest.NewRequest("GET",
 		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+path, nil)
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "GET %s should not fail", path)
 	defer func() { _ = resp.Body.Close() }()
 

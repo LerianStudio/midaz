@@ -11,10 +11,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,10 +33,9 @@ func newTestAuthGuard(t *testing.T, cfg AuthGuardConfig, fakeAuthServerURL strin
 		address = fakeAuthServerURL
 	}
 
-	// Auth client logger is the lib-commons/v5 surface (see lib-auth v2.7.0).
-	// Tests don't assert on auth-client log output, so a v5 NopLogger keeps
-	// the test stdout clean while preserving the *log.Logger pointer shape
-	// NewAuthClient expects.
+	// Auth client logger is the lib-observability log surface. Tests don't
+	// assert on auth-client log output, so a no-op logger keeps the test stdout
+	// clean while preserving the *log.Logger pointer shape NewAuthClient expects.
 	authLogger := libLog.NewNop()
 	authClient := authMiddleware.NewAuthClient(address, cfg.PluginAuthEnabled, &authLogger)
 
@@ -60,7 +59,7 @@ func newFakeAuthServer(t *testing.T) *httptest.Server {
 // newTestApp creates a Fiber app with a single GET /test route protected by the given handler.
 func newTestApp(authHandler fiber.Handler) *fiber.App {
 	app := fiber.New()
-	app.Get("/test", authHandler, func(c *fiber.Ctx) error {
+	app.Get("/test", authHandler, func(c fiber.Ctx) error {
 		return c.SendString("success")
 	})
 
@@ -214,7 +213,7 @@ func TestAuthGuard_Protect(t *testing.T) {
 				req.Header.Set(HeaderAPIKey, tt.apiKey)
 			}
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -340,7 +339,7 @@ func TestAuthGuard_With(t *testing.T) {
 				req.Header.Set(HeaderAPIKey, tt.apiKey)
 			}
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -376,7 +375,7 @@ func TestAuthGuard_PluginAuthPriority(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(HeaderAPIKey, "valid-key") // Valid API key, but no Bearer token
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -419,11 +418,11 @@ func newAuthorizedMockServer(t *testing.T) *httptest.Server {
 }
 
 // principalCaptureApp wraps the auth handler with a probe that returns the
-// Principal stored in c.UserContext() as JSON so tests can assert on it.
+// Principal stored in c.Context() as JSON so tests can assert on it.
 func principalCaptureApp(authHandler fiber.Handler) *fiber.App {
 	app := fiber.New()
-	app.Get("/test", authHandler, func(c *fiber.Ctx) error {
-		p, ok := contextutil.GetPrincipal(c.UserContext())
+	app.Get("/test", authHandler, func(c fiber.Ctx) error {
+		p, ok := contextutil.GetPrincipal(c.Context())
 
 		return c.JSON(fiber.Map{
 			"hasPrincipal": ok,
@@ -453,6 +452,8 @@ func TestPrincipal_FromJWT_PreferredUsername(t *testing.T) {
 	app := principalCaptureApp(guard.Protect("rules", "manage"))
 
 	token := makeJWT(t, jwt.MapClaims{
+		"type":               "normal-user",
+		"owner":              "test-org",
 		"sub":                "user-sub-123",
 		"preferred_username": "alice",
 		"email":              "alice@example.com",
@@ -461,7 +462,7 @@ func TestPrincipal_FromJWT_PreferredUsername(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -490,6 +491,8 @@ func TestPrincipal_FromJWT_EmailFallback(t *testing.T) {
 	app := principalCaptureApp(guard.Protect("rules", "manage"))
 
 	token := makeJWT(t, jwt.MapClaims{
+		"type":  "normal-user",
+		"owner": "test-org",
 		"sub":   "user-sub-456",
 		"email": "bob@example.com",
 	})
@@ -497,7 +500,7 @@ func TestPrincipal_FromJWT_EmailFallback(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -533,7 +536,7 @@ func TestPrincipal_FromJWT_MissingSub_Returns401(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -565,7 +568,7 @@ func TestPrincipal_NoBearerHeader_DelegatesToLibAuth(t *testing.T) {
 	app := newTestApp(guard.Protect("rules", "manage"))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -594,7 +597,7 @@ func TestPrincipal_MalformedBearer_DelegatesToLibAuth(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer not.a.valid.jwt")
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -640,7 +643,7 @@ func TestAuthGuard_DualMode(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set(HeaderAPIKey, "valid-key")
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -660,7 +663,7 @@ func TestAuthGuard_DualMode(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		// No API key and no Bearer token
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -681,7 +684,7 @@ func TestAuthGuard_DualMode(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set(HeaderAPIKey, "valid-key") // Valid API key, but no Bearer token
 
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 

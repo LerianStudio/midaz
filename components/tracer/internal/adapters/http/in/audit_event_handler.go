@@ -10,10 +10,10 @@ import (
 	"context"
 	"errors"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -44,9 +44,9 @@ func NewAuditEventHandler(service AuditEventService) *AuditEventHandler {
 	}
 }
 
-func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
-	// Fiber binds the query with QueryParser; the shared core owns the rest.
-	response, err := h.listAuditEvents(c.UserContext(), c.QueryParser)
+func (h *AuditEventHandler) ListAuditEvents(c fiber.Ctx) error {
+	// Fiber binds the query via Bind().Query; the shared core owns the rest.
+	response, err := h.listAuditEvents(c.Context(), c.Bind().Query)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -123,8 +123,8 @@ func (h *AuditEventHandler) listAuditEvents(ctx context.Context, bind func(any) 
 	return response, nil
 }
 
-func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
-	result, err := h.getAuditEvent(c.UserContext(), c.Params("id"))
+func (h *AuditEventHandler) GetAuditEvent(c fiber.Ctx) error {
+	result, err := h.getAuditEvent(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -164,8 +164,8 @@ func (h *AuditEventHandler) getAuditEvent(ctx context.Context, idParam string) (
 	return result, nil
 }
 
-func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
-	result, err := h.verifyHashChain(c.UserContext(), c.Params("id"))
+func (h *AuditEventHandler) VerifyHashChain(c fiber.Ctx) error {
+	result, err := h.verifyHashChain(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}

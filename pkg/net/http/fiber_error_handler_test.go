@@ -10,9 +10,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // canonicalEnvelope is the RFC 9457 problem+json client-facing error shape.
@@ -26,14 +27,13 @@ type canonicalEnvelope struct {
 
 func newAppWithCanonicalHandler() *fiber.App {
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          CanonicalFiberErrorHandler,
+		ErrorHandler: CanonicalFiberErrorHandler,
 	})
-	app.Get("/ok", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	app.Get("/unauthorized", func(c *fiber.Ctx) error {
+	app.Get("/ok", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	app.Get("/unauthorized", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "Unauthorized")
 	})
-	app.Get("/boom", func(c *fiber.Ctx) error {
+	app.Get("/boom", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "kaboom")
 	})
 
@@ -106,10 +106,9 @@ func TestCanonicalFiberErrorHandler_PayloadTooLarge(t *testing.T) {
 	t.Parallel()
 
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          CanonicalFiberErrorHandler,
+		ErrorHandler: CanonicalFiberErrorHandler,
 	})
-	app.Get("/413", func(c *fiber.Ctx) error {
+	app.Get("/413", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusRequestEntityTooLarge, "Request Entity Too Large")
 	})
 

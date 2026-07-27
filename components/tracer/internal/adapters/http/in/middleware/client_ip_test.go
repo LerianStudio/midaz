@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -183,8 +183,8 @@ func TestClientIPMiddleware_InjectsIntoContext(t *testing.T) {
 
 	var captured string
 
-	app.Get("/test", func(c *fiber.Ctx) error {
-		captured = contextutil.GetClientIP(c.UserContext())
+	app.Get("/test", func(c fiber.Ctx) error {
+		captured = contextutil.GetClientIP(c.Context())
 		return c.SendString("ok")
 	})
 

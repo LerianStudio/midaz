@@ -7,9 +7,9 @@ package in
 import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // ApplicationName is the authz namespace the CRM (holders/instruments) routes
@@ -59,39 +59,39 @@ func RegisterCRMRoutesToApp(group fiber.Router, api huma.API, auth *middleware.A
 	orgParse := http.ParseUUIDPathParameters("organization")
 
 	// Holders (auth resource "holders" under midaz).
-	group.Post(holdersPath, protectedMidaz(auth, "holders", "post", routeOptions, holderParse)...)
-	group.Get(holderIDPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse)...)
-	group.Patch(holderIDPath, protectedMidaz(auth, "holders", "patch", routeOptions, holderParse)...)
-	group.Delete(holderIDPath, protectedMidaz(auth, "holders", "delete", routeOptions, holderParse)...)
-	group.Get(holdersPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse)...)
+	routePost(group, holdersPath, protectedMidaz(auth, "holders", "post", routeOptions, holderParse))
+	routeGet(group, holderIDPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
+	routePatch(group, holderIDPath, protectedMidaz(auth, "holders", "patch", routeOptions, holderParse))
+	routeDelete(group, holderIDPath, protectedMidaz(auth, "holders", "delete", routeOptions, holderParse))
+	routeGet(group, holdersPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
 
 	RegisterHolderRoutes(api, hh)
 
 	if hah != nil {
-		group.Get(acctsPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse)...)
+		routeGet(group, acctsPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
 		RegisterHolderAccountsRoutes(api, hah)
 	}
 
 	// Instruments (auth resource "instruments" under midaz).
-	group.Get(instrumentsPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse)...)
-	group.Post(holderInstruments, protectedMidaz(auth, "instruments", "post", routeOptions, instrumentParse)...)
-	group.Get(instrumentIDPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse)...)
-	group.Patch(instrumentIDPath, protectedMidaz(auth, "instruments", "patch", routeOptions, instrumentParse)...)
-	group.Delete(instrumentIDPath, protectedMidaz(auth, "instruments", "delete", routeOptions, instrumentParse)...)
-	group.Delete(relatedPartyPath, protectedMidaz(auth, "instruments", "delete", routeOptions, http.ParseUUIDPathParameters("related-parties"))...)
+	routeGet(group, instrumentsPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
+	routePost(group, holderInstruments, protectedMidaz(auth, "instruments", "post", routeOptions, instrumentParse))
+	routeGet(group, instrumentIDPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
+	routePatch(group, instrumentIDPath, protectedMidaz(auth, "instruments", "patch", routeOptions, instrumentParse))
+	routeDelete(group, instrumentIDPath, protectedMidaz(auth, "instruments", "delete", routeOptions, instrumentParse))
+	routeDelete(group, relatedPartyPath, protectedMidaz(auth, "instruments", "delete", routeOptions, http.ParseUUIDPathParameters("related-parties")))
 
 	RegisterInstrumentRoutes(api, ah)
 
 	// Encryption provisioning + protection audit (envelope mode only). In legacy mode
 	// eh and auditHandler are nil, so these routes stay unregistered.
 	if eh != nil {
-		group.Post(encProvisionPath, protectedMidaz(auth, "encryption", "post", routeOptions, orgParse)...)
-		group.Get(encStatusPath, protectedMidaz(auth, "encryption", "get", routeOptions, orgParse)...)
+		routePost(group, encProvisionPath, protectedMidaz(auth, "encryption", "post", routeOptions, orgParse))
+		routeGet(group, encStatusPath, protectedMidaz(auth, "encryption", "get", routeOptions, orgParse))
 		RegisterEncryptionRoutes(api, eh)
 	}
 
 	if auditHandler != nil {
-		group.Get(auditPath, protectedMidaz(auth, "protection", "get", routeOptions, orgParse)...)
+		routeGet(group, auditPath, protectedMidaz(auth, "protection", "get", routeOptions, orgParse))
 		RegisterAuditRoutes(api, auditHandler)
 	}
 }

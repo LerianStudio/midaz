@@ -25,13 +25,14 @@ import (
 	"errors"
 	"fmt"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/crypto"
 	cryptoTink "github.com/LerianStudio/midaz/v4/pkg/crypto/tink"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Protection path labels for the encrypt_decrypt metric and span output attr.

@@ -13,11 +13,12 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // This file freezes the FORWARD leg-sum conservation invariant of the fee

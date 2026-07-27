@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -359,12 +359,12 @@ func RegisterPortfolioRoutesToApp(group fiber.Router, api huma.API, auth *middle
 
 	parse := pkgHTTP.ParseUUIDPathParameters("portfolio")
 
-	group.Post(listPath, protectedMidaz(auth, "portfolios", "post", routeOptions, parse)...)
-	group.Patch(idPath, protectedMidaz(auth, "portfolios", "patch", routeOptions, parse)...)
-	group.Get(listPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse)...)
-	group.Delete(idPath, protectedMidaz(auth, "portfolios", "delete", routeOptions, parse)...)
-	group.Head(countPath, protectedMidaz(auth, "portfolios", "head", routeOptions, parse)...)
+	routePost(group, listPath, protectedMidaz(auth, "portfolios", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "portfolios", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "portfolios", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "portfolios", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, "portfolios", "head", routeOptions, parse))
 
 	RegisterPortfolioRoutes(api, ph)
 }

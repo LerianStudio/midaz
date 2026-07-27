@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libMetrics "github.com/LerianStudio/lib-observability/metrics"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -132,7 +132,8 @@ func TestIntegration_Polling_EndToEnd_InsertUpdateDelete(t *testing.T) {
 	// --- UPDATE: Change expression of first inserted rule ---
 	_, err = setup.db.Exec(
 		`UPDATE rules SET expression = 'amount > 9999', updated_at = NOW()
-		 WHERE name = 'new-rule-10'`)
+		 WHERE name = 'new-rule-10'`,
+	)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -149,7 +150,8 @@ func TestIntegration_Polling_EndToEnd_InsertUpdateDelete(t *testing.T) {
 	// --- DELETE: Deactivate a rule (set status=INACTIVE) ---
 	_, err = setup.db.Exec(
 		`UPDATE rules SET status = 'INACTIVE', deactivated_at = NOW(), updated_at = NOW()
-		 WHERE name = 'new-rule-11'`)
+		 WHERE name = 'new-rule-11'`,
+	)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {

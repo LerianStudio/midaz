@@ -8,9 +8,9 @@ import (
 	"context"
 	"time"
 
-	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
-	"github.com/LerianStudio/lib-observability/log"
-	libOtel "github.com/LerianStudio/lib-observability/tracing"
+	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	"github.com/LerianStudio/lib-observability/v2/log"
+	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -66,7 +66,8 @@ func NewRetryManager(cfg Config) *RetryManager {
 // headers, then the original delivery is Acked.
 func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue string, message amqp.Delivery, err error, retryCount int, span trace.Span) {
 	if !rm.classifier.IsRetryable(err) {
-		rm.logger.Log(ctx, log.LevelInfo, "Non-retryable error, sending to DLQ",
+		rm.logger.Log(
+			ctx, log.LevelInfo, "Non-retryable error, sending to DLQ",
 			log.Int("worker_id", workerID),
 			log.String("queue", queue),
 			log.Err(err),
@@ -78,7 +79,8 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 	}
 
 	if retryCount >= rm.maxRetries {
-		rm.logger.Log(ctx, log.LevelError, "Max retries exceeded, sending to DLQ",
+		rm.logger.Log(
+			ctx, log.LevelError, "Max retries exceeded, sending to DLQ",
 			log.Int("worker_id", workerID),
 			log.Int("max_retries", rm.maxRetries),
 			log.String("queue", queue),
@@ -92,7 +94,8 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 
 	backoff := rm.backoff(retryCount)
 
-	rm.logger.Log(ctx, log.LevelInfo, "Retryable error before republish",
+	rm.logger.Log(
+		ctx, log.LevelInfo, "Retryable error before republish",
 		log.Int("worker_id", workerID),
 		log.String("queue", queue),
 		log.Int("attempt", retryCount+1),
@@ -105,7 +108,8 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 	// immediately. The delivery is left unacked, so the broker safely redelivers it
 	// after the consumer reconnects — no in-flight retry can block shutdown.
 	if waitErr := libBackoff.WaitContext(ctx, backoff); waitErr != nil {
-		rm.logger.Log(ctx, log.LevelWarn, "Retry backoff interrupted by context cancellation; leaving message unacked for redelivery",
+		rm.logger.Log(
+			ctx, log.LevelWarn, "Retry backoff interrupted by context cancellation; leaving message unacked for redelivery",
 			log.Int("worker_id", workerID),
 			log.String("queue", queue),
 			log.Err(waitErr),
@@ -122,14 +126,16 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 	}
 
 	if ackErr := message.Ack(false); ackErr != nil {
-		rm.logger.Log(ctx, log.LevelError, "Ack failed after republish; message may be redelivered",
+		rm.logger.Log(
+			ctx, log.LevelError, "Ack failed after republish; message may be redelivered",
 			log.Int("worker_id", workerID),
 			log.String("queue", queue),
 			log.Err(ackErr),
 		)
 	}
 
-	rm.logger.Log(ctx, log.LevelInfo, "Message republished for retry",
+	rm.logger.Log(
+		ctx, log.LevelInfo, "Message republished for retry",
 		log.Int("worker_id", workerID),
 		log.Int("attempt", retryCount+1),
 		log.Int("max_retries", rm.maxRetries),
@@ -142,7 +148,8 @@ func (rm *RetryManager) HandleFailure(ctx context.Context, workerID int, queue s
 // carry one.
 func NackToDLQ(ctx context.Context, logger log.Logger, workerID int, queue string, message amqp.Delivery) {
 	if nackErr := message.Nack(false, false); nackErr != nil && logger != nil {
-		logger.Log(ctx, log.LevelError, "Nack failed",
+		logger.Log(
+			ctx, log.LevelError, "Nack failed",
 			log.Int("worker_id", workerID),
 			log.String("queue", queue),
 			log.Err(nackErr),

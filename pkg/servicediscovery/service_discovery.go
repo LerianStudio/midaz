@@ -3,9 +3,21 @@
 // that can be found in the LICENSE file.
 
 // Package servicediscovery holds the shared service-discovery wiring adopted
-// identically by the ledger and CRM composition roots: Manager construction,
+// identically by the ledger and tracer composition roots: Manager construction,
 // server-port parsing, descriptor building, plugin-auth host resolution, and the
 // register/deregister Launcher runnable.
+//
+// TODO(3482): restore Service Discovery when lib-service-discovery publishes a
+// release built against lib-observability/v2 (+ lib-commons/v6). Until then the
+// DEFAULT build no-ops SD; the real implementation lives under //go:build libsd
+// in the *_libsd.go files. lib-service-discovery v1.1.0 still requires
+// lib-observability v1.1.0, so its libsd.WithLogger rejects Midaz's now-v2
+// log.Logger (interface-identity mismatch across module majors). Because there
+// is no upstream fix to adopt, SD is gated behind the build tag so the default
+// build carries zero dependency on lib-service-discovery. The seam below keeps
+// this package's public API stable across both builds: Manager, BuildManager,
+// NewRunnable, and NewBootCloser exist in both, so the composition roots depend
+// only on this package and never import lib-service-discovery directly.
 package servicediscovery
 
 import (
@@ -14,9 +26,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
 )
 
 // hostnameFn resolves the host identity folded into the instance ID. It is a
@@ -35,29 +44,25 @@ const ResolveTimeout = 5 * time.Second
 // deregister does not complete in time.
 const DeregisterTimeout = 5 * time.Second
 
-// BuildManager constructs the service-discovery Manager from SD_* env vars. When
-// discovery is disabled the returned Manager is a working no-op, so callers can
-// invoke Register/Resolve unconditionally. The returned bool mirrors SD_ENABLED
-// so the caller can decide whether to wire a register/deregister runnable.
-// Returns an error (fail-fast) when discovery is enabled but misconfigured, e.g.
-// no advertise address is set. The advertise address is read from the canonical
-// SD_EXTERNAL_ADDRESS (legacy SD_ADVERTISE_ADDRESS / SERVICE_ADVERTISE_ADDR still
-// honored). lib-service-discovery moved advertise validation out of New into
-// Register, so the guard below re-asserts fail-fast at boot rather than deferring
-// the failure to the first register attempt.
-func BuildManager(logger libLog.Logger) (*libsd.Manager, bool, error) {
-	sdCfg := libsd.ConfigFromEnv()
-
-	if sdCfg.Enabled && sdCfg.AdvertiseAddr == "" && sdCfg.AdvertiseInternalAddr == "" {
-		return nil, sdCfg.Enabled, fmt.Errorf("initializing service discovery: %w", libsd.ErrNoEndpoint)
-	}
-
-	m, err := libsd.New(sdCfg, libsd.WithLogger(logger))
-	if err != nil {
-		return nil, sdCfg.Enabled, fmt.Errorf("initializing service discovery: %w", err)
-	}
-
-	return m, sdCfg.Enabled, nil
+// Descriptor is the registry descriptor advertised by a service instance,
+// modeled independently of lib-service-discovery so the composition roots depend
+// only on this package. Under //go:build libsd it is converted to the library's
+// Service type at register time; in the default (no-op) build it is never
+// registered. Address and Scheme are intentionally not modeled here: the library
+// fills them from SD_EXTERNAL_ADDRESS at Register.
+type Descriptor struct {
+	// ID is the registry instance ID. It folds in the host identity so every
+	// replica registers a distinct ID against the same Name.
+	ID string
+	// Name is the registry service name (e.g. "midaz-ledger", "midaz-tracer")
+	// and stays stable — consumers resolve by it.
+	Name string
+	// Port is the advertised service port.
+	Port int
+	// HealthCheckTTL is the TTL advertised for the registry heartbeat health
+	// check. The registry heartbeats from inside the process, so no reachable
+	// HTTP endpoint is needed.
+	HealthCheckTTL string
 }
 
 // ParseServerPort extracts the numeric port from a listen address. It accepts
@@ -74,29 +79,25 @@ func ParseServerPort(serverAddress string) (int, error) {
 }
 
 // BuildServiceDescriptor builds the registry descriptor advertised by a service
-// instance. Address and Scheme are intentionally left unset: Manager.Register
-// fills them from SD_EXTERNAL_ADDRESS (legacy SD_ADVERTISE_ADDRESS still honored).
-// The TTL health check needs no reachable
-// HTTP endpoint — the registry heartbeats from inside the process. name is the
-// registry service name (e.g. "midaz-ledger", "midaz-crm") and stays stable —
-// consumers resolve by it.
+// instance. name is the registry service name (e.g. "midaz-ledger",
+// "midaz-tracer") and stays stable — consumers resolve by it.
 //
 // The instance ID folds in the host identity ("<name>-<host>-<port>") so every
 // replica registers a distinct ID against the same name; without it, N pods
 // sharing a name collide on one central registry and their TTL health flaps. If
 // the host is unresolvable it falls back to the legacy "<name>-<port>" scheme:
 // a descriptor must always be buildable, so this never errors.
-func BuildServiceDescriptor(name string, port int) libsd.Service {
+func BuildServiceDescriptor(name string, port int) Descriptor {
 	id := name + "-" + strconv.Itoa(port)
 
 	if host, err := hostnameFn(); err == nil && host != "" {
 		id = name + "-" + host + "-" + strconv.Itoa(port)
 	}
 
-	return libsd.Service{
-		ID:          id,
-		Name:        name,
-		Port:        port,
-		HealthCheck: &libsd.HealthCheck{TTL: "30s"},
+	return Descriptor{
+		ID:             id,
+		Name:           name,
+		Port:           port,
+		HealthCheckTTL: "30s",
 	}
 }

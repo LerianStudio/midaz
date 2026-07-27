@@ -13,8 +13,15 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -24,12 +31,6 @@ import (
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestBalanceHandler_GetAllBalances(t *testing.T) {
@@ -167,8 +168,9 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -327,8 +329,9 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
@@ -476,8 +479,9 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/:alias",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/:alias",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -610,8 +614,9 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -756,8 +761,9 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			handler := &BalanceHandler{Command: uc}
 
 			app := fiber.New()
-			app.Delete("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Delete(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -908,8 +914,9 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/external/:code/balances",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/external/:code/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
@@ -1092,15 +1099,16 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Patch("/test/:organization_id/:ledger_id/balances/:balance_id",
-				func(c *fiber.Ctx) error {
+			app.Patch(
+				"/test/:organization_id/:ledger_id/balances/:balance_id",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.UpdateBalance(tt.payload, c)
 				},
 			)
@@ -1372,15 +1380,16 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			}
 
 			app := fiber.New()
-			app.Post("/test/:organization_id/:ledger_id/accounts/:account_id/balances",
-				func(c *fiber.Ctx) error {
+			app.Post(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
-				func(c *fiber.Ctx) error {
+				func(c fiber.Ctx) error {
 					return handler.CreateAdditionalBalance(tt.payload, c)
 				},
 			)
@@ -1639,8 +1648,9 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/balances/:balance_id/history",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/balances/:balance_id/history",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
@@ -1915,8 +1925,9 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			handler := &BalanceHandler{Query: uc}
 
 			app := fiber.New()
-			app.Get("/test/:organization_id/:ledger_id/accounts/:account_id/balances/history",
-				func(c *fiber.Ctx) error {
+			app.Get(
+				"/test/:organization_id/:ledger_id/accounts/:account_id/balances/history",
+				func(c fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)

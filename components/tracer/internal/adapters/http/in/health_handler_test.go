@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -38,10 +38,10 @@ const concurrentRequestCount = 10
 func createTestFiberApp(hc *HealthChecker) *fiber.App {
 	app := fiber.New()
 
-	app.Use(func(c *fiber.Ctx) error {
-		ctx := c.UserContext()
+	app.Use(func(c fiber.Ctx) error {
+		ctx := c.Context()
 		ctx = libObservability.ContextWithTracer(ctx, otel.Tracer("tracer-test"))
-		c.SetUserContext(ctx)
+		c.SetContext(ctx)
 
 		return c.Next()
 	})
@@ -143,12 +143,12 @@ func TestReadinessHandler_WithMockDB(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-			assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestReadinessHandler_GetDBError(t *testing.T) {
 		app := createTestFiberApp(hc)
 
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -207,7 +207,7 @@ func TestReadinessHandler_NilProvider(t *testing.T) {
 		app := createTestFiberApp(hc)
 
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-		resp, err := app.Test(req, -1)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -260,7 +260,7 @@ func TestReadinessHandler_ConcurrentRequests(t *testing.T) {
 
 				req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-				resp, err := app.Test(req, -1)
+				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 				if err != nil {
 					results <- -1
 
@@ -313,7 +313,7 @@ func TestReadinessHandler_Timeout(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
 		// Bound the test to 10s in case the handler hangs.
-		resp, err := app.Test(req, 10000)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -356,7 +356,7 @@ func TestReadiness_CacheNotReady_Returns503Down(t *testing.T) {
 
 	app := createTestFiberApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -397,7 +397,7 @@ func TestReadiness_CacheReady_ReturnsUp(t *testing.T) {
 
 	app := createTestFiberApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -438,7 +438,7 @@ func TestReadiness_CacheStalenessExceeded_Returns503Degraded(t *testing.T) {
 
 	app := createTestFiberApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 
 	require.NoError(t, err)
 	defer resp.Body.Close()

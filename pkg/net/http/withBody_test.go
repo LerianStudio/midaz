@@ -9,12 +9,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 type SimpleStruct struct {
@@ -159,12 +160,12 @@ func TestParseUUIDPathParameters(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c *fiber.Ctx) error {
+			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			})
 
 			req := httptest.NewRequest("GET", tc.requestPath, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 		})

@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"time"
 
-	libBackoff "github.com/LerianStudio/lib-commons/v5/commons/backoff"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
+	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
+
+	pkgRabbitmq "github.com/LerianStudio/midaz/v4/pkg/rabbitmq"
 )
 
 // maxMessageRetries bounds the number of republish attempts before a transient
@@ -106,7 +107,8 @@ func (rm *ConsumerRetryManager) HandleFailure(ctx context.Context, workerID int,
 func (rm *ConsumerRetryManager) republish(ctx context.Context, workerID int, queue string, message amqp.Delivery, headers amqp.Table, span trace.Span) error {
 	channel := rm.channelFunc()
 	if channel == nil {
-		rm.logger.Log(ctx, libLog.LevelError, "Channel is nil, cannot republish for retry; sending to DLQ",
+		rm.logger.Log(
+			ctx, libLog.LevelError, "Channel is nil, cannot republish for retry; sending to DLQ",
 			libLog.Int("worker_id", workerID),
 			libLog.String("queue", queue),
 		)
@@ -124,7 +126,8 @@ func (rm *ConsumerRetryManager) republish(ctx context.Context, workerID int, que
 	}
 
 	if publishErr := channel.Publish(message.Exchange, message.RoutingKey, false, false, publishing); publishErr != nil {
-		rm.logger.Log(ctx, libLog.LevelError, "Failed to republish message for retry; sending to DLQ",
+		rm.logger.Log(
+			ctx, libLog.LevelError, "Failed to republish message for retry; sending to DLQ",
 			libLog.Int("worker_id", workerID),
 			libLog.String("queue", queue),
 			libLog.Err(publishErr),

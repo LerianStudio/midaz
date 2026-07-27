@@ -7,13 +7,14 @@ package in
 import (
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // mountWave2Routes wires the five Wave-2 Huma-migrated resources (balance,

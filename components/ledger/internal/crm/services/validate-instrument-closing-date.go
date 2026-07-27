@@ -7,11 +7,12 @@ package services
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // validateInstrumentClosingDate validates the closing date of an instrument.

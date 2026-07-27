@@ -14,15 +14,16 @@ import (
 	"testing"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================

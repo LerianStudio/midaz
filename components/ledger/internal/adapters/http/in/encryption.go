@@ -12,10 +12,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -26,7 +26,7 @@ type EncryptionHandler struct {
 }
 
 // Provision handles the provisioning of an organization for envelope encryption.
-func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
+func (handler *EncryptionHandler) Provision(p any, c fiber.Ctx) error {
 	payload, ok := p.(*mmodel.ProvisionEncryptionInput)
 	if !ok || payload == nil {
 		return http.WithError(c, cn.ErrInternalServer)
@@ -37,7 +37,7 @@ func (handler *EncryptionHandler) Provision(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	response, err := handler.provision(c.UserContext(), organizationID, payload)
+	response, err := handler.provision(c.Context(), organizationID, payload)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -115,13 +115,13 @@ func (handler *EncryptionHandler) provision(ctx context.Context, organizationID 
 }
 
 // GetProvisioningStatus handles the retrieval of an organization's provisioning status.
-func (handler *EncryptionHandler) GetProvisioningStatus(c *fiber.Ctx) error {
+func (handler *EncryptionHandler) GetProvisioningStatus(c fiber.Ctx) error {
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	response, err := handler.getProvisioningStatus(c.UserContext(), organizationID)
+	response, err := handler.getProvisioningStatus(c.Context(), organizationID)
 	if err != nil {
 		return http.WithError(c, err)
 	}

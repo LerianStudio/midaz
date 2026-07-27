@@ -9,14 +9,15 @@ import (
 	"errors"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libRuntime "github.com/LerianStudio/lib-observability/runtime"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // defaultAuditEmitTimeout bounds the detached audit write started by EmitAsync.

@@ -7,9 +7,10 @@ package encryption
 import (
 	"context"
 
-	"github.com/LerianStudio/lib-observability/metrics"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Provider-operation label vocabulary. These are the only values that may appear

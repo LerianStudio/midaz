@@ -13,10 +13,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // applyDeductibleAndReferenceAmountRules applies the deductible and reference amount rules for a fee.

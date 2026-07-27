@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"os"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -128,19 +128,22 @@ func ValidateMultiTenantConfig(ctx context.Context, cfg *Config, logger libLog.L
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf(
 			"MULTI_TENANT_URL must be a valid absolute URL with scheme and host (got %q): %w",
-			cfg.MultiTenantURL, constant.ErrMTURLInvalid)
+			cfg.MultiTenantURL, constant.ErrMTURLInvalid,
+		)
 	}
 
 	if cfg.MultiTenantServiceAPIKey == "" {
 		return fmt.Errorf(
 			"MULTI_TENANT_SERVICE_API_KEY must be set when MULTI_TENANT_ENABLED=true: %w",
-			constant.ErrMTServiceAPIKeyRequired)
+			constant.ErrMTServiceAPIKeyRequired,
+		)
 	}
 
 	if cfg.MultiTenantRedisHost == "" {
 		return fmt.Errorf(
 			"MULTI_TENANT_REDIS_HOST must be set when MULTI_TENANT_ENABLED=true: %w",
-			constant.ErrMTRedisHostRequired)
+			constant.ErrMTRedisHostRequired,
+		)
 	}
 
 	// Security: TenantMiddleware uses jwt.ParseUnverified to extract the
@@ -153,7 +156,8 @@ func ValidateMultiTenantConfig(ctx context.Context, cfg *Config, logger libLog.L
 		return fmt.Errorf(
 			"MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true "+
 				"(API-key-only auth cannot verify JWT signatures, enabling cross-tenant forgery): %w",
-			constant.ErrMTPluginAuthRequired)
+			constant.ErrMTPluginAuthRequired,
+		)
 	}
 
 	// Security: APIKeyOnlyValidation lets the /v1/validations endpoint bypass
@@ -163,7 +167,8 @@ func ValidateMultiTenantConfig(ctx context.Context, cfg *Config, logger libLog.L
 		return fmt.Errorf(
 			"MULTI_TENANT_ENABLED=true is incompatible with API_KEY_ENABLED_ONLY_VALIDATION=true "+
 				"(validation endpoint must go through plugin auth for JWT signature verification): %w",
-			constant.ErrMTAPIKeyOnlyValidationConfl)
+			constant.ErrMTAPIKeyOnlyValidationConfl,
+		)
 	}
 
 	logger.With(

@@ -7,17 +7,18 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type TransactionRouteHandler struct {
@@ -31,7 +32,7 @@ type TransactionRouteHandler struct {
 // the transaction-route side-effects (accounting-route cache write on create/update,
 // cache delete on delete, the created metric) and the success/failure logs. They take
 // primitive args (parsed UUIDs, the decoded *Input, the query map) so BOTH transports
-// feed them: the Fiber wrappers pull those from *fiber.Ctx (Locals + the WithBody-
+// feed them: the Fiber wrappers pull those from fiber.Ctx (Locals + the WithBody-
 // decoded payload + c.Queries()) and the Huma handlers (transaction_route_handler_huma.go)
 // pull them from the request envelope. Every canonical Midaz error the cores return is
 // rendered by the caller — http.WithError on the Fiber path, http.HumaProblem on the
@@ -202,13 +203,13 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 // --- Fiber wrappers (thin) ----------------------------------------------------
 //
 // These stay so the legacy Fiber unit/integration tests keep exercising the handler
-// methods directly; each pulls the transport inputs from *fiber.Ctx (Locals set by
+// methods directly; each pulls the transport inputs from fiber.Ctx (Locals set by
 // ParseUUIDPathParameters, the WithBody-decoded payload as `i`) and delegates to the
 // shared core.
 
 // Create a Transaction Route.
-func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -229,8 +230,8 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 }
 
 // Get a Transaction Route by ID.
-func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionRouteHandler) GetTransactionRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -256,8 +257,8 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 }
 
 // Update a Transaction Route.
-func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -283,8 +284,8 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 }
 
 // Delete a Transaction Route by ID.
-func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -309,8 +310,8 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 }
 
 // Get all Transaction Routes.
-func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

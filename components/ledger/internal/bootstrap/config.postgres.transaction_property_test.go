@@ -31,8 +31,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/stretchr/testify/require"
 )
 

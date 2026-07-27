@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	libObservability "github.com/LerianStudio/lib-observability"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -34,10 +34,10 @@ import (
 // the rest of the middleware (auth, CORS, telemetry) is intentionally absent.
 func createReadyzTestApp(hc *HealthChecker) *fiber.App {
 	app := fiber.New()
-	app.Use(func(c *fiber.Ctx) error {
-		ctx := c.UserContext()
+	app.Use(func(c fiber.Ctx) error {
+		ctx := c.Context()
 		ctx = libObservability.ContextWithTracer(ctx, otel.Tracer("tracer-readyz-test"))
-		c.SetUserContext(ctx)
+		c.SetContext(ctx)
 
 		return c.Next()
 	})
@@ -100,12 +100,12 @@ func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestReadyzHandler_PostgresDown_Returns503WithDownStatus(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -222,7 +222,7 @@ func TestReadyzHandler_RuleCacheStale_Returns503WithDegradedStatus(t *testing.T)
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -263,7 +263,7 @@ func TestReadyzHandler_Draining_Returns503EvenIfAllDepsUp(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -312,7 +312,7 @@ func TestReadyzHandler_VersionAndDeploymentMode_PresentInResponse(t *testing.T) 
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -365,7 +365,7 @@ func TestReadyzHandler_AggregationRule_AnyDownOrDegradedReturns503(t *testing.T)
 			app := createReadyzTestApp(hc)
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -396,7 +396,7 @@ func TestReadyzHandler_AggregationRule_AllUpIsHealthy(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -433,7 +433,7 @@ func TestReadyzHandler_TLSField_OmittedForRuleCache(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -471,7 +471,7 @@ func TestReadyzHandler_TLSDetectorParseError_OmitsTLSField(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -734,7 +734,7 @@ func TestReadyzHandler_ProbesRunInParallel(t *testing.T) {
 	resultCh := make(chan result, 1)
 
 	go func() {
-		resp, testErr := app.Test(req, -1)
+		resp, testErr := app.Test(req, fiber.TestConfig{Timeout: 0})
 		if testErr != nil {
 			resultCh <- result{err: testErr}
 			return
@@ -812,7 +812,7 @@ func TestReadyzHandler_MultiTenant_SkipsRuleCacheProbe(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -854,7 +854,7 @@ func TestReadyzHandler_MultiTenant_PostgresStillProbed(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -892,7 +892,7 @@ func TestHealthChecker_SetCacheStalenessThreshold_Override(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -1224,7 +1224,7 @@ func TestReadyzHandler_AllFiveChecks_PresentAndHealthy(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -1276,7 +1276,7 @@ func TestReadyzHandler_NewDepDown_Returns503(t *testing.T) {
 			app := createReadyzTestApp(hc)
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -1309,7 +1309,7 @@ func TestReadyzHandler_StreamingAdvisory_DownDoesNotGate(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -1339,7 +1339,7 @@ func TestReadyzHandler_StreamingAdvisory_DegradedDoesNotGate(t *testing.T) {
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -1388,7 +1388,7 @@ func TestReadyzHandler_PostgresDown_StillGatesWithAdvisoryStreaming(t *testing.T
 	app := createReadyzTestApp(hc)
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

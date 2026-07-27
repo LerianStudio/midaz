@@ -9,18 +9,19 @@ import (
 	"errors"
 	"fmt"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // onboardingEntities maps onboarding entity names to their MongoDB collection names.
@@ -189,13 +190,13 @@ func isValidEntity(entityName string) bool {
 }
 
 // CreateMetadataIndex creates a new metadata index.
-func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) error {
+func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c fiber.Ctx) error {
 	payload, ok := p.(*mmodel.CreateMetadataIndexInput)
 	if !ok {
 		return http.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityMetadataIndex))
 	}
 
-	metadataIndex, err := handler.createMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Queries(), payload)
+	metadataIndex, err := handler.createMetadataIndex(c.Context(), c.Params("entity_name"), c.Queries(), payload)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -279,8 +280,8 @@ func (handler *MetadataIndexHandler) createMetadataIndex(ctx context.Context, en
 }
 
 // GetAllMetadataIndexes retrieves all metadata indexes.
-func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
-	indexes, err := handler.getAllMetadataIndexes(c.UserContext(), c.Queries())
+func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c fiber.Ctx) error {
+	indexes, err := handler.getAllMetadataIndexes(c.Context(), c.Queries())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -414,8 +415,8 @@ func (handler *MetadataIndexHandler) getAllMetadataIndexes(ctx context.Context, 
 }
 
 // DeleteMetadataIndex deletes a metadata index.
-func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
-	if err := handler.deleteMetadataIndex(c.UserContext(), c.Params("entity_name"), c.Params("index_key")); err != nil {
+func (handler *MetadataIndexHandler) DeleteMetadataIndex(c fiber.Ctx) error {
+	if err := handler.deleteMetadataIndex(c.Context(), c.Params("entity_name"), c.Params("index_key")); err != nil {
 		return http.WithError(c, err)
 	}
 

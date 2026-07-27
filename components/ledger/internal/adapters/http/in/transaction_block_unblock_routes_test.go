@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 const (

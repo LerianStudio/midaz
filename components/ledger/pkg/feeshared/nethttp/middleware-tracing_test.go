@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 func TestWithBodyTracing_ValidBody(t *testing.T) {
 	app := fiber.New()
 
-	handler := func(p any, c *fiber.Ctx) error {
+	handler := func(p any, c fiber.Ctx) error {
 		s := p.(*simpleTestStruct)
 		assert.Equal(t, "test", s.Name)
 		return c.SendStatus(fiber.StatusOK)
@@ -38,7 +38,7 @@ func TestWithBodyTracing_ValidBody(t *testing.T) {
 func TestWithBodyTracing_InvalidBody(t *testing.T) {
 	app := fiber.New()
 
-	handler := func(p any, c *fiber.Ctx) error {
+	handler := func(p any, c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	}
 
@@ -56,7 +56,7 @@ func TestWithBodyTracing_InvalidBody(t *testing.T) {
 func TestWithBodyTracing_EmptyBody(t *testing.T) {
 	app := fiber.New()
 
-	handler := func(p any, c *fiber.Ctx) error {
+	handler := func(p any, c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	}
 

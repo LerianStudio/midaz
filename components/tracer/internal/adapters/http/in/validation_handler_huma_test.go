@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -32,8 +32,8 @@ import (
 
 // validationSpyService is a ValidationService stub that records the tenant ID it
 // sees on its incoming ctx. It is the ctx-threading probe: the tenant middleware
-// writes the tenant into c.UserContext(), the humafiber v2 adapter builds the
-// Huma handler ctx from c.UserContext(), and the handler passes that ctx to the
+// writes the tenant into c.Context(), the humafiber v2 adapter builds the
+// Huma handler ctx from c.Context(), and the handler passes that ctx to the
 // service — a non-empty capturedTenant proves the whole chain end to end without
 // a bridge.
 type validationSpyService struct {
@@ -60,17 +60,16 @@ func buildHumaValidationApp(t *testing.T, svc ValidationService, tenantID string
 	t.Helper()
 
 	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler:          pkgHTTP.CanonicalFiberErrorHandler,
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
 
 	api := f.Group("/v1")
-	api.Use(func(c *fiber.Ctx) error {
+	api.Use(func(c fiber.Ctx) error {
 		if tenantID != "" {
-			c.SetUserContext(tmctx.ContextWithTenantID(c.UserContext(), tenantID))
+			c.SetContext(tmctx.ContextWithTenantID(c.Context(), tenantID))
 		}
 		return c.Next()
 	})
@@ -126,7 +125,7 @@ func TestHuma_Validate_NewReturns201(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/validations", bytes.NewReader(validValidationRequestBody(t)))
 	req.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := app.Test(req, -1)
+	httpResp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = httpResp.Body.Close() }()
 
@@ -144,7 +143,7 @@ func TestHuma_Validate_NewReturns201(t *testing.T) {
 	assert.Equal(t, "ALLOW", got["decision"])
 
 	assert.Equal(t, "tenant-alpha", svc.capturedTenant,
-		"tenant from c.UserContext() must reach the service via the Huma handler ctx")
+		"tenant from c.Context() must reach the service via the Huma handler ctx")
 }
 
 // TestHuma_Validate_DuplicateReturns200 pins the other half of the dual-status
@@ -168,7 +167,7 @@ func TestHuma_Validate_DuplicateReturns200(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/validations", bytes.NewReader(validValidationRequestBody(t)))
 	req.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := app.Test(req, -1)
+	httpResp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = httpResp.Body.Close() }()
 
@@ -197,7 +196,7 @@ func TestHuma_Validate_PayloadTooLarge(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/validations", bytes.NewReader([]byte(big)))
 	req.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := app.Test(req, -1)
+	httpResp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = httpResp.Body.Close() }()
 
@@ -224,7 +223,7 @@ func TestHuma_Validate_MalformedJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/validations", bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 
-	httpResp, err := app.Test(req, -1)
+	httpResp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = httpResp.Body.Close() }()
 

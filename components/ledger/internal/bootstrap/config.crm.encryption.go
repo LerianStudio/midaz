@@ -10,10 +10,11 @@ import (
 	"os"
 	"strings"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v5/commons/crypto"
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
+	libCrypto "github.com/LerianStudio/lib-commons/v6/commons/crypto"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+
 	mongoAudit "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
 	mongoEncryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption"
@@ -249,7 +250,8 @@ func resolveVaultAuth(cfg *Config) (vault.AuthMethod, string, error) {
 		if !isLocalDeployment(cfg.DeploymentMode) {
 			return "", "", fmt.Errorf(
 				"KMS_VAULT_AUTH_METHOD=token is only allowed when DEPLOYMENT_MODE=local (got %q): use approle",
-				ResolveDeploymentMode(cfg.DeploymentMode))
+				ResolveDeploymentMode(cfg.DeploymentMode),
+			)
 		}
 
 		return vault.AuthMethodToken, DefaultVaultDevToken, nil

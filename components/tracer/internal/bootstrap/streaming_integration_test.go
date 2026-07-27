@@ -15,15 +15,16 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	libStreaming "github.com/LerianStudio/lib-streaming/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // defaultSmokeBroker is the host-facing Redpanda listener the local

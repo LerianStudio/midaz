@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/gofiber/fiber/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,24 +21,32 @@ func TestProtectedRouteChain_RunsPostAuthMiddlewareAfterAuth(t *testing.T) {
 
 	app := fiber.New()
 	chain := ProtectedRouteChain(
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			c.Locals("auth_ran", true)
 			return c.Next()
 		},
 		&ProtectedRouteOptions{
-			PostAuthMiddlewares: []fiber.Handler{func(c *fiber.Ctx) error {
+			PostAuthMiddlewares: []fiber.Handler{func(c fiber.Ctx) error {
 				assert.Equal(t, true, c.Locals("auth_ran"))
 				c.Locals("post_auth_ran", true)
 				return c.Next()
 			}},
 		},
-		func(c *fiber.Ctx) error {
+		func(c fiber.Ctx) error {
 			assert.Equal(t, true, c.Locals("post_auth_ran"))
 			return c.SendStatus(fiber.StatusNoContent)
 		},
 	)
 
-	app.Get("/test", chain...)
+	// Fiber v3's Get takes (handler any, handlers ...any); a []fiber.Handler
+	// cannot spread into ...any, so split the chain across the fixed first
+	// handler and a []any tail (mirrors production registerRoute).
+	tail := make([]any, len(chain)-1)
+	for i, h := range chain[1:] {
+		tail[i] = h
+	}
+
+	app.Get("/test", chain[0], tail...)
 
 	resp, err := app.Test(httptest.NewRequest("GET", "/test", nil))
 	require.NoError(t, err)
@@ -55,10 +63,10 @@ func TestMarkTrustedAuthAssertion_SetsTrustedLocalsAndTenantContext(t *testing.T
 
 	app := fiber.New()
 	app.Use(MarkTrustedAuthAssertion())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"userID":   c.Locals("user_id"),
-			"tenantID": tmcore.GetTenantIDContext(c.UserContext()),
+			"tenantID": tmcore.GetTenantIDContext(c.Context()),
 		})
 	})
 
@@ -77,7 +85,7 @@ func TestMarkTrustedAuthAssertion_UsesSentinelWhenIdentityClaimMissing(t *testin
 
 	app := fiber.New()
 	app.Use(MarkTrustedAuthAssertion())
-	app.Get("/test", func(c *fiber.Ctx) error {
+	app.Get("/test", func(c fiber.Ctx) error {
 		return c.SendString(c.Locals("user_id").(string))
 	})
 

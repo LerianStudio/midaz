@@ -78,7 +78,7 @@ flow inward; inner layers never import outer layers. Domain logic stays out of h
 repositories. Domain models live in `pkg/mmodel`.
 
 - **HTTP layer:** [Huma v2](https://github.com/danielgtaylor/huma) (OAS 3.1) mounted over
-  **Fiber v2**. Fiber remains the runtime router, auth chain, and middleware host; Huma sits on
+  **Fiber v3**. Fiber remains the runtime router, auth chain, and middleware host; Huma sits on
   top to generate the API contract and validate typed request/response structs.
 - **Errors:** RFC 9457 `application/problem+json`. Typed errors from `pkg/errors.go`, numeric
   sentinels from `pkg/constant/errors.go`. Not found → 404, business-rule violations → 422.
@@ -140,14 +140,14 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 | Layer | Technology |
 |-------|------------|
 | **Language** | Go 1.26.4 |
-| **HTTP framework** | Fiber v2.52.13 (runtime) + Huma v2.38.0 (OAS 3.1 contract) |
+| **HTTP framework** | Fiber v3.4.0 (runtime) + Huma v2.38.0 (OAS 3.1 contract) |
 | **Relational store** | PostgreSQL 17 (`jackc/pgx`, `Masterminds/squirrel`) |
 | **Document store** | MongoDB 8 (`go.mongodb.org/mongo-driver/v2`) |
 | **Cache / balance-sync** | Valkey/Redis 8 |
 | **Messaging** | RabbitMQ 4.1.x |
 | **Decimals** | `shopspring/decimal` (never float64) |
-| **Auth** | lib-auth v2.8.1 (Access Manager plugin) |
-| **Shared platform** | lib-commons v5.8.0, lib-observability v1.1.0, lib-streaming v1.6.2 |
+| **Auth** | lib-auth v3.0.0 (Access Manager plugin) |
+| **Shared platform** | lib-commons v6.0.0, lib-observability v2.1.0, lib-streaming v2.0.0-beta.1 |
 | **Observability** | OpenTelemetry via lib-observability; otel-lgtm / Grafana stack from `components/infra` |
 
 ---

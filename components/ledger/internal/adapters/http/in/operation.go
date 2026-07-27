@@ -7,15 +7,16 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	// OperationHandler struct contains a cqrs use case for managing operations.
 )
 
@@ -29,7 +30,7 @@ type OperationHandler struct {
 // The two read cores below own the span, imperative query validation, the
 // metadata-vs-default branch, the service call and the pagination assembly. They
 // take primitive args (parsed UUIDs + the query map) so BOTH transports feed them:
-// the Fiber wrappers pull those from *fiber.Ctx (Locals + c.Queries) and the Huma
+// the Fiber wrappers pull those from fiber.Ctx (Locals + c.Queries) and the Huma
 // handlers (operation_handler_huma.go) pull them from the request envelope. Every
 // canonical Midaz error the cores return is rendered by the caller — http.WithError
 // on the Fiber path, http.HumaProblem on the Huma path — so the code + HTTP status
@@ -108,8 +109,8 @@ func (handler *OperationHandler) getOperationByAccount(ctx context.Context, orga
 }
 
 // GetAllOperationsByAccount retrieves all operations by account.
-func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationHandler) GetAllOperationsByAccount(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -135,8 +136,8 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 }
 
 // GetOperationByAccount retrieves an operation by account.
-func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationHandler) GetOperationByAccount(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {
@@ -167,8 +168,8 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 }
 
 // UpdateOperation method that patch operation created before
-func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
+func (handler *OperationHandler) UpdateOperation(p any, c fiber.Ctx) error {
+	ctx := c.Context()
 
 	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
 	if err != nil {

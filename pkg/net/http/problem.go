@@ -8,13 +8,14 @@ import (
 	"errors"
 	"net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libProblem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
 )
 
 // problemContentType is the RFC 9457 media type for the error body. huma's
@@ -165,7 +166,7 @@ func fieldsToErrors(err error) []*huma.ErrorDetail {
 //
 // entityType and the fields->errors[] remap are the two carries problem.Detail
 // does not do for free; both are non-money-path envelope shape.
-func withProblem(c *fiber.Ctx, err error) error {
+func withProblem(c fiber.Ctx, err error) error {
 	body, ok := ProblemDetail(err)
 	if !ok {
 		// MapError always returns *Detail; this is unreachable defensive code.
@@ -250,7 +251,7 @@ func ProblemDetail(err error) (Detail, bool) {
 // status that overrides the code->status table (r3 §0, §1.3). It is the only
 // producer of 405/413: those statuses do not exist in the table, so
 // renderCanonical carries them here. code + status are still money-path exact.
-func withProblemStatus(c *fiber.Ctx, status int, err error) error {
+func withProblemStatus(c fiber.Ctx, status int, err error) error {
 	code, msg, title, entityType, _, ok := classifyForProblem(err)
 	if !ok {
 		return withProblem(c, err)

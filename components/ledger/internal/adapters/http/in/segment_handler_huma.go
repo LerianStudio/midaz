@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -363,12 +363,12 @@ func RegisterSegmentRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 
 	parse := pkgHTTP.ParseUUIDPathParameters("segment")
 
-	group.Post(listPath, protectedMidaz(auth, "segments", "post", routeOptions, parse)...)
-	group.Patch(idPath, protectedMidaz(auth, "segments", "patch", routeOptions, parse)...)
-	group.Get(listPath, protectedMidaz(auth, "segments", "get", routeOptions, parse)...)
-	group.Get(idPath, protectedMidaz(auth, "segments", "get", routeOptions, parse)...)
-	group.Delete(idPath, protectedMidaz(auth, "segments", "delete", routeOptions, parse)...)
-	group.Head(countPath, protectedMidaz(auth, "segments", "head", routeOptions, parse)...)
+	routePost(group, listPath, protectedMidaz(auth, "segments", "post", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, "segments", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, "segments", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, "segments", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, "segments", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, "segments", "head", routeOptions, parse))
 
 	RegisterSegmentRoutes(api, h)
 }

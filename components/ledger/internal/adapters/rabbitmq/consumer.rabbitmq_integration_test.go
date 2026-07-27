@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libZap "github.com/LerianStudio/lib-observability/zap"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
@@ -213,7 +214,8 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 	proxyAddr := containerInfo.ProxyListen
 
 	// 7. Create connection through the proxy
-	proxyURI := fmt.Sprintf("amqp://%s:%s@%s/",
+	proxyURI := fmt.Sprintf(
+		"amqp://%s:%s@%s/",
 		rmqtestutil.DefaultUser,
 		rmqtestutil.DefaultPassword,
 		proxyAddr,
@@ -287,7 +289,8 @@ func (infra *consumerChaosTestInfra) recreateChannelForInspection(t *testing.T) 
 	// Update container result with new ports
 	infra.rmqContainer.AMQPPort = newAMQPPort.Port()
 	infra.rmqContainer.MgmtPort = newMgmtPort.Port()
-	infra.rmqContainer.URI = fmt.Sprintf("amqp://%s:%s@%s:%s/",
+	infra.rmqContainer.URI = fmt.Sprintf(
+		"amqp://%s:%s@%s:%s/",
 		rmqtestutil.DefaultUser,
 		rmqtestutil.DefaultPassword,
 		infra.rmqContainer.Host,

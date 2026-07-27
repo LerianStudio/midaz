@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 )
@@ -33,11 +33,11 @@ func ClientIPMiddleware() fiber.Handler {
 // sit behind the trusted set are believed — see extractClientIP for the
 // right-to-left walk.
 func ClientIPMiddlewareWithTrustedProxies(trustedProxies []*net.IPNet) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		clientIP := extractClientIP(c, trustedProxies)
 
-		ctx := context.WithValue(c.UserContext(), contextutil.ContextKeyClientIP{}, clientIP)
-		c.SetUserContext(ctx)
+		ctx := context.WithValue(c.Context(), contextutil.ContextKeyClientIP{}, clientIP)
+		c.SetContext(ctx)
 
 		return c.Next()
 	}
@@ -57,7 +57,7 @@ func ClientIPMiddlewareWithTrustedProxies(trustedProxies []*net.IPNet) fiber.Han
 // IP is used. When trustedProxies is empty the header is ignored outright.
 //
 // Returns "0.0.0.0" only when even the socket IP is unparseable.
-func extractClientIP(c *fiber.Ctx, trustedProxies []*net.IPNet) string {
+func extractClientIP(c fiber.Ctx, trustedProxies []*net.IPNet) string {
 	socketIP := normalizeSocketIP(c.IP())
 
 	if len(trustedProxies) == 0 {

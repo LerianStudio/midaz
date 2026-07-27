@@ -7,9 +7,9 @@ package in
 import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // feesApplicationName is the auth resource namespace for fee/billing routes. It
@@ -52,31 +52,31 @@ func RegisterFeesRoutesToApp(
 	pkgParse := http.ParseUUIDPathParameters("packages")
 
 	// Packages
-	group.Post(packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse)...)
-	group.Get(packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse)...)
-	group.Get(packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse)...)
-	group.Patch(packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse)...)
-	group.Delete(packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse)...)
+	routePost(group, packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse))
+	routeGet(group, packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
+	routeGet(group, packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
+	routePatch(group, packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse))
+	routeDelete(group, packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse))
 
 	RegisterPackageRoutes(api, ph)
 
 	// Fee estimate (dry-run). POST /v1/fees is NOT mounted — fees run in-process via the seam.
-	group.Post(estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, http.ParseUUIDPathParameters("estimates"))...)
+	routePost(group, estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, http.ParseUUIDPathParameters("estimates")))
 
 	RegisterFeeEstimateRoutes(api, fh)
 
 	// Billing packages
 	billingParse := http.ParseUUIDPathParameters("billing-packages")
-	group.Post(billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse)...)
-	group.Get(billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse)...)
-	group.Get(billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse)...)
-	group.Patch(billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse)...)
-	group.Delete(billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse)...)
+	routePost(group, billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse))
+	routeGet(group, billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
+	routeGet(group, billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
+	routePatch(group, billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse))
+	routeDelete(group, billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse))
 
 	RegisterBillingPackageRoutes(api, bph)
 
 	// Billing calculate
-	group.Post(billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, http.ParseUUIDPathParameters("billing-calculate"))...)
+	routePost(group, billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, http.ParseUUIDPathParameters("billing-calculate")))
 
 	RegisterBillingCalculateRoutes(api, bch)
 }

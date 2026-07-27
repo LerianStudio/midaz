@@ -11,10 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/gofiber/fiber/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -51,8 +51,8 @@ func NewHandler(service RuleService) *Handler {
 	}
 }
 
-func (h *Handler) CreateRule(c *fiber.Ctx) error {
-	result, err := h.createRule(c.UserContext(), c.Body())
+func (h *Handler) CreateRule(c fiber.Ctx) error {
+	result, err := h.createRule(c.Context(), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -108,8 +108,8 @@ func (h *Handler) createRule(ctx context.Context, rawBody []byte) (*model.Rule, 
 	return result, nil
 }
 
-func (h *Handler) UpdateRule(c *fiber.Ctx) error {
-	result, err := h.updateRule(c.UserContext(), c.Params("id"), c.Body())
+func (h *Handler) UpdateRule(c fiber.Ctx) error {
+	result, err := h.updateRule(c.Context(), c.Params("id"), c.Body())
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -168,8 +168,8 @@ func (h *Handler) updateRule(ctx context.Context, idParam string, rawBody []byte
 	return result, nil
 }
 
-func (h *Handler) GetRule(c *fiber.Ctx) error {
-	result, err := h.getRule(c.UserContext(), c.Params("id"))
+func (h *Handler) GetRule(c fiber.Ctx) error {
+	result, err := h.getRule(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -210,9 +210,9 @@ func (h *Handler) getRule(ctx context.Context, idParam string) (*model.Rule, err
 	return result, nil
 }
 
-func (h *Handler) ListRules(c *fiber.Ctx) error {
-	// Fiber binds the query with QueryParser; the shared core owns the rest.
-	response, err := h.listRules(c.UserContext(), c.QueryParser)
+func (h *Handler) ListRules(c fiber.Ctx) error {
+	// Fiber binds the query via Bind().Query; the shared core owns the rest.
+	response, err := h.listRules(c.Context(), c.Bind().Query)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -274,8 +274,8 @@ func (h *Handler) listRules(ctx context.Context, bind func(any) error) (*ListRul
 	return response, nil
 }
 
-func (h *Handler) ActivateRule(c *fiber.Ctx) error {
-	rule, err := h.activateRule(c.UserContext(), c.Params("id"))
+func (h *Handler) ActivateRule(c fiber.Ctx) error {
+	rule, err := h.activateRule(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -314,8 +314,8 @@ func (h *Handler) activateRule(ctx context.Context, idParam string) (*model.Rule
 	return rule, nil
 }
 
-func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
-	rule, err := h.deactivateRule(c.UserContext(), c.Params("id"))
+func (h *Handler) DeactivateRule(c fiber.Ctx) error {
+	rule, err := h.deactivateRule(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -353,8 +353,8 @@ func (h *Handler) deactivateRule(ctx context.Context, idParam string) (*model.Ru
 	return rule, nil
 }
 
-func (h *Handler) DraftRule(c *fiber.Ctx) error {
-	rule, err := h.draftRule(c.UserContext(), c.Params("id"))
+func (h *Handler) DraftRule(c fiber.Ctx) error {
+	rule, err := h.draftRule(c.Context(), c.Params("id"))
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -392,8 +392,8 @@ func (h *Handler) draftRule(ctx context.Context, idParam string) (*model.Rule, e
 	return rule, nil
 }
 
-func (h *Handler) DeleteRule(c *fiber.Ctx) error {
-	if err := h.deleteRule(c.UserContext(), c.Params("id")); err != nil {
+func (h *Handler) DeleteRule(c fiber.Ctx) error {
+	if err := h.deleteRule(c.Context(), c.Params("id")); err != nil {
 		return http.WithError(c, err)
 	}
 

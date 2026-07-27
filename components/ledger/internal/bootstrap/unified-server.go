@@ -9,19 +9,20 @@ import (
 	"os"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	openapi "github.com/LerianStudio/lib-commons/v5/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v5/commons/net/http/problem"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v5/commons/server"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber router.
@@ -62,9 +63,18 @@ func NewUnifiedServer(
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
-		AppName:               "Midaz Ledger API",
-		DisableStartupMessage: true,
-		ErrorHandler:          midazhttp.CanonicalFiberErrorHandler,
+		AppName:      "Midaz Ledger API",
+		ErrorHandler: midazhttp.CanonicalFiberErrorHandler,
+	})
+
+	// Suppress the Fiber startup banner. The banner is gated at listen time via
+	// ListenConfig, which the lib-commons ServerManager owns (it calls app.Listen
+	// with no config), so the pre-startup hook is the only seam available here to
+	// keep boot silent.
+	app.Hooks().OnPreStartupMessage(func(data *fiber.PreStartupMessageData) error {
+		data.PreventDefault = true
+
+		return nil
 	})
 
 	// Add common middleware (only once for all routes).
@@ -104,7 +114,7 @@ func NewUnifiedServer(
 	// before any huma.Register and is idempotent (sync.Once). The Huma API binds to
 	// a /v1 Fiber GROUP with Servers ["/v1"] and GROUP-RELATIVE op paths, so the
 	// humafiber v2 adapter registers on that group (Fiber prepends /v1) and the
-	// adapter's ctx (built from c.UserContext()) reaches the migrated handlers with
+	// adapter's ctx (built from c.Context()) reaches the migrated handlers with
 	// the per-route tenant/DB intact — the auth+tenant middleware chain is attached
 	// on the SAME group inside humaMount, before each Huma terminal.
 	if humaMount != nil {
@@ -166,12 +176,14 @@ func NewUnifiedServer(
 			return nil
 		})
 
-		// Register OnShutdown hook to enable graceful drain.
+		// Register OnPreShutdown hook to enable graceful drain. Fiber v3 split the
+		// v2 OnShutdown hook into OnPreShutdown (runs before shutdown begins) and
+		// OnPostShutdown; the drain-before-close behavior maps to OnPreShutdown.
 		// When SIGTERM is received, this hook:
 		// 1. Calls StartDrain() so readyz returns 503
 		// 2. Waits DefaultDrainDelay (12s) for load balancers to stop routing traffic
 		// 3. Returns, allowing Fiber to proceed with connection draining
-		app.Hooks().OnShutdown(func() error {
+		app.Hooks().OnPreShutdown(func() error {
 			readyzHandler.StartDrain()
 			logger.Log(context.Background(), libLog.LevelInfo,
 				"Graceful drain started, waiting for load balancers to update",
