@@ -400,7 +400,7 @@ Empty line required before: `return`, `if`, `for`, `switch`, `defer`, assignment
   - Config: `libCommons.SetConfigFromEnvVars(cfg)` — struct tag loading
   - HTTP: `libHTTP.OK()`, `libHTTP.Created()`, `libHTTP.WithError()`, `libHTTP.HandleFiberError()`
   - Launcher: `libCommons.NewLauncher(opts...).Run()` — graceful multi-service lifecycle
-- **lib-observability/v2** (`v2.0.0`): OpenTelemetry, logging (observability split out of lib-commons)
+- **lib-observability/v2** (`v2.1.0`): OpenTelemetry, logging (observability split out of lib-commons)
   - OpenTelemetry: `libOtel.HandleSpanError(span, "msg", err)`, `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)`
   - Logging: `libZap.New()`, `libLog.Logger` interface
   - Packages: `lib-observability/v2/{log,metrics,runtime,tracing,zap}`

@@ -7,7 +7,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.26.4 (`go.mod` `go 1.26.4`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.0.0; `lib-observability/v2` v2.0.0.
+- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.0.0; `lib-observability/v2` v2.1.0.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.

@@ -228,7 +228,7 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 ### Lerian
 - lib-auth/v3 (v3.0.0): JWT/RBAC middleware, auth client (`lib-auth/v3/auth/middleware`)
 - lib-commons/v6 (v6.0.0): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`), Huma/OpenAPI + RFC 9457 problem wrappers (`commons/net/http/{openapi,problem}`)
-- lib-observability/v2 (v2.0.0): observability split out of lib-commons — logging (`lib-observability/v2/log`, `lib-observability/v2/zap`), tracing/OpenTelemetry (`lib-observability/v2/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
+- lib-observability/v2 (v2.1.0): observability split out of lib-commons — logging (`lib-observability/v2/log`, `lib-observability/v2/zap`), tracing/OpenTelemetry (`lib-observability/v2/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
 
 ### Key Third-Party
 - gofiber/fiber/v3 v3.4.0: HTTP framework
