@@ -212,15 +212,15 @@ import (
     "github.com/shopspring/decimal"
 
     // 3. Internal: lib-commons (with lib prefix)
-    libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-    libLog "github.com/LerianStudio/lib-observability/log"
+    libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+    libLog "github.com/LerianStudio/lib-observability/v2/log"
 
     // 4. Internal: midaz project packages
     "github.com/LerianStudio/midaz/v4/pkg"
     "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 
     // 5. External: frameworks
-    "github.com/gofiber/fiber/v2"
+    "github.com/gofiber/fiber/v3"
     "github.com/google/uuid"
 )
 ```
@@ -1120,7 +1120,7 @@ type TenantConfig struct {
 
 ### Dependency
 
-Multi-tenancy is provided by `lib-commons/v5`:
+Multi-tenancy is provided by `lib-commons/v6`:
 - `tmclient.Client` - HTTP client to tenant manager service
 - `tmpostgres.Manager` / `tmmongo.Manager` / `tmrabbitmq.Manager` - Per-tenant connection pool managers
 - `tmmiddleware.TenantMiddleware` - Fiber middleware to extract tenant and inject DB

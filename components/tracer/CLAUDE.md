@@ -24,7 +24,7 @@ Readiness: `GET http://localhost:4020/readyz`
 | **Architecture** | Hexagonal (Ports & Adapters) + CQRS |
 | **Database** | PostgreSQL 17 |
 | **Rule Engine** | Google CEL (cel-go v0.28.1) |
-| **Auth** | lib-auth v2 (API Key + Access Manager plugin) |
+| **Auth** | lib-auth v3 (API Key + Access Manager plugin) |
 | **Observability** | OpenTelemetry via lib-observability |
 | **Testing** | TDD; testify + sqlmock + gomock + testcontainers + Godog (BDD) |
 | **License** | Elastic License 2.0 |
@@ -137,7 +137,7 @@ tracer/
 │   │   │   ├── limit_handler.go   # Limit CRUD + lifecycle handlers
 │   │   │   ├── audit_event_handler.go # Audit event read handlers
 │   │   │   ├── health.go          # Health/readiness probes
-│   │   │   ├── middleware/        # Auth (lib-auth v2: API Key + Access Manager), CORS, IP extraction
+│   │   │   ├── middleware/        # Auth (lib-auth v3: API Key + Access Manager), CORS, IP extraction
 │   │   │   └── *_validation.go    # Input validation per resource
 │   │   ├── postgres/              # Repository implementations
 │   │   │   ├── rule_repository.go           # Rules CRUD
@@ -298,7 +298,7 @@ Binding standard: [`../../docs/standards/error-handling.md`](../../docs/standard
 
 ### 5. HTTP Handlers
 
-- Fiber v2 framework
+- Fiber v3 framework
 - Every handler: extract ctx, start span, parse input, call service, respond
 - Response wrappers: `libHTTP.OK()`, `libHTTP.Created()`, `libHTTP.NoContent()`, `libHTTP.WithError()`
 - Never use direct Fiber responses (`c.JSON()`, `c.Status().JSON()`)
@@ -392,22 +392,22 @@ Empty line required before: `return`, `if`, `for`, `switch`, `defer`, assignment
 
 ### Lerian-Specific
 
-- **lib-auth/v2** (`v2.8.0`): Auth middleware, auth client
+- **lib-auth/v3** (`v3.0.0`): Auth middleware, auth client
   - `authMiddleware.NewAuthClient(address, enabled, &logger)`
-- **lib-commons/v5** (`v5.5.0`): Common utilities, infrastructure
+- **lib-commons/v6** (`v6.0.0`): Common utilities, infrastructure
   - Tracking: `libCommons.NewTrackingFromContext(ctx)` → logger, tracer, headerID
   - Database: `libPostgres.New(config)` → Client with primary/replica
   - Config: `libCommons.SetConfigFromEnvVars(cfg)` — struct tag loading
   - HTTP: `libHTTP.OK()`, `libHTTP.Created()`, `libHTTP.WithError()`, `libHTTP.HandleFiberError()`
   - Launcher: `libCommons.NewLauncher(opts...).Run()` — graceful multi-service lifecycle
-- **lib-observability** (`v1.0.1`): OpenTelemetry, logging (observability split out of lib-commons)
+- **lib-observability/v2** (`v2.0.0`): OpenTelemetry, logging (observability split out of lib-commons)
   - OpenTelemetry: `libOtel.HandleSpanError(span, "msg", err)`, `libOtel.HandleSpanBusinessErrorEvent(span, "msg", err)`
   - Logging: `libZap.New()`, `libLog.Logger` interface
-  - Packages: `lib-observability/{log,metrics,runtime,tracing,zap}`
+  - Packages: `lib-observability/v2/{log,metrics,runtime,tracing,zap}`
 
 ### Key Third-Party
 
-- `gofiber/fiber/v2` — HTTP framework
+- `gofiber/fiber/v3` — HTTP framework
 - `google/cel-go` v0.28.1 — CEL expression engine
 - `Masterminds/squirrel` — SQL query builder
 - `shopspring/decimal` — Precise decimal arithmetic

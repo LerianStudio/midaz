@@ -96,7 +96,7 @@ owner and **defers all execution to the X1 gate**. No namespace literal is chang
 
 ## 1. Current state — four namespaces across two deploy units
 
-`auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v2.8.0, global RBAC check) is called
+`auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v3.0.0, global RBAC check) is called
 under four distinct namespace literals across the monorepo:
 
 | Namespace | Deploy unit | Resources (verified) | Source (file:line) |
@@ -139,7 +139,7 @@ cross-check) as **no-action** [the header itself was since removed — fees move
 > "não existe risco. o tenant owner é responsável efetivamente por todas as orgs embaixo dele."
 
 The **tenant** is the platform's principal and trust boundary. There is **no organization
-dimension in authz**: lib-auth v2.8.0 `Authorize(sub, resource, action)`
+dimension in authz**: lib-auth v3.0.0 `Authorize(sub, resource, action)`
 (`auth/middleware/middleware.go:216`) is a global RBAC check — no org argument exists. `tenantId`
 (seeded by `MarkTrustedAuthAssertion`, `pkg/net/http/protected_routes.go:40-69`) is a tenant-DB
 selector, and one tenant holds many organizations. Intra-tenant org targeting is **by design, not a

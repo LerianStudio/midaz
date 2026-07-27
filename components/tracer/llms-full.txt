@@ -171,7 +171,7 @@ Tracer uses the ONE shared error platform: typed errors and sentinels live in th
 - Tables: rules, limits, usage_counters, transaction_validations, audit_events
 - Cursor-based pagination (no offset/page)
 - Squirrel SQL builder with parameterized queries ($1, $2)
-- Connection via lib-commons/v5 `commons/postgres` client (primary + replica DSN)
+- Connection via lib-commons/v6 `commons/postgres` client (primary + replica DSN)
 - Tracer's `tracer` database is created by the consolidated `components/infra` (`postgres/init.sql`); tracer runs only its own migrations against it. The shared infra Postgres runs `postgres:17` on the `infra-network`.
 
 ### Migrations
@@ -226,12 +226,12 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 ## Libraries
 
 ### Lerian
-- lib-auth/v2 (v2.8.1): JWT/RBAC middleware, auth client (`lib-auth/v2/auth/middleware`)
-- lib-commons/v5 (v5.8.0): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`), Huma/OpenAPI + RFC 9457 problem wrappers (`commons/net/http/{openapi,problem}`)
-- lib-observability (v1.1.0): observability split out of lib-commons — logging (`lib-observability/log`, `lib-observability/zap`), tracing/OpenTelemetry (`lib-observability/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
+- lib-auth/v3 (v3.0.0): JWT/RBAC middleware, auth client (`lib-auth/v3/auth/middleware`)
+- lib-commons/v6 (v6.0.0): PostgreSQL client (`commons/postgres`), config loading, HTTP utilities, launcher, tenant managers (`commons/tenant-manager/*`), Huma/OpenAPI + RFC 9457 problem wrappers (`commons/net/http/{openapi,problem}`)
+- lib-observability/v2 (v2.0.0): observability split out of lib-commons — logging (`lib-observability/v2/log`, `lib-observability/v2/zap`), tracing/OpenTelemetry (`lib-observability/v2/tracing`, exposing `HandleSpanError`/`HandleSpanBusinessErrorEvent`), metrics, runtime, middleware
 
 ### Key Third-Party
-- gofiber/fiber/v2 v2.52.13: HTTP framework
+- gofiber/fiber/v3 v3.4.0: HTTP framework
 - google/cel-go v0.28.1: CEL expression engine
 - Masterminds/squirrel v1.5.4: SQL query builder
 - shopspring/decimal v1.4.0: Precise decimal arithmetic
