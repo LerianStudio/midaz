@@ -1125,9 +1125,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
 	// SECOND, independent contract instance (ADR-003: one OpenAPI document per API
 	// version, each with its OWN Huma component registry so v1 and v2 schema names
-	// never collide). Task 1.1.2 registers the `direct` transaction route here; the
-	// v2 contract mounts no ops yet, so its OpenAPI document is intentionally empty.
-	humaMountV2 := func(_ fiber.Router, _ huma.API) {
+	// never collide). Task 1.1.2 registers the `direct` transaction op: it carries
+	// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorizes against
+	// the "midaz" appName (protectedMidaz, transactions:post) — the SAME auth + tenant
+	// chain the v1 transaction CREATE ops use, no new policy. Later phases add
+	// hold/block/commit/cancel/revert here.
+	humaMountV2 := func(group fiber.Router, api huma.API) {
+		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
 	}
 
 	transactionRouteRegistrar := func(router fiber.Router) {
