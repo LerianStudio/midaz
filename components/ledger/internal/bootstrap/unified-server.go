@@ -60,6 +60,7 @@ func NewUnifiedServer(
 	telemetry *libOpentelemetry.Telemetry,
 	readyzHandler *ReadyzHandler,
 	humaMount HumaRouteRegistrar,
+	humaMountV2 HumaRouteRegistrar,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -157,6 +158,50 @@ func NewUnifiedServer(
 		// Mounted AFTER humaMount so the snapshotted spec is complete.
 		if swaggerEnabled() {
 			openapi.ServeSpec(app, humaAPI, logger, "/v1", "Midaz Ledger API")
+		}
+	}
+
+	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API binds to its
+	// own Fiber group and its own Huma document with a SEPARATE component registry,
+	// so v1 and v2 schema names never collide and no schema namer is needed here.
+	// problem.Install() is idempotent (sync.Once), so calling it again keeps this
+	// block self-sufficient when only humaMountV2 is supplied. The v1 mount above
+	// is left byte-identical.
+	if humaMountV2 != nil {
+		problem.Install()
+
+		apiV2 := app.Group("/v2")
+
+		humaAPIV2 := openapi.New(app, apiV2, openapi.Config{
+			Title:       "Midaz Ledger API v2",
+			Version:     version,
+			Description: "Midaz Ledger v2 API contract.",
+			Servers:     []string{"/v2"},
+		})
+
+		// Declare the same security schemes the v1 document carries so per-op
+		// Security metadata registered by humaMountV2 resolves in the generated
+		// spec. SPEC metadata only — runtime auth stays the Fiber guard chain.
+		openapi.DeclareBearerAuth(humaAPIV2)
+
+		componentsV2 := humaAPIV2.OpenAPI().Components
+		if componentsV2.SecuritySchemes == nil {
+			componentsV2.SecuritySchemes = map[string]*huma.SecurityScheme{}
+		}
+
+		componentsV2.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
+			Type:        "apiKey",
+			In:          "header",
+			Name:        "X-API-Key",
+			Description: "Static API key presented in the X-API-Key header.",
+		}
+
+		humaMountV2(apiV2, humaAPIV2)
+
+		// Native Huma OpenAPI 3.1 spec + Scalar docs for v2, gated on swaggerEnabled().
+		// Mounted AFTER humaMountV2 so the snapshotted spec is complete.
+		if swaggerEnabled() {
+			openapi.ServeSpec(app, humaAPIV2, logger, "/v2", "Midaz Ledger API v2")
 		}
 	}
 

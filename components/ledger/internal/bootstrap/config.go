@@ -1122,6 +1122,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterCompositionRoutesToApp(group, api, auth, compositionHandler, routeSetup.compositionRouteOptions)
 	}
 
+	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
+	// SECOND, independent contract instance (ADR-003: one OpenAPI document per API
+	// version, each with its OWN Huma component registry so v1 and v2 schema names
+	// never collide). Task 1.1.2 registers the `direct` transaction route here; the
+	// v2 contract mounts no ops yet, so its OpenAPI document is intentionally empty.
+	humaMountV2 := func(_ fiber.Router, _ huma.API) {
+	}
+
 	transactionRouteRegistrar := func(router fiber.Router) {
 		httpin.RegisterTransactionRoutesToApp(router, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, routeSetup.transactionRouteOptions)
 	}
@@ -1149,6 +1157,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		telemetry,
 		readyzHandler,
 		humaMount,
+		humaMountV2,
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
