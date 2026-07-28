@@ -22,13 +22,16 @@ import (
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
 // policy is introduced: authorization is per-tenant, identical to v1.
 //
-// The terminals (CreateTransactionDirectV2Huma, CreateTransactionHoldV2Huma,
+// The CREATE terminals (CreateTransactionDirectV2Huma, CreateTransactionHoldV2Huma,
 // CreateTransactionBlockV2Huma, CreateTransactionUnblockV2Huma) live in
 // transaction_v2_handler.go: they decode the flat v2 body, translate it, and enter
-// the v1 createTransaction funnel (hold with pending=true). Path params follow the
-// asset/CRM Huma convention — plain strings with only `doc:` (no format:uuid tag) so
-// ParseUUIDPathParameters stays the sole path-UUID validator on the Fiber chain, not a
-// native Huma 422.
+// the v1 createTransaction funnel (hold with pending=true). The LIFECYCLE terminals
+// (commit/cancel, and revert coming next) carry no body or headers, so instead of new
+// v2 handlers they REUSE the transport-neutral v1 shells in transaction_handler_huma.go
+// (CommitTransactionHuma / CancelTransactionHuma) verbatim — the v2 surface adds only the
+// route, not a duplicate handler. Path params follow the asset/CRM Huma convention — plain
+// strings with only `doc:` (no format:uuid tag) so ParseUUIDPathParameters stays the sole
+// path-UUID validator on the Fiber chain, not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
 // v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock`,
