@@ -17,8 +17,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg6
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/LerianStudio/lib-auth/v3 v3.1.0 h1:89Zrk4T8zJ4aYseEQAd48jBz020RFiJdSQuZSetShRw=
-github.com/LerianStudio/lib-auth/v3 v3.1.0/go.mod h1:NWCpNMetNbsvNkptG61o7BRfXcT9sHLIRShaQU76Gj4=
+github.com/LerianStudio/lib-auth/v3 v3.2.0 h1:TfZpd8ER82fWO0HwsjsiP6HJ5zsX6IHwLUevJdM/pbM=
+github.com/LerianStudio/lib-auth/v3 v3.2.0/go.mod h1:NWCpNMetNbsvNkptG61o7BRfXcT9sHLIRShaQU76Gj4=
 github.com/LerianStudio/lib-commons/v6 v6.0.0 h1:XDKyCKdb2h3l0MBwQQNBRuCsiSTjafJfgp/QLMAEzd0=
 github.com/LerianStudio/lib-commons/v6 v6.0.0/go.mod h1:bOPZG4oO2xoSE307JJyXKyhmBo7EyQ5g8DEw5fI/ZEg=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
@@ -27,8 +27,8 @@ github.com/LerianStudio/lib-observability/v2 v2.1.0 h1:/w5u44Zpe9R+R3d/Ti3//OdJR
 github.com/LerianStudio/lib-observability/v2 v2.1.0/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
 github.com/LerianStudio/lib-service-discovery v1.1.0 h1:rREGTNnlwoHdfsqDbDoOXAQkqQazVYT/b0yTypSWrk8=
 github.com/LerianStudio/lib-service-discovery v1.1.0/go.mod h1:d6pW/QMo1hYzLgzcxiTg3updjSs6m5sZkuOG3L4gwxo=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1 h1:QlfrBpwd2VraLmURfYPFBVdDejDDwDWgjNsXyefDYOQ=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1/go.mod h1:SHodsEhv1U1Wra+vbk3KoQ7glHrtKJpbCNog3cqnmM8=
+github.com/LerianStudio/lib-streaming/v2 v2.0.0 h1:E5TokAl9vuMGKrfOc9Up2jazxjoxt1Dh6PwyNf0ZFKo=
+github.com/LerianStudio/lib-streaming/v2 v2.0.0/go.mod h1:LNPnBAgyCx1wZ4a+9XvxQieRc/Dl8AZ9A2sFrFmrz88=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

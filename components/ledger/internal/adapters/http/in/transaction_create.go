@@ -307,7 +307,7 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
 		// configures a dedicated Block/Unblock AccountingEntry, route the
 		// rubric lookup to it; otherwise leave resolvedAction unchanged so
-		// block/unblock keep resolving via the Direct rubric (Phase 1 parity).
+		// block/unblock keep resolving via the Direct rubric.
 		switch operationTypeOverride {
 		case constant.BLOCK:
 			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
@@ -991,8 +991,19 @@ func (handler *TransactionHandler) buildStandardOp(
 // `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
 // orchestration in executeCreateTransaction is untouched: this is the thin transport
 // boundary only.
-func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL)
+func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
+}
+
+// resolveIdempotencyHashSource returns the string the idempotency hash is computed over:
+// the non-empty override when supplied, else the canonical serialized transaction. Keying
+// off a raw pre-translation body via the override is the v2 idempotency contract.
+func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, override ...string) (string, error) {
+	if len(override) > 0 && override[0] != "" {
+		return override[0], nil
+	}
+
+	return libCommons.StructToJSONString(transactionInput)
 }
 
 // createRevertTransaction creates a reversal transaction. The action is forced
@@ -1052,7 +1063,7 @@ func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.Led
 }
 
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
-func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
+func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
@@ -1102,12 +1113,12 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// hash keys on the raw body, not the package version. Package version is
 	// deliberately NOT part of the key.
 	//
-	// idempotencyKey/idempotencyTTL are resolved by the transport (the Fiber
-	// GetIdempotencyKeyAndTTL or the Huma header read) and passed in; the hash is
-	// still computed here over the SAME built transactionInput so it is byte-
-	// identical across both transports. The X-Idempotency-Replayed header is set by
-	// the transport off the returned replayed flag, not here.
-	ts, err := libCommons.StructToJSONString(transactionInput)
+	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash
+	// is computed here over the idempotency hash SOURCE resolved by
+	// resolveIdempotencyHashSource. An optional override keys the hash off the raw body as
+	// submitted; with no override the source is the canonical transactionInput.
+	// The HashSHA256 mechanism is the same regardless of which source is used.
+	hashSource, err := resolveIdempotencyHashSource(transactionInput, idempotencyHashSource...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to serialize transaction for idempotency hash", libLog.Err(err))
@@ -1115,7 +1126,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, err
 	}
 
-	idempotencyHash := libCommons.HashSHA256(ts)
+	idempotencyHash := libCommons.HashSHA256(hashSource)
 
 	idempotencyResult, err := handler.Command.CreateOrCheckTransactionIdempotency(ctx, params.OrganizationID, params.LedgerID, idempotencyKey, idempotencyHash, idempotencyTTL)
 	if err != nil {

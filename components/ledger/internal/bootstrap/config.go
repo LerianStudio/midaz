@@ -1122,6 +1122,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		httpin.RegisterCompositionRoutesToApp(group, api, auth, compositionHandler, routeSetup.compositionRouteOptions)
 	}
 
+	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
+	// SECOND, independent contract instance (one OpenAPI document per API
+	// version, each with its OWN Huma component registry so v1 and v2 schema names
+	// never collide). It registers the `direct` transaction op: it carries
+	// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorizes against
+	// the "midaz" appName (protectedMidaz, transactions:post) — the SAME auth + tenant
+	// chain the v1 transaction CREATE ops use, no new policy. Later phases add
+	// hold/block/commit/cancel/revert here.
+	humaMountV2 := func(group fiber.Router, api huma.API) {
+		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
+	}
+
 	transactionRouteRegistrar := func(router fiber.Router) {
 		httpin.RegisterTransactionRoutesToApp(router, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, routeSetup.transactionRouteOptions)
 	}
@@ -1149,6 +1161,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		telemetry,
 		readyzHandler,
 		humaMount,
+		humaMountV2,
 		onboardingRouteRegistrar,
 		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
