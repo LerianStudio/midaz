@@ -22,6 +22,10 @@ const directV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 
 const holdV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
 
+const blockV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/block"
+
+const unblockV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock"
+
 // registerV2TransactionRoutesForTest wires the v2 transaction ops (direct AND hold) onto a
 // fresh Fiber app + its own /v2 Huma contract, exactly as the production humaMountV2 seam
 // does. A zero-value TransactionHandler is safe because registration never invokes the
@@ -72,6 +76,136 @@ func TestRegisterTransactionV2RoutesToApp_MountsHoldRoute(t *testing.T) {
 
 	assert.True(t, routeSet[http.MethodPost+":"+holdV2RoutePath],
 		"should register POST /v2 transactions/hold")
+}
+
+// TestRegisterTransactionV2RoutesToApp_MountsBlockRoute asserts the v2 `block` POST
+// route is mounted on the /v2 group (Fiber chain), sharing the direct/hold/v1
+// protected chain.
+func TestRegisterTransactionV2RoutesToApp_MountsBlockRoute(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: false}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	routeSet := make(map[string]bool)
+	for _, r := range app.GetRoutes() {
+		routeSet[r.Method+":"+r.Path] = true
+	}
+
+	assert.True(t, routeSet[http.MethodPost+":"+blockV2RoutePath],
+		"should register POST /v2 transactions/block")
+}
+
+// TestRegisterTransactionV2RoutesToApp_MountsUnblockRoute asserts the v2 `unblock`
+// POST route is mounted on the /v2 group (Fiber chain), sharing the
+// direct/hold/v1 protected chain.
+func TestRegisterTransactionV2RoutesToApp_MountsUnblockRoute(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: false}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	routeSet := make(map[string]bool)
+	for _, r := range app.GetRoutes() {
+		routeSet[r.Method+":"+r.Path] = true
+	}
+
+	assert.True(t, routeSet[http.MethodPost+":"+unblockV2RoutePath],
+		"should register POST /v2 transactions/unblock")
+}
+
+// TestRegisterTransactionV2Routes_RegistersBlockHumaOperation asserts the block op is
+// present on the v2 Huma document with the canonical OperationID at the
+// group-relative block path.
+func TestRegisterTransactionV2Routes_RegistersBlockHumaOperation(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	apiV2 := app.Group("/v2")
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
+
+	const opPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block"
+
+	pathItem, ok := humaAPI.OpenAPI().Paths[opPath]
+	require.Truef(t, ok, "v2 contract should carry the block op path %q", opPath)
+	require.NotNil(t, pathItem.Post, "block op path should carry a POST operation")
+
+	assert.Equal(t, "createTransactionBlockV2", pathItem.Post.OperationID,
+		"block op should advertise OperationID createTransactionBlockV2")
+	assert.Equal(t, http.StatusCreated, pathItem.Post.DefaultStatus,
+		"block op should default to 201 Created (create parity)")
+}
+
+// TestRegisterTransactionV2Routes_RegistersUnblockHumaOperation asserts the unblock op
+// is present on the v2 Huma document with the canonical OperationID at the
+// group-relative unblock path.
+func TestRegisterTransactionV2Routes_RegistersUnblockHumaOperation(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	apiV2 := app.Group("/v2")
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
+
+	const opPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock"
+
+	pathItem, ok := humaAPI.OpenAPI().Paths[opPath]
+	require.Truef(t, ok, "v2 contract should carry the unblock op path %q", opPath)
+	require.NotNil(t, pathItem.Post, "unblock op path should carry a POST operation")
+
+	assert.Equal(t, "createTransactionUnblockV2", pathItem.Post.OperationID,
+		"unblock op should advertise OperationID createTransactionUnblockV2")
+	assert.Equal(t, http.StatusCreated, pathItem.Post.DefaultStatus,
+		"unblock op should default to 201 Created (create parity)")
+}
+
+// TestV2BlockRoute_RequiresAuth proves the v2 block route shares the v1 protected chain:
+// with auth enabled and no bearer token the request is rejected before reaching the
+// stub handler.
+func TestV2BlockRoute_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/block"
+
+	req := httptest.NewRequest(http.MethodPost, concretePath, nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
+		"tokenless v2 block request must be rejected by the transactions:post auth chain")
+}
+
+// TestV2UnblockRoute_RequiresAuth proves the v2 unblock route shares the v1 protected
+// chain: with auth enabled and no bearer token the request is rejected before reaching
+// the stub handler.
+func TestV2UnblockRoute_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/unblock"
+
+	req := httptest.NewRequest(http.MethodPost, concretePath, nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
+		"tokenless v2 unblock request must be rejected by the transactions:post auth chain")
 }
 
 // TestRegisterTransactionV2Routes_RegistersHoldHumaOperation asserts the hold op is
