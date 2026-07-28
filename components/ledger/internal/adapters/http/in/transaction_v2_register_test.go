@@ -20,6 +20,8 @@ import (
 
 const directV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/direct"
 
+const holdV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
+
 // registerV2DirectRoutesForTest wires the v2 `direct` op onto a fresh Fiber app +
 // its own /v2 Huma contract, exactly as the production humaMountV2 seam does. A
 // zero-value TransactionHandler is safe because registration never invokes the
@@ -52,6 +54,71 @@ func TestRegisterTransactionV2RoutesToApp_MountsDirectRoute(t *testing.T) {
 
 	assert.True(t, routeSet[http.MethodPost+":"+directV2RoutePath],
 		"should register POST /v2 transactions/direct")
+}
+
+// TestRegisterTransactionV2RoutesToApp_MountsHoldRoute asserts the v2 `hold` POST
+// route is mounted on the /v2 group (Fiber chain), sharing the direct/v1 protected
+// chain.
+func TestRegisterTransactionV2RoutesToApp_MountsHoldRoute(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: false}
+	app := registerV2DirectRoutesForTest(auth)
+
+	routeSet := make(map[string]bool)
+	for _, r := range app.GetRoutes() {
+		routeSet[r.Method+":"+r.Path] = true
+	}
+
+	assert.True(t, routeSet[http.MethodPost+":"+holdV2RoutePath],
+		"should register POST /v2 transactions/hold")
+}
+
+// TestRegisterTransactionV2Routes_RegistersHoldHumaOperation asserts the hold op is
+// present on the v2 Huma document with the canonical OperationID at the
+// group-relative hold path.
+func TestRegisterTransactionV2Routes_RegistersHoldHumaOperation(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	apiV2 := app.Group("/v2")
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
+
+	const opPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold"
+
+	pathItem, ok := humaAPI.OpenAPI().Paths[opPath]
+	require.Truef(t, ok, "v2 contract should carry the hold op path %q", opPath)
+	require.NotNil(t, pathItem.Post, "hold op path should carry a POST operation")
+
+	assert.Equal(t, "createTransactionHoldV2", pathItem.Post.OperationID,
+		"hold op should advertise OperationID createTransactionHoldV2")
+	assert.Equal(t, http.StatusCreated, pathItem.Post.DefaultStatus,
+		"hold op should default to 201 Created (create parity)")
+}
+
+// TestV2HoldRoute_RequiresAuth proves the v2 hold route shares the v1 protected chain:
+// with auth enabled and no bearer token the request is rejected before reaching the
+// stub handler.
+func TestV2HoldRoute_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
+	app := registerV2DirectRoutesForTest(auth)
+
+	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/hold"
+
+	req := httptest.NewRequest(http.MethodPost, concretePath, nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
+		"tokenless v2 hold request must be rejected by the transactions:post auth chain")
 }
 
 // TestRegisterTransactionV2Routes_RegistersHumaOperation asserts the direct op is
