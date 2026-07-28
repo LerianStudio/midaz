@@ -123,10 +123,13 @@ func NewUnifiedServer(
 	}
 
 	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API owns a SEPARATE
-	// component registry, so v1 and v2 schema names never collide and no schema namer
-	// is needed here. The v1 mount above is left byte-identical.
+	// component registry, so v1 and v2 schema names never collide across contracts.
+	// The ledger schema namer is still installed WITHIN the v2 registry because the
+	// v2 create output embeds transaction.Transaction, which nests operation.Operation
+	// → operation.{Status,Balance,Amount} and clashes with transaction.Status on the
+	// bare schema names (the SAME disambiguation the v1 mount applies).
 	if humaMountV2 != nil {
-		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, false, humaMountV2)
+		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, true, humaMountV2)
 	}
 
 	// End tracing spans middleware (must be last)

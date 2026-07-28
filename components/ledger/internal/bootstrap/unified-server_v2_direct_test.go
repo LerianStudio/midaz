@@ -96,22 +96,26 @@ func TestNewUnifiedServer_V2DirectRouteRequiresAuth(t *testing.T) {
 		"tokenless v2 direct request must be blocked by the transactions:post auth chain")
 }
 
-// TestNewUnifiedServer_V2DirectRouteReachesStub proves the mounted route→terminal
+// TestNewUnifiedServer_V2DirectRouteReachesRealHandler proves the mounted route→terminal
 // composition end-to-end: an AUTHENTICATED (auth disabled) POST to the CONCRETE /v2
 // direct path traverses the full Fiber middleware chain (auth passthrough + tenant
-// post-auth + ParseUUIDPathParameters) and dispatches to the Huma 501 stub, returning
-// a clean RFC 9457 problem+json envelope (never a panic). This exercises the seam the
-// in-memory handler unit test cannot: the Fiber chain and the Huma terminal are wired
-// to the SAME path and hand off correctly.
-func TestNewUnifiedServer_V2DirectRouteReachesStub(t *testing.T) {
+// post-auth + ParseUUIDPathParameters) and dispatches to the REAL handler, which decodes
+// the flat v2 body. An empty `{}` body is missing the required asset/amount/from/to
+// fields, so http.DecodeAndValidate rejects it with the canonical 400 RFC 9457
+// problem+json (never a panic, never the removed 501 stub). This exercises the seam the
+// in-memory handler unit test cannot: the Fiber chain and the Huma terminal are wired to
+// the SAME path and hand off correctly. The committed money path is the Task 1.3.3
+// integration+parity test.
+func TestNewUnifiedServer_V2DirectRouteReachesRealHandler(t *testing.T) {
 	t.Parallel()
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
 	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
 
-	// A well-formed body + Content-Type is required so Huma's request parse succeeds
-	// and dispatch reaches the terminal; the stub ignores the body and returns 501.
+	// Empty body + Content-Type: Huma's request parse succeeds (RawBody), dispatch
+	// reaches the real handler, and DecodeAndValidate rejects the missing required
+	// fields with the canonical 400.
 	req, err := http.NewRequest(http.MethodPost, concretePath, bytes.NewReader([]byte("{}")))
 	require.NoError(t, err)
 
@@ -122,18 +126,18 @@ func TestNewUnifiedServer_V2DirectRouteReachesStub(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode,
-		"authenticated v2 direct request must reach the 501 stub through the mounted chain")
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"authenticated v2 direct request must reach the real handler and 400 on the empty body through the mounted chain")
 	assert.Contains(t, resp.Header.Get("Content-Type"), "application/problem+json",
-		"501 stub must serialize the RFC 9457 problem+json envelope")
+		"the handler must serialize the RFC 9457 problem+json envelope")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var problem map[string]any
 	require.NoError(t, json.Unmarshal(body, &problem), "body should decode as RFC 9457 JSON")
-	assert.Equal(t, float64(http.StatusNotImplemented), problem["status"],
-		"RFC 9457 envelope should carry status:501")
+	assert.Equal(t, float64(http.StatusBadRequest), problem["status"],
+		"RFC 9457 envelope should carry status:400")
 }
 
 // TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled asserts the swaggerEnabled

@@ -5,18 +5,17 @@
 package in
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 const directV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/direct"
@@ -30,6 +29,7 @@ func registerV2DirectRoutesForTest(auth *middleware.AuthClient) *fiber.App {
 
 	apiV2 := app.Group("/v2")
 	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
 	RegisterTransactionV2RoutesToApp(apiV2, humaAPI, auth, &TransactionHandler{}, nil)
 
@@ -63,6 +63,7 @@ func TestRegisterTransactionV2Routes_RegistersHumaOperation(t *testing.T) {
 	app := fiber.New()
 	apiV2 := app.Group("/v2")
 	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
 	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
 
@@ -100,26 +101,4 @@ func TestV2DirectRoute_RequiresAuth(t *testing.T) {
 
 	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
 		"tokenless v2 direct request must be rejected by the transactions:post auth chain")
-}
-
-// TestCreateTransactionDirectV2Huma_ReturnsNotImplemented pins the Task 1.1.2 stub
-// contract: the handler returns a clean RFC 9457 501 (never a panic). Task 1.3.1
-// replaces this body with the real translate + funnel logic.
-func TestCreateTransactionDirectV2Huma_ReturnsNotImplemented(t *testing.T) {
-	t.Parallel()
-
-	handler := &TransactionHandler{}
-
-	out, err := handler.CreateTransactionDirectV2Huma(context.Background(), &CreateTransactionDirectV2InputHuma{
-		OrganizationID: "00000000-0000-0000-0000-000000000001",
-		LedgerID:       "00000000-0000-0000-0000-000000000002",
-	})
-
-	assert.Nil(t, out, "stub returns no body")
-	require.Error(t, err, "stub must return an error")
-
-	var statusErr huma.StatusError
-	require.True(t, errors.As(err, &statusErr), "stub error should expose an HTTP status")
-	assert.Equal(t, http.StatusNotImplemented, statusErr.GetStatus(),
-		"stub should map to 501 Not Implemented")
 }
