@@ -858,3 +858,305 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"direct + hold with an identical no-key body must persist two transactions, not replay one")
 }
+
+// v2BlockURL / v2UnblockURL build the concrete v2 block/unblock paths. Both ops are mounted
+// by the SAME RegisterTransactionV2RoutesToApp seam as direct/hold, so the v2 app built by
+// buildHumaV2DirectApp serves all four.
+func v2BlockURL(orgID, ledgerID uuid.UUID) string {
+	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
+}
+
+func v2UnblockURL(orgID, ledgerID uuid.UUID) string {
+	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/unblock"
+}
+
+// v1BlockURL / v1UnblockURL build the concrete v1 block/unblock paths. The v1 block/unblock
+// Huma ops are registered by RegisterTransactionRoutes (inside buildHumaTransactionApp) and
+// enter the SAME createTransactionShell funnel the v2 actions do — the funnel parses org/ledger
+// from the path string, so these are the parity reference for the v2 block/unblock actions.
+func v1BlockURL(orgID, ledgerID uuid.UUID) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
+}
+
+func v1UnblockURL(orgID, ledgerID uuid.UUID) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/unblock"
+}
+
+// indexOpsByAlias keys a 2-leg operation set by its (unique) account alias. Both BLOCK legs
+// carry the SAME Type, so `fetchOperationRows`' `ORDER BY type` cannot line up the two legs
+// index-for-index the way it does for a DEBIT/CREDIT direct set; keying by the aliases (which
+// ARE distinct and shared across the two surfaces) is the stable join for a cross-surface
+// leg-for-leg comparison.
+func indexOpsByAlias(t *testing.T, ops []operationEconomicRow) map[string]operationEconomicRow {
+	t.Helper()
+
+	out := make(map[string]operationEconomicRow, len(ops))
+
+	for _, op := range ops {
+		_, dup := out[op.AccountAlias]
+		require.Falsef(t, dup, "duplicate operation alias %s breaks the alias join", op.AccountAlias)
+		out[op.AccountAlias] = op
+	}
+
+	return out
+}
+
+// assertBlockOpsParity asserts the two block/unblock operation sets carry identical economic
+// content leg-for-leg (joined by alias) AND that every persisted leg carries the expected
+// BLOCK/UNBLOCK Type — the observable marker of the OperationTypeOverride. The accounting
+// content (asset, amount, balance-after) must be indistinguishable between the v1 and v2
+// surfaces, proving the override relabels Type WITHOUT touching direction/value/balance.
+func assertBlockOpsParity(t *testing.T, v1Ops, v2Ops []operationEconomicRow, expectedType string) {
+	t.Helper()
+
+	require.Len(t, v1Ops, 2, "v1 block/unblock transaction should have exactly 2 operations")
+	require.Len(t, v2Ops, 2, "v2 block/unblock transaction should have exactly 2 operations")
+
+	v1ByAlias := indexOpsByAlias(t, v1Ops)
+	v2ByAlias := indexOpsByAlias(t, v2Ops)
+
+	for alias, v1op := range v1ByAlias {
+		v2op, ok := v2ByAlias[alias]
+		require.Truef(t, ok, "v2 set is missing the operation for alias %s", alias)
+
+		assert.Equal(t, expectedType, v1op.Type, "v1 operation[%s] must carry Type=%s", alias, expectedType)
+		assert.Equal(t, expectedType, v2op.Type, "v2 operation[%s] must carry Type=%s", alias, expectedType)
+		assert.Equal(t, v1op.AssetCode, v2op.AssetCode, "operation[%s] asset", alias)
+		requireDecimalEqual(t, v1op.Amount, v2op.Amount, "operation[%s] amount", alias)
+		requireDecimalEqual(t, v1op.AvailableAfter, v2op.AvailableAfter, "operation[%s] available-after", alias)
+		requireDecimalEqual(t, v1op.OnHoldAfter, v2op.OnHoldAfter, "operation[%s] on-hold-after", alias)
+	}
+}
+
+// fetchBalanceFlags reads the account-level block flags (allow_sending / allow_receiving) for
+// a balance. A transaction-level BLOCK/UNBLOCK must leave these untouched: the override is a
+// per-operation Type label, not an account-block state change.
+func fetchBalanceFlags(t *testing.T, db *sql.DB, balanceID uuid.UUID) (allowSending, allowReceiving bool) {
+	t.Helper()
+
+	err := db.QueryRow(
+		`SELECT allow_sending, allow_receiving FROM balance WHERE id = $1`, balanceID,
+	).Scan(&allowSending, &allowReceiving)
+	require.NoError(t, err, "failed to read balance flags")
+
+	return allowSending, allowReceiving
+}
+
+// assertReasonMetadata asserts the create response carries the block/unblock reason under the
+// flat metadata key. The v2 flat body and the v1 send/distribute body both surface metadata
+// on the created transaction, so the reason is preserved identically on either surface.
+func assertReasonMetadata(t *testing.T, resp map[string]any, reason string) {
+	t.Helper()
+
+	md, ok := resp["metadata"].(map[string]any)
+	require.Truef(t, ok, "create response should carry a metadata object; got %T", resp["metadata"])
+	assert.Equal(t, reason, md["reason"], "metadata.reason should carry the block/unblock reason")
+}
+
+// =============================================================================
+// 10. BLOCK / UNBLOCK PARITY (core): the v2 `block` / `unblock` actions are indistinguishable
+//     from their v1 endpoints for the same economic intent. Both stamp the BLOCK/UNBLOCK
+//     OperationTypeOverride, which relabels the persisted Operation.Type WITHOUT changing
+//     accounting direction/value/balance, keeps the transaction non-pending (settles like a
+//     direct transfer), carries the reason through metadata, and — with no Block/Unblock
+//     AccountingEntry configured on the (routeless, default-settings) ledger — resolves the
+//     rubric via the Direct fallback with NO error. Parity is asserted leg-for-leg on the
+//     persisted operations, on the final balances, and by a full response deep-equal
+//     (ignoring IDs/timestamps).
+// =============================================================================
+
+func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
+	cases := []struct {
+		name         string
+		expectedType string
+		reason       string
+		v2URL        func(orgID, ledgerID uuid.UUID) string
+		v1URL        func(orgID, ledgerID uuid.UUID) string
+		v2Body       string
+		v1Body       string
+	}{
+		{
+			name:         "block v2 matches v1 block ledger effect",
+			expectedType: cn.BLOCK,
+			reason:       "regulatory-hold",
+			v2URL:        v2BlockURL,
+			v1URL:        v1BlockURL,
+			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			v1Body: `{
+				"description":"v1 v2 block parity transfer",
+				"metadata":{"reason":"regulatory-hold"},
+				"send":{
+					"asset":"USD",
+					"value":"100",
+					"source":{"from":[{"accountAlias":"@src","amount":{"asset":"USD","value":"100"}}]},
+					"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"USD","value":"100"}}]}
+				}
+			}`,
+		},
+		{
+			name:         "unblock v2 matches v1 unblock ledger effect",
+			expectedType: cn.UNBLOCK,
+			reason:       "regulatory-release",
+			v2URL:        v2UnblockURL,
+			v1URL:        v1UnblockURL,
+			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			v1Body: `{
+				"description":"v1 v2 unblock parity transfer",
+				"metadata":{"reason":"regulatory-release"},
+				"send":{
+					"asset":"USD",
+					"value":"100",
+					"source":{"from":[{"accountAlias":"@src","amount":{"asset":"USD","value":"100"}}]},
+					"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"USD","value":"100"}}]}
+				}
+			}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOT parallel: process-global huma state (see file header).
+			// The postgres client constructor enforces TLS by the ENV_NAME security tier and
+			// refuses plaintext unless ALLOW_INSECURE_TLS=true.
+			t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+			infra := setupTestInfra(t)
+			t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+			ctx := context.Background()
+
+			// Two ledgers under the SAME org so both transactions can use IDENTICAL aliases and
+			// starting balances; the only legitimate difference is then the ledger id (stripped)
+			// plus per-row IDs/timestamps.
+			ledgerV1 := infra.ledgerID
+			ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+			seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+			v1Src, v1Dst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, ledgerV1, "@src", "@dst", 1000)
+			v2Src, v2Dst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, ledgerV2, "@src", "@dst", 1000)
+
+			v1App := buildHumaTransactionApp(t, infra.handler, true)
+			v2App := buildHumaV2DirectApp(t, infra.handler)
+
+			// Act: economically-equivalent block/unblock on each surface. Each surface is fully
+			// processed (create -> drain -> assert) BEFORE the next, because the balance-sync
+			// schedule ZSET is GLOBAL, not per-ledger (see the direct parity test for the same
+			// discipline).
+			v1Resp := decodeTxResponse(t, postTransaction(t, v1App, tc.v1URL(infra.orgID, ledgerV1), tc.v1Body, ""), nethttp.StatusCreated)
+			v1TxID := uuid.MustParse(v1Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 block/unblock transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
+
+			// A routeless, default-settings ledger has no Block/Unblock AccountingEntry: reaching
+			// StatusCreated here (no error) is the observable proof the override resolved the
+			// rubric via the Direct fallback rather than demanding a dedicated block rubric.
+			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, tc.v2URL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2TxID := uuid.MustParse(v2Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 block/unblock transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
+
+			// Balances: block/unblock move funds exactly like a direct transfer — source
+			// 1000 -> 900, destination 0 -> 100, on-hold 0, on BOTH surfaces. The override
+			// changes NOTHING about the accounting effect.
+			requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v1Src), "v1 source available")
+			requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v2Src), "v2 source available")
+			requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v1Dst), "v1 dest available")
+			requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v2Dst), "v2 dest available")
+			requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v1Src), "v1 source on-hold")
+			requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Src), "v2 source on-hold")
+
+			// Operations: exactly 1 debit + 1 credit leg on each, EVERY leg typed
+			// BLOCK/UNBLOCK, and the economic projection IDENTICAL between the two surfaces
+			// (joined by alias).
+			v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
+			v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
+			assertBlockOpsParity(t, v1Ops, v2Ops, tc.expectedType)
+
+			// Reason survives on both surfaces as a flat metadata key.
+			assertReasonMetadata(t, v1Resp, tc.reason)
+			assertReasonMetadata(t, v2Resp, tc.reason)
+
+			// Transaction-level only: the account-level block flags stay exactly as seeded
+			// (both true). A transaction-level BLOCK/UNBLOCK never flips allow_sending /
+			// allow_receiving.
+			for _, bID := range []uuid.UUID{v1Src, v1Dst, v2Src, v2Dst} {
+				sending, receiving := fetchBalanceFlags(t, infra.pgContainer.DB, bID)
+				assert.True(t, sending, "balance %s allow_sending must be untouched by a transaction-level block/unblock", bID)
+				assert.True(t, receiving, "balance %s allow_receiving must be untouched by a transaction-level block/unblock", bID)
+			}
+
+			// Response deep-equal, ignoring IDs/timestamps: the v2 block/unblock response is
+			// indistinguishable from the v1 equivalent for the same economic intent, INCLUDING
+			// the BLOCK/UNBLOCK operation types and the reason metadata.
+			assert.Equal(t, "USD", v1Resp["assetCode"])
+			assert.Equal(t, "USD", v2Resp["assetCode"])
+
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+				"v2 block/unblock transaction must be indistinguishable from the v1 equivalent (ignoring IDs/timestamps)")
+		})
+	}
+}
+
+// =============================================================================
+// 11. BLOCK / UNBLOCK VALIDATION BEFORE ANY LEDGER EFFECT: a v2 `block` / `unblock` that is
+//     malformed at the decode boundary (missing required field -> canonical 400) or invalid
+//     as a business rule (from == to -> ErrTransactionAmbiguous / 0090 -> 422) is rejected
+//     BEFORE the funnel touches any balance, so no transaction is persisted and the seeded
+//     balances are left exactly as funded.
+// =============================================================================
+
+func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	cases := []struct {
+		name       string
+		url        string
+		body       string
+		wantStatus int
+	}{
+		{
+			// `from` is validate:"required" on the flat v2 input; http.DecodeAndValidate
+			// surfaces a ValidationError -> canonical 400 before the funnel (identical to the
+			// direct-action validation contract; block/unblock share the same decode seam).
+			name:       "block missing required from field",
+			url:        v2BlockURL(infra.orgID, infra.ledgerID),
+			body:       `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			wantStatus: nethttp.StatusBadRequest,
+		},
+		{
+			name:       "unblock missing required from field",
+			url:        v2UnblockURL(infra.orgID, infra.ledgerID),
+			body:       `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			wantStatus: nethttp.StatusBadRequest,
+		},
+		{
+			// from == to is a Translate business error (ErrTransactionAmbiguous / 0090) -> 422,
+			// fired before the create funnel touches any balance.
+			name:       "block from equals to business error",
+			url:        v2BlockURL(infra.orgID, infra.ledgerID),
+			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@src","metadata":{"reason":"regulatory-hold"}}`,
+			wantStatus: nethttp.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := postTransaction(t, v2App, tc.url, tc.body, "")
+			body := drainBody(t, resp)
+			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
+		})
+	}
+
+	// No ledger effect: no transaction persisted, and both balances left exactly as seeded.
+	assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "no transaction should be persisted for rejected block/unblock requests")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source balance must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination balance must be untouched")
+}
