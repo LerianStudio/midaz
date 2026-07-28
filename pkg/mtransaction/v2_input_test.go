@@ -90,6 +90,30 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "non-UUID routeId fails (uuid tag)",
+			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+				bad := "not-a-uuid"
+				in.RouteID = &bad
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-UUID operationRouteId fails (uuid tag)",
+			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+				bad := "not-a-uuid"
+				in.OperationRouteID = &bad
+			},
+			wantErr: true,
+		},
+		{
+			name: "nil route ids pass (omitempty)",
+			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+				in.RouteID = nil
+				in.OperationRouteID = nil
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
