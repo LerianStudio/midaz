@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 )
 
 // fetchOpenAPISpec drives the in-process Fiber app for the given spec path and
@@ -107,4 +110,45 @@ func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
 	require.NotNil(t, v2info, "v2 spec should carry an info object")
 	assert.Equal(t, "Midaz Ledger API", v1info["title"], "v1 title unchanged")
 	assert.Equal(t, "Midaz Ledger API v2", v2info["title"], "v2 carries its own title")
+}
+
+// TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1 asserts ADR-003 PATH isolation:
+// the v2 `direct` op (createTransactionDirectV2) appears ONLY in the /v2 document's
+// path set and NEVER in the /v1 document's, proving the two Huma contracts own
+// SEPARATE registries rather than sharing one. Both contracts are mounted in ONE
+// server: v1 carries no ops (empty mount) while v2 mounts the production direct-op
+// seam. Path-set isolation is a stronger guarantee than the Info-title check above.
+func TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1(t *testing.T) {
+	// ServeSpec is gated on LEDGER_HUMA_DOCS_ENABLED; enable it so both spec routes
+	// are mounted. t.Setenv precludes t.Parallel here.
+	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "true")
+
+	logger := newTestLogger()
+	telemetry := &libOpentelemetry.Telemetry{}
+
+	emptyMount := func(_ fiber.Router, _ huma.API) {}
+	directMountV2 := func(group fiber.Router, api huma.API) {
+		httpin.RegisterTransactionV2RoutesToApp(group, api, &middleware.AuthClient{Enabled: false}, &httpin.TransactionHandler{}, nil)
+	}
+
+	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, emptyMount, directMountV2)
+	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
+	require.NotNil(t, server.app, "server should hold a Fiber app")
+
+	const directOpPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct"
+
+	// v2 document MUST carry the direct op.
+	v2doc := fetchOpenAPISpec(t, server.app, "/v2/openapi.json")
+	v2paths, ok := v2doc["paths"].(map[string]any)
+	require.True(t, ok, "v2 spec should carry a paths object")
+	_, inV2 := v2paths[directOpPath]
+	assert.Truef(t, inV2, "v2 document MUST carry the direct op path %q; paths=%v", directOpPath, keysOf(v2paths))
+
+	// v1 document MUST NOT carry the direct op. A v1 document with no registered ops
+	// may omit the paths object entirely; if present, it must not leak the v2 op.
+	v1doc := fetchOpenAPISpec(t, server.app, "/v1/openapi.json")
+	if v1paths, ok := v1doc["paths"].(map[string]any); ok {
+		_, inV1 := v1paths[directOpPath]
+		assert.Falsef(t, inV1, "v2 direct op MUST NOT leak into the v1 document; v1 paths=%v", keysOf(v1paths))
+	}
 }

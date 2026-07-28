@@ -61,12 +61,12 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(_ context.Conte
 // Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides
 // the OpenAPI servers entry).
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
-	const listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions"
+	const transactionsBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions"
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionDirectV2",
 		Method:           http.MethodPost,
-		Path:             listPath + "/direct",
+		Path:             transactionsBasePath + "/direct",
 		Summary:          "Create a Transaction using the v2 direct model",
 		Tags:             []string{"Transactions"},
 		Security:         secTransactionBearer,

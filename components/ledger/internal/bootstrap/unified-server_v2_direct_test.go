@@ -5,6 +5,9 @@
 package bootstrap
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 
@@ -89,8 +92,70 @@ func TestNewUnifiedServer_V2DirectRouteRequiresAuth(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Contains(t, []int{http.StatusUnauthorized, http.StatusForbidden}, resp.StatusCode,
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode,
 		"tokenless v2 direct request must be blocked by the transactions:post auth chain")
+}
+
+// TestNewUnifiedServer_V2DirectRouteReachesStub proves the mounted route→terminal
+// composition end-to-end: an AUTHENTICATED (auth disabled) POST to the CONCRETE /v2
+// direct path traverses the full Fiber middleware chain (auth passthrough + tenant
+// post-auth + ParseUUIDPathParameters) and dispatches to the Huma 501 stub, returning
+// a clean RFC 9457 problem+json envelope (never a panic). This exercises the seam the
+// in-memory handler unit test cannot: the Fiber chain and the Huma terminal are wired
+// to the SAME path and hand off correctly.
+func TestNewUnifiedServer_V2DirectRouteReachesStub(t *testing.T) {
+	t.Parallel()
+
+	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
+
+	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
+
+	// A well-formed body + Content-Type is required so Huma's request parse succeeds
+	// and dispatch reaches the terminal; the stub ignores the body and returns 501.
+	req, err := http.NewRequest(http.MethodPost, concretePath, bytes.NewReader([]byte("{}")))
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := server.app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusNotImplemented, resp.StatusCode,
+		"authenticated v2 direct request must reach the 501 stub through the mounted chain")
+	assert.Contains(t, resp.Header.Get("Content-Type"), "application/problem+json",
+		"501 stub must serialize the RFC 9457 problem+json envelope")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var problem map[string]any
+	require.NoError(t, json.Unmarshal(body, &problem), "body should decode as RFC 9457 JSON")
+	assert.Equal(t, float64(http.StatusNotImplemented), problem["status"],
+		"RFC 9457 envelope should carry status:501")
+}
+
+// TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled asserts the swaggerEnabled
+// NEGATIVE gate for v2: with LEDGER_HUMA_DOCS_ENABLED off, GET /v2/openapi.json is
+// NOT served (404). Every other v2-spec test enables the flag; this covers the
+// gated-off branch.
+func TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled(t *testing.T) {
+	// Explicitly disable the docs gate. t.Setenv precludes t.Parallel here.
+	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "false")
+
+	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
+
+	req, err := http.NewRequest(http.MethodGet, "/v2/openapi.json", nil)
+	require.NoError(t, err)
+
+	resp, err := server.app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
+		"v2 openapi.json must not be served when LEDGER_HUMA_DOCS_ENABLED is off")
 }
 
 // keysOf returns the keys of a decoded JSON object for diagnostic messages.

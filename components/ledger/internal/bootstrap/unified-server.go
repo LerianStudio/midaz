@@ -110,99 +110,23 @@ func NewUnifiedServer(
 		}
 	}
 
-	// Huma bootstrap (asset migration DE-RISK). problem.Install() overrides the
-	// process-global huma.NewError to the org-wide RFC 9457 model; it MUST run
-	// before any huma.Register and is idempotent (sync.Once). The Huma API binds to
-	// a /v1 Fiber GROUP with Servers ["/v1"] and GROUP-RELATIVE op paths, so the
-	// humafiber v2 adapter registers on that group (Fiber prepends /v1) and the
-	// adapter's ctx (built from c.Context()) reaches the migrated handlers with
-	// the per-route tenant/DB intact — the auth+tenant middleware chain is attached
-	// on the SAME group inside humaMount, before each Huma terminal.
+	// Huma bootstrap (asset migration DE-RISK). Each contract instance binds to its
+	// own Fiber GROUP with a GROUP-RELATIVE op path set and its own Huma document;
+	// the auth+tenant middleware chain is attached on the SAME group inside the mount
+	// closure, before each Huma terminal. Both the /v1 and the /v2 mounts route
+	// through mountHumaContract, which owns the invariant scaffolding.
 	if humaMount != nil {
-		problem.Install()
-
-		apiV1 := app.Group("/v1")
-
-		humaAPI := openapi.New(app, apiV1, openapi.Config{
-			Title:   "Midaz Ledger API",
-			Version: version,
-			Servers: []string{"/v1"},
-		})
-
-		// Disambiguate the one cross-package schema-name clash (mmodel.Balance vs
-		// operation.Balance) before any huma.Register on the shared API; the registry
-		// namer is captured on first registration. See InstallLedgerSchemaNamer.
-		midazhttp.InstallLedgerSchemaNamer(humaAPI)
-
-		// Declare the security schemes referenced by per-op Security metadata so the
-		// generated spec resolves them. SPEC metadata only — runtime auth stays the
-		// Fiber guard chain. BearerAuth via the shared lib-commons helper; ApiKeyAuth
-		// declared locally (no helper), mirroring the helper's nil-guard.
-		openapi.DeclareBearerAuth(humaAPI)
-
-		components := humaAPI.OpenAPI().Components
-		if components.SecuritySchemes == nil {
-			components.SecuritySchemes = map[string]*huma.SecurityScheme{}
-		}
-
-		components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-			Type:        "apiKey",
-			In:          "header",
-			Name:        "X-API-Key",
-			Description: "Static API key presented in the X-API-Key header.",
-		}
-
-		humaMount(apiV1, humaAPI)
-
-		// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on swaggerEnabled().
-		// Mounted AFTER humaMount so the snapshotted spec is complete.
-		if swaggerEnabled() {
-			openapi.ServeSpec(app, humaAPI, logger, "/v1", "Midaz Ledger API")
-		}
+		// v1: title "Midaz Ledger API", no Description, WITH the ledger schema namer
+		// to disambiguate the one cross-package schema-name clash (mmodel.Balance vs
+		// operation.Balance) before any huma.Register on the shared registry.
+		mountHumaContract(app, logger, "/v1", "Midaz Ledger API", "", version, true, humaMount)
 	}
 
-	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API binds to its
-	// own Fiber group and its own Huma document with a SEPARATE component registry,
-	// so v1 and v2 schema names never collide and no schema namer is needed here.
-	// problem.Install() is idempotent (sync.Once), so calling it again keeps this
-	// block self-sufficient when only humaMountV2 is supplied. The v1 mount above
-	// is left byte-identical.
+	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API owns a SEPARATE
+	// component registry, so v1 and v2 schema names never collide and no schema namer
+	// is needed here. The v1 mount above is left byte-identical.
 	if humaMountV2 != nil {
-		problem.Install()
-
-		apiV2 := app.Group("/v2")
-
-		humaAPIV2 := openapi.New(app, apiV2, openapi.Config{
-			Title:       "Midaz Ledger API v2",
-			Version:     version,
-			Description: "Midaz Ledger v2 API contract.",
-			Servers:     []string{"/v2"},
-		})
-
-		// Declare the same security schemes the v1 document carries so per-op
-		// Security metadata registered by humaMountV2 resolves in the generated
-		// spec. SPEC metadata only — runtime auth stays the Fiber guard chain.
-		openapi.DeclareBearerAuth(humaAPIV2)
-
-		componentsV2 := humaAPIV2.OpenAPI().Components
-		if componentsV2.SecuritySchemes == nil {
-			componentsV2.SecuritySchemes = map[string]*huma.SecurityScheme{}
-		}
-
-		componentsV2.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-			Type:        "apiKey",
-			In:          "header",
-			Name:        "X-API-Key",
-			Description: "Static API key presented in the X-API-Key header.",
-		}
-
-		humaMountV2(apiV2, humaAPIV2)
-
-		// Native Huma OpenAPI 3.1 spec + Scalar docs for v2, gated on swaggerEnabled().
-		// Mounted AFTER humaMountV2 so the snapshotted spec is complete.
-		if swaggerEnabled() {
-			openapi.ServeSpec(app, humaAPIV2, logger, "/v2", "Midaz Ledger API v2")
-		}
+		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, false, humaMountV2)
 	}
 
 	// End tracing spans middleware (must be last)
@@ -246,6 +170,66 @@ func NewUnifiedServer(
 		logger:        logger,
 		telemetry:     telemetry,
 		readyzHandler: readyzHandler,
+	}
+}
+
+// mountHumaContract mounts one independent Huma contract instance under prefix and
+// encapsulates the INVARIANT scaffolding shared by every version: problem.Install()
+// (idempotent RFC 9457 model override, MUST precede any huma.Register), the Fiber
+// group + Huma document creation, the BearerAuth + ApiKeyAuth SPEC-ONLY security
+// scheme declarations, the mount closure invocation, and the swaggerEnabled()-gated
+// native OpenAPI 3.1 spec + Scalar docs surface.
+//
+// The DIVERGENT bits are parameters: prefix (Fiber group + Servers entry + ServeSpec
+// prefix), title/description/version (Info metadata), installSchemaNamer (v1 needs
+// the ledger schema namer to break one cross-package name clash; v2 owns a separate
+// registry and opts out), and the mount closure (per-version op registration + the
+// per-group Fiber auth/tenant chain). ServeSpec runs AFTER mount so the snapshotted
+// spec is complete. Security schemes are SPEC metadata only — runtime auth stays the
+// Fiber guard chain the mount closure attaches.
+func mountHumaContract(
+	app *fiber.App,
+	logger libLog.Logger,
+	prefix string,
+	title string,
+	description string,
+	version string,
+	installSchemaNamer bool,
+	mount HumaRouteRegistrar,
+) {
+	problem.Install()
+
+	group := app.Group(prefix)
+
+	api := openapi.New(app, group, openapi.Config{
+		Title:       title,
+		Version:     version,
+		Description: description,
+		Servers:     []string{prefix},
+	})
+
+	if installSchemaNamer {
+		midazhttp.InstallLedgerSchemaNamer(api)
+	}
+
+	openapi.DeclareBearerAuth(api)
+
+	components := api.OpenAPI().Components
+	if components.SecuritySchemes == nil {
+		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
+	}
+
+	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
+		Type:        "apiKey",
+		In:          "header",
+		Name:        "X-API-Key",
+		Description: "Static API key presented in the X-API-Key header.",
+	}
+
+	mount(group, api)
+
+	if swaggerEnabled() {
+		openapi.ServeSpec(app, api, logger, prefix, title)
 	}
 }
 
