@@ -593,3 +593,202 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination available must be untouched")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold must be untouched")
 }
+
+// v2HoldURL builds the concrete v2 hold path for the given org/ledger. The hold op is
+// mounted by the SAME RegisterTransactionV2RoutesToApp seam as direct, so the v2 app
+// built by buildHumaV2DirectApp serves both.
+func v2HoldURL(orgID, ledgerID uuid.UUID) string {
+	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/hold"
+}
+
+// v1CommitURL builds the concrete v1 commit path for a pending transaction. v2 has no
+// commit op yet (Phase 3), so a v2-held transaction settles through the v1 commit endpoint.
+func v1CommitURL(orgID, ledgerID, txID uuid.UUID) string {
+	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/commit"
+}
+
+// holdParityV2Body / holdParityV1PendingBody are the economically-identical 100 USD hold
+// bodies for the two surfaces, using the same aliases and description so the resulting
+// PENDING transactions differ only by IDs/timestamps. The v2 flat `hold` action carries
+// its pending intent in the endpoint; the v1 `/json` action carries it in `pending:true`.
+const (
+	holdParityV2Body = `{"description":"v1 v2 hold parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+
+	holdParityV1PendingBody = `{
+		"description":"v1 v2 hold parity transfer",
+		"pending":true,
+		"send":{
+			"asset":"USD",
+			"value":"100",
+			"source":{"from":[{"accountAlias":"@src","amount":{"asset":"USD","value":"100"}}]},
+			"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"USD","value":"100"}}]}
+		}
+	}`
+)
+
+// =============================================================================
+// 6. HOLD PARITY (core): v2 `hold` is indistinguishable from a v1 `/json` with
+//    `pending:true` for the same economic intent — both open a PENDING transaction
+//    that reserves the source (available down, on-hold up) and leaves the destination
+//    untouched, producing a single ON_HOLD operation, comparing transactions/operations
+//    ignoring IDs and timestamps.
+// =============================================================================
+
+func TestIntegration_TransactionV2Hold_ParityWithV1PendingJSON(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	// The postgres client constructor enforces TLS by the ENV_NAME security tier and
+	// refuses plaintext unless ALLOW_INSECURE_TLS=true. `make test-integration` exports it;
+	// set it here too so the test is runnable directly.
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	// Two ledgers under the SAME org so both holds can use IDENTICAL aliases and starting
+	// balances; the only legitimate difference in the two responses is then the ledger id
+	// (stripped) plus per-row IDs/timestamps.
+	ledgerV1 := infra.ledgerID
+	ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+	v1Src, v1Dst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, ledgerV1, "@src", "@dst", 1000)
+	v2Src, v2Dst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, ledgerV2, "@src", "@dst", 1000)
+
+	v1App := buildHumaTransactionApp(t, infra.handler, true)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// Act: economically-equivalent holds on each surface. Each surface is fully processed
+	// (create -> drain -> assert) BEFORE the next, because the balance-sync schedule ZSET is
+	// GLOBAL, not per-ledger (see the direct parity test for the same discipline).
+	v1Resp := decodeTxResponse(t, postTransaction(t, v1App, v1JSONURL(infra.orgID, ledgerV1), holdParityV1PendingBody, ""), nethttp.StatusCreated)
+	v1TxID := uuid.MustParse(v1Resp["id"].(string))
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 pending transaction should be PENDING in DB")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
+
+	v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerV2), holdParityV2Body, ""), nethttp.StatusCreated)
+	v2TxID := uuid.MustParse(v2Resp["id"].(string))
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 hold transaction should be PENDING in DB")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
+
+	// Balances after hold: source 1000 -> available 900 / on-hold 100 (funds reserved),
+	// destination untouched (0 / 0, credit not applied until commit), on BOTH surfaces.
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v1Src), "v1 source available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v2Src), "v2 source available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v1Src), "v1 source on-hold after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Src), "v2 source on-hold after hold")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v1Dst), "v1 dest available untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v2Dst), "v2 dest available untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v1Dst), "v1 dest on-hold untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Dst), "v2 dest on-hold untouched")
+
+	// Operations: exactly 1 ON_HOLD (source only) on each, and the economic projection is
+	// IDENTICAL between the two surfaces (type, asset, alias, amount, balance-after).
+	v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
+	v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
+
+	require.Len(t, v1Ops, 1, "v1 pending transaction should have exactly 1 operation (source hold)")
+	require.Len(t, v2Ops, 1, "v2 hold transaction should have exactly 1 operation (source hold)")
+	assertOperationSetsEqual(t, v1Ops, v2Ops)
+
+	// Response deep-equal, ignoring IDs/timestamps: the v2 hold response is indistinguishable
+	// from the v1 `/json` pending response for the same economic intent.
+	assert.Equal(t, "USD", v1Resp["assetCode"])
+	assert.Equal(t, "USD", v2Resp["assetCode"])
+
+	require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+		"v2 hold transaction must be indistinguishable from the v1 /json pending equivalent (ignoring IDs/timestamps)")
+}
+
+// =============================================================================
+// 7. HOLD COMMIT (lifecycle): a v2-held transaction is committable through the existing
+//    v1 commit endpoint (v2 commit is Phase 3). Commit settles the hold: the source
+//    on-hold releases and the destination credit applies, the transaction flips to
+//    APPROVED, and the full ON_HOLD + DEBIT + CREDIT operation set is present.
+// =============================================================================
+
+func TestIntegration_TransactionV2Hold_CommitSettles(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// Create the hold on the v2 surface.
+	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), holdParityV2Body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(holdResp["id"].(string))
+
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID), "v2 hold should open the transaction as PENDING")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// After hold: source reserved (900 / 100), destination untouched (0 / 0).
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID), "source on-hold after hold")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "dest available before commit")
+	assert.Equal(t, 1, postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID), "hold should create exactly 1 ON_HOLD operation")
+
+	// Commit through the existing v1 endpoint; the v2-held transaction shares the same
+	// handler/use-cases/DB, so it settles exactly like a v1 pending transaction.
+	_ = decodeTxResponse(t, postTransaction(t, infra.app, v1CommitURL(infra.orgID, infra.ledgerID, txID), "", ""), nethttp.StatusCreated)
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID), "transaction should be APPROVED after commit")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// After commit: source on-hold released (available stays 900, on-hold 0), destination
+	// credited (available 100).
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available after commit")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID), "source on-hold released after commit")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "dest credited after commit")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "dest on-hold after commit")
+
+	// Full lifecycle operation set: 1 ON_HOLD (hold) + 1 DEBIT (release) + 1 CREDIT (apply).
+	assert.Equal(t, 3, postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID),
+		"committed hold should carry exactly 3 operations (ON_HOLD + DEBIT + CREDIT)")
+}
+
+// =============================================================================
+// 8. HOLD IDEMPOTENCY: two identical v2 `hold` calls (same X-Idempotency key + body)
+//    -> the second REPLAYS the first (X-Idempotency-Replayed: true, same tx id) and
+//    creates NO second transaction, identical to the v2 `direct` idempotency seam
+//    (both key off the raw v2 body).
+// =============================================================================
+
+func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+	idempotencyKey := uuid.NewString()
+	url := v2HoldURL(infra.orgID, infra.ledgerID)
+
+	first := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
+	assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first hold call must not be a replay")
+
+	firstTxID := firstResult["id"].(string)
+
+	// Wait for the async idempotency-value store before replaying (see helper doc).
+	waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
+
+	second := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
+
+	assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical hold call must be a replay")
+	assert.Equal(t, firstTxID, secondResult["id"].(string), "replay must return the FIRST hold transaction's id")
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"an idempotent hold replay must NOT create a second transaction")
+}
