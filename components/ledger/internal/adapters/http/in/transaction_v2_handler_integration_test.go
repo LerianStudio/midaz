@@ -30,7 +30,7 @@ import (
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
-// This file is the Task 1.3.3 gate: the integration + v1↔v2 parity proof for the v2
+// This file is the integration + v1↔v2 parity proof for the v2
 // `direct` transaction endpoint (POST /v2/.../transactions/direct). It mounts BOTH the
 // v2 `direct` op and the v1 `/json` op through the SAME production Huma seams
 // (buildHumaV2DirectApp -> RegisterTransactionV2RoutesToApp and buildHumaTransactionApp
@@ -466,7 +466,7 @@ func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T
 }
 
 // =============================================================================
-// 4. IDEMPOTENCY (Task 1.3.2 / ADR-004):
+// 4. IDEMPOTENCY:
 //    (a) two identical v2 `direct` calls (same X-Idempotency key + body) -> the second
 //        REPLAYS the first (X-Idempotency-Replayed: true, same tx id) and creates NO
 //        second transaction.
@@ -515,7 +515,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"an idempotent replay must NOT create a second transaction")
 
-	// --- (b) v1 does NOT cross-dedup with v2 (ADR-004: different key source) -------
+	// --- (b) v1 does NOT cross-dedup with v2 (different key source) -------
 	// Both calls below omit X-Idempotency, so each surface derives its key from the body
 	// hash: v2 from the raw flat body, v1 from the canonical built transaction. The hashes
 	// differ by construction, so neither replays the other. Distinct account aliases keep
@@ -545,7 +545,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	v1CrossResult := decodeTxResponse(t, v1Cross, nethttp.StatusCreated)
 
 	assert.Equal(t, "false", v1Cross.Header.Get("X-Idempotency-Replayed"),
-		"the v1 call must NOT replay the v2 transaction (different idempotency key source per ADR-004)")
+		"the v1 call must NOT replay the v2 transaction (different idempotency key source)")
 	assert.NotEqual(t, v2CrossResult["id"].(string), v1CrossResult["id"].(string),
 		"v1 and v2 body-hash keys must not collide: each surface creates its own transaction")
 	assert.Equal(t, countBefore+2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),

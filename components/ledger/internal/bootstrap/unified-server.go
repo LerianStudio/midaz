@@ -120,7 +120,7 @@ func NewUnifiedServer(
 		mountHumaContract(app, logger, "/v1", "Midaz Ledger API", "", version, humaMount)
 	}
 
-	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API owns a SEPARATE
+	// Second, INDEPENDENT contract instance. The /v2 API owns a SEPARATE
 	// component registry, so v1 and v2 schema names never collide across contracts.
 	if humaMountV2 != nil {
 		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, humaMountV2)

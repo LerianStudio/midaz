@@ -11,11 +11,11 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the v2 transaction terminal (ADR-006 filename-suffix versioning).
+// This file is the v2 transaction terminal.
 // Transport-only: decode the flat single-leg v2 body, translate it to the canonical
 // Transaction, and delegate to the shared createTransactionShell funnel. The direct-vs-
 // hold action is carried by Translate's pending flag, and idempotency keys off the raw
-// v2 body as submitted, pre-translation (ADR-004), passed to the funnel as the hash-
+// v2 body as submitted, pre-translation, passed to the funnel as the hash-
 // source override. Conventions mirror the v1 Huma create shells (see
 // transaction_handler_huma.go's header): path params are plain strings validated by the
 // ParseUUIDPathParameters Fiber middleware, the body carries RawBody so
@@ -58,7 +58,7 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	// ADR-004: key v2 idempotency off the v2 body AS SUBMITTED (pre-translation). The raw
+	// Key v2 idempotency off the v2 body AS SUBMITTED (pre-translation). The raw
 	// request bytes are passed as the hash-source override so the funnel hashes them
 	// instead of the canonical translated transaction; v1 callers pass no override and
 	// stay byte-identical.

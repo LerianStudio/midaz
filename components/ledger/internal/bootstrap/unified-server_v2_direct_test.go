@@ -47,7 +47,7 @@ func newV2DirectServer(t *testing.T, auth *middleware.AuthClient) *UnifiedServer
 	return server
 }
 
-// TestNewUnifiedServer_V2DirectRouteInContract asserts Task 1.1.2 (a): the `direct`
+// TestNewUnifiedServer_V2DirectRouteInContract asserts the `direct`
 // operation is registered on the INDEPENDENT v2 contract and surfaces in
 // /v2/openapi.json with OperationID createTransactionDirectV2, method POST, at the
 // group-relative direct path.
@@ -73,7 +73,7 @@ func TestNewUnifiedServer_V2DirectRouteInContract(t *testing.T) {
 		"direct op should advertise OperationID createTransactionDirectV2")
 }
 
-// TestNewUnifiedServer_V2DirectRouteRequiresAuth asserts Task 1.1.2 (b): the v2
+// TestNewUnifiedServer_V2DirectRouteRequiresAuth asserts the v2
 // direct route is guarded by the SAME protected chain as v1 (protectedMidaz,
 // transactions:post). With auth enabled and no bearer token, the request is
 // rejected before reaching the handler — never public.
@@ -104,7 +104,7 @@ func TestNewUnifiedServer_V2DirectRouteRequiresAuth(t *testing.T) {
 // fields, so http.DecodeAndValidate rejects it with the canonical 400 RFC 9457
 // problem+json (never a panic, never the removed 501 stub). This exercises the seam the
 // in-memory handler unit test cannot: the Fiber chain and the Huma terminal are wired to
-// the SAME path and hand off correctly. The committed money path is the Task 1.3.3
+// the SAME path and hand off correctly. The committed money path is the
 // integration+parity test.
 func TestNewUnifiedServer_V2DirectRouteReachesRealHandler(t *testing.T) {
 	t.Parallel()

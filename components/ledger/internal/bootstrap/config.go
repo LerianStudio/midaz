@@ -1123,9 +1123,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
-	// SECOND, independent contract instance (ADR-003: one OpenAPI document per API
+	// SECOND, independent contract instance (one OpenAPI document per API
 	// version, each with its OWN Huma component registry so v1 and v2 schema names
-	// never collide). Task 1.1.2 registers the `direct` transaction op: it carries
+	// never collide). It registers the `direct` transaction op: it carries
 	// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorizes against
 	// the "midaz" appName (protectedMidaz, transactions:post) — the SAME auth + tenant
 	// chain the v1 transaction CREATE ops use, no new policy. Later phases add

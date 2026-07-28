@@ -14,7 +14,7 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the v2 transaction contract seam (ADR-006: filename-suffix
+// This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`
 // transaction op onto the SECOND, independent Huma contract instance and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
@@ -28,7 +28,7 @@ import (
 // the sole path-UUID validator on the Fiber chain, not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
-// v2 Huma API. Task 1.1.2 registers ONLY `direct`; hold/block/commit/cancel/revert
+// v2 Huma API. It registers ONLY `direct`; hold/block/commit/cancel/revert
 // arrive in later phases. Auth is the Fiber guard chain attached in
 // RegisterTransactionV2RoutesToApp BEFORE this terminal, not here — the per-op
 // Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides

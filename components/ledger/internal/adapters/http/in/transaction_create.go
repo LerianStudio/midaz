@@ -307,7 +307,7 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
 		// configures a dedicated Block/Unblock AccountingEntry, route the
 		// rubric lookup to it; otherwise leave resolvedAction unchanged so
-		// block/unblock keep resolving via the Direct rubric (Phase 1 parity).
+		// block/unblock keep resolving via the Direct rubric.
 		switch operationTypeOverride {
 		case constant.BLOCK:
 			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
@@ -997,7 +997,7 @@ func (handler *TransactionHandler) createTransaction(ctx context.Context, params
 
 // resolveIdempotencyHashSource returns the string the idempotency hash is computed over:
 // the non-empty override when supplied, else the canonical serialized transaction. Keying
-// off a raw pre-translation body via the override is the ADR-004 contract.
+// off a raw pre-translation body via the override is the v2 idempotency contract.
 func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, override ...string) (string, error) {
 	if len(override) > 0 && override[0] != "" {
 		return override[0], nil
@@ -1116,7 +1116,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash
 	// is computed here over the idempotency hash SOURCE resolved by
 	// resolveIdempotencyHashSource. An optional override keys the hash off the raw body as
-	// submitted (ADR-004); with no override the source is the canonical transactionInput.
+	// submitted; with no override the source is the canonical transactionInput.
 	// The HashSHA256 mechanism is the same regardless of which source is used.
 	hashSource, err := resolveIdempotencyHashSource(transactionInput, idempotencyHashSource...)
 	if err != nil {

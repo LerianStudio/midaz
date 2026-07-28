@@ -33,7 +33,7 @@ import (
 // and clashes on the bare names without it), and auth disabled so requests reach the
 // terminal. A bare handler is enough: these tests prove the transport boundary (decode,
 // translate, route-UUID hygiene, error class) and funnel entry — the committed money
-// path is the Task 1.3.3 integration+parity test.
+// path is the integration+parity test.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaTransactionApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
@@ -152,7 +152,7 @@ func TestCreateTransactionDirectV2Huma_NonPositiveAmount_422(t *testing.T) {
 // the funnel's first repository call has no wired dependency, so WithRecover maps the
 // resulting panic to a 500 — proving the request progressed PAST the transport/translate
 // boundary into the funnel (never the 501 stub, never a decode/translate 4xx). The
-// committed transaction result is asserted by the Task 1.3.3 integration+parity test.
+// committed transaction result is asserted by the integration+parity test.
 func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	app := buildHumaV2DirectApp(t, &TransactionHandler{})
@@ -161,5 +161,5 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
-		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is Task 1.3.3)")
+		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is the integration+parity test)")
 }

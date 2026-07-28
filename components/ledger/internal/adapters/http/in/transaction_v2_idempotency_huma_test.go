@@ -27,8 +27,8 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// Task 1.3.2 — v2 idempotency is keyed by the v2 body AS SUBMITTED (pre-translation),
-// per ADR-004. The v1 create funnel hashes the CANONICAL built transaction
+// v2 idempotency is keyed by the v2 body AS SUBMITTED (pre-translation). The v1 create
+// funnel hashes the CANONICAL built transaction
 // (StructToJSONString(transactionInput)); the v2 surface must instead hash the raw
 // flat v2 request bytes so two identical v2 `direct` submissions dedup by the body the
 // client actually sent — while the funnel still persists the canonical transaction.
@@ -102,7 +102,7 @@ func canonicalV1IdempotencyHash(t *testing.T, rawBody string) string {
 }
 
 // TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body proves the v2 direct
-// surface keys idempotency off the RAW v2 body as submitted (ADR-004), not off the
+// surface keys idempotency off the RAW v2 body as submitted, not off the
 // canonical translated transaction. THE TOOTH: on the header-only v2 path the funnel
 // hashes StructToJSONString(canonicalTransaction), so the captured internalKey embeds
 // that canonical hash — the raw-body-hash assertion fails until the v2 seam supplies the
@@ -133,7 +133,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	rawBodyHash := libCommons.HashSHA256(v2DirectBody)
 
 	assert.Contains(t, gotKey, rawBodyHash,
-		"v2 idempotency must be keyed by the raw v2 body as submitted (ADR-004); got internalKey=%q (a different hash here means v2 still hashes the canonical translated transaction)", gotKey)
+		"v2 idempotency must be keyed by the raw v2 body as submitted; got internalKey=%q (a different hash here means v2 still hashes the canonical translated transaction)", gotKey)
 
 	// And it must NOT be the canonical translated-transaction hash the v1 funnel uses.
 	// (The v2 flat body translates to a full canonical Transaction whose serialized form

@@ -69,7 +69,7 @@ func serverURLs(t *testing.T, doc map[string]any) []string {
 	return urls
 }
 
-// TestNewUnifiedServer_V2ContractMountedIndependently asserts ADR-003: the
+// TestNewUnifiedServer_V2ContractMountedIndependently asserts that the
 // unified server exposes a SECOND, independent OpenAPI contract instance under
 // /v2 (OAS 3.1, servers ["/v2"]) alongside the untouched /v1 contract (servers
 // ["/v1"]). Each instance owns its Info metadata, proving two independent Huma
@@ -83,7 +83,7 @@ func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	// Empty mounts: this task mounts the contract surfaces without registering
-	// ops (v2 ops arrive in Task 1.1.2). A non-nil mount is what triggers each
+	// ops (v2 ops arrive later). A non-nil mount is what triggers each
 	// version's Huma bootstrap block.
 	emptyMount := func(_ fiber.Router, _ huma.API) {}
 
@@ -112,7 +112,7 @@ func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
 	assert.Equal(t, "Midaz Ledger API v2", v2info["title"], "v2 carries its own title")
 }
 
-// TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1 asserts ADR-003 PATH isolation:
+// TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1 asserts PATH isolation:
 // the v2 `direct` op (createTransactionDirectV2) appears ONLY in the /v2 document's
 // path set and NEVER in the /v1 document's, proving the two Huma contracts own
 // SEPARATE registries rather than sharing one. Both contracts are mounted in ONE
