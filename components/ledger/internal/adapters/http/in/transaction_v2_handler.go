@@ -29,7 +29,7 @@ import (
 // clean 400).
 
 // CreateTransactionDirectV2InputHuma is the v2 create request envelope shared by the
-// direct and hold actions (identical flat single-leg shape; the action intent is carried
+// v2 create actions (identical flat single-leg shape; the action intent is carried
 // by the endpoint, not the body). The org/ledger path params are plain strings (validated
 // by the ParseUUIDPathParameters Fiber middleware attached before this terminal). RawBody
 // keeps the body out of Huma's validator so the flat v2 model is decoded imperatively via
@@ -135,9 +135,9 @@ func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Conte
 
 // CreateTransactionBlockV2Huma creates a v2 transaction with the block action: it delegates
 // to createTransactionV2 with pending=false and the constant.BLOCK Operation.Type override.
-// The override stays transaction-level (it relabels the persisted Operation.Type and redirects
-// accounting-rubric resolution in the funnel) and never touches direction, value, or balance
-// flags. pending=false gives InitialStatus()=CREATED, matching the v1 block action which forces
+// The override stays transaction-level: it labels the operation type and never touches
+// accounting direction, value, or balance flags.
+// pending=false gives InitialStatus()=CREATED, matching the v1 block action which forces
 // Pending=false. The reason travels as a metadata key copied by Translate. It reuses the same
 // flat input envelope and success envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
