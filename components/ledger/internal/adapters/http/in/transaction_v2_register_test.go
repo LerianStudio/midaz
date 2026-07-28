@@ -50,7 +50,7 @@ func TestRegisterTransactionV2RoutesToApp_MountsDirectRoute(t *testing.T) {
 		routeSet[r.Method+":"+r.Path] = true
 	}
 
-	assert.True(t, routeSet[fiber.MethodPost+":"+directV2RoutePath],
+	assert.True(t, routeSet[http.MethodPost+":"+directV2RoutePath],
 		"should register POST /v2 transactions/direct")
 }
 
@@ -92,7 +92,7 @@ func TestV2DirectRoute_RequiresAuth(t *testing.T) {
 
 	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
 
-	req := httptest.NewRequest(fiber.MethodPost, concretePath, nil)
+	req := httptest.NewRequest(http.MethodPost, concretePath, nil)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)

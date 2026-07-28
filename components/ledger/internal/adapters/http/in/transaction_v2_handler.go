@@ -44,6 +44,10 @@ type CreateTransactionDirectV2InputHuma struct {
 // Replayed). Translate business errors and the input's route-UUID validation surface as
 // RFC 9457 4xx via pkgHTTP.HumaProblem.
 func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	payload := new(mtransaction.CreateTransactionV2Input)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)

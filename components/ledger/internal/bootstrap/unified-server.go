@@ -116,20 +116,14 @@ func NewUnifiedServer(
 	// closure, before each Huma terminal. Both the /v1 and the /v2 mounts route
 	// through mountHumaContract, which owns the invariant scaffolding.
 	if humaMount != nil {
-		// v1: title "Midaz Ledger API", no Description, WITH the ledger schema namer
-		// to disambiguate the one cross-package schema-name clash (mmodel.Balance vs
-		// operation.Balance) before any huma.Register on the shared registry.
-		mountHumaContract(app, logger, "/v1", "Midaz Ledger API", "", version, true, humaMount)
+		// v1: title "Midaz Ledger API", no Description.
+		mountHumaContract(app, logger, "/v1", "Midaz Ledger API", "", version, humaMount)
 	}
 
 	// Second, INDEPENDENT contract instance (ADR-003). The /v2 API owns a SEPARATE
 	// component registry, so v1 and v2 schema names never collide across contracts.
-	// The ledger schema namer is still installed WITHIN the v2 registry because the
-	// v2 create output embeds transaction.Transaction, which nests operation.Operation
-	// → operation.{Status,Balance,Amount} and clashes with transaction.Status on the
-	// bare schema names (the SAME disambiguation the v1 mount applies).
 	if humaMountV2 != nil {
-		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, true, humaMountV2)
+		mountHumaContract(app, logger, "/v2", "Midaz Ledger API v2", "Midaz Ledger v2 API contract.", version, humaMountV2)
 	}
 
 	// End tracing spans middleware (must be last)
@@ -179,17 +173,21 @@ func NewUnifiedServer(
 // mountHumaContract mounts one independent Huma contract instance under prefix and
 // encapsulates the INVARIANT scaffolding shared by every version: problem.Install()
 // (idempotent RFC 9457 model override, MUST precede any huma.Register), the Fiber
-// group + Huma document creation, the BearerAuth + ApiKeyAuth SPEC-ONLY security
-// scheme declarations, the mount closure invocation, and the swaggerEnabled()-gated
-// native OpenAPI 3.1 spec + Scalar docs surface.
+// group + Huma document creation, the ledger schema namer, the BearerAuth + ApiKeyAuth
+// SPEC-ONLY security scheme declarations, the mount closure invocation, and the
+// swaggerEnabled()-gated native OpenAPI 3.1 spec + Scalar docs surface.
+//
+// Every contract installs the ledger schema namer within its own registry to
+// disambiguate the nested operation.* schemas (operation.{Status,Balance,Amount})
+// against the top-level transaction.* schemas (transaction.Status): the v2 create
+// output embeds transaction.Transaction, which nests operation.Operation, and the v1
+// contract carries the same cross-package clash — so the namer applies uniformly.
 //
 // The DIVERGENT bits are parameters: prefix (Fiber group + Servers entry + ServeSpec
-// prefix), title/description/version (Info metadata), installSchemaNamer (v1 needs
-// the ledger schema namer to break one cross-package name clash; v2 owns a separate
-// registry and opts out), and the mount closure (per-version op registration + the
-// per-group Fiber auth/tenant chain). ServeSpec runs AFTER mount so the snapshotted
-// spec is complete. Security schemes are SPEC metadata only — runtime auth stays the
-// Fiber guard chain the mount closure attaches.
+// prefix), title/description/version (Info metadata), and the mount closure (per-version
+// op registration + the per-group Fiber auth/tenant chain). ServeSpec runs AFTER mount
+// so the snapshotted spec is complete. Security schemes are SPEC metadata only — runtime
+// auth stays the Fiber guard chain the mount closure attaches.
 func mountHumaContract(
 	app *fiber.App,
 	logger libLog.Logger,
@@ -197,7 +195,6 @@ func mountHumaContract(
 	title string,
 	description string,
 	version string,
-	installSchemaNamer bool,
 	mount HumaRouteRegistrar,
 ) {
 	problem.Install()
@@ -211,9 +208,7 @@ func mountHumaContract(
 		Servers:     []string{prefix},
 	})
 
-	if installSchemaNamer {
-		midazhttp.InstallLedgerSchemaNamer(api)
-	}
+	midazhttp.InstallLedgerSchemaNamer(api)
 
 	openapi.DeclareBearerAuth(api)
 

@@ -135,20 +135,18 @@ func TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1(t *testing.T) {
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 
-	const directOpPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct"
-
 	// v2 document MUST carry the direct op.
 	v2doc := fetchOpenAPISpec(t, server.app, "/v2/openapi.json")
 	v2paths, ok := v2doc["paths"].(map[string]any)
 	require.True(t, ok, "v2 spec should carry a paths object")
-	_, inV2 := v2paths[directOpPath]
-	assert.Truef(t, inV2, "v2 document MUST carry the direct op path %q; paths=%v", directOpPath, keysOf(v2paths))
+	_, inV2 := v2paths[directOpV2Path]
+	assert.Truef(t, inV2, "v2 document MUST carry the direct op path %q; paths=%v", directOpV2Path, keysOf(v2paths))
 
 	// v1 document MUST NOT carry the direct op. A v1 document with no registered ops
 	// may omit the paths object entirely; if present, it must not leak the v2 op.
 	v1doc := fetchOpenAPISpec(t, server.app, "/v1/openapi.json")
 	if v1paths, ok := v1doc["paths"].(map[string]any); ok {
-		_, inV1 := v1paths[directOpPath]
+		_, inV1 := v1paths[directOpV2Path]
 		assert.Falsef(t, inV1, "v2 direct op MUST NOT leak into the v1 document; v1 paths=%v", keysOf(v1paths))
 	}
 }
