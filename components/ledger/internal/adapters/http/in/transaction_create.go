@@ -995,12 +995,9 @@ func (handler *TransactionHandler) createTransaction(ctx context.Context, params
 	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
 }
 
-// resolveIdempotencyHashSource returns the string the idempotency hash is computed over.
-// With no override (all v1 callers) it serializes the canonical built transaction, so the
-// hash is byte-identical to the pre-v2 behavior. When the v2 surface supplies a non-empty
-// override (the raw v2 request body as submitted), that override is the source instead —
-// keying v2 idempotency by the pre-translation body per ADR-004. Only the source bytes
-// change; the HashSHA256 mechanism at the call site is shared.
+// resolveIdempotencyHashSource returns the string the idempotency hash is computed over:
+// the non-empty override when supplied, else the canonical serialized transaction. Keying
+// off a raw pre-translation body via the override is the ADR-004 contract.
 func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, override ...string) (string, error) {
 	if len(override) > 0 && override[0] != "" {
 		return override[0], nil
@@ -1116,15 +1113,11 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// hash keys on the raw body, not the package version. Package version is
 	// deliberately NOT part of the key.
 	//
-	// idempotencyKey/idempotencyTTL are resolved by the transport (the Fiber
-	// GetIdempotencyKeyAndTTL or the Huma header read) and passed in; the hash is
-	// computed here over the idempotency hash SOURCE. v1 callers pass no override, so
-	// the source is the built transactionInput and the hash stays byte-identical across
-	// both v1 transports. The v2 surface passes the raw pre-translation body as the
-	// override (ADR-004), so v2 dedups by the body as submitted; the HashSHA256
-	// mechanism is unchanged, only the source bytes differ, so v1 and v2 keys never
-	// collide by construction. The X-Idempotency-Replayed header is set by the transport
-	// off the returned replayed flag, not here.
+	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash
+	// is computed here over the idempotency hash SOURCE resolved by
+	// resolveIdempotencyHashSource. An optional override keys the hash off the raw body as
+	// submitted (ADR-004); with no override the source is the canonical transactionInput.
+	// The HashSHA256 mechanism is the same regardless of which source is used.
 	hashSource, err := resolveIdempotencyHashSource(transactionInput, idempotencyHashSource...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)

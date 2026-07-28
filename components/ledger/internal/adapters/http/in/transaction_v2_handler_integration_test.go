@@ -13,7 +13,6 @@ import (
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -335,6 +334,8 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, v2Dst), "v2 dest available")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v1Src), "v1 source on-hold")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Src), "v2 source on-hold")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v1Dst), "v1 dest on-hold")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, v2Dst), "v2 dest on-hold")
 
 	// Operations: exactly 1 DEBIT + 1 CREDIT on each, and the economic projection is
 	// IDENTICAL between the two surfaces (type, asset, alias, amount, balance-after).
@@ -355,12 +356,10 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 }
 
 // assertOperationSetsEqual asserts two 2-element operation sets carry identical economic
-// content leg-for-leg (matched by type, since ORDER BY type makes both deterministic).
+// content leg-for-leg. Both inputs come from fetchOperationRows, whose `ORDER BY type` is
+// the single source of ordering, so the rows line up index-for-index without re-sorting.
 func assertOperationSetsEqual(t *testing.T, a, b []operationEconomicRow) {
 	t.Helper()
-
-	sort.Slice(a, func(i, j int) bool { return a[i].Type < a[j].Type })
-	sort.Slice(b, func(i, j int) bool { return b[i].Type < b[j].Type })
 
 	require.Equal(t, len(a), len(b), "operation set sizes differ")
 
@@ -551,4 +550,46 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 		"v1 and v2 body-hash keys must not collide: each surface creates its own transaction")
 	assert.Equal(t, countBefore+2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"v2 and v1 must each create a distinct transaction (no cross-dedup)")
+}
+
+// =============================================================================
+// 5. INSUFFICIENT FUNDS (money-path defense-in-depth): a v2 `direct` transfer for MORE
+//    than the source's available balance is rejected by the atomic balance commit as a
+//    business error (ErrInsufficientFunds / 0018 -> 422), with NO transaction persisted
+//    and BOTH balances left exactly as seeded (the Lua commit is atomic, so a rejected
+//    transfer moves nothing).
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	// The postgres client constructor enforces TLS by the ENV_NAME security tier and
+	// refuses plaintext unless ALLOW_INSECURE_TLS=true. `make test-integration` exports it;
+	// set it here too so the test is runnable directly (mirrors
+	// composition_mt_isolation_integration_test.go).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Source seeded with 1000 available; the transfer below asks for 5000.
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
+		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","from":"@src","to":"@dst"}`, "")
+	body := drainBody(t, resp)
+
+	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+		"a transfer exceeding available funds is a business error (ErrInsufficientFunds / 0018) -> 422; body: %s", string(body))
+	assert.Contains(t, string(body), "0018", "response should carry the insufficient-funds business error code")
+
+	// No ledger effect: no transaction persisted, and both balances untouched (available
+	// and on-hold), because the atomic commit rejected before moving anything.
+	assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"an insufficient-funds transfer must not persist a transaction")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID), "source on-hold must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination available must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold must be untouched")
 }

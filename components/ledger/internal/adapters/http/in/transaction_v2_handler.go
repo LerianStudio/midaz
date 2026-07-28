@@ -11,21 +11,18 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// This file is the v2 transaction terminal (ADR-006 filename-suffix versioning). It
-// is transport-only: the handler decodes the flat single-leg v2 body, translates it to
-// the canonical Transaction, and delegates to the SAME createTransaction funnel the v1
-// create ops use (via createTransactionShell). The ~480-line create orchestration and
-// its fee/reserve seams are NOT touched — the only new code is the thin decode →
-// translate boundary, the direct-vs-hold action encoded by Translate's pending flag,
-// and the raw-body idempotency hash source the funnel accepts via an additive parameter
-// (ADR-004: v2 keys idempotency off the body as submitted, pre-translation; v1 is
-// byte-identical). Conventions mirror the v1 Huma create shells (see
+// This file is the v2 transaction terminal (ADR-006 filename-suffix versioning).
+// Transport-only: decode the flat single-leg v2 body, translate it to the canonical
+// Transaction, and delegate to the shared createTransactionShell funnel. The direct-vs-
+// hold action is carried by Translate's pending flag, and idempotency keys off the raw
+// v2 body as submitted, pre-translation (ADR-004), passed to the funnel as the hash-
+// source override. Conventions mirror the v1 Huma create shells (see
 // transaction_handler_huma.go's header): path params are plain strings validated by the
-// ParseUUIDPathParameters Fiber middleware, the body carries RawBody + SkipValidateBody
-// so http.DecodeAndValidate is the sole body validator, and errors flow through the
-// shared pkgHTTP.HumaProblem RFC 9457 envelope (business errors from Translate map to a
-// 4xx with a green span; a malformed route UUID is caught by the input's uuid validate
-// tag as a clean 400).
+// ParseUUIDPathParameters Fiber middleware, the body carries RawBody so
+// http.DecodeAndValidate is the sole body validator, and errors flow through the shared
+// pkgHTTP.HumaProblem RFC 9457 envelope (business errors from Translate map to a 4xx with
+// a green span; a malformed route UUID is caught by the input's uuid validate tag as a
+// clean 400).
 
 // CreateTransactionDirectV2InputHuma is the v2 direct-create request envelope. The
 // org/ledger path params are plain strings (validated by the ParseUUIDPathParameters
