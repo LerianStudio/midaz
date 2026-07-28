@@ -27,8 +27,8 @@ github.com/LerianStudio/lib-observability/v2 v2.1.0 h1:/w5u44Zpe9R+R3d/Ti3//OdJR
 github.com/LerianStudio/lib-observability/v2 v2.1.0/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
 github.com/LerianStudio/lib-service-discovery v1.1.0 h1:rREGTNnlwoHdfsqDbDoOXAQkqQazVYT/b0yTypSWrk8=
 github.com/LerianStudio/lib-service-discovery v1.1.0/go.mod h1:d6pW/QMo1hYzLgzcxiTg3updjSs6m5sZkuOG3L4gwxo=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1 h1:QlfrBpwd2VraLmURfYPFBVdDejDDwDWgjNsXyefDYOQ=
-github.com/LerianStudio/lib-streaming/v2 v2.0.0-beta.1/go.mod h1:SHodsEhv1U1Wra+vbk3KoQ7glHrtKJpbCNog3cqnmM8=
+github.com/LerianStudio/lib-streaming/v2 v2.0.0 h1:E5TokAl9vuMGKrfOc9Up2jazxjoxt1Dh6PwyNf0ZFKo=
+github.com/LerianStudio/lib-streaming/v2 v2.0.0/go.mod h1:LNPnBAgyCx1wZ4a+9XvxQieRc/Dl8AZ9A2sFrFmrz88=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
