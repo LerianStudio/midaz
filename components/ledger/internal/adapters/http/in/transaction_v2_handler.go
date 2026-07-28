@@ -16,11 +16,12 @@ import (
 // Transaction, and delegate to the shared createTransactionShell funnel. The v2 create
 // actions (direct, hold, ...) differ only in the pending flag Translate applies and an
 // optional Operation.Type label override, so they share the createTransactionV2 helper.
-// Idempotency keys off the raw v2 body as submitted (pre-translation), passed to the
-// funnel as the hash-source override so identical v2 submissions dedup by the body the
-// client actually sent. Conventions mirror the v1 Huma create shells (see
-// transaction_handler_huma.go's header): path params are plain strings validated by the
-// ParseUUIDPathParameters Fiber middleware, the body carries RawBody so
+// Idempotency keys off the raw v2 body as submitted (pre-translation), but the v2 action
+// is carried by the ENDPOINT, not the body — so the action identity is folded into the
+// hash source (see v2IdempotencyHashSource) to keep byte-identical bodies posted to
+// different actions in distinct idempotency slots. Conventions mirror the v1 Huma create
+// shells (see transaction_handler_huma.go's header): path params are plain strings
+// validated by the ParseUUIDPathParameters Fiber middleware, the body carries RawBody so
 // http.DecodeAndValidate is the sole body validator, and errors flow through the shared
 // pkgHTTP.HumaProblem RFC 9457 envelope (business errors from Translate map to a 4xx with
 // a green span; a malformed route UUID is caught by the input's uuid validate tag as a
@@ -41,32 +42,78 @@ type CreateTransactionDirectV2InputHuma struct {
 }
 
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
-// context, decodes+validates the flat v2 body imperatively (the SAME http.DecodeAndValidate
-// the v1 create ops run), translates it to the canonical single-leg Transaction with the
-// caller's pending intent, stamps the optional Operation.Type override, and delegates to
-// the shared createTransactionShell — always passing the raw v2 body as the idempotency
-// hash source so every action dedups by the body as submitted. Translate business errors
-// and the input's route-UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
+// context, builds the canonical single-leg Transaction from the flat v2 body
+// (decodeAndBuildV2Transaction), and delegates to the shared createTransactionShell keyed by
+// the action-discriminated raw body (v2IdempotencyHashSource). Translate business errors and
+// the input's route-UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
 func (handler *TransactionHandler) createTransactionV2(ctx context.Context, orgStr, ledgerStr string, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputHuma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
+	transactionInput, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
+
+	return handler.createTransactionShell(ctx, orgStr, ledgerStr, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
+}
+
+// decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
+// http.DecodeAndValidate the v1 create ops run), translates it to the canonical single-leg
+// Transaction with the caller's pending intent, and stamps the optional Operation.Type
+// override. The returned value is exactly the Transaction createTransactionV2 hands to the
+// funnel, so it is the unit seam for asserting the translate+stamp result.
+func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, error) {
 	payload := new(mtransaction.CreateTransactionV2Input)
 	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
+		return mtransaction.Transaction{}, err
 	}
 
 	transactionInput, err := payload.Translate(pending)
 	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
+		return mtransaction.Transaction{}, err
 	}
 
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
 
-	return handler.createTransactionShell(ctx, orgStr, ledgerStr, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, string(rawBody))
+	return transactionInput, nil
+}
+
+// idempotencyActionDiscriminator returns the action-identity label folded into the v2
+// idempotency hash source, derived from the same (pending, operationTypeOverride) the action
+// passes. An explicit Operation.Type override wins (block/unblock); else a pending create is
+// HOLD; else direct carries no discriminator. Direct's empty label is deliberate so its hash
+// source stays the bare body, byte-identical to the Phase 1 direct idempotency contract.
+func idempotencyActionDiscriminator(pending bool, operationTypeOverride string) string {
+	switch {
+	case operationTypeOverride != "":
+		return operationTypeOverride
+	case pending:
+		return "HOLD"
+	default:
+		return ""
+	}
+}
+
+// v2IdempotencyHashSource builds the idempotency hash source for a v2 create action. The v2
+// action is carried by the ENDPOINT, not the body, so two byte-identical flat bodies posted
+// to /direct and /hold would otherwise share one no-key idempotency slot and cross-replay
+// (a hold could return a settled direct, or vice versa). Folding the action discriminator in
+// gives each action a distinct no-key identity: direct keeps the bare body; every other
+// action prefixes its discriminator joined by a NUL byte (which cannot appear in an action
+// label) so the two sources can never collide.
+func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride string) string {
+	disc := idempotencyActionDiscriminator(pending, operationTypeOverride)
+	if disc == "" {
+		return string(rawBody)
+	}
+
+	return disc + "\x00" + string(rawBody)
 }
 
 // CreateTransactionDirectV2Huma creates a v2 transaction with the direct (non-pending)

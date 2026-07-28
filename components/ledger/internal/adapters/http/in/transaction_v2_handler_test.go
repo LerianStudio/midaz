@@ -274,13 +274,15 @@ func TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 		"valid hold body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500)")
 }
 
-// TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByRawV2Body proves the hold surface,
-// like direct, keys idempotency off the RAW v2 body as submitted (the shared helper always
-// passes string(rawBody) as the hash source). It probes the SAME first-repo touch as the
-// direct idempotency lock (TransactionRedisRepo.SetNX, whose internalKey embeds the hash
-// source when no X-Idempotency header is sent), and the losing claim replays a cached
-// canonical value to 201 — proving hold reaches the idempotency claim inside the funnel.
-func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByRawV2Body(t *testing.T) {
+// TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body proves the hold
+// surface keys idempotency off the raw v2 body AS SUBMITTED, but folds the HOLD action
+// discriminator into the hash source (the endpoint, not the body, carries the action). It
+// probes the SAME first-repo touch as the direct idempotency lock (TransactionRedisRepo.SetNX,
+// whose internalKey embeds the hash source when no X-Idempotency header is sent): the captured
+// key must embed hash("HOLD\x00"+body) and must NOT embed the bare-body hash the direct action
+// uses — the observable guarantee that direct and hold never cross-dedup. The losing claim
+// replays a cached canonical value to 201 — proving hold reaches the idempotency claim.
+func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -293,8 +295,10 @@ func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByRawV2Body(t *testing.T) 
 	resp := postHoldV2(t, app, v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Contains(t, gotKey, libCommons.HashSHA256(v2DirectBody),
-		"v2 hold idempotency must be keyed by the raw v2 body as submitted; got internalKey=%q", gotKey)
+	assert.Contains(t, gotKey, libCommons.HashSHA256("HOLD\x00"+v2DirectBody),
+		"v2 hold idempotency must be keyed by the HOLD-discriminated raw v2 body; got internalKey=%q", gotKey)
+	assert.NotContains(t, gotKey, libCommons.HashSHA256(v2DirectBody),
+		"v2 hold must NOT key off the bare body — that is the direct action's identity, and reusing it cross-dedups direct↔hold")
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing hold claim with a cached canonical value replays → 201")
 }
 
@@ -315,25 +319,74 @@ func TestCreateTransactionV2_CancelledContext(t *testing.T) {
 	assert.Nil(t, out, "no output envelope on the cancelled-context guard")
 }
 
-// TestCreateTransactionV2_StampsOperationTypeOverride proves the shared helper stamps a
-// non-empty Operation.Type override onto the translated transaction and still enters the
-// funnel keyed by the raw v2 body (the seam the block/unblock actions rely on). It uses a
-// losing idempotency claim so the path resolves to a 201 replay without full repo wiring.
+// TestCreateTransactionV2_StampsOperationTypeOverride proves the v2 helper stamps a
+// non-empty Operation.Type override onto the transaction it hands to the funnel and carries
+// the caller's (non-)pending intent through Translate. It asserts on
+// decodeAndBuildV2Transaction — the EXACT mtransaction.Transaction createTransactionV2 passes
+// into createTransactionShell — so the assertion goes red if the override-stamping line is
+// removed (it is a real check, not a status/idempotency tautology). The persisted
+// Operation.Type effect of this override is exercised end-to-end by the Epic 2.2
+// block/unblock integration test, once that route lands.
 func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
-	// NOT parallel: captureSetNXKey drives the process-global-free funnel but the helper
-	// still walks the shared shell; keep it serialized with the other funnel-touching tests.
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
+	t.Parallel()
 
-	var gotKey string
-
-	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-
-	out, err := handler.createTransactionV2(context.Background(), uuid.New().String(), uuid.New().String(), []byte(v2DirectBody), "", "", true, "BLOCK")
-
+	// block action identity: (pending=false, override="BLOCK").
+	tx, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
 	require.NoError(t, err)
-	require.NotNil(t, out)
-	assert.Equal(t, http.StatusCreated, out.Status, "override path still resolves through the shared funnel")
-	assert.Contains(t, gotKey, libCommons.HashSHA256(v2DirectBody),
-		"override actions still key idempotency off the raw v2 body")
+
+	assert.Equal(t, "BLOCK", tx.OperationTypeOverride,
+		"a non-empty override must be stamped onto the transaction handed to the funnel")
+	assert.False(t, tx.Pending,
+		"the block action is non-pending; Translate must carry pending=false through to the funnel")
+}
+
+// TestV2IdempotencyHashSource_DiscriminatesActions locks the no-key idempotency mapping: the
+// v2 action is carried by the endpoint, so each action must fold a distinct identity into the
+// hash source. Direct MUST stay byte-identical to the bare body (Phase 1 direct contract);
+// every other action prefixes its discriminator + NUL. This is the observable guarantee that
+// byte-identical bodies posted to different actions never share an idempotency slot.
+func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(v2DirectBody)
+
+	tests := []struct {
+		name        string
+		pending     bool
+		override    string
+		wantDisc    string
+		wantHashSrc string
+	}{
+		{name: "direct stays bare body", pending: false, override: "", wantDisc: "", wantHashSrc: v2DirectBody},
+		{name: "hold", pending: true, override: "", wantDisc: "HOLD", wantHashSrc: "HOLD\x00" + v2DirectBody},
+		{name: "block", pending: false, override: "BLOCK", wantDisc: "BLOCK", wantHashSrc: "BLOCK\x00" + v2DirectBody},
+		{name: "unblock", pending: false, override: "UNBLOCK", wantDisc: "UNBLOCK", wantHashSrc: "UNBLOCK\x00" + v2DirectBody},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.wantDisc, idempotencyActionDiscriminator(tc.pending, tc.override),
+				"action discriminator mapping")
+			assert.Equal(t, tc.wantHashSrc, v2IdempotencyHashSource(body, tc.pending, tc.override),
+				"idempotency hash source")
+		})
+	}
+
+	// Direct is byte-identical to the bare body: this exact invariant keeps the Phase 1 direct
+	// idempotency tests green unchanged.
+	assert.Equal(t, v2DirectBody, v2IdempotencyHashSource(body, false, ""),
+		"direct's hash source MUST remain exactly the bare body")
+
+	// No two actions collide.
+	seen := map[string]string{}
+	for _, tc := range tests {
+		src := v2IdempotencyHashSource(body, tc.pending, tc.override)
+		if prev, dup := seen[src]; dup {
+			t.Fatalf("actions %q and %q share an idempotency hash source", prev, tc.name)
+		}
+
+		seen[src] = tc.name
+	}
 }

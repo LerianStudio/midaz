@@ -748,9 +748,20 @@ func TestIntegration_TransactionV2Hold_CommitSettles(t *testing.T) {
 	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "dest credited after commit")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "dest on-hold after commit")
 
-	// Full lifecycle operation set: 1 ON_HOLD (hold) + 1 DEBIT (release) + 1 CREDIT (apply).
-	assert.Equal(t, 3, postgrestestutil.CountOperationsByTransactionID(t, infra.pgContainer.DB, txID),
-		"committed hold should carry exactly 3 operations (ON_HOLD + DEBIT + CREDIT)")
+	// Full lifecycle operation TYPE set: 1 ON_HOLD (hold) + 1 DEBIT (release) + 1 CREDIT
+	// (apply). Asserting the set of types (not merely count == 3) proves the three distinct
+	// lifecycle legs are present, so a regression that emitted three operations of the wrong
+	// type mix would still be caught. fetchOperationRows is the same economic projection the
+	// parity tests use.
+	commitOps := fetchOperationRows(t, infra.pgContainer.DB, txID)
+
+	commitOpTypes := make([]string, 0, len(commitOps))
+	for _, op := range commitOps {
+		commitOpTypes = append(commitOpTypes, op.Type)
+	}
+
+	assert.ElementsMatch(t, []string{cn.ONHOLD, cn.DEBIT, cn.CREDIT}, commitOpTypes,
+		"committed hold should carry exactly the ON_HOLD + DEBIT + CREDIT operation set")
 }
 
 // =============================================================================
@@ -791,4 +802,59 @@ func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
 	assert.Equal(t, firstTxID, secondResult["id"].(string), "replay must return the FIRST hold transaction's id")
 	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"an idempotent hold replay must NOT create a second transaction")
+}
+
+// =============================================================================
+// 9. DIRECT↔HOLD NO-KEY CROSS-DEDUP: the v2 action (direct vs hold) is carried by the
+//    ENDPOINT, not the body, so a byte-identical flat body posted to /direct and then to
+//    /hold in the SAME org/ledger with NO X-Idempotency header must NOT cross-replay. Each
+//    action folds its own identity into the idempotency hash source (direct = bare body,
+//    hold = discriminated body), so the two claims land in distinct slots -> two DISTINCT
+//    transactions with distinct statuses (direct APPROVED, hold PENDING), never a replay.
+// =============================================================================
+
+func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Source seeded with 1000: enough to cover the direct transfer (100) AND the subsequent
+	// hold reservation (100) so both actions clear the funds guard and reach persistence.
+	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// Byte-identical flat body; the ONLY difference between the two POSTs is the endpoint.
+	// No X-Idempotency header, so each surface derives its key from the (discriminated) body
+	// hash — the exact collision path that cross-dedup would exploit.
+	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+
+	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
+	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "direct create must not be a replay")
+
+	directTxID := uuid.MustParse(directResult["id"].(string))
+
+	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), body, "")
+	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
+	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
+		"the hold create must NOT replay the direct transaction (distinct action identity, distinct idempotency slot)")
+
+	holdTxID := uuid.MustParse(holdResult["id"].(string))
+
+	// Two DISTINCT transaction IDs — the hold did not replay the direct.
+	assert.NotEqual(t, directTxID, holdTxID,
+		"identical bodies to /direct and /hold must create two DISTINCT transactions (no cross-dedup)")
+
+	// Distinct statuses: the direct settles immediately (APPROVED), the hold stays PENDING.
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, directTxID),
+		"the direct transaction should be APPROVED")
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, holdTxID),
+		"the hold transaction should be PENDING")
+
+	// Exactly two persisted transactions — no replay collapsed them into one.
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"direct + hold with an identical no-key body must persist two transactions, not replay one")
 }

@@ -22,11 +22,11 @@ const directV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 
 const holdV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
 
-// registerV2DirectRoutesForTest wires the v2 `direct` op onto a fresh Fiber app +
-// its own /v2 Huma contract, exactly as the production humaMountV2 seam does. A
-// zero-value TransactionHandler is safe because registration never invokes the
+// registerV2TransactionRoutesForTest wires the v2 transaction ops (direct AND hold) onto a
+// fresh Fiber app + its own /v2 Huma contract, exactly as the production humaMountV2 seam
+// does. A zero-value TransactionHandler is safe because registration never invokes the
 // handler.
-func registerV2DirectRoutesForTest(auth *middleware.AuthClient) *fiber.App {
+func registerV2TransactionRoutesForTest(auth *middleware.AuthClient) *fiber.App {
 	app := fiber.New()
 
 	apiV2 := app.Group("/v2")
@@ -45,7 +45,7 @@ func TestRegisterTransactionV2RoutesToApp_MountsDirectRoute(t *testing.T) {
 	t.Parallel()
 
 	auth := &middleware.AuthClient{Enabled: false}
-	app := registerV2DirectRoutesForTest(auth)
+	app := registerV2TransactionRoutesForTest(auth)
 
 	routeSet := make(map[string]bool)
 	for _, r := range app.GetRoutes() {
@@ -63,7 +63,7 @@ func TestRegisterTransactionV2RoutesToApp_MountsHoldRoute(t *testing.T) {
 	t.Parallel()
 
 	auth := &middleware.AuthClient{Enabled: false}
-	app := registerV2DirectRoutesForTest(auth)
+	app := registerV2TransactionRoutesForTest(auth)
 
 	routeSet := make(map[string]bool)
 	for _, r := range app.GetRoutes() {
@@ -106,7 +106,7 @@ func TestV2HoldRoute_RequiresAuth(t *testing.T) {
 	t.Parallel()
 
 	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
-	app := registerV2DirectRoutesForTest(auth)
+	app := registerV2TransactionRoutesForTest(auth)
 
 	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/hold"
 
@@ -155,7 +155,7 @@ func TestV2DirectRoute_RequiresAuth(t *testing.T) {
 	// Address must be non-empty so Authorize enforces the token check (it is never
 	// dialed: a missing token short-circuits with 401 first).
 	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
-	app := registerV2DirectRoutesForTest(auth)
+	app := registerV2TransactionRoutesForTest(auth)
 
 	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
 
