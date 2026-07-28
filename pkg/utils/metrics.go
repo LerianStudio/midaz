@@ -143,6 +143,15 @@ var (
 		Description: "Total backup-replay records whose after-balances were recomputed rather than replayed from Lua, risking overdraft audit divergence.",
 	}
 
+	// DBReadSourceTotal counts read-routing decisions by the source that served
+	// the read (RF-06). Counter. Single bounded label: source (primary|replica).
+	// Per-operation granularity is the span (db.read_source attribute), not a label.
+	DBReadSourceTotal = metrics.Metric{
+		Name:        "db_read_source_total",
+		Unit:        "1",
+		Description: "Count of read-routing decisions by served source (primary|replica).",
+	}
+
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.
 	// Values: 0 = closed (healthy), 1 = open (unhealthy), 2 = half-open (recovering)
 	CircuitBreakerState = metrics.Metric{
