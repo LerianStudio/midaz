@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,13 +13,16 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -162,4 +166,174 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
 		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is the integration+parity test)")
+}
+
+// buildHumaV2HoldApp mounts the v2 `hold` transaction op on a fresh Fiber app + its own
+// /v2 Huma contract, mirroring buildHumaV2DirectApp. The production seam registers only
+// `direct` today (the hold route ships in a later phase), so this test wires the hold
+// terminal directly — the SAME Fiber auth/tenant/ParseUUIDPathParameters chain plus the
+// SkipValidateBody Huma op the direct route carries — to exercise CreateTransactionHoldV2Huma
+// across the transport boundary. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
+// libProblem.Install() and Huma validation use process-global state.
+func buildHumaV2HoldApp(t *testing.T, handler *TransactionHandler) *fiber.App {
+	t.Helper()
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
+	})
+
+	app.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
+
+	libProblem.Install()
+
+	apiV2 := app.Group("/v2")
+
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-hold", Version: "test", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	const holdMiddlewarePath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
+
+	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
+	routePost(apiV2, holdMiddlewarePath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil, parse))
+
+	huma.Register(humaAPI, huma.Operation{
+		OperationID:      "createTransactionHoldV2",
+		Method:           http.MethodPost,
+		Path:             "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold",
+		Summary:          "Create a Transaction using the v2 hold model",
+		Tags:             []string{"Transactions"},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
+	}, handler.CreateTransactionHoldV2Huma)
+
+	return app
+}
+
+// holdV2ConcretePath builds the concrete /v2 hold path for a random org+ledger so
+// ParseUUIDPathParameters passes and dispatch reaches the terminal.
+func holdV2ConcretePath() string {
+	return "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/hold"
+}
+
+// postHoldV2 issues an authenticated POST to the v2 hold route with the given JSON body.
+func postHoldV2(t *testing.T, app *fiber.App, body string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, holdV2ConcretePath(), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	return resp
+}
+
+// TestCreateTransactionHoldV2Huma_MalformedBody_400 proves the hold handler decodes the
+// flat v2 body through the SAME http.DecodeAndValidate the direct handler runs: malformed
+// JSON is the canonical 400 RFC 9457 problem, never a native Huma 422 nor a 501 stub.
+func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+
+	resp := postHoldV2(t, app, `{not-json`)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed v2 hold body stays canonical 400")
+	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
+}
+
+// TestCreateTransactionHoldV2Huma_Ambiguous_422 proves a Translate business error
+// (from == to) on the hold action maps to the canonical 422 RFC 9457 problem (span stays
+// green) — the shared helper decodes, translates with pending=true, and surfaces the
+// business error before reaching the funnel.
+func TestCreateTransactionHoldV2Huma_Ambiguous_422(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+
+	resp := postHoldV2(t, app, `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
+}
+
+// TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel proves the hold happy-path wiring
+// up to the funnel: a fully valid flat body passes decode + Translate(true) and is handed
+// to the SAME createTransaction funnel. With a bare handler the funnel's first repository
+// call has no wired dependency, so WithRecover maps the resulting panic to a 500 — proving
+// the request progressed PAST the transport/translate boundary into the funnel.
+func TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+
+	resp := postHoldV2(t, app, `{"description":"v2 hold","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+		"valid hold body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500)")
+}
+
+// TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByRawV2Body proves the hold surface,
+// like direct, keys idempotency off the RAW v2 body as submitted (the shared helper always
+// passes string(rawBody) as the hash source). It probes the SAME first-repo touch as the
+// direct idempotency lock (TransactionRedisRepo.SetNX, whose internalKey embeds the hash
+// source when no X-Idempotency header is sent), and the losing claim replays a cached
+// canonical value to 201 — proving hold reaches the idempotency claim inside the funnel.
+func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByRawV2Body(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	var gotKey string
+
+	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
+	app := buildHumaV2HoldApp(t, handler)
+
+	resp := postHoldV2(t, app, v2DirectBody)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Contains(t, gotKey, libCommons.HashSHA256(v2DirectBody),
+		"v2 hold idempotency must be keyed by the raw v2 body as submitted; got internalKey=%q", gotKey)
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing hold claim with a cached canonical value replays → 201")
+}
+
+// TestCreateTransactionV2_CancelledContext proves the shared helper guards the request
+// context before any decode/translate work: a cancelled context short-circuits to an
+// RFC 9457 problem, so the funnel is never entered.
+func TestCreateTransactionV2_CancelledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	handler := &TransactionHandler{}
+
+	out, err := handler.createTransactionV2(ctx, uuid.New().String(), uuid.New().String(), []byte(v2DirectBody), "", "", false, "")
+
+	require.Error(t, err, "a cancelled context must short-circuit before the funnel")
+	assert.Nil(t, out, "no output envelope on the cancelled-context guard")
+}
+
+// TestCreateTransactionV2_StampsOperationTypeOverride proves the shared helper stamps a
+// non-empty Operation.Type override onto the translated transaction and still enters the
+// funnel keyed by the raw v2 body (the seam the block/unblock actions rely on). It uses a
+// losing idempotency claim so the path resolves to a 201 replay without full repo wiring.
+func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
+	// NOT parallel: captureSetNXKey drives the process-global-free funnel but the helper
+	// still walks the shared shell; keep it serialized with the other funnel-touching tests.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	var gotKey string
+
+	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
+
+	out, err := handler.createTransactionV2(context.Background(), uuid.New().String(), uuid.New().String(), []byte(v2DirectBody), "", "", true, "BLOCK")
+
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	assert.Equal(t, http.StatusCreated, out.Status, "override path still resolves through the shared funnel")
+	assert.Contains(t, gotKey, libCommons.HashSHA256(v2DirectBody),
+		"override actions still key idempotency off the raw v2 body")
 }
