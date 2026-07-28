@@ -100,6 +100,33 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	return app, humaAPI
 }
 
+// buildUnifiedHumaAPIV2 composes the SECOND, INDEPENDENT Huma contract the unified
+// ledger server mounts under /v2, returning BOTH the Fiber app and that v2 huma.API
+// (the latter feeds the offline v2 OpenAPI 3.1 spec dump — see
+// openapi_spec_dump_test.go). It mirrors the production humaMountV2 closure in
+// config.go and the mountHumaContract scaffolding in unified-server.go: its own Fiber
+// group, its own Huma document (own component registry, Servers ["/v2"]), and the v2
+// transaction registrar. Registration never invokes the handlers, so a nil-backed
+// handler struct is safe.
+func buildUnifiedHumaAPIV2() (*fiber.App, huma.API) {
+	app := fiber.New()
+	auth := &middleware.AuthClient{Enabled: false}
+
+	libProblem.Install()
+	apiV2 := app.Group("/v2")
+	humaAPIV2 := openapi.New(app, apiV2, openapi.Config{
+		Title:       "Midaz Ledger API v2",
+		Version:     "4.0.0",
+		Description: "Midaz Ledger v2 API contract.",
+		Servers:     []string{"/v2"},
+	})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPIV2)
+
+	RegisterTransactionV2RoutesToApp(apiV2, humaAPIV2, auth, &TransactionHandler{}, nil)
+
+	return app, humaAPIV2
+}
+
 // specPath is the committed, generated Huma OAS 3.1 dump for the ledger rail. It
 // is the single source of truth the mounted route surface must match. The swaggo
 // swagger.json this gate originally read against was deleted in the Huma migration

@@ -103,6 +103,10 @@
       "x-displayName": "Metadata Indexes"
     },
     {
+      "name": "Midaz_Ledger_API_v2_Transactions",
+      "x-displayName": "Transactions"
+    },
+    {
       "name": "Midaz_Tracer_API_Audit",
       "x-displayName": "Audit"
     },
@@ -9385,6 +9389,406 @@
         ]
       }
     },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "createTransactionBlockV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Transaction using the v2 block model",
+        "tags": [
+          "Midaz_Ledger_API_v2_Transactions"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "createTransactionDirectV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Transaction using the v2 direct model",
+        "tags": [
+          "Midaz_Ledger_API_v2_Transactions"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "createTransactionHoldV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Transaction using the v2 hold model",
+        "tags": [
+          "Midaz_Ledger_API_v2_Transactions"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock": {
+      "servers": [
+        {
+          "url": "/"
+        }
+      ],
+      "post": {
+        "operationId": "createTransactionUnblockV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the create; an identical retry returns the original transaction",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a Transaction using the v2 unblock model",
+        "tags": [
+          "Midaz_Ledger_API_v2_Transactions"
+        ]
+      }
+    },
     "/audit-events": {
       "get": {
         "operationId": "listAuditEvents",
@@ -16215,6 +16619,12 @@
         "Midaz_Ledger_API_Packages",
         "Midaz_Ledger_API_Protection",
         "Midaz_Ledger_API_Metadata Indexes"
+      ]
+    },
+    {
+      "name": "Midaz Ledger API v2",
+      "tags": [
+        "Midaz_Ledger_API_v2_Transactions"
       ]
     },
     {
