@@ -16,8 +16,8 @@ import (
 
 // This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, and `unblock` transaction ops onto the SECOND, independent Huma contract
-// instance and attaches
+// `block`, `unblock`, `commit`, and `cancel` transaction ops onto the SECOND,
+// independent Huma contract instance and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
 // policy is introduced: authorization is per-tenant, identical to v1.
@@ -31,13 +31,18 @@ import (
 // native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
-// v2 Huma API. It registers `direct`, `hold`, `block`, and `unblock`;
-// commit/cancel/revert arrive in later phases. Auth is the Fiber guard chain attached in
-// RegisterTransactionV2RoutesToApp BEFORE this terminal, not here — the per-op
-// Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides
-// the OpenAPI servers entry).
+// v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock`,
+// plus the bodiless lifecycle ops `commit` and `cancel` (by transaction_id); revert
+// arrives in a later phase. commit/cancel reuse the transport-neutral v1 shells
+// (CommitTransactionHuma/CancelTransactionHuma) verbatim — no v2-specific handler and
+// no idempotency, since they carry no body or headers. Auth is the Fiber guard chain
+// attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here — the
+// per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix
+// rides the OpenAPI servers entry).
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions"
+
+	const transactionsIDBasePath = transactionsBasePath + "/{transaction_id}"
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionDirectV2",
@@ -82,10 +87,30 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "commitTransactionV2",
+		Method:        http.MethodPost,
+		Path:          transactionsIDBasePath + "/commit",
+		Summary:       "Commit a Transaction (v2)",
+		Tags:          []string{"Transactions"},
+		Security:      secTransactionBearer,
+		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+	}, h.CommitTransactionHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "cancelTransactionV2",
+		Method:        http.MethodPost,
+		Path:          transactionsIDBasePath + "/cancel",
+		Summary:       "Cancel a pending Transaction (v2)",
+		Tags:          []string{"Transactions"},
+		Security:      secTransactionBearer,
+		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+	}, h.CancelTransactionHuma)
 }
 
-// RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, and `unblock`
-// ops end-to-end: it attaches the Fiber auth chain — auth.Authorize("midaz","transactions","post")
+// RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,
+// `commit`, and `cancel` ops end-to-end: it attaches the Fiber auth chain — auth.Authorize("midaz","transactions","post")
 // + the tenant PostAuthMiddlewares + ParseUUIDPathParameters("transaction") — as MIDDLEWARE
 // ONLY (group-relative path, no terminal) on the /v2 GROUP, then registers the Huma
 // terminals via RegisterTransactionV2Routes on the SAME group's Huma API. All ops share
@@ -94,12 +119,16 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, th *TransactionHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	const transactionsChainPath = "/organizations/:organization_id/ledgers/:ledger_id/transactions"
 
+	const transactionsIDChainPath = transactionsChainPath + "/:transaction_id"
+
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 
 	routePost(group, transactionsChainPath+"/direct", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsChainPath+"/hold", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsChainPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsChainPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 
 	RegisterTransactionV2Routes(api, th)
 }
