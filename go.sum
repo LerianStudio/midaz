@@ -17,8 +17,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg6
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/LerianStudio/lib-auth/v3 v3.1.0 h1:89Zrk4T8zJ4aYseEQAd48jBz020RFiJdSQuZSetShRw=
-github.com/LerianStudio/lib-auth/v3 v3.1.0/go.mod h1:NWCpNMetNbsvNkptG61o7BRfXcT9sHLIRShaQU76Gj4=
+github.com/LerianStudio/lib-auth/v3 v3.2.0 h1:TfZpd8ER82fWO0HwsjsiP6HJ5zsX6IHwLUevJdM/pbM=
+github.com/LerianStudio/lib-auth/v3 v3.2.0/go.mod h1:NWCpNMetNbsvNkptG61o7BRfXcT9sHLIRShaQU76Gj4=
 github.com/LerianStudio/lib-commons/v6 v6.0.0 h1:XDKyCKdb2h3l0MBwQQNBRuCsiSTjafJfgp/QLMAEzd0=
 github.com/LerianStudio/lib-commons/v6 v6.0.0/go.mod h1:bOPZG4oO2xoSE307JJyXKyhmBo7EyQ5g8DEw5fI/ZEg=
 github.com/LerianStudio/lib-observability v1.1.0 h1:e/OrIoTKo8gI1RKXgKDyDDKcrddR4beh53al5ZmB6vQ=
