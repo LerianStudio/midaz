@@ -15,9 +15,11 @@ import (
 // is transport-only: the handler decodes the flat single-leg v2 body, translates it to
 // the canonical Transaction, and delegates to the SAME createTransaction funnel the v1
 // create ops use (via createTransactionShell). The ~480-line create orchestration and
-// its idempotency/fee/reserve seams are NOT touched — the only new code is the thin
-// decode → translate boundary and the direct-vs-hold action encoded by Translate's
-// pending flag. Conventions mirror the v1 Huma create shells (see
+// its fee/reserve seams are NOT touched — the only new code is the thin decode →
+// translate boundary, the direct-vs-hold action encoded by Translate's pending flag,
+// and the raw-body idempotency hash source the funnel accepts via an additive parameter
+// (ADR-004: v2 keys idempotency off the body as submitted, pre-translation; v1 is
+// byte-identical). Conventions mirror the v1 Huma create shells (see
 // transaction_handler_huma.go's header): path params are plain strings validated by the
 // ParseUUIDPathParameters Fiber middleware, the body carries RawBody + SkipValidateBody
 // so http.DecodeAndValidate is the sole body validator, and errors flow through the
@@ -55,5 +57,9 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL)
+	// ADR-004: key v2 idempotency off the v2 body AS SUBMITTED (pre-translation). The raw
+	// request bytes are passed as the hash-source override so the funnel hashes them
+	// instead of the canonical translated transaction; v1 callers pass no override and
+	// stay byte-identical.
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, string(in.RawBody))
 }

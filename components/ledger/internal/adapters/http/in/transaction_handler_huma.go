@@ -73,7 +73,7 @@ var secTransactionBearer = []map[string][]string{
 // to the SAME transport-neutral createTransaction core the Fiber wrapper calls, and
 // projects the built transaction + the replayed flag onto the typed Out. The parent
 // transaction id is uuid.Nil on the create routes (no :transaction_id segment).
-func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, idempotencyHashSource ...string) (*CreateTransactionOutputHuma, error) {
 	orgID, ledgerID, err := parseOrgLedger(orgStr, ledgerStr)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -82,7 +82,7 @@ func (handler *TransactionHandler) createTransactionShell(ctx context.Context, o
 	params := &transactionPathParams{OrganizationID: orgID, LedgerID: ledgerID, TransactionID: uuid.Nil}
 	ttl := pkgHTTP.ParseIdempotencyTTL(idempotencyTTL)
 
-	tran, replayed, err := handler.createTransaction(ctx, params, transactionInput, transactionStatus, idempotencyKey, ttl)
+	tran, replayed, err := handler.createTransaction(ctx, params, transactionInput, transactionStatus, idempotencyKey, ttl, idempotencyHashSource...)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
