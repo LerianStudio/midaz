@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -130,4 +131,22 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 // envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
 	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, true, "")
+}
+
+// CreateTransactionBlockV2Huma creates a v2 transaction with the block action: it delegates
+// to createTransactionV2 with pending=false and the constant.BLOCK Operation.Type override.
+// The override stays transaction-level (it relabels the persisted Operation.Type and redirects
+// accounting-rubric resolution in the funnel) and never touches direction, value, or balance
+// flags. pending=false gives InitialStatus()=CREATED, matching the v1 block action which forces
+// Pending=false. The reason travels as a metadata key copied by Translate. It reuses the same
+// flat input envelope and success envelope as the direct action.
+func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.BLOCK)
+}
+
+// CreateTransactionUnblockV2Huma creates a v2 transaction with the unblock action: it delegates
+// to createTransactionV2 with pending=false and the constant.UNBLOCK Operation.Type override,
+// mirroring the block action's contract with the opposing override label.
+func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.UNBLOCK)
 }
