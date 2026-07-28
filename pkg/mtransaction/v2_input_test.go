@@ -111,9 +111,9 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 }
 
 // TestCreateTransactionV2Input_Translate exercises the flat -> canonical
-// single-leg mapping produced by Task 1.2.2: happy-path field propagation,
-// two-level route mapping (transaction route vs per-leg operation route), the
-// pending flag, and the named business-error edge cases.
+// single-leg mapping: happy-path field propagation, two-level route mapping
+// (transaction route vs per-leg operation route), the pending flag, and the
+// named business-error edge cases.
 func TestCreateTransactionV2Input_Translate(t *testing.T) {
 	t.Parallel()
 

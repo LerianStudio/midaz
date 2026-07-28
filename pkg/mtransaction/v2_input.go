@@ -36,11 +36,14 @@ type CreateTransactionV2Input struct {
 	// To is the destination account alias (single credit leg).
 	To string `json:"to" validate:"required"`
 
-	// RouteID is the optional TRANSACTION route UUID.
-	RouteID *string `json:"routeId,omitempty"`
+	// RouteID is the optional TRANSACTION route UUID. Validated as a UUID at
+	// decode (same tag as the v1 input) so a malformed value is a clean 400, not
+	// a deep funnel error.
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// OperationRouteID is the optional per-leg OPERATION route UUID.
-	OperationRouteID *string `json:"operationRouteId,omitempty"`
+	// OperationRouteID is the optional per-leg OPERATION route UUID. Validated as
+	// a UUID at decode for the same reason as RouteID.
+	OperationRouteID *string `json:"operationRouteId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Metadata holds flat custom key-value attributes. Values must be flat
 	// (string, number, boolean) — no nested objects.
