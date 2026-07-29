@@ -21,7 +21,7 @@ import (
 
 // TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the 26
 // mainline error codes whose HTTP status class was re-typed in the four-family
-// consolidation (Task 3.6, docs/plans/2026-06-07-error-code-migration.md
+// consolidation (docs/plans/2026-06-07-error-code-migration.md
 // "Mainline 400 reclassification"). Each row pins code -> HTTP status -> title,
 // driven end-to-end through pkg/net/http.WithError so the typed struct class
 // (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)

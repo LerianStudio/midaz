@@ -354,7 +354,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 
 // buildHumaV2ActionApp mounts a single v2 transaction action (block/unblock) on a fresh
 // Fiber app + its own /v2 Huma contract, mirroring buildHumaV2HoldApp. The production seam
-// registers only `direct` today (block/unblock ship in Task 2.2.2), so this wires the action
+// registers only `direct` today (block/unblock ship later), so this wires the action
 // terminal directly — the SAME Fiber auth/tenant/ParseUUIDPathParameters chain plus the
 // SkipValidateBody Huma op the direct route carries — to exercise the block/unblock handlers
 // across the transport boundary. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
