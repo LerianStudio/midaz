@@ -8,13 +8,14 @@ import (
 	"go/ast"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // Money-write idempotency parity gates (Wave 4 self-heal). Two facts the pinning
@@ -26,11 +27,12 @@ import (
 //     `header:` tag (huma.go: value = ctx.Header(p.Name)); a wrong tag silently
 //     drops the caller's stable key, downgrading dedup to payload-hash and letting
 //     a keyed retry with a tweaked body mutate balances twice.
-//  2. The revert core must resolve the idempotency TTL the same way the pre-migration
-//     Fiber path did: revert carries no X-TTL, so ParseIdempotencyTTL("") == 300, NOT
-//     a hardcoded 0. A 0 TTL reaches SetNX(..., 0*time.Second), which go-redis emits
-//     as `SET key val NX` (no expiry) — a permanent idempotency key that leaks and
-//     changes the >5-minute replay/conflict semantics of every revert.
+//  2. The revert core must forward BOTH idempotency arguments the pre-migration Fiber
+//     path resolved: the TTL through ParseIdempotencyTTL (an absent X-TTL defaults to
+//     300, never 0 — a 0 TTL reaches SetNX(..., 0*time.Second), which go-redis emits
+//     as `SET key val NX` with no expiry, leaking a permanent key and changing the
+//     >5-minute replay/conflict semantics of every revert) and the origin-scoped hash
+//     source through revertIdempotencyHashSource.
 
 // createHumaEnvelopes enumerates the CREATE request structs whose idempotency header
 // tags feed the money-write dedup. All four transaction CREATE ops share these two
@@ -60,10 +62,14 @@ func headerTag(t reflect.Type, field string) string {
 // Fiber path reads. Because Huma binds by literal tag name, any drift here silently
 // drops the caller's idempotency key on the money-write path.
 func TestHuma_CreateEnvelopes_CanonicalIdempotencyHeaders(t *testing.T) {
+	t.Parallel()
+
 	for name, env := range createHumaEnvelopes() {
 		typ := reflect.TypeOf(env)
 
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, libConstants.IdempotencyKey, headerTag(typ, "IdempotencyKey"),
 				"IdempotencyKey header tag must equal libConstants.IdempotencyKey (%q) — the name the Fiber path reads", libConstants.IdempotencyKey)
 			assert.Equal(t, libConstants.IdempotencyTTL, headerTag(typ, "IdempotencyTTL"),
@@ -72,89 +78,120 @@ func TestHuma_CreateEnvelopes_CanonicalIdempotencyHeaders(t *testing.T) {
 	}
 }
 
-// revertTTLArgIndex is the position of idempotencyTTL in the createRevertTransaction
-// signature (ctx, params, transactionInput, transactionStatus, idempotencyKey,
-// idempotencyTTL, idempotencyHashSource...). The TTL is addressed positionally, not as the
-// last argument, because the trailing variadic hash-source override sits after it.
-const revertTTLArgIndex = 5
+// TestRevertTransaction_ForwardsIdempotencyCallArgs is a cheap unit-tier TRIPWIRE over the
+// live source AST: it asserts the revert core still resolves each idempotency argument through
+// the helper that gives it its contract, at the position createRevertTransaction expects. The
+// arguments are addressed positionally because both sit in the middle of the signature
+// (ctx, params, transactionInput, transactionStatus, idempotencyKey, idempotencyTTL,
+// idempotencyHashSource); each row asserts POSITIVELY which helper the argument must resolve
+// to, so a shifted position fails the row instead of silently passing a negative check.
+//
+// The behavioral proof lives in the integration suite —
+// TestIntegration_TransactionV2Revert_IdempotencyScopedByOrigin (per-origin scoping and the
+// repeat-revert invariant) and TestIntegration_TransactionV2Revert_ConcurrentSingleWinner
+// (the shared claim serializing concurrent reverts of one origin). This gate only catches the
+// call-site regression before the containers boot.
+//
+// Deliberate limitation: it matches the argument SYNTACTICALLY. Either helper call may be
+// qualified (`pkg.F(...)`) or plain (`F(...)`), but hoisting one into a local and passing the
+// variable trips the gate even though behavior is unchanged. Following the assignment would
+// turn a syntax check into dataflow analysis; if a refactor needs the local, delete the
+// affected row here and lean on the integration tests named above.
+func TestRevertTransaction_ForwardsIdempotencyCallArgs(t *testing.T) {
+	t.Parallel()
 
-// TestRevertTransaction_DoesNotHardcodeZeroTTL proves the revert core does not pass a
-// bare `0` literal as the idempotency TTL to createRevertTransaction. The pre-migration
-// Fiber revert defaulted the TTL to 300 (ParseIdempotencyTTL("")); a literal 0 makes the
-// Redis idempotency key permanent. Asserted over the live source AST (mirrors the fee-seam
-// and tracer-skip call-site gates) since the TTL never surfaces on the transport response.
-func TestRevertTransaction_DoesNotHardcodeZeroTTL(t *testing.T) {
 	src, err := os.ReadFile(stateHandlersFile)
 	require.NoError(t, err, "read %s", stateHandlersFile)
 
 	fn := findFuncDecl(t, string(src), "revertTransaction")
-
 	call := findAssignedCall(t, fn, "createRevertTransaction")
-	require.Greater(t, len(call.Args), revertTTLArgIndex,
-		"createRevertTransaction call must pass an idempotency TTL argument at position %d", revertTTLArgIndex)
 
-	if lit, isLit := call.Args[revertTTLArgIndex].(*ast.BasicLit); isLit {
-		assert.NotEqual(t, "0", lit.Value,
-			`revert must not hardcode idempotency TTL 0 — the pre-migration Fiber path defaulted to 300 (ParseIdempotencyTTL("")); a 0 TTL makes the Redis idempotency key permanent`)
+	args := []struct {
+		name     string
+		position int
+		wantFunc string
+		why      string
+	}{
+		{
+			name:     "idempotency TTL resolves through ParseIdempotencyTTL",
+			position: 5,
+			wantFunc: "ParseIdempotencyTTL",
+			why:      `revert must resolve its idempotency TTL through ParseIdempotencyTTL (an absent X-TTL defaults to 300); a literal 0 makes the Redis idempotency key permanent`,
+		},
+		{
+			name:     "idempotency hash source resolves through revertIdempotencyHashSource",
+			position: 6,
+			wantFunc: "revertIdempotencyHashSource",
+			why:      `revert must key its idempotency slot through revertIdempotencyHashSource(originID); hashing the reversal payload instead re-opens the cross-origin replay, because that payload carries NO reference to the origin`,
+		},
+	}
+
+	for _, tt := range args {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Greater(t, len(call.Args), tt.position,
+				"createRevertTransaction call must pass an argument at position %d", tt.position)
+
+			inner, isCall := call.Args[tt.position].(*ast.CallExpr)
+			require.Truef(t, isCall, "argument %d must be a %s(...) call: %s", tt.position, tt.wantFunc, tt.why)
+
+			assert.Equalf(t, tt.wantFunc, calleeName(inner), "%s", tt.why)
+		})
 	}
 }
 
-// TestRevertTransaction_ForwardsOriginScopedIdempotencyHashSource proves the revert core
-// still passes an origin-scoped idempotency hash source to createRevertTransaction. Without
-// it the core falls back to hashing the reversal payload, which carries NO reference to the
-// origin: two economically-identical origins in one ledger then share one slot and the
-// second revert silently replays the FIRST origin's reverse (201, wrong
-// parentTransactionId, second origin never reverted). Asserted over the live source AST
-// because the hash source never surfaces on the transport response.
-func TestRevertTransaction_ForwardsOriginScopedIdempotencyHashSource(t *testing.T) {
-	src, err := os.ReadFile(stateHandlersFile)
-	require.NoError(t, err, "read %s", stateHandlersFile)
-
-	fn := findFuncDecl(t, string(src), "revertTransaction")
-
-	call := findAssignedCall(t, fn, "createRevertTransaction")
-	require.Greater(t, len(call.Args), revertTTLArgIndex+1,
-		"createRevertTransaction call must forward an idempotency hash source after the TTL")
-
-	hashSourceArg, isCall := call.Args[revertTTLArgIndex+1].(*ast.CallExpr)
-	require.True(t, isCall, "the idempotency hash source argument must be a revertIdempotencyHashSource(...) call")
-
-	ident, isIdent := hashSourceArg.Fun.(*ast.Ident)
-	require.True(t, isIdent, "the idempotency hash source argument must be a plain function call")
-	assert.Equal(t, "revertIdempotencyHashSource", ident.Name,
-		"revert must key its idempotency slot through revertIdempotencyHashSource(originID) — dropping it re-opens the cross-origin replay")
-}
-
-// TestRevertIdempotencyHashSource_ScopedByOrigin locks the two halves of the revert
-// idempotency key contract at the preimage level, where they are decidable without Redis:
-// the SAME origin always yields the SAME preimage (so two concurrent reverts of one origin
-// still collide on one SetNX — the only thing serializing the GetParentByTransactionID
-// read-then-act race), and DIFFERENT origins always yield DIFFERENT preimages (so two
-// economically-identical origins never share a slot).
-func TestRevertIdempotencyHashSource_ScopedByOrigin(t *testing.T) {
+// TestRevertIdempotencyHashSource_GoldenPreimage locks the revert idempotency preimage to an
+// exact string per origin. The golden values ARE the two halves of the contract: the same
+// origin always yields the same preimage (so two concurrent reverts of one origin collide on
+// one SetNX — the only thing serializing the GetParentByTransactionID read-then-act race), and
+// distinct origins yield distinct preimages (so two economically-identical origins never share
+// a slot). Pinning the exact bytes also matters because the preimage is a live Redis key input:
+// changing it silently re-slots every in-flight revert across a deploy.
+func TestRevertIdempotencyHashSource_GoldenPreimage(t *testing.T) {
 	t.Parallel()
 
-	originA := uuid.MustParse("019fae1d-8423-75b8-91c2-0b37952eb50c")
-	originB := uuid.MustParse("019fae1d-8423-75b8-91c2-0b37952eb50d")
+	tests := []struct {
+		name   string
+		origin uuid.UUID
+		want   string
+	}{
+		{
+			name:   "origin A",
+			origin: uuid.MustParse("019fae1d-8423-75b8-91c2-0b37952eb50c"),
+			want:   "revert\x00019fae1d-8423-75b8-91c2-0b37952eb50c",
+		},
+		{
+			name:   "origin B differing only in the last nibble",
+			origin: uuid.MustParse("019fae1d-8423-75b8-91c2-0b37952eb50d"),
+			want:   "revert\x00019fae1d-8423-75b8-91c2-0b37952eb50d",
+		},
+		{
+			name:   "nil origin",
+			origin: uuid.Nil,
+			want:   "revert\x0000000000-0000-0000-0000-000000000000",
+		},
+	}
 
-	assert.Equal(t, revertIdempotencyHashSource(originA), revertIdempotencyHashSource(originA),
-		"the same origin must always produce the same preimage: two concurrent reverts of one origin must collide on one idempotency slot")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.NotEqual(t, revertIdempotencyHashSource(originA), revertIdempotencyHashSource(originB),
-		"distinct origins must produce distinct preimages: economically-identical origins must never share a revert idempotency slot")
+			assert.Equal(t, tt.want, revertIdempotencyHashSource(tt.origin),
+				"the revert preimage must be the NUL-joined revert action discriminator followed by the origin transaction id")
+		})
+	}
 
-	assert.Contains(t, revertIdempotencyHashSource(originA), originA.String(),
-		"the preimage must carry the origin transaction id")
-
-	// The NUL-joined action discriminator keeps a revert preimage disjoint from any create
-	// preimage (v2IdempotencyHashSource uses the same separator, and no action label or JSON
-	// body can contain a NUL byte).
-	assert.True(t, strings.HasPrefix(revertIdempotencyHashSource(originA), "revert\x00"),
-		"the preimage must carry the NUL-joined revert action discriminator")
+	// The golden strings above are spelled out literally so the test fails on a constant
+	// rename that changes the VALUE; these bind them to the constants they are built from.
+	assert.Equal(t, "revert", constant.ActionRevert,
+		"the golden preimages above encode constant.ActionRevert — changing its value re-slots every live revert idempotency key")
+	assert.Equal(t, "\x00", idempotencyDiscriminatorSep,
+		"the golden preimages above encode idempotencyDiscriminatorSep, shared with v2IdempotencyHashSource")
 }
 
 // findAssignedCall returns the createRevertTransaction CallExpr from the function body
-// (it is the RHS of a multi-value assignment: tranReverted, _, err := handler.createRevertTransaction(...)).
+// (it is the RHS of a multi-value assignment: tranReverted, replayed, err := handler.createRevertTransaction(...)).
 func findAssignedCall(t *testing.T, fn *ast.FuncDecl, method string) *ast.CallExpr {
 	t.Helper()
 
@@ -177,4 +214,18 @@ func findAssignedCall(t *testing.T, fn *ast.FuncDecl, method string) *ast.CallEx
 	require.NotNil(t, found, "%s call not found", method)
 
 	return found
+}
+
+// calleeName returns the called function's name for a plain call (`f(...)`) or a qualified one
+// (`pkg.F(...)` / `x.M(...)`), or "" for anything else. Accepting both forms keeps the gate
+// pointed at WHICH helper produces the argument, not at how the helper is spelled.
+func calleeName(call *ast.CallExpr) string {
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		return fun.Name
+	case *ast.SelectorExpr:
+		return fun.Sel.Name
+	default:
+		return ""
+	}
 }

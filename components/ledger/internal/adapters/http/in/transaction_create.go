@@ -995,9 +995,17 @@ func (handler *TransactionHandler) createTransaction(ctx context.Context, params
 	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
 }
 
-// resolveIdempotencyHashSource returns the string the idempotency hash is computed over:
-// the non-empty override when supplied, else the canonical serialized transaction. Keying
-// off a raw pre-translation body via the override is the v2 idempotency contract.
+// idempotencyDiscriminatorSep joins an action discriminator to the rest of an idempotency
+// hash preimage (v2IdempotencyHashSource, revertIdempotencyHashSource). A NUL byte can appear
+// in neither an action label nor a JSON body, so two preimages built with it can never
+// collide by concatenation.
+const idempotencyDiscriminatorSep = "\x00"
+
+// resolveIdempotencyHashSource returns the string the idempotency hash is computed over: the
+// non-empty override when supplied, else the canonical serialized transaction. The override is
+// the caller's own preimage — a raw pre-translation v2 body, or a synthetic preimage that is
+// not a body at all (revert joins its action label to the origin transaction id). Callers own
+// what makes their preimage discriminating; this only chooses override over canonical.
 func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, override ...string) (string, error) {
 	if len(override) > 0 && override[0] != "" {
 		return override[0], nil
@@ -1009,12 +1017,13 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 // createRevertTransaction creates a reversal transaction. The action is forced
 // to "revert" so that accounting route lookups use the revert rubrics instead
 // of the status-derived action. Transport-neutral, mirroring createTransaction.
-// The optional idempotencyHashSource is forwarded unchanged to
+// idempotencyHashSource is REQUIRED and forwarded unchanged to
 // resolveIdempotencyHashSource: revert carries no caller key, so this override is the
 // only way its slot can be scoped to the origin transaction rather than to the
-// origin-agnostic reversal payload.
-func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
+// origin-agnostic reversal payload. It is required rather than variadic so omitting it
+// cannot compile.
+func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource string) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL, idempotencyHashSource)
 }
 
 // createTransactionFiber is the Fiber transport adapter: it reads the path params and
@@ -1119,9 +1128,10 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	//
 	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash
 	// is computed here over the idempotency hash SOURCE resolved by
-	// resolveIdempotencyHashSource. An optional override keys the hash off the raw body as
-	// submitted; with no override the source is the canonical transactionInput.
-	// The HashSHA256 mechanism is the same regardless of which source is used.
+	// resolveIdempotencyHashSource. An optional override supplies the caller's own preimage —
+	// a raw pre-translation v2 body, or a synthetic preimage that is not a body at all (the
+	// revert action label joined to the origin transaction id); with no override the source is
+	// the canonical transactionInput. The HashSHA256 mechanism is the same for every source.
 	hashSource, err := resolveIdempotencyHashSource(transactionInput, idempotencyHashSource...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)

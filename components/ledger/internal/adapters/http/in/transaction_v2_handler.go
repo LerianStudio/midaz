@@ -106,15 +106,15 @@ func idempotencyActionDiscriminator(pending bool, operationTypeOverride string) 
 // to /direct and /hold would otherwise share one no-key idempotency slot and cross-replay
 // (a hold could return a settled direct, or vice versa). Folding the action discriminator in
 // gives each action a distinct no-key identity: direct keeps the bare body; every other
-// action prefixes its discriminator joined by a NUL byte (which cannot appear in an action
-// label) so the two sources can never collide.
+// action prefixes its discriminator joined by idempotencyDiscriminatorSep so the two sources
+// can never collide.
 func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride string) string {
 	disc := idempotencyActionDiscriminator(pending, operationTypeOverride)
 	if disc == "" {
 		return string(rawBody)
 	}
 
-	return disc + "\x00" + string(rawBody)
+	return disc + idempotencyDiscriminatorSep + string(rawBody)
 }
 
 // CreateTransactionDirectV2Huma creates a v2 transaction with the direct (non-pending)
