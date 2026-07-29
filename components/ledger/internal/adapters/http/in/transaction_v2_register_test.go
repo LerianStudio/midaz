@@ -32,10 +32,9 @@ const cancelV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 
 const revertV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert"
 
-// registerV2TransactionRoutesForTest wires the v2 transaction ops (direct AND hold) onto a
-// fresh Fiber app + its own /v2 Huma contract, exactly as the production humaMountV2 seam
-// does. A zero-value TransactionHandler is safe because registration never invokes the
-// handler.
+// registerV2TransactionRoutesForTest wires the v2 transaction ops onto a fresh Fiber app +
+// its own /v2 Huma contract, exactly as the production humaMountV2 seam does. A zero-value
+// TransactionHandler is safe because registration never invokes the handler.
 func registerV2TransactionRoutesForTest(auth *middleware.AuthClient) *fiber.App {
 	app := fiber.New()
 
