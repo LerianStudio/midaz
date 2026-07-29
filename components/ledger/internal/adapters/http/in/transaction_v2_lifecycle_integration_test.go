@@ -1013,38 +1013,79 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-	// Exactly one racer may create a reverse; every other answer must be a client rejection.
+	// The create core has THREE terminal outcomes here, not two, so status alone cannot
+	// classify a racer:
+	//
+	//   winner  — 201 + X-Idempotency-Replayed: false. Created the one reverse, moved money.
+	//   replay  — 201 + X-Idempotency-Replayed: true. Lost the claim, then read the winner's
+	//             cached reverse back out of the slot and echoed it. Creates nothing, moves
+	//             nothing, and MUST NOT be counted against the exactly-one-create invariant.
+	//   loser   — 4xx. Lost the claim before the winner had written its value.
+	//
+	// Which of the two losing shapes a racer gets is a pure timing coin-flip against the
+	// winner's async cache write, so folding replays into winners would make the
+	// single-winner assertion flaky AND invert its message: it would report "reverted more
+	// than once" for a request that reverted nothing.
 	var (
 		winners    []revertRaceResult
+		replays    []revertRaceResult
 		loserCodes []string
 	)
+
+	// Losing reverts may only be rejected for LOSING THE CLAIM. 0018/insufficient-funds in
+	// particular must never appear: that would mean the destination ran out of headroom and
+	// the balance engine — not the idempotency claim — is what kept the count at one, which is
+	// exactly the accidental backstop seedFundedTransfer above exists to remove.
+	allowedLoserCodes := []string{
+		cn.ErrIdempotencyKey.Error(),
+		cn.ErrTransactionIDHasAlreadyParentTransaction.Error(),
+	}
 
 	for i, res := range results {
 		require.NoErrorf(t, res.transportErr, "racer %d failed at the transport layer", i)
 
 		if res.status == nethttp.StatusCreated {
+			if res.replayed == "true" {
+				replays = append(replays, res)
+				continue
+			}
+
 			winners = append(winners, res)
+
 			continue
 		}
 
 		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
 		assert.Lessf(t, res.status, 500, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
+		assert.Containsf(t, allowedLoserCodes, res.problemCode,
+			"racer %d: a losing revert may only be rejected for losing the idempotency claim (%v); body: %s",
+			i, allowedLoserCodes, res.body)
 
 		loserCodes = append(loserCodes, res.problemCode)
 	}
 
-	t.Logf("concurrent revert of one origin: %d/%d created, loser problem codes %v",
-		len(winners), concurrentRevertRacers, loserCodes)
+	t.Logf("concurrent revert of one origin: %d/%d created, %d replayed, loser problem codes %v",
+		len(winners), concurrentRevertRacers, len(replays), loserCodes)
 
 	require.Lenf(t, winners, 1,
-		"exactly ONE concurrent revert of a single origin may succeed; %d succeeded, which means the shared idempotency claim did NOT serialize the read-then-act race and the origin was reverted more than once",
+		"exactly ONE concurrent revert of a single origin may CREATE a reverse; %d did, which means the shared idempotency claim did NOT serialize the read-then-act race and the origin was reverted more than once",
 		len(winners))
 
-	assert.Equal(t, "false", winners[0].replayed, "the winning revert is a fresh create, not a replay")
+	assert.Equal(t, "false", winners[0].replayed,
+		"the winning revert is a fresh create, so it must advertise X-Idempotency-Replayed: false explicitly — an absent header is indistinguishable from a transport that forgot to project the flag")
 
 	// One reverse persisted, linked to the origin — and the origin itself never acquired a parent.
 	require.NotEmpty(t, winners[0].txID, "the winning revert must return the reverse transaction id")
 	reverseID := uuid.MustParse(winners[0].txID)
+
+	// A replay must hand back the WINNER's reverse. Nothing else in the suite proves this: if
+	// the slot ever answered with some other cached value, the replaying caller would receive a
+	// 201 naming a transaction that is not the reversal of their origin.
+	for i, res := range replays {
+		assert.Equalf(t, winners[0].txID, res.txID,
+			"replay %d must echo the winning reverse (%s), not any other cached transaction; body: %s",
+			i, winners[0].txID, res.body)
+	}
 
 	reverseParent := postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, reverseID)
 	require.NotNil(t, reverseParent, "the persisted reverse must carry a parent")

@@ -10,11 +10,15 @@ import (
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/gofiber/fiber/v3"
@@ -38,10 +42,13 @@ import (
 // Revert replay visibility. A revert carries no caller idempotency key, so its slot is derived
 // inside the create core from the origin-scoped preimage. When that slot already holds a
 // serialized reverse the core returns the FIRST reverse instead of creating a second one — a
-// 201 that is economically different from a fresh revert. Both revert transports must project
-// the core's `replayed` flag onto X-Idempotency-Replayed (the same projection the CREATE
-// transports do), and the core must record a Warn so a replayed revert is visible to operators
-// as well as to the caller.
+// 201 that is economically different from a fresh revert.
+//
+// There is ONE live revert terminal, RevertTransactionHuma: both the v1 and v2 routes mount it
+// (the Fiber wrapper RevertTransaction has no production registration). It must project the
+// core's `replayed` flag onto X-Idempotency-Replayed — as the typed output field AND as a
+// header a client can actually read — and the core must record a Warn so a replayed revert is
+// visible to operators as well as to the caller.
 
 // logRecord is one captured call to the GoMock libLog.Logger.
 type logRecord struct {
@@ -50,38 +57,55 @@ type logRecord struct {
 	fields []libLog.Field
 }
 
+// logRecorder accumulates the Log calls made through the mock logger. Reads go through
+// snapshot() so the accessor takes the same mutex the writes do — the exercised path may log
+// from a goroutine other than the test's.
+type logRecorder struct {
+	mu      sync.Mutex
+	records []logRecord
+}
+
+func (r *logRecorder) add(rec logRecord) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.records = append(r.records, rec)
+}
+
+// snapshot returns a copy of the records captured so far.
+func (r *logRecorder) snapshot() []logRecord {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.records)
+}
+
 // recordingLogger returns the lib-observability GoMock logger wired to append every Log call
-// into the returned accumulator. Recording rather than EXPECTing one specific call keeps the
+// into the returned recorder. Recording rather than EXPECTing one specific call keeps the
 // level/message/field contract assertable in the test body and stays immune to whichever other
 // lines the exercised path emits.
-func recordingLogger(t *testing.T, ctrl *gomock.Controller) (*libLog.MockLogger, *[]logRecord) {
+func recordingLogger(t *testing.T, ctrl *gomock.Controller) (*libLog.MockLogger, *logRecorder) {
 	t.Helper()
 
-	var (
-		mu      sync.Mutex
-		records []logRecord
-	)
-
+	recorder := &logRecorder{}
 	logger := libLog.NewMockLogger(ctrl)
 
 	capture := func(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		records = append(records, logRecord{level: level, msg: msg, fields: fields})
+		recorder.add(logRecord{level: level, msg: msg, fields: fields})
 	}
 
-	// Two arities: the exercised path emits both field-less lines (the idempotency cache-hit
-	// Debug) and lines carrying fields, and a gomock variadic matcher list must match the
-	// actual call arity.
-	logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any()).Do(capture).AnyTimes()
+	// FOUR matchers for a three-arg-plus-variadic method, deliberately: with exactly
+	// methodType.NumIn() matchers gomock accepts any number of variadic args (including none),
+	// so this one expectation covers both the field-less lines the exercised path emits (the
+	// idempotency cache-hit Debug) and the lines carrying fields. A three-matcher list would
+	// match ONLY the field-less calls.
 	logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(capture).AnyTimes()
 	logger.EXPECT().With(gomock.Any()).Return(logger).AnyTimes()
 	logger.EXPECT().WithGroup(gomock.Any()).Return(logger).AnyTimes()
 	logger.EXPECT().Enabled(gomock.Any()).Return(true).AnyTimes()
 	logger.EXPECT().Sync(gomock.Any()).Return(nil).AnyTimes()
 
-	return logger, &records
+	return logger, recorder
 }
 
 // revertReplaySubjects are the fixed ids the replayed-revert arrangement is built around.
@@ -190,94 +214,126 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 	return handler, subjects
 }
 
-// revertViaFiber drives the v1 Fiber revert wrapper and returns the replayed header value plus
-// the decoded response body.
-func revertViaFiber(t *testing.T, ctx context.Context, handler *TransactionHandler, s revertReplaySubjects) (string, map[string]any) {
-	t.Helper()
+// TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheHumaShell proves the live revert
+// terminal reports a replay on its typed output: the replayed flag is projected, the FIRST
+// reverse is returned, and the core records a Warn naming the origin so the replay is visible
+// to operators too.
+func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheHumaShell(t *testing.T) {
+	t.Parallel()
 
-	app := fiber.New()
-	app.Post("/revert", func(c fiber.Ctx) error {
-		c.Locals("organization_id", s.orgID)
-		c.Locals("ledger_id", s.ledgerID)
-		c.Locals("transaction_id", s.originID)
-		c.SetContext(ctx)
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
 
-		return c.Next()
-	}, handler.RevertTransaction)
+	logger, recorder := recordingLogger(t, ctrl)
+	handler, subjects := arrangeReplayedRevert(t, ctrl)
 
-	resp, err := app.Test(httptest.NewRequest(nethttp.MethodPost, "/revert", nil), fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err, "the Fiber revert request should not fail at the transport layer")
-
-	defer func() { _ = resp.Body.Close() }()
-
-	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err, "read the Fiber revert response body")
-	require.Equal(t, nethttp.StatusCreated, resp.StatusCode, "a replayed revert still answers 201; body: %s", string(raw))
-
-	var body map[string]any
-	require.NoError(t, json.Unmarshal(raw, &body), "the Fiber revert response should be valid JSON; body: %s", string(raw))
-
-	return resp.Header.Get(libConstants.IdempotencyReplayed), body
-}
-
-// revertViaHuma drives the Huma revert shell (the SAME shell both the v1 and v2 routes mount)
-// and returns the replayed header field off the typed output plus the returned transaction.
-func revertViaHuma(t *testing.T, ctx context.Context, handler *TransactionHandler, s revertReplaySubjects) (string, map[string]any) {
-	t.Helper()
-
-	out, err := handler.RevertTransactionHuma(ctx, &StateTransactionInputHuma{
-		OrganizationID: s.orgID.String(),
-		LedgerID:       s.ledgerID.String(),
-		TransactionID:  s.originID.String(),
-	})
+	out, err := handler.RevertTransactionHuma(
+		libObservability.ContextWithLogger(context.Background(), logger),
+		&StateTransactionInputHuma{
+			OrganizationID: subjects.orgID.String(),
+			LedgerID:       subjects.ledgerID.String(),
+			TransactionID:  subjects.originID.String(),
+		},
+	)
 	require.NoError(t, err, "the Huma revert shell should return the replayed transaction")
 	require.NotNil(t, out, "the Huma revert shell must return an output envelope")
 	require.NotNil(t, out.Body, "the Huma revert shell must return the replayed transaction")
 	require.Equal(t, nethttp.StatusCreated, out.Status, "a replayed revert still answers 201")
 
-	return out.IdempotencyReplayed, map[string]any{"id": out.Body.ID}
+	assert.Equal(t, "true", out.IdempotencyReplayed,
+		"a replayed revert must advertise X-Idempotency-Replayed: true — otherwise a replay is indistinguishable from a fresh revert")
+	assert.Equal(t, subjects.reverseID.String(), out.Body.ID,
+		"a replayed revert must return the FIRST reverse transaction")
+
+	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, revertIdempotencyReplayedLogMessage)
+	require.NotNil(t, warn,
+		"a replayed revert must record a Warn (%q) so the replay is visible to operators, not only to the caller",
+		revertIdempotencyReplayedLogMessage)
+	assert.Equal(t, []libLog.Field{libLog.String("transaction_id", subjects.originID.String())}, warn.fields,
+		"the replay Warn must name the origin transaction id and carry nothing else (no balances, amounts or payloads)")
 }
 
-// TestRevertTransaction_ReplayedIdempotency_SurfacesOnBothTransports proves a replayed revert
-// is distinguishable from a fresh one on BOTH revert transports: each projects the create
-// core's replayed flag onto X-Idempotency-Replayed and returns the FIRST reverse, and the core
-// records a Warn naming the origin so the replay is visible to operators too.
-func TestRevertTransaction_ReplayedIdempotency_SurfacesOnBothTransports(t *testing.T) {
-	t.Parallel()
+// buildHumaV2RevertApp mounts the v2 revert op through the SAME production seam
+// (RegisterTransactionV2RoutesToApp) the unified server uses, mirroring buildHumaV2DirectApp:
+// problem.Install() before any huma.Register, WithRecover first so an unwired-repo panic
+// unwinds to a 500 instead of dropping the connection, the ledger schema namer installed
+// between openapi.New and registration, and auth disabled so requests reach the terminal.
+// The injected logger rides the Fiber request context, which the humafiber adapter passes
+// through to the terminal as its context.Context.
+//
+// MUST-NOT-PARALLELIZE (same rationale as buildHumaV2DirectApp): libProblem.Install() swaps
+// the process-global huma.NewError hook and Huma validation uses process-global sync.Pools.
+func buildHumaV2RevertApp(t *testing.T, handler *TransactionHandler, logger libLog.Logger) *fiber.App {
+	t.Helper()
 
-	transports := []struct {
-		name   string
-		invoke func(t *testing.T, ctx context.Context, handler *TransactionHandler, s revertReplaySubjects) (string, map[string]any)
-	}{
-		{name: "v1 Fiber wrapper", invoke: revertViaFiber},
-		{name: "Huma shell shared by the v1 and v2 routes", invoke: revertViaHuma},
+	app := fiber.New(fiber.Config{
+		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
+	})
+
+	app.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
+
+	app.Use(func(c fiber.Ctx) error {
+		c.SetContext(libObservability.ContextWithLogger(c.Context(), logger))
+
+		return c.Next()
+	})
+
+	libProblem.Install()
+
+	apiV2 := app.Group("/v2")
+
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-revert", Version: "test", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionV2RoutesToApp(apiV2, humaAPI, &middleware.AuthClient{Enabled: false}, handler, nil)
+
+	return app
+}
+
+// TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire closes the gap the typed-output
+// test cannot: it drives a replayed revert through the real route and asserts the header on the
+// RESPONSE, so the `header:"X-Idempotency-Replayed"` tag on the output envelope is proven to
+// serialize. Without this, `replayed=true` would be pinned only at the struct field — invisible
+// to the client the flag exists for. (The `false` side of the same header is covered on the wire
+// by the V2 revert integration tests.)
+func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire(t *testing.T) {
+	// NOT parallel: process-global huma state (see buildHumaV2RevertApp).
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	logger, recorder := recordingLogger(t, ctrl)
+	handler, subjects := arrangeReplayedRevert(t, ctrl)
+
+	app := buildHumaV2RevertApp(t, handler, logger)
+
+	url := "/v2/organizations/" + subjects.orgID.String() +
+		"/ledgers/" + subjects.ledgerID.String() +
+		"/transactions/" + subjects.originID.String() + "/revert"
+
+	req := httptest.NewRequest(nethttp.MethodPost, url, nil)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err, "the v2 revert request should not fail at the transport layer")
+
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "read the v2 revert response body")
+	require.Equal(t, nethttp.StatusCreated, resp.StatusCode, "a replayed revert still answers 201; body: %s", string(raw))
+
+	assert.Equal(t, "true", resp.Header.Get(libConstants.IdempotencyReplayed),
+		"a replayed revert must advertise X-Idempotency-Replayed: true ON THE WIRE; body: %s", string(raw))
+
+	var body struct {
+		ID string `json:"id"`
 	}
 
-	for _, tc := range transports {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	require.NoError(t, json.Unmarshal(raw, &body), "the v2 revert response should be valid JSON; body: %s", string(raw))
+	assert.Equal(t, subjects.reverseID.String(), body.ID, "a replayed revert must return the FIRST reverse transaction")
 
-			ctrl := gomock.NewController(t)
-			t.Cleanup(ctrl.Finish)
-
-			logger, records := recordingLogger(t, ctrl)
-			handler, subjects := arrangeReplayedRevert(t, ctrl)
-
-			replayed, body := tc.invoke(t, libObservability.ContextWithLogger(context.Background(), logger), handler, subjects)
-
-			assert.Equal(t, "true", replayed,
-				"a replayed revert must advertise X-Idempotency-Replayed: true — otherwise a replay is indistinguishable from a fresh revert")
-			assert.Equal(t, subjects.reverseID.String(), body["id"],
-				"a replayed revert must return the FIRST reverse transaction")
-
-			warn := findLogRecord(*records, libLog.LevelWarn, revertIdempotencyReplayedLogMessage)
-			require.NotNil(t, warn,
-				"a replayed revert must record a Warn (%q) so the replay is visible to operators, not only to the caller",
-				revertIdempotencyReplayedLogMessage)
-			assert.Equal(t, []libLog.Field{libLog.String("transaction_id", subjects.originID.String())}, warn.fields,
-				"the replay Warn must name the origin transaction id and carry nothing else (no balances, amounts or payloads)")
-		})
-	}
+	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, revertIdempotencyReplayedLogMessage)
+	assert.NotNil(t, warn, "the replay Warn must also fire on the wired path")
 }
 
 // findLogRecord returns the first captured record with the given level and message, or nil.
