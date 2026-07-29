@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -27,6 +27,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+// revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
+// origin-scoped idempotency slot answers with a cached reverse instead of a new one.
+const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
 // CommitTransaction method that commit transaction created before
 func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
@@ -112,7 +116,13 @@ func (handler *TransactionHandler) CancelTransaction(c fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
-// RevertTransaction method that revert transaction created before
+// RevertTransaction method that revert transaction created before.
+//
+// NOT MOUNTED: no production route terminates here — both the v1 and v2 revert routes
+// terminate at RevertTransactionHuma. This wrapper is exercised only by test scaffolding,
+// so it is not evidence of production coverage. In particular it drops the core's
+// `replayed` flag instead of projecting it onto X-Idempotency-Replayed; the live Huma
+// terminal is where that header is set.
 func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 	ctx := c.Context()
 
@@ -131,23 +141,13 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
-	tran, replayed, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
+	tran, _, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	if replayed {
-		c.Set(libConstants.IdempotencyReplayed, "true")
-	}
-
 	return http.Created(c, tran)
 }
-
-// revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
-// origin-scoped idempotency slot answers with a cached reverse instead of a new one.
-const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
 // revertIdempotencyHashSource is the idempotency hash preimage for reverting the given origin
 // transaction. Revert sends no X-Idempotency header, so the create core derives the slot from
@@ -271,8 +271,16 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	}
 
 	if replayed {
-		// A replay answers 201 with the FIRST reverse, so the caller cannot tell it apart from a
-		// fresh revert without the response header. Warn so the collision is searchable by origin.
+		// A replay is an outcome this span observed, not an input, so it belongs outside the
+		// app.request.* namespace (T4). It is also not an error: the span stays green.
+		span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
+
+		// Warn — deliberately louder than the create paths, which treat a replay as routine.
+		// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
+		// answer is the contract. Revert carries no caller key, so nobody asked for this one;
+		// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
+		// That makes it an operator-alertable signal (the detection path accepted for card
+		// #3577), which Debug — typically not collected in production — could not carry.
 		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
 	}
 

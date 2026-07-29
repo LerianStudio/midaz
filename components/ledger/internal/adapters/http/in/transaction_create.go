@@ -1126,12 +1126,9 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// hash keys on the raw body, not the package version. Package version is
 	// deliberately NOT part of the key.
 	//
-	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash
-	// is computed here over the idempotency hash SOURCE resolved by
-	// resolveIdempotencyHashSource. An optional override supplies the caller's own preimage —
-	// a raw pre-translation v2 body, or a synthetic preimage that is not a body at all (the
-	// revert action label joined to the origin transaction id); with no override the source is
-	// the canonical transactionInput. The HashSHA256 mechanism is the same for every source.
+	// idempotencyKey/idempotencyTTL are resolved by the transport and passed in; the hash is
+	// computed here over whichever preimage resolveIdempotencyHashSource picks (see its doc
+	// for the override contract). The HashSHA256 mechanism is the same for every source.
 	hashSource, err := resolveIdempotencyHashSource(transactionInput, idempotencyHashSource...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to serialize transaction for idempotency hash", err)
