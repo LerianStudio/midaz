@@ -35,7 +35,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Bala
 
 	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
-	return NewBalancePostgreSQLRepository(conn)
+	return NewBalancePostgreSQLRepository(conn, false)
 }
 
 // createTestAccountForBalance inserts a minimal account directly for balance tests.

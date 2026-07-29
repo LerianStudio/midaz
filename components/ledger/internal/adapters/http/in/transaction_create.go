@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -1282,6 +1283,10 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 
 		return nil, false, pkg.ValidateBusinessError(err, constant.EntityTransaction)
 	}
+
+	// Mark the transactional-flow balance reads below so they can be served from
+	// the primary, avoiding a stale replica read before the commit.
+	ctx = readrouting.WithPrimaryRead(ctx)
 
 	balances, err := handler.Query.GetBalances(ctx, params.OrganizationID, params.LedgerID, validate.Aliases)
 	if err != nil {

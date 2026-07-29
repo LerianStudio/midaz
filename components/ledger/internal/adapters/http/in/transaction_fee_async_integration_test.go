@@ -102,7 +102,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metaRepo := mongotxn.NewMetadataMongoDBRepository(mongoConn)
 	onbMetaRepo := mongoonb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)

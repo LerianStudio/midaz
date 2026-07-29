@@ -39,6 +39,12 @@ type transactionPostgresComponents struct {
 // initTransactionPostgres initializes PostgreSQL components for the transaction domain.
 // Dispatches to single-tenant or multi-tenant initialization based on Options.
 func initTransactionPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*transactionPostgresComponents, error) {
+	// The transactional-read routing flag is resolved here, at the transaction
+	// repository construction site, and passed into the repositories that route
+	// primary-read intent through a read-only transaction.
+	logger.Log(context.Background(), libLog.LevelDebug, "transaction PG construction",
+		libLog.Bool("route_transactional_reads_to_primary", cfg.RouteTransactionalReadsToPrimary))
+
 	if opts != nil && opts.MultiTenantEnabled {
 		return initTransactionMultiTenantPostgres(opts, cfg, logger)
 	}
@@ -82,7 +88,7 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
-		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, true),
+		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn, true),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn, true),
@@ -101,7 +107,7 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
-		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn),
+		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn),

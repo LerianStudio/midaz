@@ -101,7 +101,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
@@ -666,7 +666,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
