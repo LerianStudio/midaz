@@ -29,7 +29,7 @@ import (
 )
 
 // revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
-// origin-scoped idempotency slot answers with a cached reverse instead of a new one.
+// idempotency slot answers with a cached reverse instead of a new one.
 const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
 // NOT MOUNTED — the Fiber state wrappers below (CommitTransaction, CancelTransaction,
@@ -148,34 +148,39 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
-// revertIdempotencyHashSource is the idempotency hash preimage for reverting the given origin
-// transaction. Revert sends no X-Idempotency header, so the create core derives the slot from
-// this preimage alone.
+// KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
 //
-// Scoping by origin id is what makes it correct in both directions: distinct origins never
-// share a slot (their reversal payloads are byte-identical whenever their economic content is),
-// and two reverts of the SAME origin deliberately DO share one, which is what serializes
-// concurrent reverts of one origin. The NUL-joined discriminator keeps the preimage disjoint
-// from any create's.
+// Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
+// key = HashSHA256(preimage), and with no override resolveIdempotencyHashSource serialises the
+// reversal payload. TransactionRevert() copies only the origin's economic content
+// (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
+// economically-identical origins in the same ledger derive the SAME key and share ONE slot:
+// the second revert loses the SetNX, is handed the FIRST origin's cached reverse, and answers
+// 201 while its own origin is never reverted. Silently — no error, no distinguishable status.
 //
-// constant.ActionRevert is a LIVE Redis key input here: changing its VALUE re-slots every
-// existing revert idempotency key across a deploy.
-func revertIdempotencyHashSource(transactionID uuid.UUID) string {
-	return constant.ActionRevert + idempotencyDiscriminatorSep + transactionID.String()
-}
-
+// The fix is an origin-scoped preimage. It is deliberately NOT applied here: v1 revert is
+// released, and changing the preimage changes the Redis key shape, so a revert retried across
+// a rolling-deploy boundary would land on a different slot and could double-revert. It re-lands
+// together with the idempotency keyspace separation, which re-shapes the key anyway, behind a
+// dual-write/dual-read migration — one coordinated deploy window instead of two.
+//
+// Until then the ONLY control is detection: the replayed flag below, its Warn, and the
+// X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
+// The reproduction is preserved, skipped, in
+// TestIntegration_TransactionV2Revert_IdempotencyNotScopedByOrigin_KnownDefect.
+//
 // revertTransaction is the transport-neutral revert core: it runs the full revert
 // eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
 // all bidirectional routes) then delegates to the untouched createRevertTransaction core.
 // The parent transaction id passed to createRevertTransaction is the reverted
 // transaction's id (from the route), so the reversal links back to its origin. Revert
-// sends no idempotency headers, so the caller key is empty and the slot is derived from
-// revertIdempotencyHashSource (origin-scoped, see its doc); the TTL defaults to
-// ParseIdempotencyTTL("") == 300s — byte-identical to the pre-migration Fiber path, which
-// reached executeCreateTransaction and read GetIdempotencyKeyAndTTL(c) (an absent X-TTL
-// defaults to 300, never 0). A hardcoded 0 would make the Redis idempotency slot permanent.
-// It returns the idempotency `replayed` flag alongside the reverse transaction so the
-// transport sets X-Idempotency-Replayed itself.
+// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
+// and the TTL defaults to ParseIdempotencyTTL("") == 300s — byte-identical to the
+// pre-migration Fiber path, which reached executeCreateTransaction and read
+// GetIdempotencyKeyAndTTL(c) (an absent X-TTL defaults to 300, never 0). A hardcoded 0
+// would make the Redis idempotency slot permanent. It returns the idempotency `replayed`
+// flag alongside the reverse transaction so the transport sets X-Idempotency-Replayed
+// itself.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -263,7 +268,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), revertIdempotencyHashSource(transactionID))
+	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
 	if err != nil {
 		return nil, false, err
 	}
@@ -277,8 +282,9 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
 		// answer is the contract. Revert carries no caller key, so nobody asked for this one;
 		// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
-		// That makes it an operator-alertable signal (the detection path accepted for card
-		// #3577), which Debug — typically not collected in production — could not carry.
+		// While the origin-agnostic key above stands, the cached reverse may not
+		// even belong to this origin, so this is the only operator-visible trace of the
+		// defect — Debug, typically not collected in production, could not carry it.
 		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
 	}
 

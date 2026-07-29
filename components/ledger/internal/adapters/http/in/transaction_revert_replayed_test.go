@@ -32,14 +32,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // Revert replay visibility. A revert carries no caller idempotency key, so its slot is derived
-// inside the create core from the origin-scoped preimage. When that slot already holds a
+// inside the create core from the serialized reversal payload. When that slot already holds a
 // serialized reverse the core returns the FIRST reverse instead of creating a second one — a
-// 201 that is economically different from a fresh revert.
+// 201 that is economically different from a fresh revert, and (because the payload carries no
+// origin reference — KNOWN DEFECT) possibly not even a reverse of the
+// origin the caller named.
 //
 // There is ONE live revert terminal, RevertTransactionHuma: both the v1 and v2 routes mount it
 // (the Fiber wrapper RevertTransaction has no production registration). It must project the
@@ -116,8 +119,9 @@ type revertReplaySubjects struct {
 // arrangeReplayedRevert builds a handler whose revert eligibility gate passes and whose
 // idempotency slot is ALREADY populated with a serialized reverse transaction, so the create
 // core short-circuits into its replay branch and returns (cachedReverse, replayed=true) without
-// touching balances. The Redis expectations pin the slot to the origin-scoped preimage, so the
-// arrangement is only reachable if the revert core still keys on revertIdempotencyHashSource.
+// touching balances. The Redis expectations name the exact slot, so they also pin the derivation
+// the revert path uses today: no caller key, no override, hence HashSHA256 over the canonical
+// serialized reversal payload, at the pre-migration Fiber TTL.
 func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionHandler, revertReplaySubjects) {
 	t.Helper()
 
@@ -183,9 +187,21 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Return(nil, nil).
 		Times(1)
 
-	// The claimed slot: keyed by the ORIGIN-scoped preimage, with the pre-migration Fiber TTL.
+	// The claimed slot, derived the way the revert path derives it: the reversal payload the
+	// eligibility gate hands to createRevertTransaction, canonically serialized after the same
+	// ApplyDefaultBalanceKeys normalization executeCreateTransaction applies before hashing.
+	// Spelled out here rather than reusing a production helper because there is no revert-side
+	// helper to reuse — the origin plays no part in this key, which is the known origin-scoping
+	// defect documented on revertTransaction.
+	reversal := origin.TransactionRevert()
+	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(reversal.Send.Distribute.To)
+
+	hashSource, err := libCommons.StructToJSONString(reversal)
+	require.NoError(t, err, "serialize the reversal payload the idempotency hash is computed over")
+
 	internalKey := utils.IdempotencyInternalKey(subjects.orgID, subjects.ledgerID,
-		libCommons.HashSHA256(revertIdempotencyHashSource(subjects.originID)))
+		libCommons.HashSHA256(hashSource))
 
 	redisRepo.EXPECT().
 		SetNX(gomock.Any(), internalKey, "", pkgHTTP.ParseIdempotencyTTL("")).
