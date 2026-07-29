@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -130,31 +131,38 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	tran, replayed, err := handler.revertTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return http.WithError(c, err)
+	}
+
+	if replayed {
+		c.Set(libConstants.IdempotencyReplayed, "true")
 	}
 
 	return http.Created(c, tran)
 }
 
-// revertIdempotencyHashSource is the idempotency hash preimage for reverting the given
-// origin transaction. Revert sends no X-Idempotency header, so the create core derives the
-// slot from this preimage alone.
+// revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
+// origin-scoped idempotency slot answers with a cached reverse instead of a new one.
+const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
+
+// revertIdempotencyHashSource is the idempotency hash preimage for reverting the given origin
+// transaction. Revert sends no X-Idempotency header, so the create core derives the slot from
+// this preimage alone.
 //
-// The origin id is what makes the preimage discriminating. The reversal payload is a pure
-// function of the origin's economic content (description, asset, amount, legs) and holds no
-// reference to the origin, so keying on that payload puts two economically-identical origins
-// in the same ledger on ONE slot: the second revert loses the SetNX, replays the first
-// origin's reverse, and the second origin is silently never reverted.
+// Scoping by origin id is what makes it correct in both directions: distinct origins never
+// share a slot (their reversal payloads are byte-identical whenever their economic content is),
+// and two reverts of the SAME origin deliberately DO share one, which is what serializes
+// concurrent reverts of one origin. The NUL-joined discriminator keeps the preimage disjoint
+// from any create's.
 //
-// The origin id is also all that is needed: two reverts of the SAME origin still share ONE
-// key, and that shared claim is what serializes the read-then-act race in the
-// GetParentByTransactionID gate below, which cannot see a concurrent revert's not-yet-
-// committed child. The NUL-joined action discriminator follows v2IdempotencyHashSource, so a
-// revert preimage can never collide with a create's.
+// constant.ActionRevert is a LIVE Redis key input here: changing its VALUE re-slots every
+// existing revert idempotency key across a deploy.
 func revertIdempotencyHashSource(transactionID uuid.UUID) string {
-	return "revert\x00" + transactionID.String()
+	return constant.ActionRevert + idempotencyDiscriminatorSep + transactionID.String()
 }
 
 // revertTransaction is the transport-neutral revert core: it runs the full revert
@@ -167,9 +175,11 @@ func revertIdempotencyHashSource(transactionID uuid.UUID) string {
 // ParseIdempotencyTTL("") == 300s — byte-identical to the pre-migration Fiber path, which
 // reached executeCreateTransaction and read GetIdempotencyKeyAndTTL(c) (an absent X-TTL
 // defaults to 300, never 0). A hardcoded 0 would make the Redis idempotency slot permanent.
-// Called by BOTH the Fiber wrapper and the Huma shell.
-func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// It returns the idempotency `replayed` flag alongside the reverse transaction so each
+// transport sets X-Idempotency-Replayed itself. Called by BOTH the Fiber wrapper and the
+// Huma shell.
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
@@ -178,7 +188,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	if parent != nil {
@@ -186,14 +196,14 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	if tran.ParentTransactionID != nil {
@@ -201,7 +211,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	if tran.Status.Code != constant.APPROVED {
@@ -209,7 +219,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	transactionReverted := tran.TransactionRevert()
@@ -218,7 +228,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
 	// Validate bidirectional routes: operations with a route_id require
@@ -234,14 +244,14 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
 
-			return nil, parseValidationErr
+			return nil, false, parseValidationErr
 		}
 
 		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			return nil, routeErr
+			return nil, false, routeErr
 		}
 
 		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
@@ -249,15 +259,24 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
 
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), revertIdempotencyHashSource(transactionID))
+	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), revertIdempotencyHashSource(transactionID))
+	if err != nil {
+		return nil, false, err
+	}
 
-	return tranReverted, err
+	if replayed {
+		// A replay answers 201 with the FIRST reverse, so the caller cannot tell it apart from a
+		// fresh revert without the response header. Warn so the collision is searchable by origin.
+		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
+	}
+
+	return tranReverted, replayed, nil
 }
 
 // UpdateTransaction method that patch transaction created before

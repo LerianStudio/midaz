@@ -296,20 +296,35 @@ func (handler *TransactionHandler) CancelTransactionHuma(ctx context.Context, in
 	return &StateTransactionOutputHuma{Status: http.StatusCreated, Body: tran}, nil
 }
 
+// RevertTransactionOutputHuma pins 201 and carries the X-Idempotency-Replayed response
+// header. Revert is the only lifecycle op that reaches the create core's idempotency claim,
+// so it is the only one that can answer with a replay — commit/cancel keep the header-free
+// StateTransactionOutputHuma.
+type RevertTransactionOutputHuma struct {
+	Status              int
+	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
+	Body                *transaction.Transaction
+}
+
 // RevertTransactionHuma delegates to the SAME revertTransaction core (parent/revert
-// eligibility + bidirectional-route checks, then createRevertTransaction). Returns 201.
-func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputHuma, error) {
+// eligibility + bidirectional-route checks, then createRevertTransaction) and projects the
+// core's replayed flag onto the response header, mirroring createTransactionShell. Returns 201.
+func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*RevertTransactionOutputHuma, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputHuma{Status: http.StatusCreated, Body: tran}, nil
+	return &RevertTransactionOutputHuma{
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(replayed),
+		Body:                tran,
+	}, nil
 }
 
 // parseOrgLedgerTx resolves the three path strings the state/patch/get-by-id shells
