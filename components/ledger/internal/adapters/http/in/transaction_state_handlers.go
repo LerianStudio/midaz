@@ -138,17 +138,36 @@ func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
+// revertIdempotencyHashSource is the idempotency hash preimage for reverting the given
+// origin transaction. Revert sends no X-Idempotency header, so the create core derives the
+// slot from this preimage alone.
+//
+// The origin id is what makes the preimage discriminating. The reversal payload is a pure
+// function of the origin's economic content (description, asset, amount, legs) and holds no
+// reference to the origin, so keying on that payload puts two economically-identical origins
+// in the same ledger on ONE slot: the second revert loses the SetNX, replays the first
+// origin's reverse, and the second origin is silently never reverted.
+//
+// The origin id is also all that is needed: two reverts of the SAME origin still share ONE
+// key, and that shared claim is what serializes the read-then-act race in the
+// GetParentByTransactionID gate below, which cannot see a concurrent revert's not-yet-
+// committed child. The NUL-joined action discriminator follows v2IdempotencyHashSource, so a
+// revert preimage can never collide with a create's.
+func revertIdempotencyHashSource(transactionID uuid.UUID) string {
+	return "revert\x00" + transactionID.String()
+}
+
 // revertTransaction is the transport-neutral revert core: it runs the full revert
 // eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
 // all bidirectional routes) then delegates to the untouched createRevertTransaction core.
 // The parent transaction id passed to createRevertTransaction is the reverted
 // transaction's id (from the route), so the reversal links back to its origin. Revert
-// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
-// and the TTL defaults to ParseIdempotencyTTL("") == 300s — byte-identical to the
-// pre-migration Fiber path, which reached executeCreateTransaction and read
-// GetIdempotencyKeyAndTTL(c) (an absent X-TTL defaults to 300, never 0). A hardcoded 0
-// would make the Redis idempotency slot permanent. Called by BOTH the Fiber wrapper and
-// the Huma shell.
+// sends no idempotency headers, so the caller key is empty and the slot is derived from
+// revertIdempotencyHashSource (origin-scoped, see its doc); the TTL defaults to
+// ParseIdempotencyTTL("") == 300s — byte-identical to the pre-migration Fiber path, which
+// reached executeCreateTransaction and read GetIdempotencyKeyAndTTL(c) (an absent X-TTL
+// defaults to 300, never 0). A hardcoded 0 would make the Redis idempotency slot permanent.
+// Called by BOTH the Fiber wrapper and the Huma shell.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -236,7 +255,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 
 	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""))
+	tranReverted, _, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), revertIdempotencyHashSource(transactionID))
 
 	return tranReverted, err
 }
