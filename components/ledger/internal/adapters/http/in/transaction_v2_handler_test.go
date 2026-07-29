@@ -357,7 +357,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 // carries — keeps a failure attributable to the handler under test rather than to any sibling
 // op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp: libProblem.Install() and
 // Huma validation use process-global state.
-func buildHumaV2ActionApp(t *testing.T, handler *TransactionHandler, action string, op func(context.Context, *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
+func buildHumaV2ActionApp(t *testing.T, handler *TransactionHandler, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{

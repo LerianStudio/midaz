@@ -28,13 +28,13 @@ import (
 // a green span; a malformed route UUID is caught by the input's uuid validate tag as a
 // clean 400).
 
-// CreateTransactionDirectV2InputHuma is the v2 create request envelope shared by the
-// v2 create actions (identical flat single-leg shape; the action intent is carried
-// by the endpoint, not the body). The org/ledger path params are plain strings (validated
-// by the ParseUUIDPathParameters Fiber middleware attached before this terminal). RawBody
-// keeps the body out of Huma's validator so the flat v2 model is decoded imperatively via
+// CreateTransactionV2InputHuma is the request envelope every v2 create action shares: the
+// flat single-leg shape is identical across them because the action intent is carried by the
+// endpoint, not the body. The org/ledger path params are plain strings (validated by the
+// ParseUUIDPathParameters Fiber middleware attached before this terminal). RawBody keeps the
+// body out of Huma's validator so the flat v2 model is decoded imperatively via
 // http.DecodeAndValidate.
-type CreateTransactionDirectV2InputHuma struct {
+type CreateTransactionV2InputHuma struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
@@ -121,7 +121,7 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 // action: it delegates to createTransactionV2 with pending=false and no Operation.Type
 // override, reusing the v1 createTransaction funnel and its CreateTransactionOutputHuma
 // success envelope (201 + X-Idempotency-Replayed).
-func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
 	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
 }
 
@@ -129,7 +129,7 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 // to createTransactionV2 with pending=true so the funnel opens the transaction as PENDING
 // (held for later commit/cancel). It reuses the same flat input envelope and success
 // envelope as the direct action.
-func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
 	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, true, "")
 }
 
@@ -140,13 +140,13 @@ func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Conte
 // pending=false gives InitialStatus()=CREATED, matching the v1 block action which forces
 // Pending=false. The reason travels as a metadata key copied by Translate. It reuses the same
 // flat input envelope and success envelope as the direct action.
-func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
 	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.BLOCK)
 }
 
 // CreateTransactionUnblockV2Huma creates a v2 transaction with the unblock action: it delegates
 // to createTransactionV2 with pending=false and the constant.UNBLOCK Operation.Type override,
 // mirroring the block action's contract with the opposing override label.
-func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error) {
+func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
 	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.UNBLOCK)
 }
