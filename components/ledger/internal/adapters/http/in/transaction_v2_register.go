@@ -16,7 +16,7 @@ import (
 
 // This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, `unblock`, `commit`, and `cancel` transaction ops onto the SECOND,
+// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the SECOND,
 // independent Huma contract instance and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
@@ -26,18 +26,18 @@ import (
 // CreateTransactionBlockV2Huma, CreateTransactionUnblockV2Huma) live in
 // transaction_v2_handler.go: they decode the flat v2 body, translate it, and enter
 // the v1 createTransaction funnel (hold with pending=true). The LIFECYCLE terminals
-// (commit/cancel, and revert coming next) carry no body or headers, so instead of new
+// (commit/cancel/revert) carry no body or headers, so instead of new
 // v2 handlers they REUSE the transport-neutral v1 shells in transaction_handler_huma.go
-// (CommitTransactionHuma / CancelTransactionHuma) verbatim — the v2 surface adds only the
+// (CommitTransactionHuma / CancelTransactionHuma / RevertTransactionHuma) verbatim — the v2 surface adds only the
 // route, not a duplicate handler. Path params follow the asset/CRM Huma convention — plain
 // strings with only `doc:` (no format:uuid tag) so ParseUUIDPathParameters stays the sole
 // path-UUID validator on the Fiber chain, not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the INDEPENDENT
 // v2 Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock`,
-// plus the bodiless lifecycle ops `commit` and `cancel` (by transaction_id); revert
-// arrives in a later phase. commit/cancel reuse the transport-neutral v1 shells
-// (CommitTransactionHuma/CancelTransactionHuma) verbatim — no v2-specific handler and
+// plus the bodiless lifecycle ops `commit`, `cancel`, and `revert` (by transaction_id).
+// The lifecycle ops reuse the transport-neutral v1 shells
+// (CommitTransactionHuma/CancelTransactionHuma/RevertTransactionHuma) verbatim — no v2-specific handler and
 // no idempotency, since they carry no body or headers. Auth is the Fiber guard chain
 // attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here — the
 // per-op Security metadata is SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix
@@ -110,10 +110,20 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
 	}, h.CancelTransactionHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "revertTransactionV2",
+		Method:        http.MethodPost,
+		Path:          transactionsIDBasePath + "/revert",
+		Summary:       "Revert a Transaction (v2)",
+		Tags:          []string{"Transactions"},
+		Security:      secTransactionBearer,
+		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+	}, h.RevertTransactionHuma)
 }
 
 // RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,
-// `commit`, and `cancel` ops end-to-end: it attaches the Fiber auth chain — auth.Authorize("midaz","transactions","post")
+// `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain — auth.Authorize("midaz","transactions","post")
 // + the tenant PostAuthMiddlewares + ParseUUIDPathParameters("transaction") — as MIDDLEWARE
 // ONLY (group-relative path, no terminal) on the /v2 GROUP, then registers the Huma
 // terminals via RegisterTransactionV2Routes on the SAME group's Huma API. All ops share
@@ -132,6 +142,7 @@ func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 	routePost(group, transactionsChainPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 
 	RegisterTransactionV2Routes(api, th)
 }

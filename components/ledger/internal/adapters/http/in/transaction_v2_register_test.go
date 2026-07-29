@@ -30,6 +30,8 @@ const commitV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 
 const cancelV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel"
 
+const revertV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert"
+
 // registerV2TransactionRoutesForTest wires the v2 transaction ops (direct AND hold) onto a
 // fresh Fiber app + its own /v2 Huma contract, exactly as the production humaMountV2 seam
 // does. A zero-value TransactionHandler is safe because registration never invokes the
@@ -246,6 +248,71 @@ func TestV2CancelRoute_RequiresAuth(t *testing.T) {
 
 	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
 		"tokenless v2 cancel request must be rejected by the transactions:post auth chain")
+}
+
+// TestRegisterTransactionV2RoutesToApp_MountsRevertRoute asserts the v2 `revert`
+// lifecycle POST route (by transaction_id) is mounted on the /v2 group (Fiber
+// chain), sharing the transactions:post protected chain.
+func TestRegisterTransactionV2RoutesToApp_MountsRevertRoute(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: false}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	routeSet := make(map[string]bool)
+	for _, r := range app.GetRoutes() {
+		routeSet[r.Method+":"+r.Path] = true
+	}
+
+	assert.True(t, routeSet[http.MethodPost+":"+revertV2RoutePath],
+		"should register POST /v2 transactions/{transaction_id}/revert")
+}
+
+// TestRegisterTransactionV2Routes_RegistersRevertHumaOperation asserts the revert op
+// is present on the v2 Huma document with the canonical OperationID at the
+// group-relative by-id revert path, defaulting to 201.
+func TestRegisterTransactionV2Routes_RegistersRevertHumaOperation(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	apiV2 := app.Group("/v2")
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
+
+	const opPath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert"
+
+	pathItem, ok := humaAPI.OpenAPI().Paths[opPath]
+	require.Truef(t, ok, "v2 contract should carry the revert op path %q", opPath)
+	require.NotNil(t, pathItem.Post, "revert op path should carry a POST operation")
+
+	assert.Equal(t, "revertTransactionV2", pathItem.Post.OperationID,
+		"revert op should advertise OperationID revertTransactionV2")
+	assert.Equal(t, http.StatusCreated, pathItem.Post.DefaultStatus,
+		"revert op should default to 201 Created (lifecycle parity)")
+}
+
+// TestV2RevertRoute_RequiresAuth proves the v2 revert route shares the v1 protected
+// chain: with auth enabled and no bearer token the request is rejected before
+// reaching the stub handler.
+func TestV2RevertRoute_RequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	auth := &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"}
+	app := registerV2TransactionRoutesForTest(auth)
+
+	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/00000000-0000-0000-0000-000000000003/revert"
+
+	req := httptest.NewRequest(http.MethodPost, concretePath, nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode,
+		"tokenless v2 revert request must be rejected by the transactions:post auth chain")
 }
 
 // TestRegisterTransactionV2Routes_RegistersBlockHumaOperation asserts the block op is
