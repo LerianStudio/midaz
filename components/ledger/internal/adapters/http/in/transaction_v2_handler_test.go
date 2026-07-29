@@ -180,74 +180,14 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is the integration+parity test)")
 }
 
-// buildHumaV2HoldApp mounts the v2 `hold` transaction op alone on a fresh Fiber app + its
-// own /v2 Huma contract, mirroring buildHumaV2DirectApp. Wiring the single terminal — with
-// the SAME Fiber auth/tenant/ParseUUIDPathParameters chain and SkipValidateBody Huma op the
-// production route carries — keeps a failure attributable to the hold handler rather than to
-// any sibling op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
-// libProblem.Install() and Huma validation use process-global state.
-func buildHumaV2HoldApp(t *testing.T, handler *TransactionHandler) *fiber.App {
-	t.Helper()
-
-	app := fiber.New(fiber.Config{
-		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
-	})
-
-	app.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
-
-	libProblem.Install()
-
-	apiV2 := app.Group("/v2")
-
-	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-hold", Version: "test", Servers: []string{"/v2"}})
-	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
-
-	const holdMiddlewarePath = "/organizations/:organization_id/ledgers/:ledger_id/transactions/hold"
-
-	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
-	routePost(apiV2, holdMiddlewarePath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil, parse))
-
-	huma.Register(humaAPI, huma.Operation{
-		OperationID:      "createTransactionHoldV2",
-		Method:           http.MethodPost,
-		Path:             "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold",
-		Summary:          "Create a Transaction using the v2 hold model",
-		Tags:             []string{"Transactions"},
-		Security:         secTransactionBearer,
-		SkipValidateBody: true,
-		DefaultStatus:    http.StatusCreated,
-	}, handler.CreateTransactionHoldV2Huma)
-
-	return app
-}
-
-// holdV2ConcretePath builds the concrete /v2 hold path for a random org+ledger so
-// ParseUUIDPathParameters passes and dispatch reaches the terminal.
-func holdV2ConcretePath() string {
-	return "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/hold"
-}
-
-// postHoldV2 issues an authenticated POST to the v2 hold route with the given JSON body.
-func postHoldV2(t *testing.T, app *fiber.App, body string) *http.Response {
-	t.Helper()
-
-	req := httptest.NewRequest(http.MethodPost, holdV2ConcretePath(), strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-
-	return resp
-}
-
 // TestCreateTransactionHoldV2Huma_MalformedBody_400 proves the hold handler decodes the
 // flat v2 body through the SAME http.DecodeAndValidate the direct handler runs: malformed
 // JSON is the canonical 400 RFC 9457 problem, never a native Huma 422 nor a 501 stub.
 func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
 
-	resp := postHoldV2(t, app, `{not-json`)
+	resp := postActionV2(t, app, "hold", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
@@ -261,9 +201,9 @@ func TestCreateTransactionHoldV2Huma_MalformedBody_400(t *testing.T) {
 // business error before reaching the funnel.
 func TestCreateTransactionHoldV2Huma_Ambiguous_422(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
 
-	resp := postHoldV2(t, app, `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
+	resp := postActionV2(t, app, "hold", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "source == destination is a Translate business error → 422")
@@ -276,9 +216,9 @@ func TestCreateTransactionHoldV2Huma_Ambiguous_422(t *testing.T) {
 // the request progressed PAST the transport/translate boundary into the funnel.
 func TestCreateTransactionHoldV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2HoldApp(t, &TransactionHandler{})
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2Huma)
 
-	resp := postHoldV2(t, app, `{"description":"v2 hold","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
+	resp := postActionV2(t, app, "hold", `{"description":"v2 hold","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
@@ -301,9 +241,9 @@ func TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body(t
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2HoldApp(t, handler)
+	app := buildHumaV2ActionApp(t, "hold", handler.CreateTransactionHoldV2Huma)
 
-	resp := postHoldV2(t, app, v2DirectBody)
+	resp := postActionV2(t, app, "hold", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Contains(t, gotKey, libCommons.HashSHA256("HOLD\x00"+v2DirectBody),
@@ -357,7 +297,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 // carries — keeps a failure attributable to the handler under test rather than to any sibling
 // op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp: libProblem.Install() and
 // Huma validation use process-global state.
-func buildHumaV2ActionApp(t *testing.T, handler *TransactionHandler, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
+func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{
@@ -412,7 +352,7 @@ func postActionV2(t *testing.T, app *fiber.App, action, body string) *http.Respo
 // is the canonical 400 RFC 9457 problem, never a native Huma 422 nor a 501 stub.
 func TestCreateTransactionBlockV2Huma_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
 
 	resp := postActionV2(t, app, "block", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
@@ -427,7 +367,7 @@ func TestCreateTransactionBlockV2Huma_MalformedBody_400(t *testing.T) {
 // helper decodes, translates with pending=false, and surfaces the business error before the funnel.
 func TestCreateTransactionBlockV2Huma_Ambiguous_422(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
 
 	resp := postActionV2(t, app, "block", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -442,7 +382,7 @@ func TestCreateTransactionBlockV2Huma_Ambiguous_422(t *testing.T) {
 // progressed PAST the transport/translate boundary into the funnel.
 func TestCreateTransactionBlockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2Huma)
 
 	resp := postActionV2(t, app, "block", `{"description":"v2 block","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -465,7 +405,7 @@ func TestHuma_CreateTransactionBlockV2_IdempotencyKeyedByBlockDiscriminatedRawV2
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2ActionApp(t, handler, "block", handler.CreateTransactionBlockV2Huma)
+	app := buildHumaV2ActionApp(t, "block", handler.CreateTransactionBlockV2Huma)
 
 	resp := postActionV2(t, app, "block", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
@@ -481,7 +421,7 @@ func TestHuma_CreateTransactionBlockV2_IdempotencyKeyedByBlockDiscriminatedRawV2
 // for the unblock action.
 func TestCreateTransactionUnblockV2Huma_MalformedBody_400(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
 
 	resp := postActionV2(t, app, "unblock", `{not-json`)
 	defer func() { _ = resp.Body.Close() }()
@@ -495,7 +435,7 @@ func TestCreateTransactionUnblockV2Huma_MalformedBody_400(t *testing.T) {
 // the unblock action.
 func TestCreateTransactionUnblockV2Huma_Ambiguous_422(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
 
 	resp := postActionV2(t, app, "unblock", `{"asset":"BRL","amount":"100","from":"@same","to":"@same"}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -507,7 +447,7 @@ func TestCreateTransactionUnblockV2Huma_Ambiguous_422(t *testing.T) {
 // for the unblock action.
 func TestCreateTransactionUnblockV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, &TransactionHandler{}, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", (&TransactionHandler{}).CreateTransactionUnblockV2Huma)
 
 	resp := postActionV2(t, app, "unblock", `{"description":"v2 unblock","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`)
 	defer func() { _ = resp.Body.Close() }()
@@ -527,7 +467,7 @@ func TestHuma_CreateTransactionUnblockV2_IdempotencyKeyedByUnblockDiscriminatedR
 	var gotKey string
 
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
-	app := buildHumaV2ActionApp(t, handler, "unblock", handler.CreateTransactionUnblockV2Huma)
+	app := buildHumaV2ActionApp(t, "unblock", handler.CreateTransactionUnblockV2Huma)
 
 	resp := postActionV2(t, app, "unblock", v2DirectBody)
 	defer func() { _ = resp.Body.Close() }()
