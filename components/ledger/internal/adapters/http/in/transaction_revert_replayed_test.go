@@ -14,11 +14,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/gofiber/fiber/v3"
@@ -253,43 +250,6 @@ func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheHumaShell(t *testing
 		"the replay Warn must name the origin transaction id and carry nothing else (no balances, amounts or payloads)")
 }
 
-// buildHumaV2RevertApp mounts the v2 revert op through the SAME production seam
-// (RegisterTransactionV2RoutesToApp) the unified server uses, mirroring buildHumaV2DirectApp:
-// problem.Install() before any huma.Register, WithRecover first so an unwired-repo panic
-// unwinds to a 500 instead of dropping the connection, the ledger schema namer installed
-// between openapi.New and registration, and auth disabled so requests reach the terminal.
-// The injected logger rides the Fiber request context, which the humafiber adapter passes
-// through to the terminal as its context.Context.
-//
-// MUST-NOT-PARALLELIZE (same rationale as buildHumaV2DirectApp): libProblem.Install() swaps
-// the process-global huma.NewError hook and Huma validation uses process-global sync.Pools.
-func buildHumaV2RevertApp(t *testing.T, handler *TransactionHandler, logger libLog.Logger) *fiber.App {
-	t.Helper()
-
-	app := fiber.New(fiber.Config{
-		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
-	})
-
-	app.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
-
-	app.Use(func(c fiber.Ctx) error {
-		c.SetContext(libObservability.ContextWithLogger(c.Context(), logger))
-
-		return c.Next()
-	})
-
-	libProblem.Install()
-
-	apiV2 := app.Group("/v2")
-
-	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-revert", Version: "test", Servers: []string{"/v2"}})
-	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
-
-	RegisterTransactionV2RoutesToApp(apiV2, humaAPI, &middleware.AuthClient{Enabled: false}, handler, nil)
-
-	return app
-}
-
 // TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire closes the gap the typed-output
 // test cannot: it drives a replayed revert through the real route and asserts the header on the
 // RESPONSE, so the `header:"X-Idempotency-Replayed"` tag on the output envelope is proven to
@@ -297,14 +257,15 @@ func buildHumaV2RevertApp(t *testing.T, handler *TransactionHandler, logger libL
 // to the client the flag exists for. (The `false` side of the same header is covered on the wire
 // by the V2 revert integration tests.)
 func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire(t *testing.T) {
-	// NOT parallel: process-global huma state (see buildHumaV2RevertApp).
+	// NOT parallel: process-global huma state (see buildHumaV2DirectApp).
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	logger, recorder := recordingLogger(t, ctrl)
 	handler, subjects := arrangeReplayedRevert(t, ctrl)
 
-	app := buildHumaV2RevertApp(t, handler, logger)
+	// The logger is injected so the Warn assertion below reads what the WIRED path logged.
+	app := buildHumaV2DirectApp(t, handler, logger)
 
 	url := "/v2/organizations/" + subjects.orgID.String() +
 		"/ledgers/" + subjects.ledgerID.String() +

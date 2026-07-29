@@ -16,6 +16,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
@@ -37,12 +38,15 @@ import (
 // and clashes on the bare names without it), and auth disabled so requests reach the
 // terminal. A bare handler is enough: these tests prove the transport boundary (decode,
 // translate, route-UUID hygiene, error class) and funnel entry — the committed money
-// path is the integration+parity test.
+// path is the integration+parity test. Since the seam mounts EVERY v2 transaction op, the
+// same app serves the lifecycle ops too; pass an optional logger to have it ride the Fiber
+// request context (the humafiber adapter hands that context to the terminal) when a test
+// needs to assert on what the exercised path logged.
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaTransactionApp): libProblem.Install()
 // swaps the process-global huma.NewError hook and Huma validation uses process-global
 // sync.Pools — concurrent builds/requests cross-contaminate.
-func buildHumaV2DirectApp(t *testing.T, handler *TransactionHandler) *fiber.App {
+func buildHumaV2DirectApp(t *testing.T, handler *TransactionHandler, logger ...libLog.Logger) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{
@@ -50,6 +54,14 @@ func buildHumaV2DirectApp(t *testing.T, handler *TransactionHandler) *fiber.App 
 	})
 
 	app.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
+
+	if len(logger) > 0 {
+		app.Use(func(c fiber.Ctx) error {
+			c.SetContext(libObservability.ContextWithLogger(c.Context(), logger[0]))
+
+			return c.Next()
+		})
+	}
 
 	libProblem.Install()
 

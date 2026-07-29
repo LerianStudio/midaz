@@ -32,6 +32,11 @@ import (
 // origin-scoped idempotency slot answers with a cached reverse instead of a new one.
 const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
+// NOT MOUNTED — the Fiber state wrappers below (CommitTransaction, CancelTransaction,
+// RevertTransaction, UpdateTransaction) have no production registration: every v1 and v2
+// commit/cancel/revert/update route terminates at the Huma shell, so covering a wrapper
+// proves nothing about production.
+
 // CommitTransaction method that commit transaction created before
 func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
 	ctx := c.Context()
@@ -63,8 +68,7 @@ func (handler *TransactionHandler) CommitTransaction(c fiber.Ctx) error {
 // per-action span (commit_transaction / cancel_transaction, derived from the target
 // status so the span names stay byte-identical to the pre-migration Fiber path),
 // fetches the transaction (write-behind cache first, DB fallback), then delegates to the
-// untouched commitOrCancelTransaction state machine. Called by BOTH the Fiber wrappers
-// and the Huma shells.
+// untouched commitOrCancelTransaction state machine.
 func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -116,13 +120,8 @@ func (handler *TransactionHandler) CancelTransaction(c fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
-// RevertTransaction method that revert transaction created before.
-//
-// NOT MOUNTED: no production route terminates here — both the v1 and v2 revert routes
-// terminate at RevertTransactionHuma. This wrapper is exercised only by test scaffolding,
-// so it is not evidence of production coverage. In particular it drops the core's
-// `replayed` flag instead of projecting it onto X-Idempotency-Replayed; the live Huma
-// terminal is where that header is set.
+// RevertTransaction method that revert transaction created before. Unlike the live Huma
+// terminal it drops the core's `replayed` flag instead of setting X-Idempotency-Replayed.
 func (handler *TransactionHandler) RevertTransaction(c fiber.Ctx) error {
 	ctx := c.Context()
 
@@ -175,9 +174,8 @@ func revertIdempotencyHashSource(transactionID uuid.UUID) string {
 // ParseIdempotencyTTL("") == 300s — byte-identical to the pre-migration Fiber path, which
 // reached executeCreateTransaction and read GetIdempotencyKeyAndTTL(c) (an absent X-TTL
 // defaults to 300, never 0). A hardcoded 0 would make the Redis idempotency slot permanent.
-// It returns the idempotency `replayed` flag alongside the reverse transaction so each
-// transport sets X-Idempotency-Replayed itself. Called by BOTH the Fiber wrapper and the
-// Huma shell.
+// It returns the idempotency `replayed` flag alongside the reverse transaction so the
+// transport sets X-Idempotency-Replayed itself.
 func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -318,8 +316,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c fiber.Ctx) error {
 
 // updateTransaction is the transport-neutral update core: it logs the safe payload,
 // runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
-// (mutable fields only — amounts/accounts/status are immutable). Called by BOTH the Fiber
-// wrapper and the Huma shell.
+// (mutable fields only — amounts/accounts/status are immutable).
 func (handler *TransactionHandler) updateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, payload *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
