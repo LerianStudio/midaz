@@ -10,6 +10,7 @@ package readseam
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -81,18 +82,29 @@ func AcquireReadFrom(ctx context.Context, conn ReadConn, routeToPrimary bool) (r
 		return conn, func() error { return nil }, ReadSourceReplica, nil
 	}
 
+	// Fail fast on an already-cancelled context: a caller cancellation is not a
+	// technical failure, so it must not flip the span red (telemetry T5). Return
+	// the wrapped ctx error and no reader (fail-closed) before the BeginTx round-trip.
+	if err := ctx.Err(); err != nil {
+		return nil, nil, "", fmt.Errorf("primary read aborted before opening transaction: %w", err)
+	}
+
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(trace.SpanFromContext(ctx), "Failed to open read-only transaction for primary read", err)
 
-		return nil, nil, "", err
+		return nil, nil, "", fmt.Errorf("open read-only primary read transaction: %w", err)
 	}
 
 	recordReadSource(ctx, ReadSourcePrimary)
 
 	// A read-only tx performs no writes; committing just releases the connection.
 	release := func() error {
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit read-only primary read transaction: %w", err)
+		}
+
+		return nil
 	}
 
 	return tx, release, ReadSourcePrimary, nil

@@ -204,6 +204,28 @@ func TestAcquireReadFrom_FailClosedOnBeginTxError(t *testing.T) {
 		"fail-closed must NOT emit a db.read_source attribute")
 }
 
+// TestAcquireReadFrom_FailsFastOnCancelledContext proves the primary-read path
+// aborts before the BeginTx round-trip when the caller's context is already
+// cancelled: it returns a context.Canceled error, no reader, no release, the
+// zero ReadSource, and never touches the connection (BeginTx not called).
+func TestAcquireReadFrom_FailsFastOnCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(readrouting.WithPrimaryRead(context.Background()))
+	cancel()
+
+	conn := &fakeReadConn{tx: &fakeTx{}}
+
+	reader, release, source, err := AcquireReadFrom(ctx, conn, true)
+
+	require.Error(t, err, "must fail fast when the context is already cancelled")
+	assert.ErrorIs(t, err, context.Canceled, "must propagate the context cancellation")
+	assert.Nil(t, reader, "must NOT return a reader on cancelled-context fail-fast")
+	assert.Nil(t, release, "must NOT return a release func on cancelled-context fail-fast")
+	assert.Equal(t, ReadSource(""), source, "cancelled-context fail-fast must return the zero ReadSource")
+	assert.False(t, conn.beginCalled, "must NOT open a transaction when the context is already cancelled")
+}
+
 // recordingReadSeamContext starts a recording SDK span on the given context so
 // AcquireReadFrom can attach db.read_source to trace.SpanFromContext(ctx), and
 // returns the child context, the recorder, and the span's End func (which the

@@ -5,6 +5,7 @@
 package bootstrap
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
@@ -53,6 +54,9 @@ func TestConfig_RouteTransactionalReadsToPrimary_EnvParsing(t *testing.T) {
 			// Note: t.Parallel() omitted because t.Setenv is incompatible with parallel sub-tests.
 			if tt.set {
 				t.Setenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY", tt.value)
+			} else if orig, had := os.LookupEnv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"); had {
+				os.Unsetenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY")
+				t.Cleanup(func() { os.Setenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY", orig) })
 			}
 
 			cfg := &Config{}
