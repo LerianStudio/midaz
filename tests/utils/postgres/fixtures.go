@@ -381,7 +381,8 @@ type OperationParams struct {
 	BalanceVersionBefore  int64
 	BalanceVersionAfter   int64
 	Status                string
-	Route                 *string
+	Route                 *string // deprecated free-text route label; RouteID is canonical
+	RouteID               *uuid.UUID
 	BalanceAffected       bool
 	DeletedAt             *time.Time
 }
@@ -420,17 +421,34 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 			id, transaction_id, description, type, account_id, account_alias, balance_id, balance_key,
 			asset_code, chart_of_accounts, amount, available_balance, on_hold_balance,
 			available_balance_after, on_hold_balance_after, balance_version_before, balance_version_after,
-			status, route, balance_affected, organization_id, ledger_id, created_at, updated_at, deleted_at
+			status, route, route_id, balance_affected, organization_id, ledger_id, created_at, updated_at, deleted_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
 	`, id, params.TransactionID, params.Description, params.Type, params.AccountID, params.AccountAlias,
 		params.BalanceID, balanceKey, params.AssetCode, chartOfAccounts, params.Amount,
 		params.AvailableBalance, params.OnHoldBalance, params.AvailableBalanceAfter, params.OnHoldBalanceAfter,
-		params.BalanceVersionBefore, params.BalanceVersionAfter, status, params.Route, balanceAffected,
+		params.BalanceVersionBefore, params.BalanceVersionAfter, status, params.Route, params.RouteID, balanceAffected,
 		orgID, ledgerID, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test operation")
 
 	return id
+}
+
+// StampOperationRoute points every operation of a transaction at an operation route and
+// returns the number of stamped rows. Use it when the subject transaction was produced by the
+// PRODUCTION create path (which stamps route_id only when the request names a route) rather
+// than by CreateTestOperation — the insert fixture cannot retrofit rows it did not write.
+func StampOperationRoute(t *testing.T, db *sql.DB, txID, routeID uuid.UUID) int64 {
+	t.Helper()
+
+	res, err := db.Exec(`UPDATE operation SET route_id = $1 WHERE transaction_id = $2`, routeID, txID)
+	require.NoError(t, err, "failed to stamp route_id onto the transaction's operations")
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "failed to read affected operation rows")
+	require.NotZero(t, affected, "the subject transaction must have operations to stamp")
+
+	return affected
 }
 
 // UpdateTransactionStatus updates the status of a transaction.

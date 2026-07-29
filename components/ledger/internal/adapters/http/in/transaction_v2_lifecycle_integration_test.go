@@ -9,10 +9,15 @@ package in
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
 	nethttp "net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +29,12 @@ import (
 
 // This file is the v2 transaction LIFECYCLE integration + parity proof: it exercises the v2
 // `commit`, `cancel`, and `revert` ops end-to-end against the SAME real-repo handler backed by
-// testcontainers as the sibling create/hold/block file. It is split out of
-// transaction_v2_handler_integration_test.go purely to keep each file under the size limit;
-// both files share the same `in` package and reuse the shared request/decode/DB helpers,
-// `seedTransfer`, `setupTestInfra`, and the app builders defined in the sibling files.
+// testcontainers as the sibling create/hold/block file. The split from
+// transaction_v2_handler_integration_test.go is topical, not budgetary (this repo enforces no
+// file-size limit): that file covers the CREATE surface (direct/hold/block/unblock), this one
+// covers what happens to a transaction AFTER it exists. Both files share the same `in` package
+// and reuse the shared request/decode/DB helpers, `seedTransfer`, `setupTestInfra`, and the app
+// builders defined in the sibling files.
 //
 // NOT PARALLEL: the app builders call libProblem.Install() (process-global huma.NewError hook)
 // and Huma validation uses process-global sync.Pools; concurrent builds cross-contaminate.
@@ -419,7 +426,11 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1OriginID), "the v1 origin transfer should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-	v1RevertResp := decodeTxResponse(t, postTransaction(t, v1App, v1RevertURL(infra.orgID, ledgerV1, v1OriginID), "", ""), nethttp.StatusCreated)
+	v1RevertRaw := postTransaction(t, v1App, v1RevertURL(infra.orgID, ledgerV1, v1OriginID), "", "")
+	assert.Equal(t, "false", v1RevertRaw.Header.Get("X-Idempotency-Replayed"),
+		"a fresh v1 revert must advertise X-Idempotency-Replayed: false — the header is what distinguishes it from a replay")
+
+	v1RevertResp := decodeTxResponse(t, v1RevertRaw, nethttp.StatusCreated)
 	v1RevertID := uuid.MustParse(v1RevertResp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1RevertID), "the v1 reverse transaction should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
@@ -430,7 +441,11 @@ func TestIntegration_TransactionV2Revert_ParityWithV1(t *testing.T) {
 	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2OriginID), "the v2 origin transfer should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
 
-	v2RevertResp := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, ledgerV2, v2OriginID), "", ""), nethttp.StatusCreated)
+	v2RevertRaw := postTransaction(t, v2App, v2RevertURL(infra.orgID, ledgerV2, v2OriginID), "", "")
+	assert.Equal(t, "false", v2RevertRaw.Header.Get("X-Idempotency-Replayed"),
+		"a fresh v2 revert must advertise X-Idempotency-Replayed: false, byte-identically to the v1 surface")
+
+	v2RevertResp := decodeTxResponse(t, v2RevertRaw, nethttp.StatusCreated)
 	v2RevertID := uuid.MustParse(v2RevertResp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2RevertID), "the v2 reverse transaction should be APPROVED")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -539,19 +554,23 @@ func seedEmptyReversalTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid
 	return txID
 }
 
-// stampOperationRoute points every operation of a transaction at an operation route. The
-// create path only stamps route_id when the request names a route, so stamping it directly is
-// how a settled transaction becomes the subject of the revert bidirectional-route gate (which
-// reads op.RouteID and resolves the route by id).
-func stampOperationRoute(t *testing.T, db *sql.DB, txID, routeID uuid.UUID) {
+// assertProblemCode drains an error response and asserts its HTTP status plus the `code`
+// field of its RFC 9457 problem+json envelope. The code is compared as a FIELD, not as a
+// whole-body substring, so an incidental occurrence of the same digits anywhere else in the
+// payload cannot make the assertion pass. The failing body is dumped on every mismatch.
+func assertProblemCode(t *testing.T, resp *nethttp.Response, wantStatus int, wantCode string) {
 	t.Helper()
 
-	res, err := db.Exec(`UPDATE operation SET route_id = $1 WHERE transaction_id = $2`, routeID, txID)
-	require.NoError(t, err, "failed to stamp route_id onto the transaction's operations")
+	body := drainBody(t, resp)
 
-	affected, err := res.RowsAffected()
-	require.NoError(t, err, "failed to read affected operation rows")
-	require.NotZero(t, affected, "the subject transaction must have operations to stamp")
+	assert.Equalf(t, wantStatus, resp.StatusCode, "unexpected status; body: %s", string(body))
+
+	var problem struct {
+		Code string `json:"code"`
+	}
+
+	require.NoErrorf(t, json.Unmarshal(body, &problem), "response body should be valid problem+json; body: %s", string(body))
+	assert.Equalf(t, wantCode, problem.Code, "problem+json code field should equal %s; body: %s", wantCode, string(body))
 }
 
 // =============================================================================
@@ -640,7 +659,7 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
 	sourceRouteID := postgrestestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "Revert Gate Source Route", "source")
-	stampOperationRoute(t, infra.pgContainer.DB, nonBidiTxID, sourceRouteID)
+	postgrestestutil.StampOperationRoute(t, infra.pgContainer.DB, nonBidiTxID, sourceRouteID)
 
 	unknownTxID := uuid.Must(libCommons.GenerateUUIDv7())
 
@@ -691,8 +710,9 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 			wantCode:   cn.ErrRouteNotBidirectional.Error(),
 		},
 		{
-			// KNOWN DEFECT — this expectation records the CURRENT behavior, not the intended
-			// contract. A missing entity must render 404 (error-handling standard E3/E5), and
+			// KNOWN DEFECT (tracked as Lerian Map card #3579) — this expectation records the
+			// CURRENT behavior, not the intended contract. A missing entity must render 404
+			// (error-handling standard E3/E5), and
 			// commit/cancel do exactly that for the same input class (404/0007, section 15).
 			// Revert diverges because its read path FindWithOperations
 			// (adapters/postgres/transaction/transaction.postgresql.go) has no sql.ErrNoRows
@@ -853,4 +873,192 @@ func TestIntegration_TransactionV2Revert_IdempotencyScopedByOrigin(t *testing.T)
 
 	assert.Equal(t, 4, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"a repeat revert of the SAME origin must not persist a third transaction")
+}
+
+// =============================================================================
+// 19. CONCURRENT REVERT OF ONE ORIGIN — EXACTLY ONE WINNER (money path): the whole safety
+//     argument for the origin-scoped revert idempotency key is that concurrent reverts of ONE
+//     origin all derive the SAME preimage, so exactly one of them wins the Redis SetNX and the
+//     rest are rejected BEFORE any balance work. Section 18(b) only covers the SEQUENTIAL
+//     repeat, where the already-has-a-child gate fires first — it never exercises the window
+//     the claim exists for.
+//
+//     That window is real: the eligibility gate reads GetParentByTransactionID, which cannot
+//     see a concurrent revert's not-yet-committed child (and, in production, reads a Postgres
+//     REPLICA while the child is written to the PRIMARY — tracked as Lerian Map card #3578).
+//     The gate therefore cannot be the serialization point; the shared claim has to be. If it
+//     is not, the failure mode is a DOUBLE money movement: one origin reversed twice.
+//
+//     N racers revert one APPROVED origin from a common start barrier. The invariant asserted
+//     is "exactly one 201, every other answer a 4xx" rather than one specific sentinel: the
+//     loser's code depends on the interleaving (409/0084 when it loses the SetNX before the
+//     winner's response is cached, 409/0087 once the winner's child is visible to the gate).
+//     The observed codes are logged for the record.
+//
+//     CONCURRENCY NOTE: only the REQUESTS race. The app is built once, before the barrier —
+//     the file header's sequential rule is about libProblem.Install() and the app builders,
+//     not about serving; fiber's App.Test guards startupProcess with app.mutex and each call
+//     serves its own connection.
+// =============================================================================
+
+// concurrentRevertRacers is the number of goroutines that revert the single origin at once.
+// Small enough to stay fast, large enough that at least one racer loses the claim rather than
+// the gate.
+const concurrentRevertRacers = 8
+
+// revertRaceResult is one racer's outcome, captured WITHOUT touching *testing.T: require/assert
+// call t.FailNow, which is illegal outside the test goroutine, so every racer records its raw
+// outcome and the assertions all run on the test goroutine after the WaitGroup drains.
+type revertRaceResult struct {
+	transportErr error
+	status       int
+	replayed     string
+	txID         string
+	problemCode  string
+	body         string
+}
+
+// fireRevert issues one revert request and decodes whichever envelope came back (a transaction
+// on success, an RFC 9457 problem on rejection). Goroutine-safe by construction: it reports
+// failures as data instead of failing the test from a non-test goroutine.
+func fireRevert(app *fiber.App, url string) revertRaceResult {
+	req := httptest.NewRequest(nethttp.MethodPost, url, nil)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	if err != nil {
+		return revertRaceResult{transportErr: err}
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return revertRaceResult{transportErr: err, status: resp.StatusCode}
+	}
+
+	out := revertRaceResult{
+		status:   resp.StatusCode,
+		replayed: resp.Header.Get("X-Idempotency-Replayed"),
+		body:     string(raw),
+	}
+
+	var envelope struct {
+		ID   string `json:"id"`
+		Code string `json:"code"`
+	}
+
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return out
+	}
+
+	out.txID = envelope.ID
+	out.problemCode = envelope.Code
+
+	return out
+}
+
+func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header). The requests inside race; the
+	// test itself does not run alongside other tests.
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	// BOTH sides start funded, and that is load-bearing. A reverse DEBITS the destination, so
+	// an empty destination (seedTransfer's default) can only afford ONE reversal: the atomic
+	// balance commit would then reject every duplicate with 0018/insufficient-funds and the
+	// "exactly one" assertion below would hold even with the idempotency claim removed — the
+	// test would be measuring the destination's balance, not the claim. Funding the destination
+	// with headroom makes a SECOND reversal affordable, so if the claim ever stops serializing,
+	// the duplicate reverse really does commit and this test fails (verified by temporarily
+	// de-scoping revertIdempotencyHashSource).
+	srcID, dstID := seedFundedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	originResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), equivalentV2Body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(originResp["id"].(string))
+	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originID), "the origin transfer should be APPROVED")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available after the origin transfer")
+	requireDecimalEqual(t, decimal.NewFromInt(1100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination available after the origin transfer")
+
+	// Race: every goroutine is parked on the same closed-channel barrier so they enter the
+	// revert core together rather than in the order they were spawned.
+	revertURL := v2RevertURL(infra.orgID, infra.ledgerID, originID)
+	results := make([]revertRaceResult, concurrentRevertRacers)
+	start := make(chan struct{})
+
+	var wg sync.WaitGroup
+
+	for i := range results {
+		wg.Add(1)
+
+		go func(slot int) {
+			defer wg.Done()
+
+			<-start
+
+			results[slot] = fireRevert(v2App, revertURL)
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Exactly one racer may create a reverse; every other answer must be a client rejection.
+	var (
+		winners    []revertRaceResult
+		loserCodes []string
+	)
+
+	for i, res := range results {
+		require.NoErrorf(t, res.transportErr, "racer %d failed at the transport layer", i)
+
+		if res.status == nethttp.StatusCreated {
+			winners = append(winners, res)
+			continue
+		}
+
+		assert.GreaterOrEqualf(t, res.status, 400, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
+		assert.Lessf(t, res.status, 500, "racer %d: a losing revert must be a client rejection, not a server error; body: %s", i, res.body)
+
+		loserCodes = append(loserCodes, res.problemCode)
+	}
+
+	t.Logf("concurrent revert of one origin: %d/%d created, loser problem codes %v",
+		len(winners), concurrentRevertRacers, loserCodes)
+
+	require.Lenf(t, winners, 1,
+		"exactly ONE concurrent revert of a single origin may succeed; %d succeeded, which means the shared idempotency claim did NOT serialize the read-then-act race and the origin was reverted more than once",
+		len(winners))
+
+	assert.Equal(t, "false", winners[0].replayed, "the winning revert is a fresh create, not a replay")
+
+	// One reverse persisted, linked to the origin — and the origin itself never acquired a parent.
+	require.NotEmpty(t, winners[0].txID, "the winning revert must return the reverse transaction id")
+	reverseID := uuid.MustParse(winners[0].txID)
+
+	reverseParent := postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, reverseID)
+	require.NotNil(t, reverseParent, "the persisted reverse must carry a parent")
+	assert.Equal(t, originID, *reverseParent, "the persisted reverse must point at the raced origin")
+	assert.Nil(t, postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, originID), "the origin must not acquire a parent")
+
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"the ledger must hold exactly the origin and ONE reverse; a third transaction is a double revert")
+
+	// Balances reverted exactly ONCE: back to the seeded state, not past it. Both sides have the
+	// headroom to absorb a second reversal, so these two numbers are the money-path proof — a
+	// double revert reads 1100 / 900.
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available restored exactly once (a double revert would read 1100)")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination drained back exactly once (a double revert would read 900)")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID), "source on-hold after the raced revert")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold after the raced revert")
 }

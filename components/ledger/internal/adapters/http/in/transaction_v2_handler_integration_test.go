@@ -162,25 +162,6 @@ func fetchOperationRows(t *testing.T, db *sql.DB, txID uuid.UUID) []operationEco
 	return out
 }
 
-// assertProblemCode drains an error response and asserts its HTTP status plus the `code`
-// field of its RFC 9457 problem+json envelope. The code is compared as a FIELD, not as a
-// whole-body substring, so an incidental occurrence of the same digits anywhere else in the
-// payload cannot make the assertion pass. The failing body is dumped on every mismatch.
-func assertProblemCode(t *testing.T, resp *nethttp.Response, wantStatus int, wantCode string) {
-	t.Helper()
-
-	body := drainBody(t, resp)
-
-	assert.Equalf(t, wantStatus, resp.StatusCode, "unexpected status; body: %s", string(body))
-
-	var problem struct {
-		Code string `json:"code"`
-	}
-
-	require.NoErrorf(t, json.Unmarshal(body, &problem), "response body should be valid problem+json; body: %s", string(body))
-	assert.Equalf(t, wantCode, problem.Code, "problem+json code field should equal %s; body: %s", wantCode, string(body))
-}
-
 // requireDecimalEqual asserts two decimals are numerically equal (no float comparison).
 func requireDecimalEqual(t *testing.T, want, got decimal.Decimal, msgAndArgs ...any) {
 	t.Helper()
@@ -211,8 +192,10 @@ var volatileResponseKeys = map[string]struct{}{
 //
 // `route` / `routeId` are in that stripped set, so route linkage is deliberately OUTSIDE the
 // economic-parity envelope: a deep-equal over the result proves nothing about whether two
-// surfaces resolve the same operation/transaction route. Route linkage needs its own targeted
-// assertion (see the revert bidirectional-route case in the lifecycle file).
+// surfaces resolve the same operation/transaction route. v1↔v2 route-linkage parity is
+// therefore UNCOVERED by this suite. The nearest case — the revert bidirectional-route subject
+// in the lifecycle file — asserts REJECTION (422 on a non-bidirectional route), not that a
+// route-stamped origin resolves to the same routeId on both surfaces.
 func stripVolatile(v any) any {
 	switch node := v.(type) {
 	case map[string]any:
@@ -266,20 +249,30 @@ func waitForIdempotencyStored(t *testing.T, ctx context.Context, redisRepo redis
 func seedTransfer(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, sourceAlias, destAlias string, available int64) (sourceBalanceID, destBalanceID uuid.UUID) {
 	t.Helper()
 
+	return seedFundedTransfer(t, db, orgID, ledgerID, sourceAlias, destAlias, available, 0)
+}
+
+// seedFundedTransfer is seedTransfer with an explicitly funded DESTINATION. An empty
+// destination silently caps how much can flow back out of it, which turns the balance layer
+// into an accidental backstop for tests about duplicate reversals; giving the destination
+// headroom keeps those tests sensitive to the mechanism they actually assert.
+func seedFundedTransfer(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, sourceAlias, destAlias string, sourceAvailable, destAvailable int64) (sourceBalanceID, destBalanceID uuid.UUID) {
+	t.Helper()
+
 	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	srcParams := postgrestestutil.DefaultBalanceParams()
 	srcParams.Alias = sourceAlias
 	srcParams.AssetCode = "USD"
-	srcParams.Available = decimal.NewFromInt(available)
+	srcParams.Available = decimal.NewFromInt(sourceAvailable)
 	srcParams.OnHold = decimal.Zero
 	sourceBalanceID = postgrestestutil.CreateTestBalance(t, db, orgID, ledgerID, sourceAccountID, srcParams)
 
 	dstParams := postgrestestutil.DefaultBalanceParams()
 	dstParams.Alias = destAlias
 	dstParams.AssetCode = "USD"
-	dstParams.Available = decimal.Zero
+	dstParams.Available = decimal.NewFromInt(destAvailable)
 	dstParams.OnHold = decimal.Zero
 	destBalanceID = postgrestestutil.CreateTestBalance(t, db, orgID, ledgerID, destAccountID, dstParams)
 
