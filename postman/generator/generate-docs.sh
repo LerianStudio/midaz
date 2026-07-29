@@ -163,6 +163,14 @@ consolidate_openapi() {
     #     operations appear under distinct, correctly-based "/v2/..." paths.
     local ledger_v2_dump="${ROOT_DIR}/components/ledger/api/openapi.v2.huma.yaml"
     local ledger_v2_join_input="${LOG_DIR}/ledger_v2_join_input.yaml"
+    local ledger_v2_derived=0
+
+    # LOG_DIR survives between runs, so discard whatever an earlier run left here.
+    # Joining below keys off this run having derived the input, never off the file
+    # merely being present — otherwise dropping or renaming the v2 dump would
+    # silently republish a stale set of "/v2/..." paths.
+    rm -f "${ledger_v2_join_input}"
+
     if [ -f "${ledger_v2_dump}" ]; then
         if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
             const yaml = require("js-yaml");
@@ -183,13 +191,15 @@ consolidate_openapi() {
             head -5 "${err_log}" | sed 's/^/        /'
             return 1
         fi
+
+        ledger_v2_derived=1
     fi
 
     # 2b. Join (ledger first => takes precedence). The derived v2 input sits between
     #     ledger and tracer. Run the locally-installed binary directly so the
     #     component paths stay relative to ROOT_DIR.
     local join_inputs=(components/ledger/api/openapi.huma.yaml)
-    if [ -f "${ledger_v2_join_input}" ]; then
+    if [ "${ledger_v2_derived}" -eq 1 ]; then
         join_inputs+=("${ledger_v2_join_input}")
     fi
     join_inputs+=(components/tracer/api/openapi.huma.yaml)
