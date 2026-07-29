@@ -5569,6 +5569,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Transaction'
           description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         default:
           content:
             application/problem+json:
@@ -6393,6 +6397,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Transaction'
           description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         default:
           content:
             application/problem+json:
