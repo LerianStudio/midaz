@@ -9,7 +9,6 @@ package in
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	nethttp "net/http"
 	"testing"
 
@@ -24,7 +23,7 @@ import (
 )
 
 // This file is the v2 transaction LIFECYCLE integration + parity proof: it exercises the v2
-// `commit` and `cancel` ops end-to-end against the SAME real-repo handler backed by
+// `commit`, `cancel`, and `revert` ops end-to-end against the SAME real-repo handler backed by
 // testcontainers as the sibling create/hold/block file. It is split out of
 // transaction_v2_handler_integration_test.go purely to keep each file under the size limit;
 // both files share the same `in` package and reuse the shared request/decode/DB helpers,
@@ -286,6 +285,10 @@ func TestIntegration_TransactionV2Hold_CrossSurfaceCommit(t *testing.T) {
 //       - cancel of an unknown (well-formed) transaction_id   -> 404 ErrEntityNotFound (0007, generic query not-found)
 //       - commit with a malformed transaction_id              -> 400 ErrInvalidPathParameter (0065, blocked on the chain)
 //       - cancel with a malformed transaction_id              -> 400 ErrInvalidPathParameter (0065, blocked on the chain)
+//
+//     The unknown-id rows here are the CORRECT contract for a missing entity (404/0007).
+//     Revert diverges on that same input class and answers 409/0099 — a known defect recorded
+//     in section 17's unknown-id case, which names the root cause and the fix contract.
 // =============================================================================
 
 func TestIntegration_TransactionV2Lifecycle_StateAndIDErrors(t *testing.T) {
@@ -366,19 +369,7 @@ func TestIntegration_TransactionV2Lifecycle_StateAndIDErrors(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, tc.url, "", "")
-			body := drainBody(t, resp)
-
-			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s: unexpected status; body: %s", tc.name, string(body))
-
-			// Field-level check: unmarshal the RFC 9457 problem+json envelope and assert the
-			// `code` field EQUALS the expected code (not a whole-body substring match, which
-			// could pass on an incidental occurrence anywhere in the payload).
-			var problem struct {
-				Code string `json:"code"`
-			}
-			require.NoErrorf(t, json.Unmarshal(body, &problem), "%s: response body should be valid problem+json; body: %s", tc.name, string(body))
-			assert.Equalf(t, tc.wantCode, problem.Code, "%s: problem+json code field should equal %s; body: %s", tc.name, tc.wantCode, string(body))
+			assertProblemCode(t, postTransaction(t, v2App, tc.url, "", ""), tc.wantStatus, tc.wantCode)
 		})
 	}
 
@@ -526,6 +517,10 @@ func seedEmptyReversalTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid
 	params.Status = cn.APPROVED
 	params.Amount = decimal.Zero
 	params.AssetCode = ""
+	// The default params carry a 100 USD send body, which would contradict the zero/no-asset
+	// columns above. The revert gate reads the columns and the operations, never the body, so
+	// the row is left body-less to stay self-consistent (the column is nullable).
+	params.Body = nil
 
 	txID := postgrestestutil.CreateTestTransaction(t, db, orgID, ledgerID, params)
 
@@ -544,6 +539,21 @@ func seedEmptyReversalTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid
 	return txID
 }
 
+// stampOperationRoute points every operation of a transaction at an operation route. The
+// create path only stamps route_id when the request names a route, so stamping it directly is
+// how a settled transaction becomes the subject of the revert bidirectional-route gate (which
+// reads op.RouteID and resolves the route by id).
+func stampOperationRoute(t *testing.T, db *sql.DB, txID, routeID uuid.UUID) {
+	t.Helper()
+
+	res, err := db.Exec(`UPDATE operation SET route_id = $1 WHERE transaction_id = $2`, routeID, txID)
+	require.NoError(t, err, "failed to stamp route_id onto the transaction's operations")
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "failed to read affected operation rows")
+	require.NotZero(t, affected, "the subject transaction must have operations to stamp")
+}
+
 // =============================================================================
 // 17. REVERT INELIGIBILITY + ID ERRORS: the v2 revert op surfaces the SAME eligibility and
 //     path errors the v1 op does, because it reuses the SAME revertTransaction gate and the
@@ -557,17 +567,14 @@ func seedEmptyReversalTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid
 //             -> 409 ErrCommitTransactionNotPending (0099, EntityConflictError)
 //       - a degenerate transaction whose reversal is empty
 //             -> 422 ErrTransactionCantRevert (0089, UnprocessableOperationError)
+//       - a transaction whose operations point at a NON-bidirectional operation route
+//             -> 422 ErrRouteNotBidirectional (0150, UnprocessableOperationError)
 //       - an unknown (well-formed) transaction_id
-//             -> 409 ErrCommitTransactionNotPending (0099): the revert read path returns a
-//                ZERO-VALUE transaction rather than a not-found error, so the status gate —
-//                not a 404 — is what rejects it. Shared with v1 by construction.
+//             -> 409 ErrCommitTransactionNotPending (0099) — a KNOWN DEFECT, not the intended
+//                contract. See the case body for the root cause and the fix contract; commit
+//                and cancel correctly return 404/0007 for the same input class (section 15).
 //       - a malformed transaction_id
 //             -> 400 ErrInvalidPathParameter (0065, blocked on the Fiber chain)
-//
-//     The non-bidirectional-route gate (ErrRouteNotBidirectional) is NOT reachable here: the
-//     harness ledger carries default settings (route validation off) and the transaction-only
-//     container holds no operation_route rows, so every seeded operation has a nil route_id
-//     and the bidirectional loop never executes.
 // =============================================================================
 
 func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) {
@@ -581,6 +588,10 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
 
+	// Both apps are built up-front, before any request runs: the builders call the
+	// process-global libProblem.Install() (see file header), so building one mid-test would
+	// re-install that hook underneath a surface already in use.
+	v1App := buildHumaTransactionApp(t, infra.handler, true)
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	// Subject pair 1: an APPROVED direct transfer and its reverse. After this pair the origin
@@ -615,6 +626,21 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 
 	// Subject 4: an APPROVED transaction whose reversal is empty.
 	emptyReversalTxID := seedEmptyReversalTransaction(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+
+	// Subject 5: an APPROVED direct transfer whose operations are stamped with a
+	// NON-bidirectional operation route, which is the only input that reaches the
+	// bidirectional-route gate. The route is created and stamped AFTER the transfer settles,
+	// so nothing about the create path changes; the gate reads only op.RouteID off the
+	// transaction's operations and resolves the route by id, so the ledger's route-validation
+	// setting (off in this harness) is irrelevant to reaching it.
+	nonBidiResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
+		`{"description":"revert gate non bidirectional subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`, ""), nethttp.StatusCreated)
+	nonBidiTxID := uuid.MustParse(nonBidiResp["id"].(string))
+	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject should be APPROVED")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	sourceRouteID := postgrestestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "Revert Gate Source Route", "source")
+	stampOperationRoute(t, infra.pgContainer.DB, nonBidiTxID, sourceRouteID)
 
 	unknownTxID := uuid.Must(libCommons.GenerateUUIDv7())
 
@@ -655,11 +681,34 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 			wantCode:   cn.ErrTransactionCantRevert.Error(),
 		},
 		{
-			// The revert read path (FindWithOperations) returns a ZERO-VALUE transaction for a
-			// missing id instead of a not-found error, so the empty status "" trips the
-			// non-APPROVED gate: the observable contract is 409/0099, NOT 404/0007. The v1 leg
-			// asserted after this table proves the same id behaves identically there.
-			name:       "revert of an unknown transaction id conflicts on the empty status",
+			// Only routes whose OperationType is "bidirectional" may be reverted:
+			// ErrRouteNotBidirectional is an UnprocessableOperationError (see pkg/errors.go)
+			// -> 422. Reached because subject 5's operations carry a route_id pointing at a
+			// "source" route.
+			name:       "revert of a transaction on a non-bidirectional route is unprocessable",
+			url:        v2RevertURL(infra.orgID, infra.ledgerID, nonBidiTxID),
+			wantStatus: nethttp.StatusUnprocessableEntity,
+			wantCode:   cn.ErrRouteNotBidirectional.Error(),
+		},
+		{
+			// KNOWN DEFECT — this expectation records the CURRENT behavior, not the intended
+			// contract. A missing entity must render 404 (error-handling standard E3/E5), and
+			// commit/cancel do exactly that for the same input class (404/0007, section 15).
+			// Revert diverges because its read path FindWithOperations
+			// (adapters/postgres/transaction/transaction.postgresql.go) has no sql.ErrNoRows
+			// arm — unlike FindByParentID in the same file — so zero join rows return the
+			// zero-value &Transaction{} with a nil error. The empty status "" then trips the
+			// non-APPROVED gate, and the client sees 409/0099 instead of 404/0007.
+			//
+			// If this starts returning 404/0007 the not-found gap was fixed — update this
+			// expectation, do NOT revert the fix.
+			//
+			// Fixing the read path is OUT OF SCOPE here, and whoever does it must land the
+			// caller guard in the SAME change: revertTransaction dereferences the result
+			// (tran.ParentTransactionID) immediately after the error check, so a fix that
+			// returns (nil, nil) — or any nil transaction with a nil error — converts this
+			// wrong status into a nil-pointer panic.
+			name:       "revert of an unknown transaction id currently conflicts (0099) instead of 404 — KNOWN DEFECT",
 			url:        v2RevertURL(infra.orgID, infra.ledgerID, unknownTxID),
 			wantStatus: nethttp.StatusConflict,
 			wantCode:   cn.ErrCommitTransactionNotPending.Error(),
@@ -676,27 +725,13 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, tc.url, "", "")
-			body := drainBody(t, resp)
-
-			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s: unexpected status; body: %s", tc.name, string(body))
-
-			// Field-level check: unmarshal the RFC 9457 problem+json envelope and assert the
-			// `code` field EQUALS the expected code (not a whole-body substring match, which
-			// could pass on an incidental occurrence anywhere in the payload).
-			var problem struct {
-				Code string `json:"code"`
-			}
-			require.NoErrorf(t, json.Unmarshal(body, &problem), "%s: response body should be valid problem+json; body: %s", tc.name, string(body))
-			assert.Equalf(t, tc.wantCode, problem.Code, "%s: problem+json code field should equal %s; body: %s", tc.name, tc.wantCode, string(body))
+			assertProblemCode(t, postTransaction(t, v2App, tc.url, "", ""), tc.wantStatus, tc.wantCode)
 		})
 	}
 
 	// v1↔v2 ineligibility parity, sampled on the two gates whose contract is easiest to get
 	// wrong: the same subjects rejected through the EXISTING v1 revert endpoint return the
 	// byte-identical problem envelope, so the v2 surface adds no divergent error behavior.
-	v1App := buildHumaTransactionApp(t, infra.handler, true)
-
 	for _, tc := range []struct {
 		name string
 		txID uuid.UUID
@@ -714,12 +749,108 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 		assert.JSONEq(t, string(v1Body), string(v2Body), "%s: v1 and v2 revert must reject with the same problem envelope", tc.name)
 	}
 
-	// Every rejected revert left its subject exactly as it was and persisted nothing: the four
+	// Every rejected revert left its subject exactly as it was and persisted nothing: the five
 	// created transactions plus the seeded degenerate one, and no extra reverse.
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originTxID), "the origin must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, revertTxID), "the reverse must stay APPROVED after the rejected reverts")
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, pendingTxID), "the PENDING subject must stay PENDING")
 	assert.Equal(t, cn.CANCELED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, canceledTxID), "the CANCELED subject must stay CANCELED")
 	assert.Nil(t, postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, emptyReversalTxID), "the degenerate subject must not acquire a reverse")
-	assert.Equal(t, 5, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "rejected reverts must not persist new transactions")
+	assert.Nil(t, postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, nonBidiTxID), "the non-bidirectional subject must not acquire a reverse")
+	assert.Equal(t, 6, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "rejected reverts must not persist new transactions")
+}
+
+// =============================================================================
+// 18. REVERT IDEMPOTENCY IS SCOPED BY ORIGIN: a revert sends no X-Idempotency header, so its
+//     slot is derived entirely inside the create core. The reversal payload is a pure function
+//     of the origin's economic content and carries NO reference to the origin, so keying the
+//     slot on that payload alone makes two economically-identical origins in the same ledger
+//     share ONE slot: the second revert loses the SetNX, replays the FIRST reverse (201 with
+//     parentTransactionId pointing at origin A), and origin B is silently never reverted.
+//     The key must therefore be scoped by the origin transaction id.
+//
+//     Both halves of the contract are asserted here:
+//       (a) two identical origins each get their OWN reverse, linked to their OWN origin;
+//       (b) a repeat revert of the SAME origin still lands on ONE slot and persists nothing —
+//           that shared claim is what serializes the read-then-act race in the
+//           GetParentByTransactionID gate, so widening the key by origin must not make every
+//           revert unique.
+// =============================================================================
+
+func TestIntegration_TransactionV2Revert_IdempotencyScopedByOrigin(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	// 1000 available covers both 100-unit origins and both reversals.
+	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// Two economically-IDENTICAL origins in the SAME ledger: same description, asset, amount,
+	// from and to. The distinct explicit X-Idempotency keys apply to the CREATE calls only —
+	// they are what keeps the two origins two transactions instead of one create replay. The
+	// reversals derived from them are byte-identical payloads, which is precisely the input
+	// class that collides when the revert slot is keyed on the reversal payload alone.
+	const identicalOriginBody = `{"description":"cross origin revert subject","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+
+	originAResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), identicalOriginBody, "cross-origin-create-a"), nethttp.StatusCreated)
+	originAID := uuid.MustParse(originAResp["id"].(string))
+	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originAID), "origin A should be APPROVED")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	originBResp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), identicalOriginBody, "cross-origin-create-b"), nethttp.StatusCreated)
+	originBID := uuid.MustParse(originBResp["id"].(string))
+	require.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, originBID), "origin B should be APPROVED")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	require.NotEqual(t, originAID, originBID, "the two origins must be DISTINCT transactions for this test to mean anything")
+	require.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID), "the two identical creates must both persist")
+
+	// Revert BOTH origins with NO X-Idempotency header, so each revert's slot is derived
+	// entirely by the create core — the collision path under test.
+	revertAResp := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originAID), "", ""), nethttp.StatusCreated)
+	revertAID := uuid.MustParse(revertAResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	revertBResp := decodeTxResponse(t, postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originBID), "", ""), nethttp.StatusCreated)
+	revertBID := uuid.MustParse(revertBResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// (a) Two DISTINCT reverses, each linked to its OWN origin. An equal id — or origin A's id
+	// showing up as origin B's reverse parent — is the replay this test exists to catch.
+	assert.NotEqual(t, revertAID, revertBID,
+		"each origin must get its OWN reverse; an equal id means origin B's revert replayed origin A's cached reverse")
+	assert.Equal(t, originAID.String(), revertAResp["parentTransactionId"], "origin A's reverse must link back to origin A")
+	assert.Equal(t, originBID.String(), revertBResp["parentTransactionId"], "origin B's reverse must link back to origin B, NOT origin A")
+
+	revertAParent := postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, revertAID)
+	require.NotNil(t, revertAParent, "the persisted reverse of origin A must carry a parent")
+	assert.Equal(t, originAID, *revertAParent, "the persisted reverse of origin A must point at origin A")
+
+	revertBParent := postgrestestutil.GetTransactionParentID(t, infra.pgContainer.DB, revertBID)
+	require.NotNil(t, revertBParent, "the persisted reverse of origin B must carry a parent")
+	assert.Equal(t, originBID, *revertBParent, "the persisted reverse of origin B must point at origin B")
+
+	// Both origins really were reverted: 2 origins + 2 reverses.
+	assert.Equal(t, 4, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"both origins must be reverted: 2 origins + 2 distinct reverses")
+
+	// Net balances back to the seeded state, which is only true if BOTH origins were reverted
+	// (a single applied reverse would leave the source at 900 and the destination at 100).
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, srcID), "source available restored after both reverts")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination drained back after both reverts")
+
+	// (b) The preserved invariant: a REPEAT revert of the SAME origin is rejected and persists
+	// nothing. Sequentially the already-has-a-child gate fires first (409/0087); the shared
+	// idempotency claim is what covers the concurrent case the gate cannot.
+	repeat := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originAID), "", "")
+	assertProblemCode(t, repeat, nethttp.StatusConflict, cn.ErrTransactionIDHasAlreadyParentTransaction.Error())
+
+	assert.Equal(t, 4, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"a repeat revert of the SAME origin must not persist a third transaction")
 }

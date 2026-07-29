@@ -162,6 +162,25 @@ func fetchOperationRows(t *testing.T, db *sql.DB, txID uuid.UUID) []operationEco
 	return out
 }
 
+// assertProblemCode drains an error response and asserts its HTTP status plus the `code`
+// field of its RFC 9457 problem+json envelope. The code is compared as a FIELD, not as a
+// whole-body substring, so an incidental occurrence of the same digits anywhere else in the
+// payload cannot make the assertion pass. The failing body is dumped on every mismatch.
+func assertProblemCode(t *testing.T, resp *nethttp.Response, wantStatus int, wantCode string) {
+	t.Helper()
+
+	body := drainBody(t, resp)
+
+	assert.Equalf(t, wantStatus, resp.StatusCode, "unexpected status; body: %s", string(body))
+
+	var problem struct {
+		Code string `json:"code"`
+	}
+
+	require.NoErrorf(t, json.Unmarshal(body, &problem), "response body should be valid problem+json; body: %s", string(body))
+	assert.Equalf(t, wantCode, problem.Code, "problem+json code field should equal %s; body: %s", wantCode, string(body))
+}
+
 // requireDecimalEqual asserts two decimals are numerically equal (no float comparison).
 func requireDecimalEqual(t *testing.T, want, got decimal.Decimal, msgAndArgs ...any) {
 	t.Helper()
@@ -189,6 +208,11 @@ var volatileResponseKeys = map[string]struct{}{
 
 // stripVolatile recursively removes identity/timestamp keys so the remaining tree is the
 // economic content of the transaction response.
+//
+// `route` / `routeId` are in that stripped set, so route linkage is deliberately OUTSIDE the
+// economic-parity envelope: a deep-equal over the result proves nothing about whether two
+// surfaces resolve the same operation/transaction route. Route linkage needs its own targeted
+// assertion (see the revert bidirectional-route case in the lifecycle file).
 func stripVolatile(v any) any {
 	switch node := v.(type) {
 	case map[string]any:
