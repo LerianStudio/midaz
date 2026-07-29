@@ -180,12 +180,11 @@ func TestCreateTransactionDirectV2Huma_ValidBodyEntersFunnel(t *testing.T) {
 		"valid body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500; committed path is the integration+parity test)")
 }
 
-// buildHumaV2HoldApp mounts the v2 `hold` transaction op on a fresh Fiber app + its own
-// /v2 Huma contract, mirroring buildHumaV2DirectApp. The production seam registers only
-// `direct` today (the hold route ships in a later phase), so this test wires the hold
-// terminal directly — the SAME Fiber auth/tenant/ParseUUIDPathParameters chain plus the
-// SkipValidateBody Huma op the direct route carries — to exercise CreateTransactionHoldV2Huma
-// across the transport boundary. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
+// buildHumaV2HoldApp mounts the v2 `hold` transaction op alone on a fresh Fiber app + its
+// own /v2 Huma contract, mirroring buildHumaV2DirectApp. Wiring the single terminal — with
+// the SAME Fiber auth/tenant/ParseUUIDPathParameters chain and SkipValidateBody Huma op the
+// production route carries — keeps a failure attributable to the hold handler rather than to
+// any sibling op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
 // libProblem.Install() and Huma validation use process-global state.
 func buildHumaV2HoldApp(t *testing.T, handler *TransactionHandler) *fiber.App {
 	t.Helper()
@@ -337,8 +336,8 @@ func TestCreateTransactionV2_CancelledContext(t *testing.T) {
 // decodeAndBuildV2Transaction — the EXACT mtransaction.Transaction createTransactionV2 passes
 // into createTransactionShell — so the assertion goes red if the override-stamping line is
 // removed (it is a real check, not a status/idempotency tautology). The persisted
-// Operation.Type effect of this override is exercised end-to-end by the Epic 2.2
-// block/unblock integration test, once that route lands.
+// Operation.Type effect of this override is exercised end-to-end by the block/unblock
+// integration test.
 func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
@@ -352,13 +351,12 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 		"the block action is non-pending; Translate must carry pending=false through to the funnel")
 }
 
-// buildHumaV2ActionApp mounts a single v2 transaction action (block/unblock) on a fresh
-// Fiber app + its own /v2 Huma contract, mirroring buildHumaV2HoldApp. The production seam
-// registers only `direct` today (block/unblock ship later), so this wires the action
-// terminal directly — the SAME Fiber auth/tenant/ParseUUIDPathParameters chain plus the
-// SkipValidateBody Huma op the direct route carries — to exercise the block/unblock handlers
-// across the transport boundary. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp:
-// libProblem.Install() and Huma validation use process-global state.
+// buildHumaV2ActionApp mounts a single named v2 create action on a fresh Fiber app + its own
+// /v2 Huma contract. Wiring one terminal at a time — with the SAME Fiber
+// auth/tenant/ParseUUIDPathParameters chain and SkipValidateBody Huma op the production route
+// carries — keeps a failure attributable to the handler under test rather than to any sibling
+// op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp: libProblem.Install() and
+// Huma validation use process-global state.
 func buildHumaV2ActionApp(t *testing.T, handler *TransactionHandler, action string, op func(context.Context, *CreateTransactionDirectV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
 	t.Helper()
 
@@ -574,7 +572,7 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 
 // TestV2IdempotencyHashSource_DiscriminatesActions locks the no-key idempotency mapping: the
 // v2 action is carried by the endpoint, so each action must fold a distinct identity into the
-// hash source. Direct MUST stay byte-identical to the bare body (Phase 1 direct contract);
+// hash source. Direct MUST stay byte-identical to the bare body (its established contract);
 // every other action prefixes its discriminator + NUL. This is the observable guarantee that
 // byte-identical bodies posted to different actions never share an idempotency slot.
 func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
@@ -606,7 +604,7 @@ func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 		})
 	}
 
-	// Direct is byte-identical to the bare body: this exact invariant keeps the Phase 1 direct
+	// Direct is byte-identical to the bare body: this exact invariant keeps the existing direct
 	// idempotency tests green unchanged.
 	assert.Equal(t, v2DirectBody, v2IdempotencyHashSource(body, false, ""),
 		"direct's hash source MUST remain exactly the bare body")

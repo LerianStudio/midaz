@@ -618,8 +618,9 @@ func v2HoldURL(orgID, ledgerID uuid.UUID) string {
 	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/hold"
 }
 
-// v1CommitURL builds the concrete v1 commit path for a pending transaction. v2 has no
-// commit op yet (Phase 3), so a v2-held transaction settles through the v1 commit endpoint.
+// v1CommitURL builds the concrete v1 commit path for a pending transaction. It is used
+// deliberately against transactions held through v2, to prove the two surfaces settle the
+// same hold — not because v2 lacks a commit op of its own.
 func v1CommitURL(orgID, ledgerID, txID uuid.UUID) string {
 	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/commit"
 }
@@ -719,10 +720,10 @@ func TestIntegration_TransactionV2Hold_ParityWithV1PendingJSON(t *testing.T) {
 }
 
 // =============================================================================
-// 7. HOLD COMMIT (lifecycle): a v2-held transaction is committable through the existing
-//    v1 commit endpoint (v2 commit is Phase 3). Commit settles the hold: the source
-//    on-hold releases and the destination credit applies, the transaction flips to
-//    APPROVED, and the full ON_HOLD + DEBIT + CREDIT operation set is present.
+// 7. HOLD COMMIT (lifecycle): a v2-held transaction is committable through the v1 commit
+//    endpoint, proving the hold is settleable from either surface. Commit settles the hold:
+//    the source on-hold releases and the destination credit applies, the transaction flips
+//    to APPROVED, and the full ON_HOLD + DEBIT + CREDIT operation set is present.
 // =============================================================================
 
 func TestIntegration_TransactionV2Hold_CommitSettles(t *testing.T) {
