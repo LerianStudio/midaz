@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,41 +35,47 @@ const cancelV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 const revertV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert"
 
 // v2Routes enumerates every registered v2 transaction op: the Fiber path the protected
-// chain mounts, the group-relative path the Huma contract advertises, and the OperationID
-// clients key off. The create actions take the action name straight off the collection
-// path; the lifecycle actions hang off :transaction_id. Defaulting to 201 Created holds
-// for all of them, so it is asserted as a shared invariant instead of a per-case field.
-// opPath is spelled out rather than derived from fiberPath so a typo in either const
-// cannot pass both the mount and the contract assertion.
+// chain mounts, the group-relative path the Huma contract advertises, the OperationID
+// clients key off, and whether the op carries a request body. The create actions take the
+// action name straight off the collection path; the lifecycle actions hang off
+// :transaction_id and are bodiless. Defaulting to 201 Created holds for all of them, so it
+// is asserted as a shared invariant instead of a per-case field. opPath is spelled out
+// rather than derived from fiberPath so a typo in either const cannot pass both the mount
+// and the contract assertion.
 var v2Routes = []struct {
 	action      string
 	fiberPath   string
 	opPath      string
 	operationID string
+	hasBody     bool
 }{
 	{
 		action:      "direct",
 		fiberPath:   directV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct",
 		operationID: "createTransactionDirectV2",
+		hasBody:     true,
 	},
 	{
 		action:      "hold",
 		fiberPath:   holdV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold",
 		operationID: "createTransactionHoldV2",
+		hasBody:     true,
 	},
 	{
 		action:      "block",
 		fiberPath:   blockV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block",
 		operationID: "createTransactionBlockV2",
+		hasBody:     true,
 	},
 	{
 		action:      "unblock",
 		fiberPath:   unblockV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock",
 		operationID: "createTransactionUnblockV2",
+		hasBody:     true,
 	},
 	{
 		action:      "commit",
@@ -141,20 +148,29 @@ func TestRegisterTransactionV2RoutesToApp_MountsRoutes(t *testing.T) {
 	}
 }
 
-// TestRegisterTransactionV2Routes_RegistersHumaOperations asserts every v2 transaction op
-// is present on the v2 Huma document at its group-relative path, advertising the canonical
-// OperationID and defaulting to 201 Created.
-func TestRegisterTransactionV2Routes_RegistersHumaOperations(t *testing.T) {
-	t.Parallel()
-
+// registerV2TransactionContractForTest builds a fresh /v2 Huma document with its own
+// component registry and registers only the v2 transaction contract onto it, mirroring the
+// production humaMountV2 seam (namer installed before any huma.Register). It returns the
+// document so contract assertions read paths and components off the same instance.
+func registerV2TransactionContractForTest() *huma.OpenAPI {
 	app := fiber.New()
+
 	apiV2 := app.Group("/v2")
 	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
 	RegisterTransactionV2Routes(humaAPI, &TransactionHandler{})
 
-	paths := humaAPI.OpenAPI().Paths
+	return humaAPI.OpenAPI()
+}
+
+// TestRegisterTransactionV2Routes_RegistersHumaOperations asserts every v2 transaction op
+// is present on the v2 Huma document at its group-relative path, advertising the canonical
+// OperationID and defaulting to 201 Created.
+func TestRegisterTransactionV2Routes_RegistersHumaOperations(t *testing.T) {
+	t.Parallel()
+
+	paths := registerV2TransactionContractForTest().Paths
 
 	for _, rt := range v2Routes {
 		t.Run(rt.action, func(t *testing.T) {
@@ -195,6 +211,146 @@ func TestV2Routes_RequireAuth(t *testing.T) {
 
 			assert.Equalf(t, fiber.StatusUnauthorized, resp.StatusCode,
 				"tokenless v2 %s request must be rejected by the transactions:post auth chain", rt.action)
+		})
+	}
+}
+
+// v2CreateBodySchemaName is the component name the v2 create-body schema is published
+// under, and v2CreateBodySchemaRef the ref that names it. Both are spelled literally so a
+// rename of the registered Go type shows up here instead of silently changing the served
+// contract and every generated client.
+const (
+	v2CreateBodySchemaName = "CreateTransactionV2Input"
+	v2CreateBodySchemaRef  = "#/components/schemas/" + v2CreateBodySchemaName
+)
+
+// TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops
+// describe their body with a $ref to the published input component instead of the opaque
+// `string`/`binary` schema Huma derives from a RawBody field. The bodiless lifecycle ops
+// must stay free of a requestBody.
+func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerV2TransactionContractForTest()
+
+	assert.Containsf(t, oapi.Components.Schemas.Map(), v2CreateBodySchemaName,
+		"v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
+
+	for _, rt := range v2Routes {
+		t.Run(rt.action, func(t *testing.T) {
+			t.Parallel()
+
+			pathItem, ok := oapi.Paths[rt.opPath]
+			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
+			require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
+
+			if !rt.hasBody {
+				assert.Nilf(t, pathItem.Post.RequestBody,
+					"bodiless lifecycle op %s must not advertise a requestBody", rt.action)
+
+				return
+			}
+
+			require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
+
+			media, ok := pathItem.Post.RequestBody.Content["application/json"]
+			require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
+			require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
+			require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
+
+			assert.Equalf(t, v2CreateBodySchemaRef, media.Schema.Ref,
+				"%s op body schema should $ref the published v2 input component", rt.action)
+			assert.Emptyf(t, media.Schema.Format,
+				"%s op body schema must not stay the opaque binary RawBody schema", rt.action)
+		})
+	}
+}
+
+// newV2DocForTest returns a bare /v2 Huma document with the ledger namer installed and no
+// operations registered, the starting point for the body-schema publisher's guard cases.
+func newV2DocForTest() huma.API {
+	app := fiber.New()
+
+	apiV2 := app.Group("/v2")
+	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "Midaz Ledger API v2", Version: "4.0.0", Servers: []string{"/v2"}})
+	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
+
+	return humaAPI
+}
+
+// TestPublishV2CreateBodySchema_DegradesToNoOp asserts the publisher leaves the contract
+// alone instead of panicking when there is nothing to attach a body schema to: a spec-disabled
+// API, a document missing its component registry, a base path carrying no create ops, and a
+// create op whose body is not JSON. None of them may publish the component either — it is
+// registered only when it is actually referenced.
+func TestPublishV2CreateBodySchema_DegradesToNoOp(t *testing.T) {
+	t.Parallel()
+
+	const basePath = "/transactions"
+
+	tests := []struct {
+		name string
+		api  func() huma.API
+	}{
+		{
+			name: "nil api",
+			api:  func() huma.API { return nil },
+		},
+		{
+			name: "document without components",
+			api: func() huma.API {
+				api := newV2DocForTest()
+				api.OpenAPI().Components = nil
+
+				return api
+			},
+		},
+		{
+			name: "document without a schema registry",
+			api: func() huma.API {
+				api := newV2DocForTest()
+				api.OpenAPI().Components.Schemas = nil
+
+				return api
+			},
+		},
+		{
+			name: "no create op registered at the base path",
+			api:  newV2DocForTest,
+		},
+		{
+			name: "create op body is not json",
+			api: func() huma.API {
+				api := newV2DocForTest()
+				api.OpenAPI().Paths = map[string]*huma.PathItem{
+					basePath + "/direct": {Post: &huma.Operation{
+						RequestBody: &huma.RequestBody{
+							Content: map[string]*huma.MediaType{"text/plain": {}},
+						},
+					}},
+				}
+
+				return api
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := tc.api()
+
+			require.NotPanics(t, func() { publishV2CreateBodySchema(api, basePath) })
+
+			if api == nil {
+				return
+			}
+
+			if components := api.OpenAPI().Components; components != nil && components.Schemas != nil {
+				assert.NotContains(t, components.Schemas.Map(), v2CreateBodySchemaName,
+					"body component should be published only when an op references it")
+			}
 		})
 	}
 }

@@ -6,11 +6,13 @@ package in
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -42,7 +44,8 @@ import (
 // v2-specific handler, and no idempotency HEADERS, since they carry no body or headers.
 // Auth is the Fiber guard chain attached in RegisterTransactionV2RoutesToApp BEFORE
 // this terminal, not here — the per-op Security metadata is SPEC-ONLY. Paths are
-// GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry).
+// GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry). Once every op is
+// registered, publishV2CreateBodySchema gives the create ops a typed request-body schema.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions"
 
@@ -125,6 +128,61 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
 	}, h.RevertTransactionHuma)
+
+	publishV2CreateBodySchema(api, transactionsBasePath)
+}
+
+// v2CreateBodyContentType is the media type the v2 create ops accept, matching the
+// `contentType` tag on CreateTransactionV2InputHuma.RawBody — the key Huma files the
+// request body under.
+const v2CreateBodyContentType = "application/json"
+
+// v2CreateActionPaths are the action suffixes of the v2 create ops, the ones that carry a
+// body. The lifecycle ops (commit/cancel/revert) are absent because they are bodiless and
+// have no request body to describe.
+var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
+
+// publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
+// with a $ref to the typed v2 input component, so the contract documents the accepted
+// fields instead of an unstructured byte stream.
+//
+// It must run AFTER every huma.Register in this function: Register is what creates
+// op.RequestBody, and Huma derives that body from the RawBody field — writing
+// {type: string, format: binary} and overwriting whatever a Body field would have
+// produced. RawBody is kept (not swapped for a Body field) because the body bytes reach
+// the handler exactly as submitted, which the idempotency hash source depends on, and
+// because Huma would overwrite a Body-derived schema anyway. Runtime is unaffected:
+// SkipValidateBody stays set, so pkgHTTP.DecodeAndValidate remains the sole body validator.
+//
+// Nil-guards the document and every op it touches so a spec-disabled build, or a create
+// action that stops registering, degrades to a no-op instead of panicking.
+func publishV2CreateBodySchema(api huma.API, basePath string) {
+	if api == nil {
+		return
+	}
+
+	oapi := api.OpenAPI()
+	if oapi == nil || oapi.Components == nil || oapi.Components.Schemas == nil {
+		return
+	}
+
+	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+
+	for _, action := range v2CreateActionPaths {
+		pathItem, ok := oapi.Paths[basePath+action]
+		if !ok || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+			continue
+		}
+
+		media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
+		if !ok || media == nil {
+			continue
+		}
+
+		// Registering is idempotent for a given type; each call hands back a fresh $ref
+		// so the ops never share one schema value.
+		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+	}
 }
 
 // RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,

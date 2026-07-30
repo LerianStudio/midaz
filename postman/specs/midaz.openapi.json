@@ -9448,9 +9448,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9548,9 +9546,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9648,9 +9644,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -9748,9 +9742,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "contentMediaType": "application/octet-stream",
-                "format": "binary",
-                "type": "string"
+                "$ref": "#/components/schemas/CreateTransactionV2Input"
               }
             }
           },
@@ -15583,6 +15575,54 @@
         "required": [
           "code",
           "description"
+        ],
+        "type": "object"
+      },
+      "CreateTransactionV2Input": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRouteId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount",
+          "from",
+          "to"
         ],
         "type": "object"
       },
