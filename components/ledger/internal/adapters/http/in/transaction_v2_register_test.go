@@ -266,6 +266,50 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 	}
 }
 
+// v2CreateBodyRequiredFields are the ONLY fields the published create-body component may
+// mark required: the ones common to both request forms. The side fields are deliberately
+// absent — `from`/`to` and `sources`/`destinations` are alternative spellings of the same
+// two sides, so requiring any of them would declare one form mandatory.
+var v2CreateBodyRequiredFields = []string{"asset", "amount"}
+
+// v2CreateBodySideFields are the four side fields of the request body: the scalar pair and
+// the leg-array pair.
+var v2CreateBodySideFields = []string{"from", "to", "sources", "destinations"}
+
+// TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms asserts the published
+// create-body component keeps the or/or between the scalar and array forms out of
+// `required`: each side field is documented as a property but none of them is mandatory,
+// while the fields common to both forms stay required. This is what the explicit
+// `required:"false"` tags on the leg arrays buy — Huma treats a field without `omitempty`
+// as required unless the tag says otherwise, so without them the contract would advertise
+// the array form as the only one. Since the flat component cannot express the exclusivity
+// structurally, the component description must state it and name every side field.
+func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing.T) {
+	t.Parallel()
+
+	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2CreateBodySchemaName]
+	require.Truef(t, ok, "v2 contract should publish the create-body component %s", v2CreateBodySchemaName)
+	require.NotNilf(t, schema, "published %s component should not be nil", v2CreateBodySchemaName)
+
+	assert.ElementsMatchf(t, v2CreateBodyRequiredFields, schema.Required,
+		"%s should require only the fields common to both request forms", v2CreateBodySchemaName)
+	require.NotEmptyf(t, schema.Description,
+		"%s is the only place the scalar-or-arrays exclusivity can be stated", v2CreateBodySchemaName)
+
+	for _, field := range v2CreateBodySideFields {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Containsf(t, schema.Properties, field,
+				"%s should document the %s side field as a property", v2CreateBodySchemaName, field)
+			assert.NotContainsf(t, schema.Required, field,
+				"%s must not mark the %s side field required", v2CreateBodySchemaName, field)
+			assert.Containsf(t, schema.Description, field,
+				"%s description should name the %s side field when spelling out the or/or", v2CreateBodySchemaName, field)
+		})
+	}
+}
+
 // newV2DocForTest returns a bare /v2 Huma document with the ledger namer installed and no
 // operations registered, the starting point for the body-schema publisher's guard cases.
 func newV2DocForTest() huma.API {

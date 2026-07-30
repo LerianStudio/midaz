@@ -5,6 +5,7 @@
 package mtransaction_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -60,13 +61,34 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "missing from fails",
+			// Struct tags cannot express "exactly one of (from, sources)", so the
+			// side obligation is a Translate rule and struct validation lets a
+			// missing scalar side through.
+			name:    "missing from passes struct validation",
 			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.From = "" },
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name:    "missing to fails",
+			name:    "missing to passes struct validation",
 			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.To = "" },
+			wantErr: false,
+		},
+		{
+			name: "leg array form without either scalar side passes struct validation",
+			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+				in.From = ""
+				in.To = ""
+				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", Remaining: true}}
+				in.Destinations = []mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}}
+			},
+			wantErr: false,
+		},
+		{
+			name: "non-UUID per-leg operationRouteId fails (dive + uuid tag)",
+			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+				bad := "not-a-uuid"
+				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", OperationRouteID: &bad}}
+			},
 			wantErr: true,
 		},
 		{
@@ -130,6 +152,184 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+		})
+	}
+}
+
+// TestCreateTransactionV2Input_GroupFieldTags locks the struct-tag shape of the two
+// discriminated side groups. Every tag asserted here is load-bearing:
+//
+//   - `from`/`to` carry no `validate:"required"`: a struct tag cannot express
+//     "exactly one of a pair", so the side obligation is decided in Translate.
+//   - `sources`/`destinations` carry no `omitempty`: an explicit `"sources": []`
+//     would otherwise vanish from the unknown-field re-marshal and be rejected as an
+//     unknown field instead of reaching the side discriminator.
+//   - `sources`/`destinations` carry `required:"false"`: dropping `omitempty` is
+//     what normally keeps a field out of the published `required` list, so without
+//     the explicit tag the contract would declare the array form mandatory.
+//   - `sources`/`destinations` carry `validate:"dive"`: without it the per-leg
+//     `validate:"omitempty,uuid"` on a leg route is never evaluated.
+func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
+	t.Parallel()
+
+	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+	legSliceType := reflect.TypeFor[[]mtransaction.V2LegInput]()
+
+	tests := []struct {
+		field           string
+		wantType        reflect.Type
+		wantJSON        string
+		wantValidate    string
+		wantRequiredTag string
+		hasRequiredTag  bool
+	}{
+		{
+			field:    "From",
+			wantType: reflect.TypeFor[string](),
+			wantJSON: "from,omitempty",
+		},
+		{
+			field:    "To",
+			wantType: reflect.TypeFor[string](),
+			wantJSON: "to,omitempty",
+		},
+		{
+			field:           "Sources",
+			wantType:        legSliceType,
+			wantJSON:        "sources",
+			wantValidate:    "dive",
+			wantRequiredTag: "false",
+			hasRequiredTag:  true,
+		},
+		{
+			field:           "Destinations",
+			wantType:        legSliceType,
+			wantJSON:        "destinations",
+			wantValidate:    "dive",
+			wantRequiredTag: "false",
+			hasRequiredTag:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			t.Parallel()
+
+			field, ok := inputType.FieldByName(tt.field)
+			require.Truef(t, ok, "CreateTransactionV2Input should carry a %s field", tt.field)
+			assert.Equalf(t, tt.wantType, field.Type, "%s should mirror the v2 leg shape, not a canonical type", tt.field)
+			assert.Equalf(t, tt.wantJSON, field.Tag.Get("json"), "%s json tag", tt.field)
+			assert.Equalf(t, tt.wantValidate, field.Tag.Get("validate"), "%s validate tag", tt.field)
+
+			requiredTag, present := field.Tag.Lookup("required")
+			assert.Equalf(t, tt.hasRequiredTag, present, "%s required tag presence", tt.field)
+			assert.Equalf(t, tt.wantRequiredTag, requiredTag, "%s required tag value", tt.field)
+		})
+	}
+}
+
+// TestCreateTransactionV2Input_DecodeLegGroups drives the array group through the real
+// request pipeline (DecodeAndValidate: unmarshal -> unknown-field re-marshal ->
+// struct validation), which is where the no-`omitempty` and `dive` tag choices become
+// observable: explicit empty arrays stay known fields, a leg field the group does not
+// expose is rejected, and a malformed per-leg route is caught at the decode boundary
+// instead of deep in the funnel.
+func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		body    string
+		wantErr bool
+		verify  func(t *testing.T, in mtransaction.CreateTransactionV2Input)
+	}{
+		{
+			name: "explicit empty leg arrays stay known fields",
+			body: `{"asset":"BRL","amount":"1000","sources":[],"destinations":[]}`,
+			verify: func(t *testing.T, in mtransaction.CreateTransactionV2Input) {
+				t.Helper()
+
+				require.NotNil(t, in.Sources, "an explicit [] must decode to an empty, non-nil slice")
+				require.NotNil(t, in.Destinations, "an explicit [] must decode to an empty, non-nil slice")
+				assert.Empty(t, in.Sources)
+				assert.Empty(t, in.Destinations)
+			},
+		},
+		{
+			name: "omitted leg arrays leave the scalar form intact",
+			body: `{"asset":"BRL","amount":"1000","from":"@person1","to":"@person2"}`,
+			verify: func(t *testing.T, in mtransaction.CreateTransactionV2Input) {
+				t.Helper()
+
+				assert.Equal(t, "@person1", in.From)
+				assert.Equal(t, "@person2", in.To)
+				assert.Nil(t, in.Sources)
+				assert.Nil(t, in.Destinations)
+			},
+		},
+		{
+			name: "populated leg arrays decode every value expression",
+			body: `{"asset":"BRL","amount":"1000",` +
+				`"sources":[{"account":"@person1","share":{"percentage":60,"percentageOfPercentage":50}},` +
+				`{"account":"@person2","remaining":true}],` +
+				`"destinations":[{"account":"@person3","amount":"1000","operationRouteId":"11111111-1111-1111-1111-111111111111"}]}`,
+			verify: func(t *testing.T, in mtransaction.CreateTransactionV2Input) {
+				t.Helper()
+
+				assert.Empty(t, in.From, "array form must leave the scalar side empty")
+				assert.Empty(t, in.To, "array form must leave the scalar side empty")
+
+				require.Len(t, in.Sources, 2)
+				assert.Equal(t, "@person1", in.Sources[0].Account)
+				require.NotNil(t, in.Sources[0].Share)
+				assert.Equal(t, int64(60), in.Sources[0].Share.Percentage)
+				assert.Equal(t, int64(50), in.Sources[0].Share.PercentageOfPercentage)
+				assert.False(t, in.Sources[0].Remaining)
+				assert.Empty(t, in.Sources[0].Amount)
+
+				assert.Equal(t, "@person2", in.Sources[1].Account)
+				assert.True(t, in.Sources[1].Remaining)
+				assert.Nil(t, in.Sources[1].Share)
+
+				require.Len(t, in.Destinations, 1)
+				assert.Equal(t, "@person3", in.Destinations[0].Account)
+				assert.Equal(t, "1000", in.Destinations[0].Amount)
+				require.NotNil(t, in.Destinations[0].OperationRouteID)
+				assert.Equal(t, "11111111-1111-1111-1111-111111111111", *in.Destinations[0].OperationRouteID)
+			},
+		},
+		{
+			name: "malformed per-leg operationRouteId is rejected at decode",
+			body: `{"asset":"BRL","amount":"1000",` +
+				`"sources":[{"account":"@person1","operationRouteId":"not-a-uuid"}],` +
+				`"destinations":[{"account":"@person2","remaining":true}]}`,
+			wantErr: true,
+		},
+		{
+			name: "leg field outside the exposed group is an unknown field",
+			body: `{"asset":"BRL","amount":"1000",` +
+				`"sources":[{"account":"@person1","balanceKey":"default"}],` +
+				`"destinations":[{"account":"@person2","remaining":true}]}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var in mtransaction.CreateTransactionV2Input
+
+			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, tt.verify)
+			tt.verify(t, in)
 		})
 	}
 }

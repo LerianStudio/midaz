@@ -10218,6 +10218,13 @@ components:
       type: object
     CreateTransactionV2Input:
       additionalProperties: false
+      description: >-
+        Transaction request body. Send EITHER the scalar side fields `from` and
+        `to`, OR the leg arrays `sources` and `destinations` — never both in the
+        same request. `asset`, `amount`, `description`, `code`, `routeId`,
+        `operationRouteId` and `metadata` are common to both forms, and `amount`
+        is always the transaction total that the legs' `share` and `remaining`
+        expressions divide.
       properties:
         amount:
           type: string
@@ -10227,6 +10234,12 @@ components:
           type: string
         description:
           type: string
+        destinations:
+          items:
+            $ref: '#/components/schemas/V2LegInput'
+          type:
+            - array
+            - 'null'
         from:
           type: string
         metadata:
@@ -10242,13 +10255,48 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        sources:
+          items:
+            $ref: '#/components/schemas/V2LegInput'
+          type:
+            - array
+            - 'null'
         to:
           type: string
       required:
         - asset
         - amount
-        - from
-        - to
+      type: object
+    V2LegInput:
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+        amount:
+          type: string
+        operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        remaining:
+          type: boolean
+        share:
+          $ref: '#/components/schemas/V2ShareInput'
+      required:
+        - account
+      type: object
+    V2ShareInput:
+      additionalProperties: false
+      properties:
+        percentage:
+          format: int64
+          type: integer
+        percentageOfPercentage:
+          format: int64
+          type: integer
+      required:
+        - percentage
       type: object
     AccountContext:
       additionalProperties: false

@@ -418,9 +418,12 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 		wantStatus int
 	}{
 		{
-			// `from` is validate:"required" on CreateTransactionV2Input; the imperative
-			// DecodeAndValidate surfaces a ValidationError -> canonical 400 before the funnel.
-			name:       "missing required from field",
+			// Each side is spelled EITHER scalar (`from`) or as a leg array
+			// (`sources`), so requiring a side is a request-shape rule across a pair of
+			// fields, not a per-field one. No struct tag expresses that, which is why —
+			// unlike the `asset` case below — this body is not rejected by
+			// DecodeAndValidate's struct validation.
+			name:       "missing from field",
 			body:       `{"asset":"USD","amount":"100","to":"@dst"}`,
 			wantStatus: nethttp.StatusBadRequest,
 		},

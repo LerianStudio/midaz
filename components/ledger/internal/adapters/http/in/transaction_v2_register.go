@@ -142,9 +142,20 @@ const v2CreateBodyContentType = "application/json"
 // have no request body to describe.
 var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
 
+// v2CreateBodyDescription is the prose the published create-body component carries. The
+// component stays ONE flat object listing both spellings of the transaction sides, so the
+// mutual exclusivity between them has no structural expression in the schema and has to be
+// stated here.
+const v2CreateBodyDescription = "Transaction request body. Send EITHER the scalar side " +
+	"fields `from` and `to`, OR the leg arrays `sources` and `destinations` — never both in " +
+	"the same request. `asset`, `amount`, `description`, `code`, `routeId`, " +
+	"`operationRouteId` and `metadata` are common to both forms, and `amount` is always the " +
+	"transaction total that the legs' `share` and `remaining` expressions divide."
+
 // publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
 // with a $ref to the typed v2 input component, so the contract documents the accepted
-// fields instead of an unstructured byte stream.
+// fields instead of an unstructured byte stream. It also stamps the component with
+// v2CreateBodyDescription, the only place the scalar-or-arrays exclusivity is expressed.
 //
 // It must run AFTER every huma.Register in this function: Register is what creates
 // op.RequestBody, and Huma derives that body from the RawBody field — writing
@@ -168,6 +179,8 @@ func publishV2CreateBodySchema(api huma.API, basePath string) {
 
 	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
 
+	var bodyRef string
+
 	for _, action := range v2CreateActionPaths {
 		pathItem, ok := oapi.Paths[basePath+action]
 		if !ok || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
@@ -182,6 +195,17 @@ func publishV2CreateBodySchema(api huma.API, basePath string) {
 		// Registering is idempotent for a given type; each call hands back a fresh $ref
 		// so the ops never share one schema value.
 		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+		bodyRef = media.Schema.Ref
+	}
+
+	// Empty when no create op referenced the type, in which case nothing was registered
+	// and there is no component to describe.
+	if bodyRef == "" {
+		return
+	}
+
+	if component := oapi.Components.Schemas.SchemaFromRef(bodyRef); component != nil {
+		component.Description = v2CreateBodyDescription
 	}
 }
 
