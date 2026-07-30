@@ -144,7 +144,7 @@ var (
 	}
 
 	// DBReadSourceTotal counts read-routing decisions by the source that served
-	// the read (RF-06). Counter. Single bounded label: source (primary|replica).
+	// the read. Counter. Single bounded label: source (primary|replica).
 	// Per-operation granularity is the span (db.read_source attribute), not a label.
 	DBReadSourceTotal = metrics.Metric{
 		Name:        "db_read_source_total",

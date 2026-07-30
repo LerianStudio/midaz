@@ -269,7 +269,7 @@ func attributeValue(span sdktrace.ReadOnlySpan, key string) (string, bool) {
 	return "", false
 }
 
-// TestReadSourceObservability locks the RF-06 read-source signal: AcquireReadFrom
+// TestReadSourceObservability locks the read-source signal: AcquireReadFrom
 // returns ReadSourcePrimary only when routeToPrimary AND the primary-read intent
 // is present, else ReadSourceReplica; and it records db.read_source on the
 // caller's span matching the returned source in BOTH success branches.
@@ -383,7 +383,7 @@ func collectReadSourceCounters(t *testing.T, reader *sdkmetric.ManualReader) map
 	return totals
 }
 
-// TestReadSource_EmitsCounter locks the metric half of the RF-06 signal: when a
+// TestReadSource_EmitsCounter locks the metric half of the read-source signal: when a
 // real MetricsFactory is present on the context, AcquireReadFrom emits
 // db_read_source_total once per call with the correct source label, for BOTH the
 // primary branch (flag on + intent) and the replica branch (flag off). The read

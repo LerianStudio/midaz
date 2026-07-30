@@ -110,7 +110,7 @@ func AcquireReadFrom(ctx context.Context, conn ReadConn, routeToPrimary bool) (r
 	return tx, release, ReadSourcePrimary, nil
 }
 
-// recordReadSource emits the RF-06 read-source signal for a served read: the
+// recordReadSource emits the read-source signal for a served read: the
 // db.read_source attribute on the caller's existing span and the
 // db_read_source_total counter. It is best-effort — an unavailable metrics
 // factory is swallowed at Debug and never fails the read; it never panics and
