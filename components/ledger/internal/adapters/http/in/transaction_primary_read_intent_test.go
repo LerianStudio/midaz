@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"strings"
 	"testing"
 
@@ -29,10 +30,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// TestCreateTransaction_MarksPrimaryReadIntent locks the ADR-001 decision that
-// the transaction-create flow marks its pre-write balance reads with the
-// primary-read intent so the read-routing seam can steer the DB miss to the
-// primary. It asserts on the two facets that make the mechanism real:
+// TestCreateTransaction_MarksPrimaryReadIntent verifies the create flow marks
+// the primary-read intent before its pre-write balance reads so the read-routing
+// seam can steer the DB miss to the primary. It asserts on the two facets that
+// make the mechanism real:
 //
 //  1. Mechanism: the intent marker survives the exact call sequence the handler
 //     uses. GetBalances (the direct pre-write read) and enrichOverdraftOperations
@@ -255,4 +256,201 @@ func stmtCallsSelector(stmt ast.Stmt, pkg, fn string) bool {
 	})
 
 	return found
+}
+
+// TestCommitCancel_MarksPrimaryReadIntent locks the decision that the
+// commit/cancel state-transition flow marks its pre-write balance read with the
+// primary-read intent. The read at the GetBalances call site feeds
+// buildBalanceOperations and (on cancel) enrichOverdraftOperations, whose result
+// seeds the authoritative balance via the NX-seed — the stale-read money-
+// corruption scenario the seam guards against. It asserts:
+//
+//  1. Mechanism: the intent marker survives the exact call sequence the handler
+//     uses — GetBalances and the cancel overdraft-enrichment read (which reuses
+//     the SAME ctx) both forward a marked ctx down to the balance DB seam target.
+//     A negative baseline proves an unmarked ctx stays unmarked.
+//  2. Placement: a structural guard over the live source of
+//     commitOrCancelTransaction proves the `readrouting.WithPrimaryRead(ctx)`
+//     wrap exists AND sits AFTER the validation-only reads (GetParsedLedgerSettings)
+//     and BEFORE the GetBalances read, so validation-only reads are not marked
+//     while both pre-write balance reads are.
+func TestCommitCancel_MarksPrimaryReadIntent(t *testing.T) {
+	t.Run("direct_balance_read_forwards_marked_ctx_to_db_seam", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		captured, uc := newPrimaryReadCapturingUseCase(ctrl)
+
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		aliases := []string{"@alice#default"}
+
+		ctx := readrouting.WithPrimaryRead(context.Background())
+
+		_, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
+		require.NoError(t, err)
+
+		require.True(t, captured.seen, "balance DB repository was never reached; the cache-miss path must fall through to the seam target")
+		assert.True(t, captured.primaryRead, "the ctx reaching the balance DB seam must carry the primary-read intent")
+	})
+
+	t.Run("cancel_overdraft_enrichment_read_forwards_marked_ctx_to_db_seam", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		captured, uc := newPrimaryReadCapturingUseCase(ctrl)
+
+		handler := &TransactionHandler{Query: uc}
+
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+
+		source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
+
+		primary := mmodel.BalanceOperation{
+			Balance: source,
+			Alias:   "0#@alice#default",
+			Amount: mtransaction.Amount{
+				Asset:           "BRL",
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.DEBIT,
+				TransactionType: libConstants.CREATED,
+				Direction:       constant.DirectionCredit,
+			},
+			InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+		}
+
+		validate := &mtransaction.Responses{
+			From:    map[string]mtransaction.Amount{"0#@alice#default": primary.Amount},
+			Sources: []string{"@alice#default"},
+			Aliases: []string{"@alice#default"},
+		}
+
+		// The single ctx reassignment at the GetBalances call site also covers the
+		// cancel overdraft-enrichment read, which inherits the same ctx and uses
+		// handler.Query.GetBalances as its loader exactly as at the handler site.
+		ctx := readrouting.WithPrimaryRead(context.Background())
+
+		_, _, err := enrichOverdraftOperations(ctx, orgID, ledgerID,
+			[]mmodel.BalanceOperation{primary}, validate, handler.Query.GetBalances)
+		require.NoError(t, err)
+
+		require.True(t, captured.seen, "cancel overdraft companion read never reached the balance DB seam")
+		assert.True(t, captured.primaryRead, "the ctx reaching the balance DB seam via the cancel overdraft read must carry the primary-read intent")
+	})
+
+	t.Run("unmarked_baseline_ctx_is_not_marked", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		captured, uc := newPrimaryReadCapturingUseCase(ctrl)
+
+		_, err := uc.GetBalances(context.Background(), uuid.New(), uuid.New(), []string{"@alice#default"})
+		require.NoError(t, err)
+
+		require.True(t, captured.seen)
+		assert.False(t, captured.primaryRead, "a flow not going through commit/cancel must NOT carry the primary-read intent")
+	})
+
+	t.Run("wrap_exists_and_is_positioned_between_validation_reads_and_get_balances", func(t *testing.T) {
+		src := readStateHandlerSource(t)
+
+		positions := analyzeCommitCancelWrap(t, src, "commitOrCancelTransaction")
+
+		if positions.wrap == -1 {
+			t.Fatal("no `readrouting.WithPrimaryRead(ctx)` wrap found in commitOrCancelTransaction; the commit/cancel flow does not mark the primary-read intent")
+		}
+
+		if positions.getBalances == -1 {
+			t.Fatal("no GetBalances call found in commitOrCancelTransaction; the read call site moved")
+		}
+
+		if positions.getLedgerSettings == -1 {
+			t.Fatal("no GetParsedLedgerSettings call found in commitOrCancelTransaction; the validation-only read moved")
+		}
+
+		if positions.wrap >= positions.getBalances {
+			t.Errorf("the WithPrimaryRead wrap (stmt %d) must precede the GetBalances read (stmt %d) so both pre-write balance reads observe the mark", positions.wrap, positions.getBalances)
+		}
+
+		if positions.wrap <= positions.getLedgerSettings {
+			t.Errorf("the WithPrimaryRead wrap (stmt %d) must FOLLOW the validation-only GetParsedLedgerSettings read (stmt %d) so validation-only reads are NOT marked", positions.wrap, positions.getLedgerSettings)
+		}
+	})
+}
+
+// commitCancelWrapPositions holds the top-level statement indices of the marker
+// wrap and the reads it must sit between within commitOrCancelTransaction.
+type commitCancelWrapPositions struct {
+	wrap              int
+	getBalances       int
+	getLedgerSettings int
+}
+
+// analyzeCommitCancelWrap returns the top-level statement indices, within the
+// named function body, of the `readrouting.WithPrimaryRead(...)` wrap, the first
+// GetBalances call, and the validation-only GetParsedLedgerSettings call. Each is
+// -1 when absent. Statement indices are sufficient because all three live at the
+// top level of the sequential commit/cancel flow.
+func analyzeCommitCancelWrap(t *testing.T, src, funcName string) commitCancelWrapPositions {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "src.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse source: %v", err)
+	}
+
+	var fn *ast.FuncDecl
+
+	for _, decl := range file.Decls {
+		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == funcName {
+			fn = d
+			break
+		}
+	}
+
+	if fn == nil || fn.Body == nil {
+		t.Fatalf("function %q not found or has no body", funcName)
+	}
+
+	positions := commitCancelWrapPositions{wrap: -1, getBalances: -1, getLedgerSettings: -1}
+
+	for i, stmt := range fn.Body.List {
+		if positions.wrap == -1 && stmtCallsSelector(stmt, "readrouting", "WithPrimaryRead") {
+			positions.wrap = i
+		}
+
+		if positions.getBalances == -1 && stmtCallsMethod(stmt, "GetBalances") {
+			positions.getBalances = i
+		}
+
+		if positions.getLedgerSettings == -1 && stmtCallsMethod(stmt, "GetParsedLedgerSettings") {
+			positions.getLedgerSettings = i
+		}
+	}
+
+	return positions
+}
+
+// readStateHandlerSource reads transaction_state_handlers.go from disk so the
+// placement guard runs against the live source, not a snapshot, and fails the
+// moment the commit/cancel seam is edited.
+func readStateHandlerSource(t *testing.T) string {
+	t.Helper()
+
+	const path = "transaction_state_handlers.go"
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	src := string(data)
+	if !strings.Contains(src, "func (handler *TransactionHandler) commitOrCancelTransaction") {
+		t.Fatalf("%s does not contain commitOrCancelTransaction — the gate is pointed at the wrong file", path)
+	}
+
+	return src
 }

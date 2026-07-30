@@ -19,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -421,6 +422,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	if transactionStatus == constant.CANCELED {
 		action = constant.ActionCancel
 	}
+
+	// Route this pre-write balance read (and the cancel overdraft-enrichment read
+	// that inherits this ctx) to the primary: its result seeds the authoritative
+	// balance via the NX-seed, so a stale replica read here corrupts money. The
+	// flag governs the effect; the mark is unconditional. Validation-only reads
+	// above (ledger settings, route cache) are intentionally left unmarked.
+	ctx = readrouting.WithPrimaryRead(ctx)
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
