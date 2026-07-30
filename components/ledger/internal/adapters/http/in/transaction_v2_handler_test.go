@@ -21,10 +21,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -515,48 +517,263 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 // hash source. Direct MUST stay byte-identical to the bare body (its established contract);
 // every other action prefixes its discriminator + NUL. This is the observable guarantee that
 // byte-identical bodies posted to different actions never share an idempotency slot.
+//
+// The mapping is a function of the ACTION alone, never of the body shape: the scalar and the
+// leg-array spellings are two byte sequences fed to the same source, so the table runs over
+// both and expects the identical per-action treatment.
 func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(v2DirectBody)
-
-	tests := []struct {
-		name        string
-		pending     bool
-		override    string
-		wantDisc    string
-		wantHashSrc string
+	bodies := []struct {
+		name string
+		body string
 	}{
-		{name: "direct stays bare body", pending: false, override: "", wantDisc: "", wantHashSrc: v2DirectBody},
-		{name: "hold", pending: true, override: "", wantDisc: "HOLD", wantHashSrc: "HOLD\x00" + v2DirectBody},
-		{name: "block", pending: false, override: "BLOCK", wantDisc: "BLOCK", wantHashSrc: "BLOCK\x00" + v2DirectBody},
-		{name: "unblock", pending: false, override: "UNBLOCK", wantDisc: "UNBLOCK", wantHashSrc: "UNBLOCK\x00" + v2DirectBody},
+		{name: "scalar body", body: v2DirectBody},
+		{name: "advanced body", body: v2AdvancedBody},
 	}
 
-	for _, tc := range tests {
+	actions := []struct {
+		name     string
+		pending  bool
+		override string
+		wantDisc string
+	}{
+		{name: "direct stays bare body", pending: false, override: "", wantDisc: ""},
+		{name: "hold", pending: true, override: "", wantDisc: "HOLD"},
+		{name: "block", pending: false, override: "BLOCK", wantDisc: "BLOCK"},
+		{name: "unblock", pending: false, override: "UNBLOCK", wantDisc: "UNBLOCK"},
+	}
+
+	for _, bc := range bodies {
+		t.Run(bc.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := []byte(bc.body)
+
+			for _, tc := range actions {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					wantHashSrc := bc.body
+					if tc.wantDisc != "" {
+						wantHashSrc = tc.wantDisc + "\x00" + bc.body
+					}
+
+					assert.Equal(t, tc.wantDisc, idempotencyActionDiscriminator(tc.pending, tc.override),
+						"action discriminator mapping")
+					assert.Equal(t, wantHashSrc, v2IdempotencyHashSource(raw, tc.pending, tc.override),
+						"idempotency hash source")
+				})
+			}
+
+			// Direct is byte-identical to the bare body, whatever the body spells: this exact
+			// invariant keeps the existing direct idempotency tests green unchanged.
+			assert.Equal(t, bc.body, v2IdempotencyHashSource(raw, false, ""),
+				"direct's hash source MUST remain exactly the bare body")
+
+			// No two actions collide on the same body.
+			seen := map[string]string{}
+			for _, tc := range actions {
+				src := v2IdempotencyHashSource(raw, tc.pending, tc.override)
+				if prev, dup := seen[src]; dup {
+					t.Fatalf("actions %q and %q share an idempotency hash source", prev, tc.name)
+				}
+
+				seen[src] = tc.name
+			}
+		})
+	}
+}
+
+// v2AdvancedBody is the leg-array spelling of a 100 BRL transaction: two debit legs (an
+// explicit amount plus the remainder) and two credit legs (a share plus the remainder), so
+// one body exercises all three per-leg value expressions. It is the counterpart of
+// v2DirectBody, which spells the same total in the scalar from/to form.
+const v2AdvancedBody = `{"description":"v2 advanced","asset":"BRL","amount":"100",` +
+	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","remaining":true}],` +
+	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","remaining":true}]}`
+
+// humaV2CreateOp is the shape every v2 create terminal shares. All four actions carry the
+// same request envelope and the same success envelope; only the identity they pass to
+// createTransactionV2 differs.
+type humaV2CreateOp = func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)
+
+// v2CreateActionCase describes one v2 create action by everything that distinguishes it: the
+// route suffix, the terminal, the (pending, override) identity the terminal passes to the
+// shared helper, the transaction status that identity opens, and the idempotency
+// discriminator it folds into the hash source.
+type v2CreateActionCase struct {
+	name       string
+	route      string
+	op         func(*TransactionHandler) humaV2CreateOp
+	pending    bool
+	override   string
+	wantStatus string
+	wantDisc   string
+}
+
+// v2CreateActionCases enumerates the four v2 create actions. Every test that must hold for
+// ALL of them iterates this table, so an action added to the surface without being covered
+// here is a visible omission rather than a silent gap.
+func v2CreateActionCases() []v2CreateActionCase {
+	return []v2CreateActionCase{
+		{
+			name:       "direct",
+			route:      "direct",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionDirectV2Huma },
+			pending:    false,
+			override:   "",
+			wantStatus: cn.CREATED,
+			wantDisc:   "",
+		},
+		{
+			name:       "hold",
+			route:      "hold",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionHoldV2Huma },
+			pending:    true,
+			override:   "",
+			wantStatus: cn.PENDING,
+			wantDisc:   "HOLD",
+		},
+		{
+			name:       "block",
+			route:      "block",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionBlockV2Huma },
+			pending:    false,
+			override:   cn.BLOCK,
+			wantStatus: cn.CREATED,
+			wantDisc:   cn.BLOCK,
+		},
+		{
+			name:       "unblock",
+			route:      "unblock",
+			op:         func(h *TransactionHandler) humaV2CreateOp { return h.CreateTransactionUnblockV2Huma },
+			pending:    false,
+			override:   cn.UNBLOCK,
+			wantStatus: cn.CREATED,
+			wantDisc:   cn.UNBLOCK,
+		},
+	}
+}
+
+// TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions proves every v2 create action
+// accepts the leg-array spelling and expands it into one canonical leg per entry, carrying
+// the action's own identity onto the result: hold opens PENDING while the other three open
+// CREATED, and block/unblock stamp their Operation.Type override. It asserts on
+// decodeAndBuildV2Transaction — the EXACT mtransaction.Transaction createTransactionV2 hands
+// to createTransactionShell — so the leg expansion and the stamped identity are checked on
+// the value the funnel receives. The per-OPERATION effect of the override across N legs is
+// asserted by the advanced integration test.
+func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range v2CreateActionCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.wantDisc, idempotencyActionDiscriminator(tc.pending, tc.override),
-				"action discriminator mapping")
-			assert.Equal(t, tc.wantHashSrc, v2IdempotencyHashSource(body, tc.pending, tc.override),
-				"idempotency hash source")
+			tx, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
+			require.NoError(t, err, "the %s action must accept the leg-array spelling", tc.name)
+
+			// One canonical leg per array entry, in submission order, each carrying the value
+			// expression its entry spelled.
+			from := tx.Send.Source.From
+			to := tx.Send.Distribute.To
+
+			require.Len(t, from, 2, "the %s action must expand both source legs", tc.name)
+			require.Len(t, to, 2, "the %s action must expand both destination legs", tc.name)
+
+			assert.Equal(t, "@srcA", from[0].AccountAlias)
+			require.NotNil(t, from[0].Amount, "the explicit-amount source leg must carry an amount")
+			assert.True(t, decimal.NewFromInt(60).Equal(from[0].Amount.Value), "source leg amount")
+			assert.Equal(t, "@srcB", from[1].AccountAlias)
+			assert.NotEmpty(t, from[1].Remaining, "the remaining source leg must carry the remaining marker")
+
+			assert.Equal(t, "@dstA", to[0].AccountAlias)
+			require.NotNil(t, to[0].Share, "the share destination leg must carry a share")
+			assert.Equal(t, int64(50), to[0].Share.Percentage, "destination leg share percentage")
+			assert.Equal(t, "@dstB", to[1].AccountAlias)
+			assert.NotEmpty(t, to[1].Remaining, "the remaining destination leg must carry the remaining marker")
+
+			// The action identity rides on the advanced body exactly as it does on the scalar
+			// one: pending drives the opening status, the override is stamped verbatim.
+			assert.Equal(t, tc.pending, tx.Pending, "the %s action must carry its pending intent through Translate", tc.name)
+			assert.Equal(t, tc.wantStatus, tx.InitialStatus(), "the %s action must open the transaction as %s", tc.name, tc.wantStatus)
+			assert.Equal(t, tc.override, tx.OperationTypeOverride, "the %s action must stamp its Operation.Type override", tc.name)
 		})
 	}
+}
 
-	// Direct is byte-identical to the bare body: this exact invariant keeps the existing direct
-	// idempotency tests green unchanged.
-	assert.Equal(t, v2DirectBody, v2IdempotencyHashSource(body, false, ""),
-		"direct's hash source MUST remain exactly the bare body")
+// TestCreateTransactionV2Huma_AdvancedBodyEntersFunnelPerAction proves all four v2 create
+// terminals accept the leg-array body over the real transport: the body clears decode +
+// Translate on every action and reaches the funnel, where a bare handler's unwired repository
+// makes WithRecover map the resulting panic to a 500. A 4xx here would mean the action
+// rejected the advanced form at the transport/translate boundary.
+func TestCreateTransactionV2Huma_AdvancedBodyEntersFunnelPerAction(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, tc := range v2CreateActionCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			app := buildHumaV2ActionApp(t, tc.route, tc.op(&TransactionHandler{}))
 
-	// No two actions collide.
-	seen := map[string]string{}
-	for _, tc := range tests {
-		src := v2IdempotencyHashSource(body, tc.pending, tc.override)
-		if prev, dup := seen[src]; dup {
-			t.Fatalf("actions %q and %q share an idempotency hash source", prev, tc.name)
-		}
+			resp := postActionV2(t, app, tc.route, v2AdvancedBody)
+			body := func() string {
+				defer func() { _ = resp.Body.Close() }()
 
-		seen[src] = tc.name
+				b, _ := io.ReadAll(resp.Body)
+
+				return string(b)
+			}()
+
+			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+				"a valid advanced %s body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500); body: %s", tc.name, body)
+		})
+	}
+}
+
+// TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource is the idempotency
+// regression for the advanced form: an advanced body is just another byte sequence in the
+// SAME hash source each action already used, so direct still hashes the bare body and every
+// other action still hashes its discriminator + NUL + body. It probes the same first-repo
+// touch as the scalar idempotency tests (TransactionRedisRepo.SetNX, whose internalKey embeds
+// the hash source when no X-Idempotency header is sent). A per-action cross-check asserts no
+// action keys off another action's source.
+func TestHuma_CreateTransactionV2_AdvancedBodyKeepsPerActionIdempotencySource(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, tc := range v2CreateActionCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			var gotKey string
+
+			handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
+			app := buildHumaV2ActionApp(t, tc.route, tc.op(handler))
+
+			resp := postActionV2(t, app, tc.route, v2AdvancedBody)
+			defer func() { _ = resp.Body.Close() }()
+
+			wantSource := v2AdvancedBody
+			if tc.wantDisc != "" {
+				wantSource = tc.wantDisc + "\x00" + v2AdvancedBody
+			}
+
+			assert.Contains(t, gotKey, libCommons.HashSHA256(wantSource),
+				"the advanced %s body must key idempotency off the SAME source shape the scalar body uses; got internalKey=%q", tc.name, gotKey)
+
+			for _, other := range v2CreateActionCases() {
+				if other.wantDisc == tc.wantDisc {
+					continue
+				}
+
+				otherSource := v2AdvancedBody
+				if other.wantDisc != "" {
+					otherSource = other.wantDisc + "\x00" + v2AdvancedBody
+				}
+
+				assert.NotContains(t, gotKey, libCommons.HashSHA256(otherSource),
+					"the advanced %s body must NOT key off the %s action's source", tc.name, other.name)
+			}
+
+			assert.Equal(t, http.StatusCreated, resp.StatusCode, "a losing %s claim with a cached canonical value replays → 201", tc.name)
+		})
 	}
 }
