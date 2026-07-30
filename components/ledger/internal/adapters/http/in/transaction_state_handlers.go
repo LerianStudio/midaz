@@ -423,14 +423,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		action = constant.ActionCancel
 	}
 
-	// Route this pre-write balance read (and the cancel overdraft-enrichment read
-	// that inherits this ctx) to the primary: its result seeds the authoritative
-	// balance via the NX-seed, so a stale replica read here corrupts money. The
-	// flag governs the effect; the mark is unconditional. Validation-only reads
-	// above (ledger settings, route cache) are intentionally left unmarked.
-	ctx = readrouting.WithPrimaryRead(ctx)
+	// Route ONLY the pre-write balance reads to the primary via a dedicated ctx:
+	// their result seeds the authoritative balance via the NX-seed, so a stale
+	// replica read here corrupts money. The mark lives on readCtx, scoped to the
+	// direct balance read and the cancel overdraft-enrichment read; the unmarked
+	// ctx flows to everything else (validation, Redis seed, balance processing,
+	// write) so those keep their default routing. The flag governs the effect; the
+	// mark is unconditional.
+	readCtx := readrouting.WithPrimaryRead(ctx)
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
+	balances, err := handler.Query.GetBalances(readCtx, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
@@ -445,7 +447,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 
 	var companionFromTos []mtransaction.FromTo
 	if transactionStatus == constant.CANCELED {
-		balanceOps, companionFromTos, err = enrichOverdraftOperations(ctx, organizationID, ledgerID, balanceOps,
+		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, organizationID, ledgerID, balanceOps,
 			validate, handler.Query.GetBalances)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to enrich canceled overdraft operations", err)

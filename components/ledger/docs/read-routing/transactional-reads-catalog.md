@@ -2,7 +2,7 @@
 
 Catálogo normativo "uma verdade por leitura" para o roteamento de leituras
 no caminho de comando do ledger (create / commit / cancel / revert) e nas leituras de
-validação puras que participam desse caminho.
+validação pura que participam desse caminho.
 
 O objetivo é registrar, para cada leitura, se ela **semeia estado** que será escrito
 logo em seguida (e portanto **precisa ler do primário** para não observar réplica
@@ -30,9 +30,9 @@ contexto de tenant/ledger do comando que as originou.
 |---|---|---|---|---|---|
 | `Query.GetBalances` → `BalanceRepo.ListByAliasesWithKeys` — `transaction_create.go:1291` (impl em `get_balances.go:36`) | create | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Semeia os balances usados para montar/validar operações antes do commit. Roteada ao primário via `readrouting.WithPrimaryRead(ctx)` em `transaction_create.go:1289`. |
 | `Query.GetBalances` (enriquecimento de overdraft) — `transaction_create.go:1333-1334` | create | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Lê o balance do companion `#overdraft` para calcular o déficit que vira operação persistida. Herda o `ctx` já marcado em `:1289` (não requer marcação própria). |
-| `Query.GetBalances` — `transaction_state_handlers.go:433` | commit / cancel | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Semeia os balances da transição de estado antes do write. Roteada ao primário via `ctx = readrouting.WithPrimaryRead(ctx)` marcado em `commitOrCancelTransaction` (`transaction_state_handlers.go:431`), imediatamente antes de `GetBalances` (`:433`). |
-| `Query.GetBalances` (enriquecimento de overdraft no cancel) — `transaction_state_handlers.go:448-449` | cancel | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Recalcula o leg de overdraft no cancelamento; semeia operação persistida. Roteada ao primário: herda o `ctx` marcado em `:431` (não requer marcação própria). |
-| `TransactionRouteRepo.FindByID` (fallback da route-cache) — `get_or_create_transaction_route_cache.go:70`, via `ValidateAccountingRules` | create | Redis puro + banco (fallback, negative caching) | réplica | `validation-only` `cache-fronted` | Valida a existência/config da rota; não semeia balance. Fallback ao banco só em cache miss. Permanece na réplica — no-op deliberado: leitura de validação pura, permanece na réplica. |
+| `Query.GetBalances` — `transaction_state_handlers.go:435` | commit / cancel | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Semeia os balances da transição de estado antes do write. Roteada ao primário via `readCtx := readrouting.WithPrimaryRead(ctx)` marcado em `commitOrCancelTransaction` (`transaction_state_handlers.go:433`), imediatamente antes de `GetBalances` (`:435`), que recebe o `readCtx` dedicado. |
+| `Query.GetBalances` (enriquecimento de overdraft no cancel) — `transaction_state_handlers.go:450-451` | cancel | Redis-cache + réplica (fallback) | **primário** | `read-before-write-que-semeia-estado` | Recalcula o leg de overdraft no cancelamento; semeia operação persistida. Roteada ao primário: recebe o mesmo `readCtx` dedicado marcado em `:433` (não requer marcação própria). |
+| `TransactionRouteRepo.FindByID` (fallback da route-cache) — `get_or_create_transaction_route_cache.go:70`, via `ValidateAccountingRules` (`transaction_create.go` no create; `transaction_state_handlers.go:462` no commit/cancel) | create / commit / cancel | Redis puro + banco (fallback, negative caching) | réplica | `validation-only` `cache-fronted` | Valida a existência/config da rota; não semeia balance. Fallback ao banco só em cache miss. Permanece na réplica — no-op deliberado: leitura de validação pura. No commit/cancel roda sob o `ctx` não marcado (nunca sob o `readCtx` dedicado), ou seja, deliberadamente não roteada ao primário. |
 | `Query.GetParsedLedgerSettings` → `GetLedgerSettings` — `get_ledger_settings_parsed.go:22` (cache-aside em `get_ledger_settings.go:32`, TTL 5min) | create / commit / cancel | Redis-cache + banco (fallback) | réplica | `validation-only` `cache-fronted` | Lê flags de validação (`validateAccountType`, `validateRoutes`); não semeia balance. Cache-aside best-effort. |
 | `Command.CreateOrCheckTransactionIdempotency` — `create_transaction_idempotency.go:45` (`TransactionRedisRepo.SetNX`/`Get`) | create | Redis puro | — | `not-on-command-path` | Claim de idempotência em Redis (não Postgres); é um lock, não uma leitura que semeia balance. Fora do eixo réplica/primário. |
 | `Query.GetWriteBehindTransaction` — `transaction_state_handlers.go:75` | commit / cancel | réplica | réplica | `validation-only` | Recupera a transação write-behind para validar o estado atual; não lê nem semeia balance. |
@@ -57,8 +57,10 @@ case:
 - create → `executeCreateTransaction` marca `ctx = readrouting.WithPrimaryRead(ctx)`
   em `transaction_create.go:1289`, imediatamente antes de `GetBalances` (`:1291`).
 - commit / cancel → `commitOrCancelTransaction` (`transaction_state_handlers.go:313`)
-  marca `ctx = readrouting.WithPrimaryRead(ctx)` em `:431`, imediatamente antes de
-  `GetBalances` (`:433`) — mesmo wrap de uma linha do create.
+  marca `readCtx := readrouting.WithPrimaryRead(ctx)` em `:433`, imediatamente antes de
+  `GetBalances` (`:435`). Diferente do create, aqui a marcação usa um `ctx` dedicado
+  (`readCtx`), escopado apenas às leituras de balance anteriores ao write; o `ctx` não
+  marcado segue para as demais operações (validação, seed no Redis, escrita).
 
 Isso é uma exceção deliberada à regra "sem lógica de infraestrutura no handler",
 sustentada por dois mitigadores:
@@ -67,7 +69,7 @@ sustentada por dois mitigadores:
    por `GetBalances`, então a marcação vive em um único lugar por fluxo (create; commit/
    cancel), não espalhada pelos use cases.
 2. **Wrap de uma linha, sem lógica de negócio** — a marcação é apenas
-   `ctx = readrouting.WithPrimaryRead(ctx)` (ver `pkg/readrouting/intent.go`), transporte
+   `readrouting.WithPrimaryRead(ctx)` (ver `pkg/readrouting/intent.go`), transporte
    puro de intenção via `context.Context`; nenhuma decisão de negócio vaza para o handler.
 
 ## Consistência com o offload analítico
