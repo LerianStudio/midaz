@@ -41,6 +41,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -103,6 +104,10 @@ func setupTestInfra(t *testing.T) *testInfra {
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
+	// operation_route belongs to the transaction migration set loaded above, so the revert
+	// bidirectional-route gate (which resolves an operation's route_id) can run against a real
+	// repository instead of nil-panicking into a generic 500.
+	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
@@ -117,6 +122,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		LedgerRepo:              ledgerRepo,
+		OperationRouteRepo:      operationRouteRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}

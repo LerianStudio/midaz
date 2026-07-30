@@ -257,7 +257,8 @@ type StateTransactionInputHuma struct {
 }
 
 // StateTransactionOutputHuma pins 201 (matching http.Created) and carries the resulting
-// transaction. commit/cancel/revert all return 201, matching the Fiber path.
+// transaction. Both commit and cancel return 201, matching the Fiber path. Revert answers
+// with CreateTransactionOutputHuma instead: it creates a transaction and can replay.
 type StateTransactionOutputHuma struct {
 	Status int
 	Body   *transaction.Transaction
@@ -297,19 +298,29 @@ func (handler *TransactionHandler) CancelTransactionHuma(ctx context.Context, in
 }
 
 // RevertTransactionHuma delegates to the SAME revertTransaction core (parent/revert
-// eligibility + bidirectional-route checks, then createRevertTransaction). Returns 201.
-func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*StateTransactionOutputHuma, error) {
+// eligibility + bidirectional-route checks, then createRevertTransaction) and projects the
+// core's replayed flag onto the response header, mirroring createTransactionShell. Returns 201.
+//
+// It answers with CreateTransactionOutputHuma because a revert IS a create: it enters
+// executeCreateTransaction, answers 201 with a freshly created reverse, and can replay —
+// so the create envelope already models the response, headers included. commit/cancel are
+// the ones that differ (pure state transitions) and keep StateTransactionOutputHuma.
+func (handler *TransactionHandler) RevertTransactionHuma(ctx context.Context, in *StateTransactionInputHuma) (*CreateTransactionOutputHuma, error) {
 	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputHuma{Status: http.StatusCreated, Body: tran}, nil
+	return &CreateTransactionOutputHuma{
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(replayed),
+		Body:                tran,
+	}, nil
 }
 
 // parseOrgLedgerTx resolves the three path strings the state/patch/get-by-id shells

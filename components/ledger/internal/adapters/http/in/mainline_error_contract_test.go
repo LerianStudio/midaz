@@ -21,7 +21,7 @@ import (
 
 // TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the 26
 // mainline error codes whose HTTP status class was re-typed in the four-family
-// consolidation (Task 3.6, docs/plans/2026-06-07-error-code-migration.md
+// consolidation (docs/plans/2026-06-07-error-code-migration.md
 // "Mainline 400 reclassification"). Each row pins code -> HTTP status -> title,
 // driven end-to-end through pkg/net/http.WithError so the typed struct class
 // (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)
@@ -268,6 +268,55 @@ func TestMainlineErrorContract_DependencyFaultCodes(t *testing.T) {
 	}
 
 	require.Len(t, tests, 3, "the dependency-fault reclassification set is 3 codes (E5 0228, E5 0231, E9 0178)")
+
+	runErrorContractCases(t, tests)
+}
+
+// TestMainlineErrorContract_TransactionLifecycleCodes locks the wire contract for the three
+// codes the v2 transaction lifecycle surface (commit / cancel / revert) rejects with, none of
+// which were covered by the reclassification or dependency-fault tables. They span three
+// different typed classes, so a re-type of any of them silently changes the status a client
+// branches on:
+//   - 0099 EntityConflictError -> 409 (non-PENDING commit/cancel; non-APPROVED revert)
+//   - 0065 ValidationError -> 400 (malformed path UUID, rejected on the Fiber chain)
+//   - 0150 UnprocessableOperationError -> 422 (revert of a non-bidirectional route)
+//
+// The integration lifecycle suite asserts these codes over live HTTP; this table is the E14
+// registry lock behind them, so a drift in pkg/errors.go fails here without needing containers.
+func TestMainlineErrorContract_TransactionLifecycleCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+	}{
+		{
+			name:           "0099 commit transaction not pending is 409",
+			err:            pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, constant.EntityTransaction),
+			expectedStatus: fiber.StatusConflict,
+			expectedCode:   "0099",
+			expectedTitle:  "Invalid Transaction Status",
+		},
+		{
+			// The message is a fmt.Sprintf over the offending parameter names, so the arg is
+			// part of the call shape, not of the locked contract (only code/status/title are).
+			name:           "0065 invalid path parameter is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityTransaction, "transaction_id"),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0065",
+			expectedTitle:  "Invalid Path Parameter",
+		},
+		{
+			name:           "0150 route not bidirectional is 422",
+			err:            pkg.ValidateBusinessError(constant.ErrRouteNotBidirectional, constant.EntityTransaction),
+			expectedStatus: fiber.StatusUnprocessableEntity,
+			expectedCode:   "0150",
+			expectedTitle:  "Route Not Bidirectional",
+		},
+	}
+
+	require.Len(t, tests, 3, "the transaction-lifecycle lock set is 3 codes (0099 conflict, 0065 validation, 0150 unprocessable)")
 
 	runErrorContractCases(t, tests)
 }

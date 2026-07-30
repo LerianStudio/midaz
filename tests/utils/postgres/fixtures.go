@@ -433,6 +433,22 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 	return id
 }
 
+// StampOperationRoute points every operation of a transaction at an operation route, failing
+// the test if the transaction had no operations to stamp. Use it when the subject transaction
+// was produced by the PRODUCTION create path (which stamps route_id only when the request
+// names a route) rather than by CreateTestOperation — the insert fixture cannot retrofit rows
+// it did not write.
+func StampOperationRoute(t *testing.T, db *sql.DB, txID, routeID uuid.UUID) {
+	t.Helper()
+
+	res, err := db.Exec(`UPDATE operation SET route_id = $1 WHERE transaction_id = $2`, routeID, txID)
+	require.NoError(t, err, "failed to stamp route_id onto the transaction's operations")
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "failed to read affected operation rows")
+	require.NotZero(t, affected, "the subject transaction must have operations to stamp")
+}
+
 // UpdateTransactionStatus updates the status of a transaction.
 func UpdateTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID, status string) {
 	t.Helper()

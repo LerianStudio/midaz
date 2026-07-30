@@ -7,7 +7,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.26.4 (`go.mod` `go 1.26.4`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.0.0; `lib-observability/v2` v2.1.0.
+- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.1.0; `lib-observability/v2` v2.1.0.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
@@ -33,7 +33,7 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 
 ## Dependencies
 
-- lib-commons v6 (`github.com/LerianStudio/lib-commons/v6/commons/...`, currently v6.0.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
+- lib-commons v6 (`github.com/LerianStudio/lib-commons/v6/commons/...`, currently v6.1.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
 - Observability is a separate module `github.com/LerianStudio/lib-observability/v2`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
 - TLS enforcement: the postgres/mongo/redis/rabbitmq constructors enforce TLS by the security tier derived from `ENV_NAME` and refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`). Set in the `.env.example` files; connection-building unit tests set it in their `TestMain`.
 - MongoDB driver: `go.mongodb.org/mongo-driver/v2`. `bson/primitive` is consolidated into `bson` (`bson.ObjectID`, `bson.NewObjectID`). v2 decodes nested documents into `bson.D` (ordered), not `bson.M`; code that type-asserts nested values as `bson.M` must also handle `bson.D` (`bson.D` has no `.Map()`).

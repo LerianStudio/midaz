@@ -1,0 +1,800 @@
+components:
+  schemas:
+    Error:
+      additionalProperties: false
+      properties:
+        code:
+          description: "Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN)."
+          examples:
+            - ERR-0001
+          type: string
+        detail:
+          description: A human-readable explanation specific to this occurrence of the problem.
+          examples:
+            - Property foo is required but is missing.
+          type: string
+        errors:
+          description: Optional list of individual error details
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        instance:
+          description: A URI reference that identifies the specific occurrence of the problem.
+          examples:
+            - https://example.com/error-log/abc123
+          format: uri
+          type: string
+        status:
+          description: HTTP status code
+          examples:
+            - 400
+          format: int64
+          type: integer
+        title:
+          description: A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+          examples:
+            - Bad Request
+          type: string
+        type:
+          default: about:blank
+          description: A URI reference to human-readable documentation for the error.
+          examples:
+            - https://example.com/errors/example
+          format: uri
+          type: string
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    Operation:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          examples:
+            - "@person1"
+          maxLength: 256
+          type: string
+        accountId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        amount:
+          $ref: "#/components/schemas/OperationAmount"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        balance:
+          $ref: "#/components/schemas/OperationBalance"
+        balanceAffected:
+          examples:
+            - true
+          format: boolean
+          type: boolean
+        balanceAfter:
+          $ref: "#/components/schemas/OperationBalance"
+        balanceId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        chartOfAccounts:
+          examples:
+            - "1000"
+          maxLength: 20
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Credit card operation
+          maxLength: 256
+          type: string
+        direction:
+          examples:
+            - debit
+          maxLength: 50
+          type: string
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeCode:
+          examples:
+            - ROUTE-001
+          maxLength: 100
+          type: string
+        routeDescription:
+          examples:
+            - Settlement route for service charges
+          maxLength: 250
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/OperationStatus"
+        transactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        type:
+          examples:
+            - DEBIT
+          maxLength: 50
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - transactionId
+        - description
+        - type
+        - assetCode
+        - chartOfAccounts
+        - amount
+        - balance
+        - balanceAfter
+        - status
+        - accountId
+        - accountAlias
+        - balanceKey
+        - balanceId
+        - organizationId
+        - ledgerId
+        - route
+        - balanceAffected
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - metadata
+      type: object
+    OperationAmount:
+      additionalProperties: false
+      properties:
+        value:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+      required:
+        - value
+      type: object
+    OperationBalance:
+      additionalProperties: false
+      properties:
+        available:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        onHold:
+          examples:
+            - "500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        overdraftUsed:
+          examples:
+            - "130"
+          minimum: 0
+          type: string
+        version:
+          examples:
+            - 2
+          format: int64
+          minimum: 0
+          type:
+            - integer
+            - "null"
+      required:
+        - available
+        - onHold
+        - version
+        - overdraftUsed
+      type: object
+    OperationStatus:
+      additionalProperties: false
+      properties:
+        code:
+          examples:
+            - ACTIVE
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - Active status
+          maxLength: 256
+          type:
+            - string
+            - "null"
+      required:
+        - code
+        - description
+      type: object
+    Transaction:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        chartOfAccountsGroupName:
+          examples:
+            - Chart of accounts group name
+          maxLength: 256
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        destination:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        feesSkipped:
+          examples:
+            - false
+          type: boolean
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operations:
+          items:
+            $ref: "#/components/schemas/Operation"
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentTransactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        route:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        source:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        tracerSkipped:
+          examples:
+            - false
+          type: boolean
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - description
+        - status
+        - amount
+        - assetCode
+        - chartOfAccountsGroupName
+        - source
+        - destination
+        - ledgerId
+        - organizationId
+        - route
+        - feesSkipped
+        - tracerSkipped
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - operations
+      type: object
+    TransactionStatus:
+      additionalProperties: false
+      properties:
+        code:
+          examples:
+            - ACTIVE
+          maxLength: 100
+          type: string
+        description:
+          examples:
+            - Active status
+          maxLength: 256
+          type:
+            - string
+            - "null"
+      required:
+        - code
+        - description
+      type: object
+info:
+  description: Midaz Ledger v2 API contract.
+  title: Midaz Ledger API v2
+  version: 4.0.0
+openapi: 3.1.0
+paths:
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
+    post:
+      operationId: createTransactionBlockV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 block model
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct:
+    post:
+      operationId: createTransactionDirectV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 direct model
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold:
+    post:
+      operationId: createTransactionHoldV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 hold model
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
+    post:
+      operationId: createTransactionUnblockV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the create; an identical retry returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 unblock model
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
+    post:
+      operationId: cancelTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Cancel a pending Transaction (v2)
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
+    post:
+      operationId: commitTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Commit a Transaction (v2)
+      tags:
+        - Transactions
+  /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
+    post:
+      operationId: revertTransactionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Transaction ID (UUID)
+          in: path
+          name: transaction_id
+          required: true
+          schema:
+            description: Transaction ID (UUID)
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Revert a Transaction (v2)
+      tags:
+        - Transactions
+servers:
+  - url: /v2

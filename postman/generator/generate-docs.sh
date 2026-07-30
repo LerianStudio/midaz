@@ -88,14 +88,21 @@ publish_specs() {
 
     print_step "Publishing ${component} specs to postman/specs" "PROCESSING"
 
-    if mkdir -p "${dest_dir}" && \
-        cp "${api_dir}/openapi.huma.yaml" "${dest_dir}/"; then
-        print_step "Published ${component} specs to postman/specs" "SUCCESS"
-        return 0
-    else
+    if ! (mkdir -p "${dest_dir}" && cp "${api_dir}/openapi.huma.yaml" "${dest_dir}/"); then
         print_step "Publish ${component} specs to postman/specs" "FAILED"
         return 1
     fi
+
+    # Ledger serves a SECOND, independent /v2 Huma contract (openapi.v2.huma.yaml).
+    # Publish it alongside the v1 dump when present so postman/specs mirrors api/.
+    if [ -f "${api_dir}/openapi.v2.huma.yaml" ] && \
+        ! cp "${api_dir}/openapi.v2.huma.yaml" "${dest_dir}/"; then
+        print_step "Publish ${component} specs to postman/specs" "FAILED"
+        return 1
+    fi
+
+    print_step "Published ${component} specs to postman/specs" "SUCCESS"
+    return 0
 }
 
 # Merge the three per-component openapi.yaml specs into one consolidated spec
@@ -141,11 +148,64 @@ consolidate_openapi() {
         fi
     done
 
-    # 2. Join (ledger first => takes precedence). Run the locally-installed binary
-    #    directly so the component paths stay relative to ROOT_DIR.
+    # 2a. Derive the ledger /v2 join input from its independent Huma dump. The v2
+    #     document is served under /v2 with server-relative paths (Servers ["/v2"]),
+    #     so its path keys (.../transactions/{block,unblock}) collide 1:1 with the v1
+    #     ledger dump and redocly join refuses colliding path+method. This transform
+    #     makes the v2 surface joinable WITHOUT mutating the committed v2 dump:
+    #       - prefix "/v2" onto every path key so the keys are globally unique;
+    #       - override each path item's servers to "/" so the "/v2/..." key resolves
+    #         to exactly "/v2/..." (not the joined doc's top-level "/v1" base);
+    #       - declare top-level servers "/v1" so it agrees with the ledger + tracer
+    #         inputs and redocly keeps the joined top-level servers as "/v1"
+    #         (a disagreement makes redocly drop the servers block entirely).
+    #     Net: the v1 + tracer join output is byte-identical to before, and the v2
+    #     operations appear under distinct, correctly-based "/v2/..." paths.
+    local ledger_v2_dump="${ROOT_DIR}/components/ledger/api/openapi.v2.huma.yaml"
+    local ledger_v2_join_input="${LOG_DIR}/ledger_v2_join_input.yaml"
+    local ledger_v2_derived=0
+
+    # LOG_DIR survives between runs, so discard whatever an earlier run left here.
+    # Joining below keys off this run having derived the input, never off the file
+    # merely being present — otherwise dropping or renaming the v2 dump would
+    # silently republish a stale set of "/v2/..." paths.
+    rm -f "${ledger_v2_join_input}"
+
+    if [ -f "${ledger_v2_dump}" ]; then
+        if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+            const yaml = require("js-yaml");
+            const fs = require("fs");
+            const doc = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+            const prefixed = {};
+            for (const key of Object.keys(doc.paths || {})) {
+                const item = doc.paths[key];
+                item.servers = [{ url: "/" }];
+                prefixed["/v2" + key] = item;
+            }
+            doc.paths = prefixed;
+            doc.servers = [{ url: "/v1" }];
+            fs.writeFileSync(process.argv[2], yaml.dump(doc));
+        ' "${ledger_v2_dump}" "${ledger_v2_join_input}" >> "${out_log}" 2>> "${err_log}"); then
+            print_step "Consolidate OpenAPI specs" "FAILED"
+            echo -e "      ${RED}Error details:${NC}"
+            head -5 "${err_log}" | sed 's/^/        /'
+            return 1
+        fi
+
+        ledger_v2_derived=1
+    fi
+
+    # 2b. Join (ledger first => takes precedence). The derived v2 input sits between
+    #     ledger and tracer. Run the locally-installed binary directly so the
+    #     component paths stay relative to ROOT_DIR.
+    local join_inputs=(components/ledger/api/openapi.huma.yaml)
+    if [ "${ledger_v2_derived}" -eq 1 ]; then
+        join_inputs+=("${ledger_v2_join_input}")
+    fi
+    join_inputs+=(components/tracer/api/openapi.huma.yaml)
+
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
-            components/ledger/api/openapi.huma.yaml \
-            components/tracer/api/openapi.huma.yaml \
+            "${join_inputs[@]}" \
             --prefix-tags-with-info-prop title \
             -o postman/specs/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
