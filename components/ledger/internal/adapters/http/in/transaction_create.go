@@ -996,6 +996,11 @@ func (handler *TransactionHandler) createTransaction(ctx context.Context, params
 	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
 }
 
+// idempotencyDiscriminatorSep joins an action discriminator to the rest of an idempotency
+// hash preimage (v2IdempotencyHashSource). A NUL byte can appear in neither an action label
+// nor a JSON body, so two preimages built with it can never collide by concatenation.
+const idempotencyDiscriminatorSep = "\x00"
+
 // resolveIdempotencyHashSource returns the string the idempotency hash is computed over:
 // the non-empty override when supplied, else the canonical serialized transaction. Keying
 // off a raw pre-translation body via the override is the v2 idempotency contract.
