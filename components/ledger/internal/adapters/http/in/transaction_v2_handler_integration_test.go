@@ -422,7 +422,8 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// (`sources`), so requiring a side is a request-shape rule across a pair of
 			// fields, not a per-field one. No struct tag expresses that, which is why —
 			// unlike the `asset` case below — this body is not rejected by
-			// DecodeAndValidate's struct validation.
+			// DecodeAndValidate's struct validation. Translate owns the rule instead and
+			// rejects it with ErrMissingFieldsInRequest (0009) -> ValidationError -> 400.
 			name:       "missing from field",
 			body:       `{"asset":"USD","amount":"100","to":"@dst"}`,
 			wantStatus: nethttp.StatusBadRequest,
@@ -1144,9 +1145,10 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 		wantStatus int
 	}{
 		{
-			// `from` is validate:"required" on the flat v2 input; http.DecodeAndValidate
-			// surfaces a ValidationError -> canonical 400 before the funnel (identical to the
-			// direct-action validation contract; block/unblock share the same decode seam).
+			// Spelling a side is a rule across a pair of fields (`from`/`sources`), which no
+			// struct tag expresses, so Translate owns it and rejects an unspelled side with
+			// ErrMissingFieldsInRequest (0009) -> ValidationError -> 400, before the funnel.
+			// Identical to the direct-action validation contract; block/unblock share the seam.
 			name:       "block missing required from field",
 			url:        v2BlockURL(infra.orgID, infra.ledgerID),
 			body:       `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,

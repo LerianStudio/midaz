@@ -894,6 +894,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Type",
 			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
 		},
+		constant.ErrMutuallyExclusiveTransactionFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMutuallyExclusiveTransactionFields.Error(),
+			Title:      "Mutually Exclusive Transaction Fields",
+			Message:    "Each side of the transaction must be spelled either with the scalar fields ('from' and 'to') or with the leg arrays ('sources' and 'destinations'), never both. Please review your input and send only one of the two spellings.",
+		},
 		constant.ErrTransactionValueMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionValueMismatch.Error(),

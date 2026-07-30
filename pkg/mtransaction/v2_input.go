@@ -111,46 +111,71 @@ type V2ShareInput struct {
 	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
 }
 
-// Translate converts the flat v2 input into the canonical single-leg
-// Transaction. The pending flag encodes the action intent (direct=false,
-// hold=true) and is set by the endpoint, not the request body.
+// legRemainingMarker is the value a canonical leg carries to mean "take whatever
+// the other legs on this side left unallocated of the transaction total". The
+// amount resolver keys off the marker being non-empty; the value mirrors the DSL
+// keyword and the documented v1 JSON example so both spellings look the same
+// downstream.
+const legRemainingMarker = "remaining"
+
+// Translate converts the flat v2 input into the canonical Transaction. The
+// pending flag encodes the action intent (direct=false, hold=true) and is set by
+// the endpoint, not the request body.
+//
+// Each side is spelled EITHER scalar (From/To) or as a leg array
+// (Sources/Destinations), and the choice is per request: mixing the two
+// spellings across sides is rejected. The scalar spelling produces one leg
+// carrying the whole transaction total; the array spelling produces one leg per
+// entry, each with exactly one value expression — an explicit amount parsed into
+// a decimal, a share of the total, or the remaining marker.
 //
 // Route identifiers map at two independent levels: RouteID is the TRANSACTION
 // route (Transaction.RouteID); OperationRouteID is the per-leg OPERATION route
-// (FromTo.RouteID) and is copied onto both the source and distribution legs.
-// Nil route pointers stay nil so downstream ledger settings resolve defaults.
+// (FromTo.RouteID). A leg's own route wins; without one the leg inherits the
+// request-level route. Nil route pointers stay nil so downstream ledger settings
+// resolve defaults.
 //
-// A malformed or non-positive amount and a source equal to the destination are
-// rejected as business errors (422), mirroring the v1 transaction-value and
-// ambiguity validations, so the HTTP layer maps them to 4xx.
+// Two validations deliberately stay OUT of here and belong to the create funnel,
+// which owns the amount resolution both would have to duplicate:
+//
+//   - Balance: whether the legs sum to the transaction total. Checking it here
+//     means reimplementing the resolver's share, percentage-of-percentage and
+//     remaining arithmetic and drifting from it.
+//   - Cross-side ambiguity in the array spelling, which leans on the funnel's own
+//     ambiguity check. The scalar From == To check below stays because comparing a
+//     single pair costs nothing. The array spelling therefore carries the weaker of
+//     the two guarantees — deliberately, because matching what the v1 detailed body
+//     guarantees is the criterion.
 func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, error) {
+	arrayForm, err := in.resolveSpelling()
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	value, err := decimal.NewFromString(in.Amount)
 	if err != nil || value.LessThanOrEqual(decimal.Zero) {
 		return Transaction{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 	}
 
-	if in.From == in.To {
+	if !arrayForm && in.From == in.To {
 		return Transaction{}, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, constant.EntityTransaction)
 	}
 
+	from, err := in.buildLegs(in.Sources, in.From, value, true, "sources")
+	if err != nil {
+		return Transaction{}, err
+	}
+
+	to, err := in.buildLegs(in.Destinations, in.To, value, false, "destinations")
+	if err != nil {
+		return Transaction{}, err
+	}
+
 	send := Send{
-		Asset: in.Asset,
-		Value: value,
-		Source: Source{
-			From: []FromTo{{
-				AccountAlias: in.From,
-				Amount:       &Amount{Asset: in.Asset, Value: value},
-				RouteID:      cloneStringPtr(in.OperationRouteID),
-				IsFrom:       true,
-			}},
-		},
-		Distribute: Distribute{
-			To: []FromTo{{
-				AccountAlias: in.To,
-				Amount:       &Amount{Asset: in.Asset, Value: value},
-				RouteID:      cloneStringPtr(in.OperationRouteID),
-			}},
-		},
+		Asset:      in.Asset,
+		Value:      value,
+		Source:     Source{From: from},
+		Distribute: Distribute{To: to},
 	}
 
 	return Transaction{
@@ -161,6 +186,119 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, error) 
 		RouteID:     cloneStringPtr(in.RouteID),
 		Send:        send,
 	}, nil
+}
+
+// resolveSpelling reports whether the request uses the leg-array spelling. It
+// rejects a side that spells itself neither way, a side that spells itself both
+// ways, and a request that mixes the spellings across its two sides — so on
+// success both sides agree and one flag describes the whole request.
+//
+// An explicit empty leg array counts as no legs, so it reads as an unspelled
+// side rather than as a choice of the array form.
+func (in CreateTransactionV2Input) resolveSpelling() (bool, error) {
+	sourceIsArray := len(in.Sources) > 0
+	destinationIsArray := len(in.Destinations) > 0
+
+	if in.From == "" && !sourceIsArray {
+		return false, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "from or sources")
+	}
+
+	if in.To == "" && !destinationIsArray {
+		return false, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "to or destinations")
+	}
+
+	bothOnOneSide := (in.From != "" && sourceIsArray) || (in.To != "" && destinationIsArray)
+	if bothOnOneSide || sourceIsArray != destinationIsArray {
+		return false, pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveTransactionFields, constant.EntityTransaction)
+	}
+
+	return sourceIsArray, nil
+}
+
+// buildLegs expands one side into canonical legs. With no legs the side is in the
+// scalar spelling and yields a single leg carrying the whole transaction total;
+// otherwise each entry yields its own leg. fieldName names the side's leg array in
+// the per-leg error messages.
+func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, total decimal.Decimal, isFrom bool, fieldName string) ([]FromTo, error) {
+	if len(legs) == 0 {
+		return []FromTo{{
+			AccountAlias: alias,
+			Amount:       &Amount{Asset: in.Asset, Value: total},
+			RouteID:      cloneStringPtr(in.OperationRouteID),
+			IsFrom:       isFrom,
+		}}, nil
+	}
+
+	out := make([]FromTo, 0, len(legs))
+
+	for _, leg := range legs {
+		built, err := in.buildLeg(leg, isFrom, fieldName)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, built)
+	}
+
+	return out, nil
+}
+
+// buildLeg maps one array entry onto a canonical leg. The entry must name an
+// account and fill exactly one of the three value expressions; the shared
+// invalid-transaction-type error is the same one the v1 detailed body raises for
+// this rule, so both surfaces reject it identically.
+func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, fieldName string) (FromTo, error) {
+	if leg.Account == "" {
+		return FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, fieldName+".account")
+	}
+
+	expressions := 0
+
+	if leg.Amount != "" {
+		expressions++
+	}
+
+	if leg.Share != nil {
+		expressions++
+	}
+
+	if leg.Remaining {
+		expressions++
+	}
+
+	if expressions != 1 {
+		return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction, fieldName)
+	}
+
+	route := leg.OperationRouteID
+	if route == nil {
+		route = in.OperationRouteID
+	}
+
+	built := FromTo{
+		AccountAlias: leg.Account,
+		RouteID:      cloneStringPtr(route),
+		IsFrom:       isFrom,
+	}
+
+	switch {
+	case leg.Amount != "":
+		value, err := decimal.NewFromString(leg.Amount)
+		if err != nil || value.LessThanOrEqual(decimal.Zero) {
+			return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+		}
+
+		built.Amount = &Amount{Asset: in.Asset, Value: value}
+	case leg.Share != nil:
+		built.Share = &Share{
+			Percentage:             leg.Share.Percentage,
+			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
+		}
+	default:
+		built.Remaining = legRemainingMarker
+	}
+
+	return built, nil
 }
 
 // cloneStringPtr returns an independent copy of p, or nil when p is nil, so

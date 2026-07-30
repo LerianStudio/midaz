@@ -37,6 +37,19 @@ func validV2Input() mtransaction.CreateTransactionV2Input {
 	}
 }
 
+// arrayV2Input returns a valid array-form CreateTransactionV2Input: the scalar
+// sides cleared and both leg groups supplied by the caller. The transaction total
+// stays on the request, since the legs' share and remaining expressions divide it.
+func arrayV2Input(sources, destinations []mtransaction.V2LegInput) mtransaction.CreateTransactionV2Input {
+	in := validV2Input()
+	in.From = ""
+	in.To = ""
+	in.Sources = sources
+	in.Destinations = destinations
+
+	return in
+}
+
 func TestCreateTransactionV2Input_Validation(t *testing.T) {
 	t.Parallel()
 
@@ -334,20 +347,29 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_Translate exercises the flat -> canonical
-// single-leg mapping: happy-path field propagation, two-level route mapping
-// (transaction route vs per-leg operation route), the pending flag, and the
-// named business-error edge cases.
+// TestCreateTransactionV2Input_Translate exercises the flat -> canonical mapping
+// for both spellings: happy-path field propagation, two-level route mapping
+// (transaction route vs per-leg operation route), the pending flag, leg-array
+// expansion across the three value expressions, and the named error edge cases.
+//
+// wantValidationError picks the asserted error CLASS, because the two classes carry
+// different HTTP statuses: request-shape violations are ValidationError (400) and
+// value violations are UnprocessableOperationError (422). Its zero value asserts
+// the 422 class, so every pre-existing case keeps its original expectation.
 func TestCreateTransactionV2Input_Translate(t *testing.T) {
 	t.Parallel()
 
+	legRoute := "22222222-2222-2222-2222-222222222222"
+
 	tests := []struct {
-		name     string
-		input    mtransaction.CreateTransactionV2Input
-		pending  bool
-		wantErr  bool
-		wantCode string
-		verify   func(t *testing.T, got mtransaction.Transaction)
+		name                string
+		input               mtransaction.CreateTransactionV2Input
+		pending             bool
+		wantErr             bool
+		wantCode            string
+		wantValidationError bool
+		wantMessagePart     string
+		verify              func(t *testing.T, got mtransaction.Transaction)
 	}{
 		{
 			name:    "single from/to happy path maps every field",
@@ -511,6 +533,317 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantErr:  true,
 			wantCode: constant.ErrTransactionAmbiguous.Error(),
 		},
+
+		// --- array form: expansion ---
+
+		{
+			name: "one source to many destinations expands per-leg amounts",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{
+					{Account: "@person2", Amount: "600"},
+					{Account: "@person3", Amount: "400"},
+				},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				assert.Equal(t, "BRL", got.Send.Asset)
+				assert.True(t, decimal.RequireFromString("1000").Equal(got.Send.Value))
+
+				require.Len(t, got.Send.Source.From, 1)
+				assert.Equal(t, "@person1", got.Send.Source.From[0].AccountAlias)
+				assert.True(t, got.Send.Source.From[0].IsFrom, "source legs must carry IsFrom=true")
+				require.NotNil(t, got.Send.Source.From[0].Amount)
+				assert.Equal(t, "BRL", got.Send.Source.From[0].Amount.Asset, "leg amounts inherit the request asset")
+				assert.True(t, decimal.RequireFromString("1000").Equal(got.Send.Source.From[0].Amount.Value))
+
+				require.Len(t, got.Send.Distribute.To, 2)
+				for i, want := range []string{"600", "400"} {
+					leg := got.Send.Distribute.To[i]
+					assert.False(t, leg.IsFrom, "distribute leg %d must not carry IsFrom", i)
+					require.NotNil(t, leg.Amount)
+					assert.Equal(t, "BRL", leg.Amount.Asset)
+					assert.Truef(t, decimal.RequireFromString(want).Equal(leg.Amount.Value), "leg %d amount = %s", i, leg.Amount.Value)
+					require.NotNil(t, leg.RouteID, "leg %d inherits the request operation route", i)
+					assert.Equal(t, "11111111-1111-1111-1111-111111111111", *leg.RouteID)
+				}
+
+				assert.Equal(t, "@person2", got.Send.Distribute.To[0].AccountAlias)
+				assert.Equal(t, "@person3", got.Send.Distribute.To[1].AccountAlias)
+			},
+		},
+		{
+			name: "many sources to one destination expands per-leg amounts",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{
+					{Account: "@person1", Amount: "600"},
+					{Account: "@person2", Amount: "400"},
+				},
+				[]mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 2)
+				for i, want := range []string{"600", "400"} {
+					leg := got.Send.Source.From[i]
+					assert.True(t, leg.IsFrom, "source leg %d must carry IsFrom=true", i)
+					require.NotNil(t, leg.Amount)
+					assert.Truef(t, decimal.RequireFromString(want).Equal(leg.Amount.Value), "leg %d amount = %s", i, leg.Amount.Value)
+				}
+
+				assert.Equal(t, "@person1", got.Send.Source.From[0].AccountAlias)
+				assert.Equal(t, "@person2", got.Send.Source.From[1].AccountAlias)
+
+				require.Len(t, got.Send.Distribute.To, 1)
+				assert.Equal(t, "@person3", got.Send.Distribute.To[0].AccountAlias)
+				assert.False(t, got.Send.Distribute.To[0].IsFrom)
+			},
+		},
+		{
+			name: "many sources to many destinations expands both sides",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{
+					{Account: "@person1", Amount: "700"},
+					{Account: "@person2", Amount: "300"},
+				},
+				[]mtransaction.V2LegInput{
+					{Account: "@person3", Amount: "250"},
+					{Account: "@person4", Amount: "750"},
+				},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 2)
+				require.Len(t, got.Send.Distribute.To, 2)
+
+				assert.True(t, got.Send.Source.From[0].IsFrom)
+				assert.True(t, got.Send.Source.From[1].IsFrom)
+				assert.False(t, got.Send.Distribute.To[0].IsFrom)
+				assert.False(t, got.Send.Distribute.To[1].IsFrom)
+
+				require.NotNil(t, got.Send.Source.From[1].Amount)
+				assert.True(t, decimal.RequireFromString("300").Equal(got.Send.Source.From[1].Amount.Value))
+				require.NotNil(t, got.Send.Distribute.To[0].Amount)
+				assert.True(t, decimal.RequireFromString("250").Equal(got.Send.Distribute.To[0].Amount.Value))
+			},
+		},
+		{
+			name: "share and remaining legs map to their own value expressions",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{
+					{Account: "@person1", Share: &mtransaction.V2ShareInput{Percentage: 60, PercentageOfPercentage: 50}},
+					{Account: "@person2", Remaining: true},
+				},
+				[]mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 2)
+
+				share := got.Send.Source.From[0]
+				require.NotNil(t, share.Share)
+				assert.Equal(t, int64(60), share.Share.Percentage)
+				assert.Equal(t, int64(50), share.Share.PercentageOfPercentage)
+				assert.Nil(t, share.Amount, "a share leg carries no amount")
+				assert.Empty(t, share.Remaining, "a share leg carries no remaining marker")
+
+				remaining := got.Send.Source.From[1]
+				assert.Equal(t, "remaining", remaining.Remaining, "a remaining leg carries the marker the amount resolver looks for")
+				assert.Nil(t, remaining.Amount, "a remaining leg carries no amount")
+				assert.Nil(t, remaining.Share, "a remaining leg carries no share")
+			},
+		},
+		{
+			name: "share leg without percentage-of-percentage leaves it zero",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Share: &mtransaction.V2ShareInput{Percentage: 100}}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				require.NotNil(t, got.Send.Source.From[0].Share)
+				assert.Equal(t, int64(100), got.Send.Source.From[0].Share.Percentage)
+				assert.Zero(t, got.Send.Source.From[0].Share.PercentageOfPercentage)
+			},
+		},
+		{
+			name: "leg operation route wins over the request-level one",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000", OperationRouteID: &legRoute}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				require.NotNil(t, got.Send.Source.From[0].RouteID)
+				assert.Equal(t, "22222222-2222-2222-2222-222222222222", *got.Send.Source.From[0].RouteID,
+					"an explicit leg route overrides the request-level operation route")
+				assert.NotSame(t, &legRoute, got.Send.Source.From[0].RouteID, "the leg route must be an independent copy")
+
+				require.Len(t, got.Send.Distribute.To, 1)
+				require.NotNil(t, got.Send.Distribute.To[0].RouteID)
+				assert.Equal(t, "11111111-1111-1111-1111-111111111111", *got.Send.Distribute.To[0].RouteID,
+					"a leg without its own route falls back to the request-level one")
+			},
+		},
+		{
+			name: "no request and no leg operation route leaves every leg unrouted",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := arrayV2Input(
+					[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
+					[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+				)
+				in.OperationRouteID = nil
+
+				return in
+			}(),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				require.Len(t, got.Send.Distribute.To, 1)
+				assert.Nil(t, got.Send.Source.From[0].RouteID)
+				assert.Nil(t, got.Send.Distribute.To[0].RouteID)
+			},
+		},
+
+		// --- discriminator and leg errors ---
+
+		{
+			name: "neither from nor sources is a missing-field validation error",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.From = ""
+
+				return in
+			}(),
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+		},
+		{
+			name: "neither to nor destinations is a missing-field validation error",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.To = ""
+
+				return in
+			}(),
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+		},
+		{
+			name:                "explicit empty leg arrays leave both sides unspelled",
+			input:               arrayV2Input([]mtransaction.V2LegInput{}, []mtransaction.V2LegInput{}),
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+		},
+		{
+			name: "leg without an account is a missing-field validation error",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+		},
+		{
+			name: "scalar and array on the same side are mutually exclusive",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.Sources = []mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}}
+
+				return in
+			}(),
+			wantErr:             true,
+			wantCode:            constant.ErrMutuallyExclusiveTransactionFields.Error(),
+			wantValidationError: true,
+		},
+		{
+			name: "array on one side and scalar on the other are mutually exclusive",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.From = ""
+				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}}
+
+				return in
+			}(),
+			wantErr:             true,
+			wantCode:            constant.ErrMutuallyExclusiveTransactionFields.Error(),
+			wantValidationError: true,
+		},
+		{
+			name: "leg with both amount and share is an invalid transaction type",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000", Share: &mtransaction.V2ShareInput{Percentage: 100}}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			wantErr:             true,
+			wantCode:            constant.ErrInvalidTransactionType.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "'sources'",
+		},
+		{
+			name: "leg without any value expression is an invalid transaction type",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1"}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			wantErr:             true,
+			wantCode:            constant.ErrInvalidTransactionType.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "'sources'",
+		},
+		{
+			name: "destination leg without any value expression names the destinations field",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Account: "@person2"}},
+			),
+			wantErr:             true,
+			wantCode:            constant.ErrInvalidTransactionType.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "'destinations'",
+		},
+		{
+			name: "destination leg without an account names the destinations field",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Amount: "1000"}},
+			),
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "destinations.account",
+		},
+		{
+			name: "non-numeric leg amount is a non-positive business error",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "abc"}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			wantErr:  true,
+			wantCode: constant.ErrInvalidTransactionNonPositiveValue.Error(),
+		},
+		{
+			name: "zero leg amount is a non-positive business error",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "0"}},
+				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+			),
+			wantErr:  true,
+			wantCode: constant.ErrInvalidTransactionNonPositiveValue.Error(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -522,6 +855,19 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.True(t, got.IsEmpty(), "error path must not leak a populated transaction")
+
+				if tt.wantValidationError {
+					var vErr pkg.ValidationError
+					require.ErrorAs(t, err, &vErr, "request-shape errors must be ValidationError (400)")
+					assert.Equal(t, tt.wantCode, vErr.Code)
+
+					if tt.wantMessagePart != "" {
+						assert.Contains(t, vErr.Message, tt.wantMessagePart,
+							"the message must name the offending side so the caller knows which group to fix")
+					}
+
+					return
+				}
 
 				var uoErr pkg.UnprocessableOperationError
 				require.ErrorAs(t, err, &uoErr, "business errors must be UnprocessableOperationError (422)")

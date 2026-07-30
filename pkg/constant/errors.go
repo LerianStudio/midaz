@@ -83,6 +83,7 @@ var (
 	ErrTransactionIDNotFound                    = errors.New("0070")
 	ErrNoTransactionsFound                      = errors.New("0071")
 	ErrInvalidTransactionType                   = errors.New("0072")
+	ErrMutuallyExclusiveTransactionFields       = errors.New("0498")
 	ErrTransactionValueMismatch                 = errors.New("0073")
 	ErrForbiddenExternalAccountManipulation     = errors.New("0074")
 	ErrAuditRecordNotRetrieved                  = errors.New("0075")
