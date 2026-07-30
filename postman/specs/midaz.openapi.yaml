@@ -10219,12 +10219,13 @@ components:
     CreateTransactionV2Input:
       additionalProperties: false
       description: >-
-        Transaction request body. Send EITHER the scalar side fields `from` and
-        `to`, OR the leg arrays `sources` and `destinations` — never both in the
-        same request. `asset`, `amount`, `description`, `code`, `routeId`,
+        Transaction request body. Each side of the transaction is spelled EITHER
+        with its scalar field (`from`, `to`) OR with its leg array (`sources`,
+        `destinations`) — never both on the same side, though the two sides may
+        choose differently. `asset`, `amount`, `description`, `code`, `routeId`,
         `operationRouteId` and `metadata` are common to both forms, and `amount`
-        is always the transaction total that the legs' `share` and `remaining`
-        expressions divide.
+        is always the transaction total that the legs' `share` expressions
+        divide. Each leg array holds at most 500 legs.
       properties:
         amount:
           type: string
@@ -10269,6 +10270,10 @@ components:
       type: object
     V2LegInput:
       additionalProperties: false
+      description: >-
+        One leg of a transaction side. Fill EXACTLY ONE value expression per
+        leg: `amount` for an explicit value, or `share` for a percentage of the
+        transaction total. A leg carrying both, or neither, is rejected.
       properties:
         account:
           type: string
@@ -10279,8 +10284,6 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
-        remaining:
-          type: boolean
         share:
           $ref: '#/components/schemas/V2ShareInput'
       required:

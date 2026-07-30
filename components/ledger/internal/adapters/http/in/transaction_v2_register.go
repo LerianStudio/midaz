@@ -63,6 +63,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionDirectV2Huma)
 
@@ -74,6 +75,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionHoldV2Huma)
 
@@ -85,6 +87,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlockV2Huma)
 
@@ -96,6 +99,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockV2Huma)
 
@@ -142,28 +146,43 @@ const v2CreateBodyContentType = "application/json"
 // have no request body to describe.
 var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
 
+// v2CreateMaxBodyBytes is the request-body ceiling of the v2 create ops. It is stated here
+// because Huma defaults MaxBodyBytes only for ops that declare a typed Body field; the v2 ops
+// carry RawBody, which leaves the read unbounded.
+//
+// 1 MiB is roughly 2.5x the largest body the published limits admit: 500 legs per side at
+// ~200 bytes each (~210 KB across both sides) plus the metadata ceiling of 100 keys at a
+// 100-char key and a 2000-char value (~210 KB). The remainder absorbs whitespace, so a
+// pretty-printed body at the leg cap still fits. The leg cap, not the byte cap, is what bounds
+// the funnel's per-leg work; this ceiling bounds the fields the leg cap cannot, such as an
+// account alias the leg schema leaves unbounded.
+const v2CreateMaxBodyBytes int64 = 1 << 20
+
 // v2CreateBodyDescription is the prose the published create-body component carries. The
 // component stays ONE flat object listing both spellings of the transaction sides, so the
 // mutual exclusivity between them has no structural expression in the schema and has to be
 // stated here.
-const v2CreateBodyDescription = "Transaction request body. Send EITHER the scalar side " +
-	"fields `from` and `to`, OR the leg arrays `sources` and `destinations` — never both in " +
-	"the same request. `asset`, `amount`, `description`, `code`, `routeId`, " +
-	"`operationRouteId` and `metadata` are common to both forms, and `amount` is always the " +
-	"transaction total that the legs' `share` and `remaining` expressions divide."
+const v2CreateBodyDescription = "Transaction request body. Each side of the transaction is " +
+	"spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, " +
+	"`destinations`) — never both on the same side, though the two sides may choose " +
+	"differently. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
+	"`metadata` are common to both forms, and `amount` is always the transaction total that " +
+	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
+
+// v2LegDescription is the prose the published leg component carries. Like the parent
+// component, the leg stays one flat object, so the "exactly one value expression" rule has no
+// structural expression in the schema and has to be stated here.
+const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value expression " +
+	"per leg: `amount` for an explicit value, or `share` for a percentage of the transaction " +
+	"total. A leg carrying both, or neither, is rejected."
 
 // publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
 // with a $ref to the typed v2 input component, so the contract documents the accepted
-// fields instead of an unstructured byte stream. It also stamps the component with
-// v2CreateBodyDescription, the only place the scalar-or-arrays exclusivity is expressed.
+// fields instead of an unstructured byte stream. It then stamps the request and leg
+// components with the prose rules the flat schemas cannot express structurally.
 //
-// It must run AFTER every huma.Register in this function: Register is what creates
-// op.RequestBody, and Huma derives that body from the RawBody field — writing
-// {type: string, format: binary} and overwriting whatever a Body field would have
-// produced. RawBody is kept (not swapped for a Body field) because the body bytes reach
-// the handler exactly as submitted, which the idempotency hash source depends on, and
-// because Huma would overwrite a Body-derived schema anyway. Runtime is unaffected:
-// SkipValidateBody stays set, so pkgHTTP.DecodeAndValidate remains the sole body validator.
+// It must run AFTER every huma.Register in this function, because registration is what
+// creates op.RequestBody.
 //
 // Nil-guards the document and every op it touches so a spec-disabled build, or a create
 // action that stops registering, degrades to a no-op instead of panicking.
@@ -204,8 +223,18 @@ func publishV2CreateBodySchema(api huma.API, basePath string) {
 		return
 	}
 
-	if component := oapi.Components.Schemas.SchemaFromRef(bodyRef); component != nil {
-		component.Description = v2CreateBodyDescription
+	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
+
+	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
+	describeV2Component(oapi, legRef, v2LegDescription)
+}
+
+// describeV2Component stamps description onto the component ref names, if the document
+// carries one. Refs are resolved rather than assumed so a namer change surfaces as a missing
+// description in the contract tests instead of a nil dereference here.
+func describeV2Component(oapi *huma.OpenAPI, ref, description string) {
+	if component := oapi.Components.Schemas.SchemaFromRef(ref); component != nil {
+		component.Description = description
 	}
 }
 

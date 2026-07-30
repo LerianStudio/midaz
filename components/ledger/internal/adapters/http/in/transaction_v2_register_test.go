@@ -222,6 +222,8 @@ func TestV2Routes_RequireAuth(t *testing.T) {
 const (
 	v2CreateBodySchemaName = "CreateTransactionV2Input"
 	v2CreateBodySchemaRef  = "#/components/schemas/" + v2CreateBodySchemaName
+	v2LegSchemaName        = "V2LegInput"
+	v2ShareSchemaName      = "V2ShareInput"
 )
 
 // TestRegisterTransactionV2Routes_PublishesCreateBodySchema asserts the v2 create ops
@@ -306,6 +308,91 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 				"%s must not mark the %s side field required", v2CreateBodySchemaName, field)
 			assert.Containsf(t, schema.Description, field,
 				"%s description should name the %s side field when spelling out the or/or", v2CreateBodySchemaName, field)
+		})
+	}
+}
+
+// TestRegisterTransactionV2Routes_CreateOpsCapBodyBytes asserts the four body-carrying create
+// ops state their own request-body byte ceiling. Huma applies its 1 MiB default only to ops
+// that declare a typed `Body` field; the v2 create ops carry `RawBody`, which leaves
+// MaxBodyBytes at zero and the read unbounded. The bodiless lifecycle ops advertise no body,
+// so they carry no ceiling.
+func TestRegisterTransactionV2Routes_CreateOpsCapBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	paths := registerV2TransactionContractForTest().Paths
+
+	for _, rt := range v2Routes {
+		t.Run(rt.action, func(t *testing.T) {
+			t.Parallel()
+
+			pathItem, ok := paths[rt.opPath]
+			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
+			require.NotNilf(t, pathItem.Post, "%s op path should carry a POST operation", rt.action)
+
+			if !rt.hasBody {
+				assert.Zerof(t, pathItem.Post.MaxBodyBytes,
+					"bodiless lifecycle op %s needs no body ceiling", rt.action)
+
+				return
+			}
+
+			assert.EqualValuesf(t, v2CreateMaxBodyBytes, pathItem.Post.MaxBodyBytes,
+				"%s op must state its request-body ceiling instead of reading an unbounded body", rt.action)
+		})
+	}
+}
+
+// TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions asserts the published
+// leg component carries prose for the rule the schema cannot express structurally: a leg fills
+// exactly one of `amount` or `share`. The rule is enforced at runtime, so a contract that omits
+// it leaves clients to discover it by getting rejected.
+func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *testing.T) {
+	t.Parallel()
+
+	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2LegSchemaName]
+	require.Truef(t, ok, "v2 contract should publish the leg component %s", v2LegSchemaName)
+	require.NotNilf(t, schema, "published %s component should not be nil", v2LegSchemaName)
+
+	require.NotEmptyf(t, schema.Description,
+		"%s is the only place the one-value-expression-per-leg rule can be stated", v2LegSchemaName)
+
+	for _, expression := range []string{"amount", "share"} {
+		assert.Containsf(t, schema.Description, expression,
+			"%s description should name the %s value expression", v2LegSchemaName, expression)
+	}
+
+	assert.NotContainsf(t, schema.Properties, "remaining",
+		"%s must not publish a remaining expression: a remaining leg commits an unbalanced transaction", v2LegSchemaName)
+}
+
+// TestRegisterTransactionV2Routes_ComponentRequiredFields locks the `required` list of every
+// published v2 request component. The scalar side fields must stay out of the parent's list
+// even though they carry no json `omitempty` — that is what their explicit `required:"false"`
+// tags buy, and without them dropping `omitempty` would declare one spelling mandatory.
+func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	schemas := registerV2TransactionContractForTest().Components.Schemas.Map()
+
+	tests := []struct {
+		component string
+		want      []string
+	}{
+		{component: v2CreateBodySchemaName, want: []string{"asset", "amount"}},
+		{component: v2LegSchemaName, want: []string{"account"}},
+		{component: v2ShareSchemaName, want: []string{"percentage"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.component, func(t *testing.T) {
+			t.Parallel()
+
+			schema, ok := schemas[tt.component]
+			require.Truef(t, ok, "v2 contract should publish the %s component", tt.component)
+			require.NotNilf(t, schema, "published %s component should not be nil", tt.component)
+
+			assert.ElementsMatchf(t, tt.want, schema.Required, "%s required list", tt.component)
 		})
 	}
 }

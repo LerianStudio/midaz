@@ -1185,15 +1185,9 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 }
 
 // advancedLegV2Body spells a 100 USD transaction in the leg-array form: two explicit-amount
-// debit legs and two 50% share credit legs. Four legs is what makes it the right probe for a
-// per-leg claim — with a single leg, "stamped on every leg" and "stamped once" are
-// indistinguishable.
-//
-// It deliberately avoids the `remaining` expression, whose value is lost in the shared create
-// funnel on BOTH the v1 and the v2 surface (pinned by
-// TestIntegration_TransactionV2Advanced_RemainingLegDroppedLikeV1_KnownDefect). Building the
-// per-leg override proof on a leg the funnel drops would make this test assert the defect
-// instead of the override.
+// debit legs and two 50% share credit legs, one per value expression the v2 leg publishes.
+// Four legs is what makes it the right probe for a per-leg claim — with a single leg,
+// "stamped on every leg" and "stamped once" are indistinguishable.
 const advancedLegV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
 	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
 	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
@@ -1269,9 +1263,9 @@ func assertAdvancedLegOps(t *testing.T, ops []operationEconomicRow, want map[str
 //     the expanded legs: hold opens the transaction as PENDING and reserves both sources,
 //     block/unblock stamp their Operation.Type on EVERY one of the four resulting operations,
 //     and direct settles with the plain DEBIT/CREDIT labels. The leg split is proven
-//     economically — each of the four accounts moves by its own leg's value, so the amount,
-//     share and remaining expressions are shown to resolve independently rather than
-//     collapsing onto one leg.
+//     economically — each of the four accounts moves by its own leg's value, so the amount and
+//     share expressions are shown to resolve independently rather than collapsing onto one
+//     leg.
 // =============================================================================
 
 func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing.T) {
@@ -1353,7 +1347,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 			assertAdvancedLegOps(t, fetchOperationRows(t, infra.pgContainer.DB, txID), tc.wantOps)
 
 			// Economic proof that the legs resolved independently: each source moved by its own
-			// leg's value (explicit 60, remaining 40). A pending hold reserves the sources
+			// leg's value (explicit 60 and explicit 40). A pending hold reserves the sources
 			// instead of debiting them, and leaves both destinations untouched.
 			if tc.wantStatus == cn.PENDING {
 				requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available after hold")
@@ -1367,9 +1361,9 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 			}
 
 			requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available (explicit 60 leg)")
-			requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB available (remaining 40 leg)")
+			requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB available (explicit 40 leg)")
 			requireDecimalEqual(t, decimal.NewFromInt(50), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstA), "@dstA available (50% share leg)")
-			requireDecimalEqual(t, decimal.NewFromInt(50), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstB), "@dstB available (remaining 50 leg)")
+			requireDecimalEqual(t, decimal.NewFromInt(50), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstB), "@dstB available (50% share leg)")
 
 			for _, bID := range []uuid.UUID{balances.srcA, balances.srcB, balances.dstA, balances.dstB} {
 				requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, bID), "balance %s on-hold must be zero on a settled transaction", bID)
@@ -1378,27 +1372,21 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 	}
 }
 
-// remainingLegV2Body / remainingLegV1Body spell the SAME 100 USD transaction — one source leg
+// remainingLegV1Body spells a 100 USD transaction in the v1 detailed form: one source leg
 // taking an explicit 60, a second taking the remainder, and a single destination taking the
-// full 100 — in the v2 leg-array form and the v1 detailed form. They exist to compare the two
-// surfaces on the `remaining` expression alone.
-const (
-	remainingLegV2Body = `{"description":"remaining leg","asset":"USD","amount":"100",` +
-		`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","remaining":true}],` +
-		`"destinations":[{"account":"@dstA","amount":"100"}]}`
-
-	remainingLegV1Body = `{
-		"description":"remaining leg",
-		"send":{
-			"asset":"USD","value":"100",
-			"source":{"from":[
-				{"accountAlias":"@srcA","amount":{"asset":"USD","value":"60"}},
-				{"accountAlias":"@srcB","remaining":"remaining"}
-			]},
-			"distribute":{"to":[{"accountAlias":"@dstA","amount":{"asset":"USD","value":"100"}}]}
-		}
-	}`
-)
+// full 100. `remaining` is a v1/DSL expression only — the v2 surface publishes no such field,
+// so a v2 body cannot spell this shape.
+const remainingLegV1Body = `{
+	"description":"remaining leg",
+	"send":{
+		"asset":"USD","value":"100",
+		"source":{"from":[
+			{"accountAlias":"@srcA","amount":{"asset":"USD","value":"60"}},
+			{"accountAlias":"@srcB","remaining":"remaining"}
+		]},
+		"distribute":{"to":[{"accountAlias":"@dstA","amount":{"asset":"USD","value":"100"}}]}
+	}
+}`
 
 // sumOperationAmountsByType totals the persisted operation amounts per operation type, so a
 // transaction can be checked for whether its debits and credits actually balance.
@@ -1413,80 +1401,142 @@ func sumOperationAmountsByType(ops []operationEconomicRow) map[string]decimal.De
 }
 
 // =============================================================================
-// 13. KNOWN DEFECT — `remaining` LEG DROPPED, IDENTICALLY ON BOTH SURFACES: a leg whose value
-//     is the `remaining` expression resolves correctly during validation (so the balance check
+// 13. KNOWN DEFECT — `remaining` LEG DROPPED ON THE v1 SURFACE: a leg whose value is the
+//     `remaining` expression resolves correctly during validation (so the balance check
 //     passes) but contributes NO balance movement and NO operation row, and the transaction is
 //     nevertheless committed as APPROVED with debits and credits that do not sum to each other.
 //
-//     This test asserts the CURRENT WRONG behavior on purpose, on the v1 detailed body and on
-//     the v2 leg-array body alike. It lives here because it bounds what the v2 advanced form
-//     inherits: the defect is in the shared create funnel, not in the v2 translation (which
-//     builds the remaining leg correctly — see the mtransaction unit tests), so the v2 surface
-//     matches v1 leg-for-leg including this. When the funnel is fixed, this test goes red on
-//     BOTH surfaces at once and is the place to record the corrected contract.
+//     This test asserts the CURRENT WRONG behavior on purpose, and it is v1-ONLY. The defect
+//     sits in the shared create funnel, so fixing it changes released v1 behavior and needs its
+//     own release; the v2 surface answers it by publishing no `remaining` expression at all, so
+//     there is no v2 spelling of this shape to pin (see
+//     TestV2LegInput_NoRemainingExpression). The pin lives in this file because it records what
+//     the v2 advanced form deliberately does NOT inherit. When the funnel is fixed, this test
+//     goes red and is the place to record the corrected v1 contract.
 // =============================================================================
 
-func TestIntegration_TransactionV2Advanced_RemainingLegDroppedLikeV1_KnownDefect(t *testing.T) {
-	cases := []struct {
-		name string
-		app  func(*testing.T, *TransactionHandler) *fiber.App
-		url  func(orgID, ledgerID uuid.UUID) string
-		body string
-	}{
-		{
-			name: "v1 detailed body",
-			app:  func(t *testing.T, h *TransactionHandler) *fiber.App { return buildHumaTransactionApp(t, h, true) },
-			url:  v1JSONURL,
-			body: remainingLegV1Body,
-		},
-		{
-			name: "v2 leg-array body",
-			app:  func(t *testing.T, h *TransactionHandler) *fiber.App { return buildHumaV2DirectApp(t, h) },
-			url:  v2DirectURL,
-			body: remainingLegV2Body,
-		},
-	}
+func TestIntegration_TransactionV1Detailed_RemainingLegDropped_KnownDefect(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// NOT parallel: process-global huma state (see file header).
-			t.Setenv("ALLOW_INSECURE_TLS", "true")
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-			infra := setupTestInfra(t)
-			t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	ctx := context.Background()
 
-			ctx := context.Background()
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
-			balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+	app := buildHumaTransactionApp(t, infra.handler, true)
 
-			app := tc.app(t, infra.handler)
+	resp := decodeTxResponse(t, postTransaction(t, app, v1JSONURL(infra.orgID, infra.ledgerID), remainingLegV1Body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
 
-			resp := decodeTxResponse(t, postTransaction(t, app, tc.url(infra.orgID, infra.ledgerID), tc.body, ""), nethttp.StatusCreated)
-			txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"the transaction is committed despite the dropped leg")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
-				"the transaction is committed despite the dropped leg")
-			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	ops := fetchOperationRows(t, infra.pgContainer.DB, txID)
 
-			ops := fetchOperationRows(t, infra.pgContainer.DB, txID)
+	// The remaining leg produces no operation row at all: two of the three legs persist.
+	require.Len(t, ops, 2, "the remaining leg contributes no operation row")
 
-			// The remaining leg produces no operation row at all: two of the three legs persist.
-			require.Len(t, ops, 2, "the remaining leg contributes no operation row")
+	byAlias := indexOpsByAlias(t, ops)
+	_, remainingLegPersisted := byAlias["@srcB"]
+	assert.False(t, remainingLegPersisted, "@srcB is the remaining leg and persists no operation")
 
-			byAlias := indexOpsByAlias(t, ops)
-			_, remainingLegPersisted := byAlias["@srcB"]
-			assert.False(t, remainingLegPersisted, "@srcB is the remaining leg and persists no operation")
+	// And no balance movement: @srcB keeps every unit it was seeded with.
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB),
+		"@srcB is untouched even though it was resolved to 40 during validation")
 
-			// And no balance movement: @srcB keeps every unit it was seeded with.
-			requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB),
-				"@srcB is untouched even though it was resolved to 40 during validation")
+	// The committed result is unbalanced: 60 debited against 100 credited.
+	totals := sumOperationAmountsByType(ops)
+	requireDecimalEqual(t, decimal.NewFromInt(60), totals[cn.DEBIT], "persisted debit total")
+	requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.CREDIT], "persisted credit total")
+	assert.False(t, totals[cn.DEBIT].Equal(totals[cn.CREDIT]),
+		"the committed transaction does not balance — this is the defect being pinned")
+}
 
-			// The committed result is unbalanced: 60 debited against 100 credited.
-			totals := sumOperationAmountsByType(ops)
-			requireDecimalEqual(t, decimal.NewFromInt(60), totals[cn.DEBIT], "persisted debit total")
-			requireDecimalEqual(t, decimal.NewFromInt(100), totals[cn.CREDIT], "persisted credit total")
-			assert.False(t, totals[cn.DEBIT].Equal(totals[cn.CREDIT]),
-				"the committed transaction does not balance — this is the defect being pinned")
-		})
-	}
+// =============================================================================
+// 14. FUNDING VIA A LEG NAMING THE EXTERNAL ACCOUNT: `@external/<ASSET>` reaches the ledger
+//     through a `sources` leg and settles. The v2 surface publishes no inflow/outflow action,
+//     so naming that alias explicitly is the ONLY way to spell a deposit — and the alias
+//     contains `/`, which the registered account-alias charset excludes. This test is the
+//     end-to-end lock on that: the leg guard rejects `#` alone, so a charset-based guard
+//     replacing it would fail here rather than silently 400 every deposit in production.
+// =============================================================================
+
+// seedExternalFundingBalances seeds the pair a deposit needs: the ledger's external account
+// (overdraft-capable, so it can fund from zero) and a plain destination account.
+func seedExternalFundingBalances(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) (external, destination uuid.UUID) {
+	t.Helper()
+
+	externalParams := postgrestestutil.DefaultBalanceParams()
+	externalParams.Alias = externalUSDAlias
+	externalParams.AssetCode = "USD"
+	externalParams.Available = decimal.Zero
+	externalParams.OnHold = decimal.Zero
+	externalParams.AccountType = "external"
+
+	external = postgrestestutil.CreateTestBalance(t, db, orgID, ledgerID,
+		uuid.Must(libCommons.GenerateUUIDv7()), externalParams)
+
+	destinationParams := postgrestestutil.DefaultBalanceParams()
+	destinationParams.Alias = "@alice"
+	destinationParams.AssetCode = "USD"
+	destinationParams.Available = decimal.Zero
+	destinationParams.OnHold = decimal.Zero
+
+	destination = postgrestestutil.CreateTestBalance(t, db, orgID, ledgerID,
+		uuid.Must(libCommons.GenerateUUIDv7()), destinationParams)
+
+	return external, destination
+}
+
+// externalUSDAlias is the alias every ledger's USD external account carries. Spelled from the
+// production constant so a change to the prefix surfaces here.
+var externalUSDAlias = cn.DefaultExternalAccountAliasPrefix + "USD"
+
+func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	externalID, aliceID := seedExternalFundingBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
+		`"sources":[{"account":"` + externalUSDAlias + `","amount":"100"}],` +
+		`"destinations":[{"account":"@alice","amount":"100"}]}`
+
+	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a deposit spelled with an external-account leg must settle")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Both legs persisted, each against its own alias: the `/` in the external alias survived
+	// the leg guard and the alias round-tripped through the funnel's per-leg map.
+	byAlias := indexOpsByAlias(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
+
+	externalOp, ok := byAlias[externalUSDAlias]
+	require.Truef(t, ok, "the external-account leg must persist an operation under %s", externalUSDAlias)
+	assert.Equal(t, cn.DEBIT, externalOp.Type, "the external leg is the debit side of a deposit")
+	requireDecimalEqual(t, decimal.NewFromInt(100), externalOp.Amount, "external leg amount")
+
+	aliceOp, ok := byAlias["@alice"]
+	require.True(t, ok, "the destination leg must persist an operation")
+	assert.Equal(t, cn.CREDIT, aliceOp.Type)
+	requireDecimalEqual(t, decimal.NewFromInt(100), aliceOp.Amount, "destination leg amount")
+
+	// Economic proof: the funds landed, drawn from the external account's overdraft.
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, aliceID),
+		"@alice must hold the deposited funds")
+	requireDecimalEqual(t, decimal.NewFromInt(-100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, externalID),
+		"the external account funds the deposit from its overdraft")
 }

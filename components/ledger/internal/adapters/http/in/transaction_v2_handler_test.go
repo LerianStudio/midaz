@@ -585,13 +585,15 @@ func TestV2IdempotencyHashSource_DiscriminatesActions(t *testing.T) {
 	}
 }
 
-// v2AdvancedBody is the leg-array spelling of a 100 BRL transaction: two debit legs (an
-// explicit amount plus the remainder) and two credit legs (a share plus the remainder), so
-// one body exercises all three per-leg value expressions. It is the counterpart of
-// v2DirectBody, which spells the same total in the scalar from/to form.
+// v2AdvancedBody is the leg-array spelling of a 100 BRL transaction: two explicit-amount
+// debit legs and two 50% share credit legs, so one body exercises both per-leg value
+// expressions on both sides. It is the counterpart of v2DirectBody, which spells the same
+// total in the scalar from/to form. Two legs per side is what makes it a valid probe for a
+// per-leg claim — with one leg, "expanded per entry" and "collapsed onto one leg" are
+// indistinguishable.
 const v2AdvancedBody = `{"description":"v2 advanced","asset":"BRL","amount":"100",` +
-	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","remaining":true}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","remaining":true}]}`
+	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
+	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
 
 // humaV2CreateOp is the shape every v2 create terminal shares. All four actions carry the
 // same request envelope and the same success envelope; only the identity they pass to
@@ -686,13 +688,15 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 			require.NotNil(t, from[0].Amount, "the explicit-amount source leg must carry an amount")
 			assert.True(t, decimal.NewFromInt(60).Equal(from[0].Amount.Value), "source leg amount")
 			assert.Equal(t, "@srcB", from[1].AccountAlias)
-			assert.NotEmpty(t, from[1].Remaining, "the remaining source leg must carry the remaining marker")
+			require.NotNil(t, from[1].Amount, "the second explicit-amount source leg must carry an amount")
+			assert.True(t, decimal.NewFromInt(40).Equal(from[1].Amount.Value), "second source leg amount")
 
 			assert.Equal(t, "@dstA", to[0].AccountAlias)
 			require.NotNil(t, to[0].Share, "the share destination leg must carry a share")
 			assert.Equal(t, int64(50), to[0].Share.Percentage, "destination leg share percentage")
 			assert.Equal(t, "@dstB", to[1].AccountAlias)
-			assert.NotEmpty(t, to[1].Remaining, "the remaining destination leg must carry the remaining marker")
+			require.NotNil(t, to[1].Share, "the second share destination leg must carry a share")
+			assert.Equal(t, int64(50), to[1].Share.Percentage, "second destination leg share percentage")
 
 			// The action identity rides on the advanced body exactly as it does on the scalar
 			// one: pending drives the opening status, the override is stamped verbatim.

@@ -39,7 +39,7 @@ func validV2Input() mtransaction.CreateTransactionV2Input {
 
 // arrayV2Input returns a valid array-form CreateTransactionV2Input: the scalar
 // sides cleared and both leg groups supplied by the caller. The transaction total
-// stays on the request, since the legs' share and remaining expressions divide it.
+// stays on the request, since the legs' share expressions divide it.
 func arrayV2Input(sources, destinations []mtransaction.V2LegInput) mtransaction.CreateTransactionV2Input {
 	in := validV2Input()
 	in.From = ""
@@ -91,7 +91,7 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 			mutate: func(in *mtransaction.CreateTransactionV2Input) {
 				in.From = ""
 				in.To = ""
-				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", Remaining: true}}
+				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}}
 				in.Destinations = []mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}}
 			},
 			wantErr: false,
@@ -174,14 +174,16 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 //
 //   - `from`/`to` carry no `validate:"required"`: a struct tag cannot express
 //     "exactly one of a pair", so the side obligation is decided in Translate.
-//   - `sources`/`destinations` carry no `omitempty`: an explicit `"sources": []`
-//     would otherwise vanish from the unknown-field re-marshal and be rejected as an
-//     unknown field instead of reaching the side discriminator.
-//   - `sources`/`destinations` carry `required:"false"`: dropping `omitempty` is
-//     what normally keeps a field out of the published `required` list, so without
-//     the explicit tag the contract would declare the array form mandatory.
-//   - `sources`/`destinations` carry `validate:"dive"`: without it the per-leg
-//     `validate:"omitempty,uuid"` on a leg route is never evaluated.
+//   - NO side field carries json `omitempty`: an explicit `"from": ""` or
+//     `"sources": []` would otherwise vanish from the unknown-field re-marshal and be
+//     rejected as an unknown field instead of reaching the side discriminator.
+//   - EVERY side field carries `required:"false"`: dropping `omitempty` is what
+//     normally keeps a field out of the published `required` list, so without the
+//     explicit tag the contract would declare one spelling mandatory.
+//   - `sources`/`destinations` carry `validate:"max=500,dive"`: the cap bounds the
+//     per-side leg count, and without `dive` the per-leg tags — the leg's
+//     `validate:"required"` account and `validate:"omitempty,uuid"` route — are never
+//     evaluated.
 func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
 	t.Parallel()
 
@@ -197,20 +199,24 @@ func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
 		hasRequiredTag  bool
 	}{
 		{
-			field:    "From",
-			wantType: reflect.TypeFor[string](),
-			wantJSON: "from,omitempty",
+			field:           "From",
+			wantType:        reflect.TypeFor[string](),
+			wantJSON:        "from",
+			wantRequiredTag: "false",
+			hasRequiredTag:  true,
 		},
 		{
-			field:    "To",
-			wantType: reflect.TypeFor[string](),
-			wantJSON: "to,omitempty",
+			field:           "To",
+			wantType:        reflect.TypeFor[string](),
+			wantJSON:        "to",
+			wantRequiredTag: "false",
+			hasRequiredTag:  true,
 		},
 		{
 			field:           "Sources",
 			wantType:        legSliceType,
 			wantJSON:        "sources",
-			wantValidate:    "dive",
+			wantValidate:    "max=500,dive",
 			wantRequiredTag: "false",
 			hasRequiredTag:  true,
 		},
@@ -218,7 +224,7 @@ func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
 			field:           "Destinations",
 			wantType:        legSliceType,
 			wantJSON:        "destinations",
-			wantValidate:    "dive",
+			wantValidate:    "max=500,dive",
 			wantRequiredTag: "false",
 			hasRequiredTag:  true,
 		},
@@ -284,7 +290,7 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 			name: "populated leg arrays decode every value expression",
 			body: `{"asset":"BRL","amount":"1000",` +
 				`"sources":[{"account":"@person1","share":{"percentage":60,"percentageOfPercentage":50}},` +
-				`{"account":"@person2","remaining":true}],` +
+				`{"account":"@person2","amount":"400"}],` +
 				`"destinations":[{"account":"@person3","amount":"1000","operationRouteId":"11111111-1111-1111-1111-111111111111"}]}`,
 			verify: func(t *testing.T, in mtransaction.CreateTransactionV2Input) {
 				t.Helper()
@@ -297,11 +303,10 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 				require.NotNil(t, in.Sources[0].Share)
 				assert.Equal(t, int64(60), in.Sources[0].Share.Percentage)
 				assert.Equal(t, int64(50), in.Sources[0].Share.PercentageOfPercentage)
-				assert.False(t, in.Sources[0].Remaining)
 				assert.Empty(t, in.Sources[0].Amount)
 
 				assert.Equal(t, "@person2", in.Sources[1].Account)
-				assert.True(t, in.Sources[1].Remaining)
+				assert.Equal(t, "400", in.Sources[1].Amount)
 				assert.Nil(t, in.Sources[1].Share)
 
 				require.Len(t, in.Destinations, 1)
@@ -315,14 +320,14 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 			name: "malformed per-leg operationRouteId is rejected at decode",
 			body: `{"asset":"BRL","amount":"1000",` +
 				`"sources":[{"account":"@person1","operationRouteId":"not-a-uuid"}],` +
-				`"destinations":[{"account":"@person2","remaining":true}]}`,
+				`"destinations":[{"account":"@person2","amount":"1000"}]}`,
 			wantErr: true,
 		},
 		{
 			name: "leg field outside the exposed group is an unknown field",
 			body: `{"asset":"BRL","amount":"1000",` +
 				`"sources":[{"account":"@person1","balanceKey":"default"}],` +
-				`"destinations":[{"account":"@person2","remaining":true}]}`,
+				`"destinations":[{"account":"@person2","amount":"1000"}]}`,
 			wantErr: true,
 		},
 	}
@@ -350,7 +355,8 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 // TestCreateTransactionV2Input_Translate exercises the flat -> canonical mapping
 // for both spellings: happy-path field propagation, two-level route mapping
 // (transaction route vs per-leg operation route), the pending flag, leg-array
-// expansion across the three value expressions, and the named error edge cases.
+// expansion across both value expressions, every combination of the two per-side
+// spellings, and the named error edge cases.
 //
 // wantValidationError picks the asserted error CLASS, because the two classes carry
 // different HTTP statuses: request-shape violations are ValidationError (400) and
@@ -631,11 +637,11 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			},
 		},
 		{
-			name: "share and remaining legs map to their own value expressions",
+			name: "amount and share legs map to their own value expressions",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{
 					{Account: "@person1", Share: &mtransaction.V2ShareInput{Percentage: 60, PercentageOfPercentage: 50}},
-					{Account: "@person2", Remaining: true},
+					{Account: "@person2", Amount: "400"},
 				},
 				[]mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}},
 			),
@@ -649,12 +655,13 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 				assert.Equal(t, int64(60), share.Share.Percentage)
 				assert.Equal(t, int64(50), share.Share.PercentageOfPercentage)
 				assert.Nil(t, share.Amount, "a share leg carries no amount")
-				assert.Empty(t, share.Remaining, "a share leg carries no remaining marker")
+				assert.Empty(t, share.Remaining, "the v2 surface publishes no remaining expression")
 
-				remaining := got.Send.Source.From[1]
-				assert.Equal(t, "remaining", remaining.Remaining, "a remaining leg carries the marker the amount resolver looks for")
-				assert.Nil(t, remaining.Amount, "a remaining leg carries no amount")
-				assert.Nil(t, remaining.Share, "a remaining leg carries no share")
+				explicit := got.Send.Source.From[1]
+				require.NotNil(t, explicit.Amount, "an explicit-amount leg carries an amount")
+				assert.True(t, decimal.RequireFromString("400").Equal(explicit.Amount.Value))
+				assert.Nil(t, explicit.Share, "an explicit-amount leg carries no share")
+				assert.Empty(t, explicit.Remaining, "the v2 surface publishes no remaining expression")
 			},
 		},
 		{
@@ -748,17 +755,28 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantValidationError: true,
 		},
 		{
-			name: "leg without an account is a missing-field validation error",
+			// The leg account obligation is a struct tag on V2LegInput, enforced at the
+			// decode boundary where the rejection can name the offending leg index (see
+			// TestV2LegInput_AccountRequiredByTag). Translate itself is permissive, so a
+			// caller reaching it without validating first gets an empty alias, not an
+			// error. Pinned so the guard cannot silently move back down here.
+			name: "leg without an account is not Translate's rule",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
 			),
-			wantErr:             true,
-			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
-			wantValidationError: true,
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				assert.Empty(t, got.Send.Source.From[0].AccountAlias)
+			},
 		},
 		{
-			name: "scalar and array on the same side are mutually exclusive",
+			// Both spellings on the SOURCE side: the side has no single reading, so it is
+			// rejected. The rule is per side, so the destination side being well-formed
+			// does not rescue it.
+			name: "source side spelled both ways is mutually exclusive",
 			input: func() mtransaction.CreateTransactionV2Input {
 				in := validV2Input()
 				in.Sources = []mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}}
@@ -770,17 +788,73 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantValidationError: true,
 		},
 		{
-			name: "array on one side and scalar on the other are mutually exclusive",
+			// The destination half of the same guard. Asserted independently because a
+			// guard that only covers the source side passes every source-side case.
+			name: "destination side spelled both ways is mutually exclusive",
 			input: func() mtransaction.CreateTransactionV2Input {
 				in := validV2Input()
-				in.From = ""
-				in.Sources = []mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}}
+				in.Destinations = []mtransaction.V2LegInput{{Account: "@person3", Amount: "1000"}}
 
 				return in
 			}(),
 			wantErr:             true,
 			wantCode:            constant.ErrMutuallyExclusiveTransactionFields.Error(),
 			wantValidationError: true,
+		},
+		{
+			// Each side picks its spelling independently, so an array source paired with a
+			// scalar destination is a valid request rather than a mixed-spelling error.
+			name: "array source with scalar destination translates",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.From = ""
+				in.Sources = []mtransaction.V2LegInput{
+					{Account: "@person1", Amount: "600"},
+					{Account: "@person3", Amount: "400"},
+				}
+
+				return in
+			}(),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 2, "the array side expands one leg per entry")
+				assert.Equal(t, "@person1", got.Send.Source.From[0].AccountAlias)
+				assert.Equal(t, "@person3", got.Send.Source.From[1].AccountAlias)
+
+				require.Len(t, got.Send.Distribute.To, 1, "the scalar side stays a single leg")
+				assert.Equal(t, "@person2", got.Send.Distribute.To[0].AccountAlias)
+				require.NotNil(t, got.Send.Distribute.To[0].Amount)
+				assert.True(t, decimal.RequireFromString("1000").Equal(got.Send.Distribute.To[0].Amount.Value),
+					"the scalar leg carries the whole transaction total")
+			},
+		},
+		{
+			// The mirror shape, and the common one: one payer to many payees.
+			name: "scalar source with array destinations translates",
+			input: func() mtransaction.CreateTransactionV2Input {
+				in := validV2Input()
+				in.To = ""
+				in.Destinations = []mtransaction.V2LegInput{
+					{Account: "@person2", Amount: "600"},
+					{Account: "@person3", Amount: "400"},
+				}
+
+				return in
+			}(),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1, "the scalar side stays a single leg")
+				assert.Equal(t, "@person1", got.Send.Source.From[0].AccountAlias)
+				require.NotNil(t, got.Send.Source.From[0].Amount)
+				assert.True(t, decimal.RequireFromString("1000").Equal(got.Send.Source.From[0].Amount.Value),
+					"the scalar leg carries the whole transaction total")
+
+				require.Len(t, got.Send.Distribute.To, 2, "the array side expands one leg per entry")
+				assert.Equal(t, "@person2", got.Send.Distribute.To[0].AccountAlias)
+				assert.Equal(t, "@person3", got.Send.Distribute.To[1].AccountAlias)
+			},
 		},
 		{
 			name: "leg with both amount and share is an invalid transaction type",
@@ -816,15 +890,18 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantMessagePart:     "'destinations'",
 		},
 		{
-			name: "destination leg without an account names the destinations field",
+			// The destination half of the same layer move.
+			name: "destination leg without an account is not Translate's rule",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Amount: "1000"}},
 			),
-			wantErr:             true,
-			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
-			wantValidationError: true,
-			wantMessagePart:     "destinations.account",
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Distribute.To, 1)
+				assert.Empty(t, got.Send.Distribute.To[0].AccountAlias)
+			},
 		},
 		{
 			name: "non-numeric leg amount is a non-positive business error",
