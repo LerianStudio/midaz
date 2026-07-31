@@ -113,7 +113,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(h.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn, false)
 	h.metaRepo = mongotxn.NewMetadataMongoDBRepository(mongoTxnConn)
 
 	redisRepo, err := redis.NewConsumerRedis(redisConn)

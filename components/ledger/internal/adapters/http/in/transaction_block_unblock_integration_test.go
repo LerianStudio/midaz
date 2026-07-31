@@ -84,7 +84,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
