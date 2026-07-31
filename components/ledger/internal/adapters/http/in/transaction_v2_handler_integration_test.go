@@ -162,6 +162,21 @@ func fetchOperationRows(t *testing.T, db *sql.DB, txID uuid.UUID) []operationEco
 	return out
 }
 
+// requireProblemCode asserts the RFC 9457 problem body carries EXACTLY the expected
+// canonical code. A substring check over the raw body would also match the code appearing
+// inside `type` or a message, so the field is read out of the parsed envelope.
+func requireProblemCode(t *testing.T, body []byte, wantCode string) {
+	t.Helper()
+
+	var problem map[string]any
+	require.NoError(t, json.Unmarshal(body, &problem), "an error response must be a JSON problem envelope; body: %s", string(body))
+
+	code, ok := problem["code"].(string)
+	require.Truef(t, ok, "the problem envelope must carry a string code; body: %s", string(body))
+
+	require.Equal(t, wantCode, code, "the rejection must come from the expected layer; body: %s", string(body))
+}
+
 // requireDecimalEqual asserts two decimals are numerically equal (no float comparison).
 func requireDecimalEqual(t *testing.T, want, got decimal.Decimal, msgAndArgs ...any) {
 	t.Helper()
@@ -412,10 +427,19 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 	url := v2DirectURL(infra.orgID, infra.ledgerID)
 
+	// The table deliberately spans FOUR rejection layers, and the canonical code plus the
+	// layer-specific text in the body is the only thing that identifies which one answered.
+	// Asserting status alone would let a row pass on a 400 raised anywhere — including a
+	// layer that has no business seeing the body at all.
 	cases := []struct {
 		name       string
 		body       string
 		wantStatus int
+		wantCode   string
+		// wantBodyContains distinguishes the two layers that both answer with 0009: the
+		// Translate side rule names the field PAIR in its detail, while the struct-tag
+		// layer reports the offending field (leg index included) in the errors array.
+		wantBodyContains string
 	}{
 		{
 			// Each side is spelled EITHER scalar (`from`) or as a leg array
@@ -424,27 +448,82 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// unlike the `asset` case below — this body is not rejected by
 			// DecodeAndValidate's struct validation. Translate owns the rule instead and
 			// rejects it with ErrMissingFieldsInRequest (0009) -> ValidationError -> 400.
-			name:       "missing from field",
-			body:       `{"asset":"USD","amount":"100","to":"@dst"}`,
-			wantStatus: nethttp.StatusBadRequest,
+			name:             "missing from field",
+			body:             `{"asset":"USD","amount":"100","to":"@dst"}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0009",
+			wantBodyContains: "from or sources",
 		},
 		{
-			name:       "missing required asset field",
-			body:       `{"amount":"100","from":"@src","to":"@dst"}`,
-			wantStatus: nethttp.StatusBadRequest,
+			// The struct-tag `required` layer. It answers with the SAME 0009 the Translate
+			// side rule uses, so only the per-field entry in the errors array tells the two
+			// apart — which is why this row pins that text and the row above pins the pair.
+			name:             "missing required asset field",
+			body:             `{"amount":"100","from":"@src","to":"@dst"}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0009",
+			wantBodyContains: "asset is a required field",
 		},
 		{
+			// The JSON decode layer, upstream of every validator: 0094.
 			name:       "malformed json body",
 			body:       `{not-json`,
 			wantStatus: nethttp.StatusBadRequest,
+			wantCode:   "0094",
+		},
+		{
+			// A leg naming no account. The obligation is a struct tag rather than a
+			// Translate check precisely so the rejection names the offending leg by INDEX;
+			// pinning that text is what keeps the index in the contract.
+			name:             "leg without an account",
+			body:             `{"asset":"USD","amount":"100","sources":[{"amount":"100"}],"to":"@dst"}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0009",
+			wantBodyContains: "sources[0].account",
+		},
+		{
+			// Both spellings on ONE side is the mutual-exclusivity violation (0498). The
+			// destination side is used because per-side exclusivity makes the mixed shape
+			// (scalar source + array destinations) legal, so only a side spelled twice is
+			// a violation.
+			name:       "destination side spelled both scalar and as a leg array",
+			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":[{"account":"@dst","amount":"100"}]}`,
+			wantStatus: nethttp.StatusBadRequest,
+			wantCode:   "0498",
+		},
+		{
+			// A leg filling NEITHER value expression: 0072, naming the offending side AND
+			// the offending leg's index. The leg here is the SECOND one, so a message that
+			// hardcoded index 0 fails this row.
+			name:             "leg with no value expression",
+			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"account":"@srcB"}],"to":"@dst"}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0072",
+			wantBodyContains: "'sources[1]'",
+		},
+		{
+			// A leg whose explicit amount is zero. Unlike the four rows above this is a
+			// VALUE rule, not a shape rule, so it is a 422 rather than a 400 — the status
+			// and the code move together and both are pinned.
+			name:       "leg with a zero amount",
+			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"0"}],"to":"@dst"}`,
+			wantStatus: nethttp.StatusUnprocessableEntity,
+			wantCode:   "0125",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := postTransaction(t, v2App, url, tc.body, "")
-			_ = drainBody(t, resp)
-			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected at the decode boundary", tc.name)
+			body := drainBody(t, resp)
+
+			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
+			requireProblemCode(t, body, tc.wantCode)
+
+			if tc.wantBodyContains != "" {
+				assert.Contains(t, string(body), tc.wantBodyContains,
+					"the rejection must name the offending field, which is what identifies the answering layer")
+			}
 		})
 	}
 
@@ -1138,27 +1217,36 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
+	// As in the direct-action table, the canonical code is what identifies WHICH layer
+	// rejected: 0009 and 0090 are raised by two different rules and a status-only assertion
+	// cannot tell a shape rejection from a business one.
 	cases := []struct {
-		name       string
-		url        string
-		body       string
-		wantStatus int
+		name             string
+		url              string
+		body             string
+		wantStatus       int
+		wantCode         string
+		wantBodyContains string
 	}{
 		{
 			// Spelling a side is a rule across a pair of fields (`from`/`sources`), which no
 			// struct tag expresses, so Translate owns it and rejects an unspelled side with
 			// ErrMissingFieldsInRequest (0009) -> ValidationError -> 400, before the funnel.
 			// Identical to the direct-action validation contract; block/unblock share the seam.
-			name:       "block missing required from field",
-			url:        v2BlockURL(infra.orgID, infra.ledgerID),
-			body:       `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
-			wantStatus: nethttp.StatusBadRequest,
+			name:             "block missing required from field",
+			url:              v2BlockURL(infra.orgID, infra.ledgerID),
+			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0009",
+			wantBodyContains: "from or sources",
 		},
 		{
-			name:       "unblock missing required from field",
-			url:        v2UnblockURL(infra.orgID, infra.ledgerID),
-			body:       `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
-			wantStatus: nethttp.StatusBadRequest,
+			name:             "unblock missing required from field",
+			url:              v2UnblockURL(infra.orgID, infra.ledgerID),
+			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			wantStatus:       nethttp.StatusBadRequest,
+			wantCode:         "0009",
+			wantBodyContains: "from or sources",
 		},
 		{
 			// from == to is a Translate business error (ErrTransactionAmbiguous / 0090) -> 422,
@@ -1167,6 +1255,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			url:        v2BlockURL(infra.orgID, infra.ledgerID),
 			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@src","metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
+			wantCode:   "0090",
 		},
 	}
 
@@ -1174,7 +1263,14 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 		t.Run(tc.name, func(t *testing.T) {
 			resp := postTransaction(t, v2App, tc.url, tc.body, "")
 			body := drainBody(t, resp)
+
 			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
+			requireProblemCode(t, body, tc.wantCode)
+
+			if tc.wantBodyContains != "" {
+				assert.Contains(t, string(body), tc.wantBodyContains,
+					"the rejection must name the offending field pair, which is what identifies the answering layer")
+			}
 		})
 	}
 
@@ -1539,4 +1635,312 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 		"@alice must hold the deposited funds")
 	requireDecimalEqual(t, decimal.NewFromInt(-100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, externalID),
 		"the external account funds the deposit from its overdraft")
+}
+
+// =============================================================================
+// 15. UNBALANCED LEG ARRAY: `amount` is mandatory in the array form BECAUSE it is the total
+//     the legs divide, and Translate deliberately does not check that the legs sum to it —
+//     the create funnel owns that rule (ErrTransactionValueMismatch / 0073 -> 422). Every
+//     other leg-array test in this file uses legs that sum exactly, so a translation bug that
+//     dropped a leg or mis-mapped the total would leave them all green while committing a
+//     transaction whose debits and credits do not match. This is the single most important
+//     invariant of the form, and it is asserted for both per-leg value expressions.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_UnbalancedLegsRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			// Explicit amounts: 60 + 30 = 90 against a declared total of 100.
+			name: "explicit amount legs that do not sum to the declared total",
+			body: `{"description":"unbalanced explicit legs","asset":"USD","amount":"100",` +
+				`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"30"}],` +
+				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+		},
+		{
+			// Shares: 60% + 30% = 90% of the total, so the resolved legs sum to 90.
+			name: "share legs whose percentages do not sum to the whole total",
+			body: `{"description":"unbalanced share legs","asset":"USD","amount":"100",` +
+				`"sources":[{"account":"@srcA","share":{"percentage":60}},{"account":"@srcB","share":{"percentage":30}}],` +
+				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOT parallel: process-global huma state (see file header).
+			t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+			infra := setupTestInfra(t)
+			t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+			balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+			v2App := buildHumaV2DirectApp(t, infra.handler)
+
+			resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), tc.body, "")
+			body := drainBody(t, resp)
+
+			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+				"legs that do not sum to the declared total are a funnel business error -> 422; body: %s", string(body))
+			requireProblemCode(t, body, "0073")
+
+			// No ledger effect: the rejection lands before anything is persisted or moved.
+			assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+				"an unbalanced leg array must not persist a transaction")
+
+			for _, bID := range []uuid.UUID{balances.srcA, balances.srcB} {
+				requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, bID),
+					"source balance %s must be untouched", bID)
+				requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, bID),
+					"source balance %s on-hold must be untouched", bID)
+			}
+
+			for _, bID := range []uuid.UUID{balances.dstA, balances.dstB} {
+				requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, bID),
+					"destination balance %s must be untouched", bID)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// 16. percentageOfPercentage NARROWS THE SHARE: the resolver computes
+//     total x (percentage/100) x (percentageOfPercentage/100), treating a zero
+//     percentageOfPercentage as 100. So on a 100 total, `{"percentage":60,
+//     "percentageOfPercentage":50}` must move exactly 30 and `{"percentage":70}` exactly 70.
+//     Every other assertion on this field checks only that the submitted int64 was copied onto
+//     the canonical struct, which stays true if the two factors were swapped or one was wired
+//     to the wrong field. This test measures the MONEY the pair resolves to: the persisted
+//     operation amount and the balance delta.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_PercentageOfPercentageResolvesNarrowedAmount(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// 60% narrowed to 50% of itself is 30 of the 100 total; the sibling leg takes the
+	// remaining 70 as a plain share, so the two resolved legs sum to the declared total and
+	// the funnel's balance rule cannot be what makes the request pass or fail.
+	body := `{"description":"narrowed share","asset":"USD","amount":"100",` +
+		`"sources":[{"account":"@srcA","amount":"100"}],` +
+		`"destinations":[{"account":"@dstA","share":{"percentage":60,"percentageOfPercentage":50}},` +
+		`{"account":"@dstB","share":{"percentage":70}}]}`
+
+	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a doubly-narrowed share that still sums to the total must settle")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// The persisted operation amounts ARE the resolved values.
+	assertAdvancedLegOps(t, fetchOperationRows(t, infra.pgContainer.DB, txID), map[string]advancedLegExpectation{
+		"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(100)},
+		"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(30)},
+		"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(70)},
+	})
+
+	// And the balance deltas agree with them: 30 is 50% of 60% of 100, not 60, not 50, and
+	// not 30 arrived at by swapping the two factors onto each other's fields (which would
+	// also yield 30 only because 60x50 is symmetric — hence the asymmetric sibling leg above
+	// and the 70 assertion, which no swap reproduces).
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available after the debit")
+	requireDecimalEqual(t, decimal.NewFromInt(30), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstA), "@dstA received 50% of its 60% share")
+	requireDecimalEqual(t, decimal.NewFromInt(70), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstB), "@dstB received its full 70% share")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB is named by no leg and must be untouched")
+}
+
+// operationsByAliasAndType keys an operation set by "<alias>/<type>". Unlike indexOpsByAlias
+// it tolerates one alias appearing more than once in a transaction, which is exactly the shape
+// the same-account-on-both-sides pin below records.
+func operationsByAliasAndType(t *testing.T, ops []operationEconomicRow) map[string]operationEconomicRow {
+	t.Helper()
+
+	out := make(map[string]operationEconomicRow, len(ops))
+
+	for _, op := range ops {
+		key := op.AccountAlias + "/" + op.Type
+
+		_, dup := out[key]
+		require.Falsef(t, dup, "two operations share alias %s and type %s", op.AccountAlias, op.Type)
+
+		out[key] = op
+	}
+
+	return out
+}
+
+// =============================================================================
+// 17. SAME ACCOUNT ON BOTH SIDES OF ONE TRANSACTION. Per-side exclusivity newly legalises a
+//     scalar source paired with a destination ARRAY, a shape that could not be spelled before,
+//     and the scalar From == To check cannot see it (To is empty). The funnel's ambiguity guard
+//     is the only thing left, and it compares the two sides INDEX-POSITIONALLY — so it fires
+//     when the alias sits at the same index on both sides and not otherwise.
+//
+//     Both outcomes are pinned. The caught row records an accidental guarantee that no
+//     refactor should be free to drop silently. The escaping row is a KNOWN-DEFECT pin in the
+//     same discipline as the v1 `remaining` pin above: it asserts the CURRENT WRONG behavior on
+//     purpose, so tightening the funnel guard goes red here and this is the place to record the
+//     corrected contract. The escaping shape was already reachable through array/array bodies
+//     before per-side exclusivity existed, so this pins parity with the released surface rather
+//     than a regression introduced by it.
+// =============================================================================
+
+func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
+	t.Run("same alias at the same index on both sides is rejected", func(t *testing.T) {
+		// NOT parallel: process-global huma state (see file header).
+		t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+		infra := setupTestInfra(t)
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+		selfID, otherID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@self", "@other", 1000)
+
+		v2App := buildHumaV2DirectApp(t, infra.handler)
+
+		body := `{"description":"self transfer","asset":"USD","amount":"100","from":"@self",` +
+			`"destinations":[{"account":"@self","amount":"100"}]}`
+
+		resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+		respBody := drainBody(t, resp)
+
+		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+			"one alias on both sides at index 0 is an ambiguous transaction -> 422; body: %s", string(respBody))
+		requireProblemCode(t, respBody, "0090")
+
+		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+			"an ambiguous transaction must not persist")
+		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, selfID), "@self must be untouched")
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other must be untouched")
+	})
+
+	t.Run("known defect same alias at different indexes is accepted and both debited and credited", func(t *testing.T) {
+		// NOT parallel: process-global huma state (see file header).
+		t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+		infra := setupTestInfra(t)
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+		ctx := context.Background()
+
+		selfID, otherID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@self", "@other", 1000)
+
+		v2App := buildHumaV2DirectApp(t, infra.handler)
+
+		// @self is the whole source side and ALSO the second destination leg. The guard misses
+		// it because it does not sit at index 0 of the destination array.
+		body := `{"description":"self at index one","asset":"USD","amount":"100","from":"@self",` +
+			`"destinations":[{"account":"@other","amount":"60"},{"account":"@self","amount":"40"}]}`
+
+		resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+		txID := uuid.MustParse(resp["id"].(string))
+
+		assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+			"the transaction is committed despite naming one account on both sides")
+		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+		// @self carries BOTH a debit and a credit inside one transaction — the defect.
+		byKey := operationsByAliasAndType(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
+
+		selfDebit, ok := byKey["@self/"+cn.DEBIT]
+		require.True(t, ok, "@self is the source side and must carry a debit")
+		requireDecimalEqual(t, decimal.NewFromInt(100), selfDebit.Amount, "@self debit is the whole total")
+
+		selfCredit, ok := byKey["@self/"+cn.CREDIT]
+		require.True(t, ok, "@self is also a destination leg and carries a credit in the SAME transaction")
+		requireDecimalEqual(t, decimal.NewFromInt(40), selfCredit.Amount, "@self credit is its destination leg's value")
+
+		otherCredit, ok := byKey["@other/"+cn.CREDIT]
+		require.True(t, ok, "@other must carry its own credit")
+		requireDecimalEqual(t, decimal.NewFromInt(60), otherCredit.Amount, "@other credit")
+
+		// Net effect: @self loses 100 and regains 40.
+		requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, selfID),
+			"@self is debited 100 and credited 40 in one transaction — this is the behavior being pinned")
+		requireDecimalEqual(t, decimal.NewFromInt(60), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other available")
+	})
+}
+
+// =============================================================================
+// 18. MULTI-LEG HOLD -> COMMIT: the four-action advanced test proves a multi-leg hold RESERVES
+//     both sources and then returns, so nothing yet shows that a four-leg pending transaction
+//     SETTLES. Commit is where the two ON_HOLD reservations must release into debits and the two
+//     share-resolved credits must land; a per-leg bug in the settle path (a released reservation
+//     applied to the wrong leg, a share re-resolved against a stale total) is invisible until
+//     the final balances are read. This test commits the multi-leg hold and asserts all four
+//     final balances with on-hold back to zero.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(holdResp["id"].(string))
+
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a multi-leg hold opens the transaction as PENDING")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// After the hold: each source reserved by ITS OWN leg's value, both destinations untouched.
+	requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(60), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcA), "@srcA on-hold after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB available after hold")
+	requireDecimalEqual(t, decimal.NewFromInt(40), postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcB), "@srcB on-hold after hold")
+
+	// Commit through the v1 lifecycle endpoint; the v2-held transaction shares the handler,
+	// use cases and DB, so it settles exactly like a v1 pending transaction.
+	_ = decodeTxResponse(t, postTransaction(t, infra.app, v1CommitURL(infra.orgID, infra.ledgerID, txID), "", ""), nethttp.StatusCreated)
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a committed multi-leg hold flips to APPROVED")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// After the commit: BOTH reservations released (on-hold back to zero, available unchanged
+	// from the reserved figure) and BOTH share-resolved credits landed.
+	requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcA), "@srcA available after commit")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcA), "@srcA on-hold released")
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB available after commit")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.srcB), "@srcB on-hold released")
+	requireDecimalEqual(t, decimal.NewFromInt(50), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstA), "@dstA credited its 50% share on commit")
+	requireDecimalEqual(t, decimal.NewFromInt(50), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.dstB), "@dstB credited its 50% share on commit")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.dstA), "@dstA on-hold stays zero")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, balances.dstB), "@dstB on-hold stays zero")
+
+	// Operation TYPE set across the full lifecycle: one ON_HOLD per source leg (the
+	// reservation), one DEBIT per source leg (the release) and one CREDIT per destination leg
+	// (the apply). Asserting the multiset — not merely the count — catches a settle path that
+	// emitted six operations with the wrong type mix.
+	commitOps := fetchOperationRows(t, infra.pgContainer.DB, txID)
+
+	commitOpTypes := make([]string, 0, len(commitOps))
+	for _, op := range commitOps {
+		commitOpTypes = append(commitOpTypes, op.Type)
+	}
+
+	assert.ElementsMatch(t,
+		[]string{cn.ONHOLD, cn.ONHOLD, cn.DEBIT, cn.DEBIT, cn.CREDIT, cn.CREDIT},
+		commitOpTypes,
+		"a committed two-source two-destination hold carries two of each lifecycle leg")
 }

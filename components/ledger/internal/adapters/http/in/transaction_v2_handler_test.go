@@ -26,7 +26,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -707,28 +709,62 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Huma_AdvancedBodyEntersFunnelPerAction proves all four v2 create
-// terminals accept the leg-array body over the real transport: the body clears decode +
-// Translate on every action and reaches the funnel, where a bare handler's unwired repository
-// makes WithRecover map the resulting panic to a 500. A 4xx here would mean the action
-// rejected the advanced form at the transport/translate boundary.
-func TestCreateTransactionV2Huma_AdvancedBodyEntersFunnelPerAction(t *testing.T) {
-	// NOT parallel: process-global huma state.
-	for _, tc := range v2CreateActionCases() {
+// TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive pins what the decode boundary
+// ACTUALLY does with a `remaining` key on a v2 leg. The v2 leg publishes no such field, so
+// the intended answer is the unknown-field rejection (0053) — and that is what the truthy
+// spelling gets. The FALSY spelling does not: FindUnknownFields skips any key whose value is
+// boolean false (a deliberate carve-out so the per-call `skip.*` flags can send their own
+// default), so `"remaining": false` is silently accepted and the leg decodes as if the key
+// were never sent.
+//
+// The money impact is nil — a swallowed `false` asks for nothing — but "a client that sends
+// `remaining` gets the unknown-field rejection" is not true of both spellings, and this pin
+// is what stops that claim from being restated as unconditional. It asserts on
+// pkgHTTP.DecodeAndValidate, the exact boundary the v2 handlers call, so no funnel status
+// stands in for the decode verdict.
+func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		body       string
+		wantReject bool
+		wantCode   string
+	}{
+		{
+			name:       "truthy remaining on a leg is an unknown field",
+			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","remaining":true}],"to":"@dst"}`,
+			wantReject: true,
+			wantCode:   cn.ErrUnexpectedFieldsInTheRequest.Error(),
+		},
+		{
+			name:       "falsy remaining on a leg is swallowed by the boolean-false carve-out",
+			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100","remaining":false}],"to":"@dst"}`,
+			wantReject: false,
+		},
+	}
+
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			app := buildHumaV2ActionApp(t, tc.route, tc.op(&TransactionHandler{}))
+			t.Parallel()
 
-			resp := postActionV2(t, app, tc.route, v2AdvancedBody)
-			body := func() string {
-				defer func() { _ = resp.Body.Close() }()
+			payload := new(mtransaction.CreateTransactionV2Input)
 
-				b, _ := io.ReadAll(resp.Body)
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
 
-				return string(b)
-			}()
+			if !tc.wantReject {
+				require.NoError(t, err, "the falsy spelling is accepted at the decode boundary")
+				assert.Nil(t, payload.Sources[0].Share, "a swallowed remaining key leaves the leg's value expressions untouched")
+				assert.Equal(t, "100", payload.Sources[0].Amount, "the leg decodes on its own amount, as if remaining were never sent")
 
-			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
-				"a valid advanced %s body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500); body: %s", tc.name, body)
+				return
+			}
+
+			require.Error(t, err, "the truthy spelling must be rejected at the decode boundary")
+
+			var unknownFields pkg.ValidationUnknownFieldsError
+			require.ErrorAs(t, err, &unknownFields, "the rejection must be the unknown-field class, not a generic decode failure")
+			assert.Equal(t, tc.wantCode, unknownFields.Code, "unknown-field rejections carry the canonical unexpected-fields code")
 		})
 	}
 }
