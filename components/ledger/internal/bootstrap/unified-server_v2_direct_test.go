@@ -52,9 +52,9 @@ func newV2DirectServer(t *testing.T, auth *middleware.AuthClient) *UnifiedServer
 // /v2/openapi.json with OperationID createTransactionDirectV2, method POST, at the
 // group-relative direct path.
 func TestNewUnifiedServer_V2DirectRouteInContract(t *testing.T) {
-	// ServeSpec is gated on LEDGER_HUMA_DOCS_ENABLED; enable it so /v2/openapi.json
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so /v2/openapi.json
 	// is mounted. t.Setenv precludes t.Parallel here.
-	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "true")
+	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
@@ -140,13 +140,13 @@ func TestNewUnifiedServer_V2DirectRouteReachesRealHandler(t *testing.T) {
 		"RFC 9457 envelope should carry status:400")
 }
 
-// TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled asserts the swaggerEnabled
-// NEGATIVE gate for v2: with LEDGER_HUMA_DOCS_ENABLED off, GET /v2/openapi.json is
+// TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled asserts the openAPIDocsEnabled
+// NEGATIVE gate for v2: with OPENAPI_DOCS_ENABLED off, GET /v2/openapi.json is
 // NOT served (404). Every other v2-spec test enables the flag; this covers the
 // gated-off branch.
 func TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled(t *testing.T) {
 	// Explicitly disable the docs gate. t.Setenv precludes t.Parallel here.
-	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "false")
+	t.Setenv("OPENAPI_DOCS_ENABLED", "false")
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
@@ -159,7 +159,7 @@ func TestNewUnifiedServer_V2SpecNotServedWhenDocsDisabled(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
-		"v2 openapi.json must not be served when LEDGER_HUMA_DOCS_ENABLED is off")
+		"v2 openapi.json must not be served when OPENAPI_DOCS_ENABLED is off")
 }
 
 // keysOf returns the keys of a decoded JSON object for diagnostic messages.

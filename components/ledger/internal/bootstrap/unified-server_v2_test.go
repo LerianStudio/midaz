@@ -75,9 +75,9 @@ func serverURLs(t *testing.T, doc map[string]any) []string {
 // ["/v1"]). Each instance owns its Info metadata, proving two independent Huma
 // component registries rather than one shared document.
 func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
-	// ServeSpec is gated on LEDGER_HUMA_DOCS_ENABLED; enable it so both the /v1
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so both the /v1
 	// and /v2 spec routes are mounted. t.Setenv precludes t.Parallel here.
-	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "true")
+	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
@@ -119,9 +119,9 @@ func TestNewUnifiedServer_V2ContractMountedIndependently(t *testing.T) {
 // server: v1 carries no ops (empty mount) while v2 mounts the production direct-op
 // seam. Path-set isolation is a stronger guarantee than the Info-title check above.
 func TestNewUnifiedServer_V2DirectOpDoesNotLeakIntoV1(t *testing.T) {
-	// ServeSpec is gated on LEDGER_HUMA_DOCS_ENABLED; enable it so both spec routes
+	// ServeSpec is gated on OPENAPI_DOCS_ENABLED; enable it so both spec routes
 	// are mounted. t.Setenv precludes t.Parallel here.
-	t.Setenv("LEDGER_HUMA_DOCS_ENABLED", "true")
+	t.Setenv("OPENAPI_DOCS_ENABLED", "true")
 
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}

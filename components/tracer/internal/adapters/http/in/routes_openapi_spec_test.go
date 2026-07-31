@@ -16,10 +16,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 )
 
-// TestRoutes_ServeSpec_GatedBySwaggerEnabled proves the native Huma OpenAPI 3.1
+// TestRoutes_ServeSpec_GatedByOpenAPIDocsEnabled proves the native Huma OpenAPI 3.1
 // spec + docs surface (openapi.ServeSpec) is mounted under /v1 ONLY when
-// RouteConfig.SwaggerEnabled is true, and absent (404) when false.
-func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
+// RouteConfig.OpenAPIDocsEnabled is true, and absent (404) when false.
+func TestRoutes_ServeSpec_GatedByOpenAPIDocsEnabled(t *testing.T) {
 	guardCfg := middleware.AuthGuardConfig{
 		APIKey:        "test-secret-key-32-characters-long",
 		APIKeyEnabled: true,
@@ -27,9 +27,9 @@ func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
 	}
 
 	cases := []struct {
-		name           string
-		swaggerEnabled bool
-		wantStatus     int
+		name               string
+		openAPIDocsEnabled bool
+		wantStatus         int
 	}{
 		{"enabled mounts spec+docs", true, http.StatusOK},
 		{"disabled omits spec+docs", false, http.StatusNotFound},
@@ -41,7 +41,7 @@ func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			deps := newTestRouterDeps(t, guardCfg)
-			deps.swaggerEnabled = tc.swaggerEnabled
+			deps.openAPIDocsEnabled = tc.openAPIDocsEnabled
 			app := deps.build()
 
 			for _, p := range specPaths {
@@ -51,8 +51,8 @@ func TestRoutes_ServeSpec_GatedBySwaggerEnabled(t *testing.T) {
 				require.NoError(t, resp.Body.Close())
 
 				assert.Equalf(t, tc.wantStatus, resp.StatusCode,
-					"SwaggerEnabled=%v: GET %s expected %d, got %d",
-					tc.swaggerEnabled, p, tc.wantStatus, resp.StatusCode)
+					"OpenAPIDocsEnabled=%v: GET %s expected %d, got %d",
+					tc.openAPIDocsEnabled, p, tc.wantStatus, resp.StatusCode)
 			}
 		})
 	}
