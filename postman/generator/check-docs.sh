@@ -21,9 +21,8 @@ set -euo pipefail
 #     committed specs cannot silently diverge.
 # (c) SECURITY COVERAGE (always, ledger dumps only): asserts every ledger
 #     operation carries a .security requirement, so the secure-by-default
-#     contract cannot regress to a dangling securityDefinition (audit finding
-#     C1). Scoped to ledger: tracer's /health, /readyz and /version are
-#     intentionally public.
+#     contract cannot regress to a scheme declared but never required. Scoped to
+#     ledger: tracer's /health, /readyz and /version are intentionally public.
 
 # Root directory of the repo (this script lives in postman/generator/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -67,13 +66,16 @@ print_header() {
     echo ""
 }
 
+# Diagnostics go to stderr: several checks read dump fields through command
+# substitution, which would otherwise capture the message into a variable instead
+# of showing it.
 fail() {
-    echo -e "    ${RED}❌ $1${NC}"
+    echo -e "    ${RED}❌ $1${NC}" >&2
     exit 1
 }
 
 ok() {
-    echo -e "    ${GREEN}✅ $1${NC}"
+    echo -e "    ${GREEN}✅ $1${NC}" >&2
 }
 
 require_jq() {
@@ -175,22 +177,54 @@ parity_check() {
     # fixture title (e.g. "contract-spec") leaking into a published dump.
     assert_field_matches "info.title" '.info.title' '^Midaz'
 
-    # ponytail: contact/license/termsOfService/schemes (swaggo-era) are honestly
-    # dropped — Huma emits only .info.{title,version}, and OAS 3.1 has no .schemes.
+    # contact/license/termsOfService/schemes (swaggo-era) are honestly dropped —
+    # Huma emits only .info.{title,version}, and OAS 3.1 has no .schemes.
 }
 
 # Dumps whose every operation must declare a .security requirement, in the same
-# "<label>|<repo-relative path>" form as PARITY_DUMPS. Both ledger contracts are
-# in: the /v2 surface is served by the same binary behind the same auth chain, so
-# an unsecured v2 operation is the same defect as an unsecured v1 one.
+# "<label>|<repo-relative path>" form as PARITY_DUMPS. Every ledger contract
+# belongs here: the /v2 surface is served by the same binary behind the same auth
+# chain, so an unsecured v2 operation is the same defect as an unsecured v1 one.
+# assert_security_coverage_complete enforces that this list stays exhaustive.
 SECURITY_COVERAGE_DUMPS=(
     "ledger|components/ledger/api/openapi.huma.yaml"
     "ledger-v2|components/ledger/api/openapi.v2.huma.yaml"
 )
 
+# Glob of every published ledger contract. A dump matching this that is not on
+# SECURITY_COVERAGE_DUMPS would be converted into the collection and shipped
+# without ever being security-checked.
+LEDGER_DUMP_GLOB="components/ledger/api/openapi*.huma.yaml"
+
+# Assert SECURITY_COVERAGE_DUMPS names every published ledger contract. The
+# reverse direction (a listed dump that does not exist) already hard-fails in
+# huma_dump_json.
+assert_security_coverage_complete() {
+    local dump rel entry covered
+
+    for dump in "${ROOT_DIR}"/${LEDGER_DUMP_GLOB}; do
+        [ -f "${dump}" ] || continue
+
+        rel="${dump#"${ROOT_DIR}/"}"
+        covered=0
+        for entry in "${SECURITY_COVERAGE_DUMPS[@]}"; do
+            if [ "${entry#*|}" = "${rel}" ]; then
+                covered=1
+                break
+            fi
+        done
+
+        if [ "${covered}" -eq 0 ]; then
+            fail "Published ledger contract '${rel}' is not covered by the security check. Add it to SECURITY_COVERAGE_DUMPS."
+        fi
+    done
+}
+
 # Assert every operation in the ledger dumps carries a non-empty .security block.
 security_coverage_check() {
     print_header "Security coverage check (every operation secured: $(dump_labels "${SECURITY_COVERAGE_DUMPS[@]}"))"
+
+    assert_security_coverage_complete
 
     # Operations are the HTTP-verb keys under each path; an operation is unsecured
     # when its .security array is absent or empty.
@@ -209,11 +243,19 @@ security_coverage_check() {
         secured="$(jq "[ ${op_filter} | select(.security | length > 0) ] | length" <<<"${json}")"
 
         if [ "${secured}" != "${total}" ]; then
-            echo -e "    ${RED}❌ ${label} has unsecured operations (${secured}/${total} secured):${NC}"
-            jq -r "${op_filter} | select(.security | length == 0) | \"       \(.method | ascii_upcase) \(.path)\"" <<<"${json}"
-            echo -e "    ${RED}Every ledger operation must declare a .security requirement (audit finding C1).${NC}"
+            echo -e "    ${RED}❌ ${label} has unsecured operations (${secured}/${total} secured):${NC}" >&2
+            jq -r "${op_filter} | select(.security | length == 0) | \"       \(.method | ascii_upcase) \(.path)\"" <<<"${json}" >&2
+            echo -e "    ${RED}Every ledger operation must declare a .security requirement.${NC}" >&2
             exit 1
         fi
+
+        # A covered dump with no operations means the check silently verified
+        # nothing — the aggregate count alone cannot distinguish that from a pass.
+        if [ "${total}" -eq 0 ]; then
+            fail "${label} yielded 0 operations. A covered dump with no operations is a defect, not a pass."
+        fi
+
+        ok "${label}: ${total} operations, all with a .security requirement."
 
         grand_total=$((grand_total + total))
     done
@@ -308,7 +350,9 @@ error_schema_singleton_check() {
 # at the postman/ root next to hand-maintained files, so they are named file by file
 # instead of being swept up by a directory prefix.
 DRIFT_PATHSPEC=(
-    'components/*/api'
+    # Trailing /** is required: a git pathspec containing a wildcard is matched
+    # against the whole path, so 'components/*/api' matches no FILE at all.
+    'components/*/api/**'
     postman/specs
     postman/MIDAZ.postman_collection.json
     postman/MIDAZ.postman_environment.json
