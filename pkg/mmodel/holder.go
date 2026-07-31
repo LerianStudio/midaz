@@ -32,9 +32,9 @@ type CreateHolderInput struct {
 
 	// National or tax identification document number of the holder.
 	// required: true
-	// example: 91315026015
+	// example: 12345678900
 	// maxLength: 100
-	Document string `json:"document" validate:"required" example:"91315026015" maxLength:"100"`
+	Document string `json:"document" validate:"required" example:"12345678900" maxLength:"100"`
 
 	// Physical addresses associated with the holder (primary + up to two additional).
 	// required: false
@@ -117,9 +117,9 @@ type Holder struct {
 	Name *string `json:"name,omitempty" example:"John Doe" maxLength:"256"`
 
 	// National or tax identification document number of the holder.
-	// example: 91315026015
+	// example: 12345678900
 	// maxLength: 100
-	Document *string `json:"document,omitempty" example:"91315026015" maxLength:"100"`
+	Document *string `json:"document,omitempty" example:"12345678900" maxLength:"100"`
 
 	// Physical addresses associated with the holder.
 	Addresses *Addresses `json:"addresses,omitempty"`
@@ -280,9 +280,9 @@ type Representative struct {
 	Name *string `json:"name,omitempty" example:"John Doe" maxLength:"256"`
 
 	// The identification document number of the legal representative.
-	// example: 91315026015
+	// example: 12345678900
 	// maxLength: 100
-	Document *string `json:"document,omitempty" example:"91315026015" maxLength:"100"`
+	Document *string `json:"document,omitempty" example:"12345678900" maxLength:"100"`
 
 	// The email address of the legal representative.
 	// example: john.doe@example.com
