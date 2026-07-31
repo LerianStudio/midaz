@@ -13,6 +13,7 @@ import (
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -387,13 +388,37 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 		"v2 direct transaction must be indistinguishable from the v1 /json equivalent (ignoring IDs/timestamps)")
 }
 
-// assertOperationSetsEqual asserts two 2-element operation sets carry identical economic
-// content leg-for-leg. Both inputs come from fetchOperationRows, whose `ORDER BY type` is
-// the single source of ordering, so the rows line up index-for-index without re-sorting.
+// sortOperationRows returns the projection ordered by (Type, AccountAlias, Amount) so two sets
+// read from two ledgers line up index-for-index. `fetchOperationRows`' `ORDER BY type` is not
+// enough on its own: a multi-leg transaction persists several rows sharing one Type, and the
+// query does not specify their relative order inside that group.
+func sortOperationRows(rows []operationEconomicRow) []operationEconomicRow {
+	sorted := slices.Clone(rows)
+
+	slices.SortFunc(sorted, func(x, y operationEconomicRow) int {
+		if c := strings.Compare(x.Type, y.Type); c != 0 {
+			return c
+		}
+
+		if c := strings.Compare(x.AccountAlias, y.AccountAlias); c != 0 {
+			return c
+		}
+
+		return x.Amount.Cmp(y.Amount)
+	})
+
+	return sorted
+}
+
+// assertOperationSetsEqual asserts two operation sets carry identical economic content
+// leg-for-leg. Leg order in a persisted set is not contract, so both sides are put through
+// sortOperationRows before the index-for-index comparison.
 func assertOperationSetsEqual(t *testing.T, a, b []operationEconomicRow) {
 	t.Helper()
 
 	require.Equal(t, len(a), len(b), "operation set sizes differ")
+
+	a, b = sortOperationRows(a), sortOperationRows(b)
 
 	for i := range a {
 		assert.Equal(t, a[i].Type, b[i].Type, "operation[%d] type", i)
@@ -2002,4 +2027,303 @@ func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.
 		[]string{cn.ONHOLD, cn.ONHOLD, cn.DEBIT, cn.DEBIT, cn.CREDIT, cn.CREDIT},
 		commitOpTypes,
 		"a committed two-source two-destination hold carries two of each lifecycle leg")
+}
+
+// splitV2Body / splitV1Body spell the same 1->N split — one source paying 1000, two
+// destinations taking an explicit 600 and 400 — in the v2 leg-array form and the v1 detailed
+// form. multiSourceV2Body / multiSourceV1Body spell the mirrored N->1 shape: two sources
+// contributing an explicit 600 and 400 into a single destination taking the whole 1000.
+//
+// All four name the aliases seedAdvancedLegBalances seeds, so the two surfaces can run the
+// same intent in two ledgers and the resulting rows differ only by IDs and timestamps.
+const (
+	splitV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
+		`"sources":[{"account":"@srcA","amount":"1000"}],` +
+		`"destinations":[{"account":"@dstA","amount":"600"},{"account":"@dstB","amount":"400"}]}`
+
+	splitV1Body = `{
+		"description":"multi-leg parity",
+		"send":{
+			"asset":"USD","value":"1000",
+			"source":{"from":[{"accountAlias":"@srcA","amount":{"asset":"USD","value":"1000"}}]},
+			"distribute":{"to":[
+				{"accountAlias":"@dstA","amount":{"asset":"USD","value":"600"}},
+				{"accountAlias":"@dstB","amount":{"asset":"USD","value":"400"}}
+			]}
+		}
+	}`
+
+	multiSourceV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
+		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"400"}],` +
+		`"destinations":[{"account":"@dstA","amount":"1000"}]}`
+
+	multiSourceV1Body = `{
+		"description":"multi-leg parity",
+		"send":{
+			"asset":"USD","value":"1000",
+			"source":{"from":[
+				{"accountAlias":"@srcA","amount":{"asset":"USD","value":"600"}},
+				{"accountAlias":"@srcB","amount":{"asset":"USD","value":"400"}}
+			]},
+			"distribute":{"to":[{"accountAlias":"@dstA","amount":{"asset":"USD","value":"1000"}}]}
+		}
+	}`
+)
+
+// multiLegSeedAvailable is what every source account in the multi-leg parity subjects starts
+// with. It is deliberately several times the largest leg so no assertion in those subjects can
+// be satisfied by the balance layer refusing the movement instead of the leg resolving.
+const multiLegSeedAvailable int64 = 5000
+
+// advancedLegBalanceIDs maps the aliases advancedLegV2Body and the multi-leg parity bodies name
+// to the balance IDs seedAdvancedLegBalances created for them, so a per-alias expectation table
+// can be read against either ledger.
+func advancedLegBalanceIDs(b advancedLegBalances) map[string]uuid.UUID {
+	return map[string]uuid.UUID{"@srcA": b.srcA, "@srcB": b.srcB, "@dstA": b.dstA, "@dstB": b.dstB}
+}
+
+// assertAliasBalances asserts the final available balance of every seeded alias against the
+// expectation table, and that no alias is left holding anything on hold. Every seeded alias is
+// checked — including the ones no leg names — so a leg that debited the wrong account is caught
+// by the untouched account rather than only by the intended one.
+func assertAliasBalances(t *testing.T, db *sql.DB, ids map[string]uuid.UUID, want map[string]int64, surface string) {
+	t.Helper()
+
+	require.Len(t, want, len(ids), "the expectation table must cover every seeded alias")
+
+	for alias, balanceID := range ids {
+		wantAvailable, ok := want[alias]
+		require.Truef(t, ok, "no expected balance declared for alias %s", alias)
+
+		requireDecimalEqual(t, decimal.NewFromInt(wantAvailable),
+			postgrestestutil.GetBalanceAvailable(t, db, balanceID), "%s %s available", surface, alias)
+		requireDecimalEqual(t, decimal.Zero,
+			postgrestestutil.GetBalanceOnHold(t, db, balanceID), "%s %s on-hold", surface, alias)
+	}
+}
+
+// assertLegsSumToTotal asserts the persisted operations of a settled transaction sum to the
+// declared total on BOTH sides of the entry. The funnel checks the SUBMITTED legs against the
+// declared amount before it commits, which is a different claim: a leg that validates and then
+// contributes no operation row leaves that check green while the persisted result is unbalanced.
+// This reads the committed rows instead.
+func assertLegsSumToTotal(t *testing.T, ops []operationEconomicRow, total decimal.Decimal, surface string) {
+	t.Helper()
+
+	totals := sumOperationAmountsByType(ops)
+
+	requireDecimalEqual(t, total, totals[cn.DEBIT], "%s persisted debit total", surface)
+	requireDecimalEqual(t, total, totals[cn.CREDIT], "%s persisted credit total", surface)
+}
+
+// =============================================================================
+// 19. MULTI-LEG PARITY (core): the two shapes the v2 leg arrays exist for — a 1->N split and
+//     an N->1 multi-source collection — are indistinguishable from the equivalent v1 detailed
+//     body. Subject 12 proves the v2 surface commits a leg array correctly against absolute
+//     figures; the delta here is that the SAME economic intent spelled on the released v1
+//     surface lands on exactly the same operation set and the same final balances. Absolute
+//     figures can be right on both surfaces and still drift apart (a leg mapped to a different
+//     account type, a different rounding of the same split), which only a cross-surface
+//     comparison catches.
+//
+//     Leg ORDER is not part of the contract on either surface, so the projection is sorted
+//     before it is compared; and because each shape persists several operations sharing one
+//     Type, the persisted rows are additionally checked to sum to the declared total on both
+//     sides of the entry.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testing.T) {
+	cases := []struct {
+		name        string
+		v2Body      string
+		v1Body      string
+		wantOpCount int
+		// wantAvailable is the final available balance of every seeded alias, keyed by alias.
+		wantAvailable map[string]int64
+	}{
+		{
+			// 1000 leaves @srcA and is split 600/400 across two destinations; @srcB is named by
+			// no leg.
+			name:        "split one source across two destinations",
+			v2Body:      splitV2Body,
+			v1Body:      splitV1Body,
+			wantOpCount: 3,
+			wantAvailable: map[string]int64{
+				"@srcA": multiLegSeedAvailable - 1000,
+				"@srcB": multiLegSeedAvailable,
+				"@dstA": 600,
+				"@dstB": 400,
+			},
+		},
+		{
+			// 600 + 400 is collected from two sources into @dstA; @dstB is named by no leg.
+			name:        "collect two sources into one destination",
+			v2Body:      multiSourceV2Body,
+			v1Body:      multiSourceV1Body,
+			wantOpCount: 3,
+			wantAvailable: map[string]int64{
+				"@srcA": multiLegSeedAvailable - 600,
+				"@srcB": multiLegSeedAvailable - 400,
+				"@dstA": 1000,
+				"@dstB": 0,
+			},
+		},
+	}
+
+	total := decimal.NewFromInt(1000)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOT parallel: process-global huma state (see file header).
+			t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+			infra := setupTestInfra(t)
+			t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+			ctx := context.Background()
+
+			// Two ledgers under the SAME org so both surfaces can use IDENTICAL aliases and
+			// starting balances; the only legitimate difference is then the ledger id plus
+			// per-row IDs and timestamps.
+			ledgerV1 := infra.ledgerID
+			ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+			seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+			v1Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV1, multiLegSeedAvailable))
+			v2Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV2, multiLegSeedAvailable))
+
+			v1App := buildHumaTransactionApp(t, infra.handler, true)
+			v2App := buildHumaV2DirectApp(t, infra.handler)
+
+			// Each surface is fully processed (create -> drain -> assert) BEFORE the next is
+			// created, because the balance-sync schedule ZSET is GLOBAL, not per-ledger:
+			// draining ledgerV1 while ledgerV2's keys are still pending would claim them under
+			// the wrong ledger and leave ledgerV2's cold balances stale.
+			v1Resp := decodeTxResponse(t, postTransaction(t, v1App, v1JSONURL(infra.orgID, ledgerV1), tc.v1Body, ""), nethttp.StatusCreated)
+			v1TxID := uuid.MustParse(v1Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
+
+			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2TxID := uuid.MustParse(v2Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
+
+			// Operations: same count on both surfaces, pinned to the number of legs the bodies
+			// spell, so a collapsed or dropped leg fails here instead of passing a looser check.
+			v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
+			v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
+
+			require.Len(t, v1Ops, tc.wantOpCount, "v1 operation count")
+			require.Len(t, v2Ops, tc.wantOpCount, "v2 operation count")
+
+			// Same per-account economic projection: type, asset, alias, amount, balance-after.
+			assertOperationSetsEqual(t, v1Ops, v2Ops)
+
+			// The persisted legs sum to the declared total on both sides of the entry, on both
+			// surfaces.
+			assertLegsSumToTotal(t, v1Ops, total, "v1")
+			assertLegsSumToTotal(t, v2Ops, total, "v2")
+
+			// Same final balances on every seeded account, read per surface against the same
+			// expectation table.
+			assertAliasBalances(t, infra.pgContainer.DB, v1Balances, tc.wantAvailable, "v1")
+			assertAliasBalances(t, infra.pgContainer.DB, v2Balances, tc.wantAvailable, "v2")
+
+			assert.Equal(t, "USD", v1Resp["assetCode"])
+			assert.Equal(t, "USD", v2Resp["assetCode"])
+
+			// Response deep-equal, ignoring IDs and timestamps. The `operations` array is
+			// emitted in balance-internal-key ("alias#balanceKey") order, which both surfaces
+			// reach through the same create funnel; every alias these bodies name is distinct, so
+			// that key orders the set totally and the two arrays line up index-for-index. A body
+			// naming one account twice would tie on that key and could not be compared this way.
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+				"the v2 leg-array response must be indistinguishable from the v1 detailed equivalent (ignoring IDs/timestamps)")
+		})
+	}
+}
+
+// underfundedSourceLegV2Body / underfundedSourceLegV1Body spell the same N->1 collection where
+// the FIRST source leg is affordable (600 against 1000 seeded) and the second is not (5000
+// against 1000 seeded). The affordable leg is what makes the shape a partial-write probe: if the
+// commit were not atomic across legs, @srcA would be short 600 after the rejection.
+const (
+	underfundedSourceLegV2Body = `{"description":"underfunded source leg","asset":"USD","amount":"5600",` +
+		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"5000"}],` +
+		`"destinations":[{"account":"@dstA","amount":"5600"}]}`
+
+	underfundedSourceLegV1Body = `{
+		"description":"underfunded source leg",
+		"send":{
+			"asset":"USD","value":"5600",
+			"source":{"from":[
+				{"accountAlias":"@srcA","amount":{"asset":"USD","value":"600"}},
+				{"accountAlias":"@srcB","amount":{"asset":"USD","value":"5000"}}
+			]},
+			"distribute":{"to":[{"accountAlias":"@dstA","amount":{"asset":"USD","value":"5600"}}]}
+		}
+	}`
+)
+
+// =============================================================================
+// 20. ONE UNDERFUNDED SOURCE LEG FAILS THE WHOLE TRANSACTION: in a multi-source collection
+//     where one leg is affordable and another is not, the balance commit rejects the request as
+//     a business error (ErrInsufficientFunds / 0018 -> 422) and NOTHING is written — no
+//     transaction row, and in particular the AFFORDABLE leg's account is left exactly as
+//     seeded. Subject 5 makes the same claim for a single-source transfer, where "all or
+//     nothing" and "the only leg was refused" are the same observation; with two source legs
+//     they are not, and only this shape can tell a partial write apart from a clean rejection.
+//
+//     Both surfaces are asserted, because the leg arrays would still be a regression if v2
+//     accepted a shape v1 refuses (or refused it with a different code).
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTransaction(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Distinct ledgers under the same org, so each surface's "no transaction persisted" claim
+	// is scoped to its own ledger.
+	ledgerV1 := infra.ledgerID
+	ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+	// Both sources seeded with 1000: @srcA's 600 leg fits, @srcB's 5000 leg does not.
+	v1Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV1, 1000))
+	v2Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV2, 1000))
+
+	v1App := buildHumaTransactionApp(t, infra.handler, true)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	untouched := map[string]int64{"@srcA": 1000, "@srcB": 1000, "@dstA": 0, "@dstB": 0}
+
+	for _, surface := range []struct {
+		name     string
+		app      *fiber.App
+		url      string
+		body     string
+		ledgerID uuid.UUID
+		balances map[string]uuid.UUID
+	}{
+		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), underfundedSourceLegV1Body, ledgerV1, v1Balances},
+		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), underfundedSourceLegV2Body, ledgerV2, v2Balances},
+	} {
+		resp := postTransaction(t, surface.app, surface.url, surface.body, "")
+		body := drainBody(t, resp)
+
+		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+			"%s: an underfunded source leg is a business error (ErrInsufficientFunds / 0018) -> 422; body: %s", surface.name, string(body))
+		requireProblemCode(t, body, "0018")
+
+		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
+			"%s: an underfunded source leg must not persist a transaction", surface.name)
+
+		// No partial write: the AFFORDABLE leg's account still holds everything it was seeded
+		// with, and the destination received nothing.
+		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+	}
 }
