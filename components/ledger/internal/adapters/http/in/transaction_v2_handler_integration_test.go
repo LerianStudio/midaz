@@ -436,9 +436,11 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 		body       string
 		wantStatus int
 		wantCode   string
-		// wantBodyContains distinguishes the two layers that both answer with 0009: the
-		// Translate side rule names the field PAIR in its detail, while the struct-tag
-		// layer reports the offending field (leg index included) in the errors array.
+		// wantBodyContains distinguishes the layers that all answer with 0009. The Translate
+		// side rule names the field PAIR in its detail. The struct-tag layer phrases its
+		// rejection as "<field> is a required field" in the errors array, and that phrasing
+		// is unique to it — the indexed reference alone is not, because Translate's own
+		// leg-account check emits the same reference.
 		wantBodyContains string
 	}{
 		{
@@ -472,14 +474,18 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			wantCode:   "0094",
 		},
 		{
-			// A leg naming no account. The obligation is a struct tag rather than a
-			// Translate check precisely so the rejection names the offending leg by INDEX;
-			// pinning that text is what keeps the index in the contract.
+			// A leg naming no account. The obligation is enforced TWICE — as a `required`
+			// struct tag and imperatively in Translate — and both renderings mention the
+			// indexed reference, so naming the leg is NOT what tells the two apart. The tag
+			// layer runs first (DecodeAndValidate validates the struct before Translate is
+			// reached) and only IT phrases the rejection as "<ref> is a required field", so
+			// that full phrasing is what pins the answering layer. The offending leg is the
+			// SECOND one, so a rendering that hardcoded index 0 fails this row too.
 			name:             "leg without an account",
-			body:             `{"asset":"USD","amount":"100","sources":[{"amount":"100"}],"to":"@dst"}`,
+			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"amount":"100"}],"to":"@dst"}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
-			wantBodyContains: "sources[0].account",
+			wantBodyContains: "sources[1].account is a required field",
 		},
 		{
 			// Both spellings on ONE side is the mutual-exclusivity violation (0498). The
@@ -1629,6 +1635,59 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 	require.True(t, ok, "the destination leg must persist an operation")
 	assert.Equal(t, cn.CREDIT, aliceOp.Type)
 	requireDecimalEqual(t, decimal.NewFromInt(100), aliceOp.Amount, "destination leg amount")
+
+	// Economic proof: the funds landed, drawn from the external account's overdraft.
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, aliceID),
+		"@alice must hold the deposited funds")
+	requireDecimalEqual(t, decimal.NewFromInt(-100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, externalID),
+		"the external account funds the deposit from its overdraft")
+}
+
+// =============================================================================
+// 14b. THE SAME DEPOSIT SPELLED ON THE SCALAR POSITION: `{"from":"@external/USD","to":"@alice"}`
+//      is what a client actually sends, and it is a DIFFERENT code path from the leg-array
+//      spelling above — the scalar alias arrives straight off the request with no per-leg tag
+//      behind it, and it is the only spelling a caller who never reads the leg schema will find.
+//      Above proves the alias survives a `sources` entry; this proves it survives `from`, and
+//      that the resulting deposit settles identically.
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_ExternalAccountScalarFundsAccount(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	externalID, aliceID := seedExternalFundingBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
+		`"from":"` + externalUSDAlias + `","to":"@alice"}`
+
+	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	txID := uuid.MustParse(resp["id"].(string))
+
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a deposit spelled with the external account in the scalar from must settle")
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Both operations persisted against their own alias: the `/` in the external alias survived
+	// the scalar-side guard and round-tripped through the funnel's per-entry map.
+	byAlias := indexOpsByAlias(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
+
+	externalOp, ok := byAlias[externalUSDAlias]
+	require.Truef(t, ok, "the scalar external source must persist an operation under %s", externalUSDAlias)
+	assert.Equal(t, cn.DEBIT, externalOp.Type, "the external account is the debit side of a deposit")
+	requireDecimalEqual(t, decimal.NewFromInt(100), externalOp.Amount, "external debit amount")
+
+	aliceOp, ok := byAlias["@alice"]
+	require.True(t, ok, "the scalar destination must persist an operation")
+	assert.Equal(t, cn.CREDIT, aliceOp.Type)
+	requireDecimalEqual(t, decimal.NewFromInt(100), aliceOp.Amount, "destination credit amount")
 
 	// Economic proof: the funds landed, drawn from the external account's overdraft.
 	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, aliceID),

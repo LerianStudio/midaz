@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -765,6 +766,202 @@ func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
 			var unknownFields pkg.ValidationUnknownFieldsError
 			require.ErrorAs(t, err, &unknownFields, "the rejection must be the unknown-field class, not a generic decode failure")
 			assert.Equal(t, tc.wantCode, unknownFields.Code, "unknown-field rejections carry the canonical unexpected-fields code")
+		})
+	}
+}
+
+// externalUSDScalarAlias is the alias every ledger's USD external account carries, spelled from
+// the production prefix so a change to it surfaces here. The `/` is the point: the registered
+// account-alias charset (`invalidaliascharacters`) excludes it, so any guard derived from that
+// charset rejects this alias.
+const externalUSDScalarAlias = cn.DefaultExternalAccountAliasPrefix + "USD"
+
+// TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions pins that the external-account
+// alias reaches the canonical leg through the two SCALAR side fields. On a surface that publishes
+// no inflow/outflow action, `{"from":"@external/USD","to":"@alice"}` is the canonical deposit call
+// and its mirror is the canonical withdrawal — so a rejection here 400s every deposit and every
+// withdrawal in production.
+//
+// It goes through pkgHTTP.DecodeAndValidate rather than straight into Translate because the
+// regression this guards is a TAG: `invalidaliascharacters` is registered and already applied that
+// way to mmodel.Account.Alias and mmodel.Composition.Alias, while CreateTransactionV2Input.From
+// and .To carry no `validate` tag at all. Appending it is a one-token change, and Translate
+// evaluates no struct tags — so a lock that calls Translate directly stays green through it. Only
+// the decode boundary sees the tag layer.
+func TestDecodeV2Body_ExternalAccountAliasSurvivesTheScalarPositions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		wantFrom string
+		wantTo   string
+	}{
+		{
+			name:     "a deposit names the external account in the scalar from",
+			body:     `{"asset":"USD","amount":"100","from":"` + externalUSDScalarAlias + `","to":"@alice"}`,
+			wantFrom: externalUSDScalarAlias,
+			wantTo:   "@alice",
+		},
+		{
+			name:     "a withdrawal names the external account in the scalar to",
+			body:     `{"asset":"USD","amount":"100","from":"@alice","to":"` + externalUSDScalarAlias + `"}`,
+			wantFrom: "@alice",
+			wantTo:   externalUSDScalarAlias,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := new(mtransaction.CreateTransactionV2Input)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
+			require.NoError(t, err,
+				"the external-account alias must clear the decode boundary on the scalar positions — a charset tag on from/to would 400 every deposit")
+
+			assert.Equal(t, tc.wantFrom, payload.From, "the decoded scalar source must carry the submitted alias verbatim")
+			assert.Equal(t, tc.wantTo, payload.To, "the decoded scalar destination must carry the submitted alias verbatim")
+
+			tx, err := payload.Translate(false)
+			require.NoError(t, err, "the scalar spelling of the external account must translate")
+
+			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling yields exactly one leg")
+			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling yields exactly one leg")
+
+			assert.Equal(t, tc.wantFrom, tx.Send.Source.From[0].AccountAlias,
+				"the alias must reach the canonical source leg unchanged — no rewrite, no truncation at the separator")
+			assert.Equal(t, tc.wantTo, tx.Send.Distribute.To[0].AccountAlias,
+				"the alias must reach the canonical destination leg unchanged")
+		})
+	}
+}
+
+// TestDecodeV2Body_ExplicitNullSideFields records what an explicit `null` on each of the four side
+// fields ACTUALLY does at the decode boundary, because the two pairs behave differently and only
+// one of the two behaviours is published.
+//
+// The two scalars are rejected: a nil JSON value decodes to "" and the decoder's re-marshal emits
+// `"from": ""`, which does not match the submitted `null`, so FindUnknownFields flags the key. The
+// two leg arrays are ACCEPTED: they carry no `omitempty` either, so a nil slice re-marshals as
+// `null` and matches the submitted value exactly — the key is indistinguishable from having been
+// left out. That asymmetry is invisible in every other test, so it is pinned here rather than
+// left to be discovered by a client.
+func TestDecodeV2Body_ExplicitNullSideFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		body       string
+		wantReject bool
+	}{
+		{
+			name: "an explicit null sources array reads as an unspelled array side",
+			body: `{"asset":"USD","amount":"100","from":"@src","sources":null,"to":"@dst"}`,
+		},
+		{
+			name: "an explicit null destinations array reads as an unspelled array side",
+			body: `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":null}`,
+		},
+		{
+			name:       "an explicit null scalar from is an unknown field",
+			body:       `{"asset":"USD","amount":"100","from":null,"to":"@dst"}`,
+			wantReject: true,
+		},
+		{
+			name:       "an explicit null scalar to is an unknown field",
+			body:       `{"asset":"USD","amount":"100","from":"@src","to":null}`,
+			wantReject: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := new(mtransaction.CreateTransactionV2Input)
+
+			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
+
+			if tc.wantReject {
+				require.Error(t, err, "an explicit null on a scalar side field is rejected at the decode boundary")
+
+				var unknownFields pkg.ValidationUnknownFieldsError
+				require.ErrorAs(t, err, &unknownFields, "the rejection is the unknown-field class")
+				assert.Equal(t, cn.ErrUnexpectedFieldsInTheRequest.Error(), unknownFields.Code,
+					"unknown-field rejections carry the canonical unexpected-fields code")
+
+				return
+			}
+
+			require.NoError(t, err,
+				"an explicit null leg array is ACCEPTED: a nil slice re-marshals as null and matches the submitted value")
+
+			assert.Nil(t, payload.Sources, "a null (or omitted) sources array decodes to no legs")
+			assert.Nil(t, payload.Destinations, "a null (or omitted) destinations array decodes to no legs")
+
+			// And the accepted null does not count as a SPELLING of the array form: the side is
+			// still spelled once, by its scalar field, so Translate raises no exclusivity error.
+			tx, err := payload.Translate(false)
+			require.NoError(t, err, "a null array leaves the side spelled exactly once, by its scalar field")
+
+			require.Len(t, tx.Send.Source.From, 1, "the scalar source spelling still yields one leg")
+			require.Len(t, tx.Send.Distribute.To, 1, "the scalar destination spelling still yields one leg")
+		})
+	}
+}
+
+// TestV2CreateOps_OversizedBodyBehindAuthAnswers401 pins the ORDER of the two guards on the v2
+// create chain: the body-size guard sits AFTER auth, so a tokenless caller is answered 401 and is
+// never told what body size this endpoint accepts. That ordering is an information-disclosure
+// property, and moving the guard ahead of auth — the natural "reject early" optimisation — is
+// invisible to every other guard test, because they all build the app with auth DISABLED, and
+// invisible to the auth test, which posts a nil body.
+//
+// The assertion is therefore two-sided: the status must be 401, AND the answer must carry no trace
+// of the payload-too-large code. A 413 alone would already be the leak.
+func TestV2CreateOps_OversizedBodyBehindAuthAnswers401(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	// Address must be non-empty so Authorize enforces the token check (it is never dialed: a
+	// missing token short-circuits with 401 first).
+	app := registerV2TransactionRoutesForTest(&middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
+
+	// One byte past the declared ceiling, so the guard would fire if it ran at all.
+	oversized := oversizedV2CreateBody(v2CreateMaxBodyBytes + 1)
+
+	for _, rt := range v2Routes {
+		if !rt.hasBody {
+			continue
+		}
+
+		t.Run(rt.action, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, concreteV2Path(rt.fiberPath), strings.NewReader(oversized))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equalf(t, http.StatusUnauthorized, resp.StatusCode,
+				"an oversized TOKENLESS v2 %s request must be answered by auth, not by the body guard; got: %s", rt.action, raw)
+
+			assert.NotContainsf(t, string(raw), cn.ErrPayloadTooLarge.Error(),
+				"the v2 %s answer to an unauthenticated caller must not disclose the body-size rejection", rt.action)
+
+			var problem map[string]any
+			if json.Unmarshal(raw, &problem) == nil {
+				assert.NotEqualf(t, cn.ErrPayloadTooLarge.Error(), problem["code"],
+					"the v2 %s answer to an unauthenticated caller must not carry the payload-too-large code", rt.action)
+			}
 		})
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -32,24 +33,30 @@ import (
 //
 // It drives every error through the REAL dispatcher (WithError via fiber, or
 // CanonicalFiberErrorHandler for the two explicit-status arms) and asserts ONLY
-// resp.StatusCode and body["code"] — the two money-path invariants that must
-// survive byte-for-byte across the WithError -> problem.MapError swap.
+// resp.StatusCode and body["code"] — the two values a client's error handling keys
+// off. The rest of the envelope is deliberately left unasserted: title and detail
+// are allowed to move (the >=500 scrub rewrites both), so pinning them here would
+// turn a body change that leaves the money-path tuple intact into a RED test.
 //
 // The expected (status, code) for each case is derived by classifyStatusOf: the
-// SAME errors.As cascade, in the SAME declaration order, that WithError walks
-// (r3-moneypath-swap-spec.md §1). That classifier IS the frozen statusOf the
-// production swap will have to match. Because the sweep re-derives the expected
-// value from the classifier and compares it to what the live dispatcher emits,
-// the test is self-generating and drift-proof: add a code, it is swept; change a
-// code's type/status, this test goes RED.
+// SAME errors.As cascade over the SAME typed structs, in the SAME declaration
+// order, that the dispatcher walks. Status is a pure function of the Go error TYPE
+// that ValidateBusinessError picked for the sentinel, never of the numeric code, so
+// a cascade over the types IS the whole table. Because the sweep re-derives the
+// expected value from that classifier and compares it to what the live dispatcher
+// emits, the test is self-generating and drift-proof: add a code, it is swept;
+// change a code's type/status, this test goes RED.
 //
 // ponytail: one classifier, swept over every sentinel — the smallest thing that
 // fails if a code or status drifts.
 
-// classifyStatusOf reproduces §1 VERBATIM: the errors.As cascade of WithError,
-// first match wins, returning the (HTTP status, code) that arm would emit. On no
-// match it returns the fallthrough (500, "0046") — matching WithError's final
-// ValidateInternalError(err, "") arm (errors.go:110).
+// classifyStatusOf is an INDEPENDENT restatement of the dispatcher's type->status
+// table: the same errors.As cascade over the same typed structs, in the same
+// declaration order, first match wins, returning the (HTTP status, code) that arm
+// emits. It is restated rather than called so a change to the production cascade
+// shows up here as a disagreement instead of being mirrored into the expectation.
+// On no match it returns the fallback the dispatcher applies to an error it cannot
+// classify: 500 with the internal-server code "0046".
 //
 // ResponseError is the status-in-Code quirk: its status is strconv.Atoi(Code)
 // (response.go:124), so it is derived here, not from a fixed HTTP status.
@@ -90,7 +97,9 @@ func classifyStatusOf(t *testing.T, err error) (status int, code string) {
 		return fiber.StatusInternalServerError, e.Code
 	}
 	if e := (pkg.FailedPreconditionError{}); errors.As(err, &e) {
-		return fiber.StatusInternalServerError, e.Code // NOT 412 — §1 row 11
+		// 500, NOT the 412 the name suggests: the arm renders through the same
+		// internal-server helper as InternalServerError.
+		return fiber.StatusInternalServerError, e.Code
 	}
 	if e := (pkg.ServiceUnavailableError{}); errors.As(err, &e) {
 		return fiber.StatusServiceUnavailable, e.Code
@@ -140,12 +149,11 @@ func driveWithError(t *testing.T, err error) (status int, code string) {
 	return resp.StatusCode, codeVal
 }
 
-// allSentinels is every constant.Err* sentinel declared in pkg/constant/errors.go,
-// keyed by its Go identifier. Kept as a literal because Go cannot reflect over
-// package-level vars; keying by NAME is what lets
-// TestGolden_SentinelInventoryComplete diff this inventory against the registry
-// parsed out of pkg/constant/errors.go, so a sentinel added there without being
-// added here fails CI rather than silently escaping the sweep.
+// allSentinels is every constant.Err* sentinel declared in pkg/constant, keyed by its Go
+// identifier. Kept as a literal because Go cannot reflect over package-level vars; keying by
+// NAME is what lets TestGolden_SentinelInventoryComplete diff this inventory against the
+// registry parsed out of that package, so a sentinel added there without being added here fails
+// CI rather than silently escaping the sweep.
 func allSentinels() map[string]error {
 	return map[string]error{
 		"ErrDuplicateLedger":                          constant.ErrDuplicateLedger,
@@ -580,46 +588,78 @@ func allSentinels() map[string]error {
 	}
 }
 
-// sentinelRegistryPath resolves pkg/constant/errors.go relative to THIS file, so the
-// registry is found whatever directory `go test` was invoked from.
-func sentinelRegistryPath(t *testing.T) string {
+// sentinelRegistryPaths resolves every non-test source file of pkg/constant relative to THIS
+// file, so the registry is found whatever directory `go test` was invoked from.
+//
+// The whole package is swept, not just errors.go: nothing stops a sentinel from being declared
+// in a sibling file of the same package, and a walk pinned to one filename would not see it.
+func sentinelRegistryPaths(t *testing.T) []string {
 	t.Helper()
 
 	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller must resolve this test file to locate the sentinel registry")
 
-	return filepath.Join(filepath.Dir(thisFile), "..", "..", "constant", "errors.go")
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(thisFile), "..", "..", "constant", "*.go"))
+	require.NoError(t, err, "the sentinel registry glob must resolve")
+
+	paths := make([]string, 0, len(matches))
+
+	for _, path := range matches {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+
+		paths = append(paths, path)
+	}
+
+	require.NotEmpty(t, paths, "the sentinel registry package must contain at least one non-test source file")
+
+	sort.Strings(paths)
+
+	return paths
 }
 
-// declaredSentinelNames is the AUTHORITATIVE sentinel set: the name of every
-// package-level var in pkg/constant/errors.go initialised with errors.New, read out
-// of the source with go/ast. Deriving it from the registry rather than restating it
-// is what makes TestGolden_SentinelInventoryComplete an actual guard — comparing two
-// hand-written literals would observe the registry not at all.
+// declaredSentinelNames is the AUTHORITATIVE sentinel set: the name of every package-level
+// Err* var in pkg/constant, read out of the source with go/ast. Deriving it from the registry
+// rather than restating it is what makes TestGolden_SentinelInventoryComplete an actual guard —
+// comparing two hand-written literals would observe the registry not at all.
+//
+// An Err* var whose initialiser is NOT errors.New fails the walk instead of being skipped. The
+// walk is the only thing that decides what gets swept, so a form it does not recognise has to be
+// a visible failure: silently ignoring one would let a sentinel introduced via fmt.Errorf or a
+// helper escape the sweep with the two-way diff still green.
 func declaredSentinelNames(t *testing.T) []string {
 	t.Helper()
 
 	fset := token.NewFileSet()
 
-	file, err := parser.ParseFile(fset, sentinelRegistryPath(t), nil, parser.SkipObjectResolution)
-	require.NoError(t, err, "the sentinel registry must parse")
-
 	var names []string
 
-	for _, decl := range file.Decls {
-		gen, isGen := decl.(*ast.GenDecl)
-		if !isGen || gen.Tok != token.VAR {
-			continue
-		}
+	for _, path := range sentinelRegistryPaths(t) {
+		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		require.NoErrorf(t, err, "the sentinel registry file %s must parse", path)
 
-		for _, spec := range gen.Specs {
-			value, isValue := spec.(*ast.ValueSpec)
-			if !isValue {
+		for _, decl := range file.Decls {
+			gen, isGen := decl.(*ast.GenDecl)
+			if !isGen || gen.Tok != token.VAR {
 				continue
 			}
 
-			for i, name := range value.Names {
-				if i < len(value.Values) && isErrorsNewCall(value.Values[i]) {
+			for _, spec := range gen.Specs {
+				value, isValue := spec.(*ast.ValueSpec)
+				if !isValue {
+					continue
+				}
+
+				for i, name := range value.Names {
+					if !strings.HasPrefix(name.Name, "Err") {
+						continue
+					}
+
+					require.Truef(t, i < len(value.Values) && isErrorsNewCall(value.Values[i]),
+						"%s declares %s without an errors.New initialiser: this walk cannot classify it, so it would escape the golden sweep — declare it with errors.New or teach this parser the new form",
+						filepath.Base(path), name.Name)
+
 					names = append(names, name.Name)
 				}
 			}
@@ -670,17 +710,16 @@ func missingNames(want, got []string) []string {
 	return missing
 }
 
-// TestGolden_SentinelInventoryComplete guards allSentinels against drift by diffing
-// it, name for name, against the registry parsed out of pkg/constant/errors.go: a
-// sentinel added there and not here (or removed there and left here) fails with the
-// offending names in the diff. The count is asserted too so the registry's size is
-// stated in one place a reviewer can read.
+// TestGolden_SentinelInventoryComplete guards allSentinels against drift by diffing it, name for
+// name, against the registry parsed out of pkg/constant: a sentinel added there and not here (or
+// removed there and left here) fails with the offending names in the diff.
+//
+// The two diffs are a SET EQUALITY, which fixes the size as a consequence — so no separate count
+// is asserted. A hardcoded total would only make every sentinel addition a three-place edit
+// while catching nothing the diffs miss, and a parser regression returning a subset is already
+// caught by the second diff plus the non-empty guard in declaredSentinelNames.
 func TestGolden_SentinelInventoryComplete(t *testing.T) {
 	t.Parallel()
-
-	// pkg/constant/errors.go currently declares 429 Err* sentinels. Bump this
-	// number in lockstep with allSentinels() whenever a code is added/removed.
-	const wantSentinelCount = 429
 
 	declared := declaredSentinelNames(t)
 	inventory := allSentinels()
@@ -692,14 +731,12 @@ func TestGolden_SentinelInventoryComplete(t *testing.T) {
 
 	sort.Strings(inventoried)
 
-	// Report the deltas rather than asserting slice equality: a 429-name diff buries
+	// Report the deltas rather than asserting slice equality: a whole-registry diff buries
 	// the one name that actually moved.
 	assert.Empty(t, missingNames(declared, inventoried),
-		"sentinels declared in pkg/constant/errors.go but missing from allSentinels() — the sweep never drives them, so their (code, status) tuple is unpinned")
+		"sentinels declared in pkg/constant but missing from allSentinels() — the sweep never drives them, so their (code, status) tuple is unpinned")
 	assert.Empty(t, missingNames(inventoried, declared),
-		"names in allSentinels() that pkg/constant/errors.go no longer declares — drop them from the inventory")
-	assert.Len(t, declared, wantSentinelCount,
-		"the registry size changed: bump wantSentinelCount together with allSentinels()")
+		"names in allSentinels() that pkg/constant no longer declares — drop them from the inventory")
 
 	// A key/value mismatch (a name mapped to the wrong constant) survives the name
 	// diff above but leaves one sentinel unswept and another swept twice. Distinct
@@ -715,7 +752,8 @@ func TestGolden_SentinelInventoryComplete(t *testing.T) {
 	}
 }
 
-// TestGolden_BusinessErrorCodeStatus is the full sweep (§5.2 source 1): every
+// TestGolden_BusinessErrorCodeStatus is the full sweep over the first of the three
+// routes a code can take to the wire, the ValidateBusinessError one: every
 // sentinel, driven through the REAL WithError dispatcher, must emit the (status,
 // code) the frozen classifier derives. Mapped sentinels classify by their typed
 // error; unmapped sentinels (the ~18 defined-but-unmapped) fall through
@@ -748,9 +786,12 @@ func TestGolden_BusinessErrorCodeStatus(t *testing.T) {
 	}
 }
 
-// TestGolden_HelperPathCodeStatus covers §5.2 source 2: the sentinels reached not
-// through ValidateBusinessError but through the three helper constructors, plus
-// the named-case checks (FailedPreconditionError->500, fallthrough->500/0046).
+// TestGolden_HelperPathCodeStatus covers the second route to the wire: the
+// sentinels reached not through ValidateBusinessError but through the three helper
+// constructors. The sweep above drives those sentinels too, but only as unmapped
+// fallthroughs; it never builds the typed error the helper produces, so this is the
+// only place the constructors' own (code, status) tuple is pinned. Plus the two
+// named-case checks (FailedPreconditionError->500, fallthrough->500/0046).
 func TestGolden_HelperPathCodeStatus(t *testing.T) {
 	t.Parallel()
 
@@ -792,7 +833,8 @@ func TestGolden_HelperPathCodeStatus(t *testing.T) {
 			wantCode:   constant.ErrUnexpectedFieldsInTheRequest.Error(), // 0053
 		},
 		{
-			// FailedPreconditionError -> 500 (NOT 412) — §1 row 11 named case.
+			// FailedPreconditionError -> 500, NOT the 412 the name suggests: it
+			// renders through the internal-server arm like InternalServerError.
 			name: "failed_precondition_500_not_412",
 			err: pkg.FailedPreconditionError{
 				Code:    constant.ErrJWKFetch.Error(), // 0045
@@ -803,8 +845,12 @@ func TestGolden_HelperPathCodeStatus(t *testing.T) {
 			wantCode:   constant.ErrJWKFetch.Error(),
 		},
 		{
-			// Fallthrough: an unclassifiable plain error -> WithError:110 ->
-			// ValidateInternalError -> 500 / code 0046. Named case §5 point 5.
+			// Fallthrough: a plain error matches no arm of the cascade, so the
+			// dispatcher's unclassified-error fallback answers 500 / code 0046.
+			// The sweep reaches this arm too (via the unmapped sentinels) but
+			// derives its expectation from the same classifier that models it, so
+			// it would agree with itself if the fallback moved. Spelling 500/0046
+			// out literally here is what anchors that end of the classifier.
 			name:       "fallthrough_plain_error_500_0046",
 			err:        errors.New("some unmapped raw error"),
 			wantStatus: fiber.StatusInternalServerError,
@@ -860,12 +906,13 @@ func TestGolden_HelperPathCodeStatus(t *testing.T) {
 }
 
 // TestGolden_UnmarshallingStatusInCode locks the ResponseError status-in-Code
-// quirk (§5.2 source 2, response.go:124): ValidateUnmarshallingError produces a
-// ResponseError whose Code is "0094", and JSONResponseError writes the status as
-// strconv.Atoi("0094") = 94. Go's net/http client (app.Test) rejects status 94 as
-// malformed (< 100), so the raw fiber response is inspected directly instead of
-// through an HTTP roundtrip. If the quirk ever changes (e.g. 0094 mapped to a real
-// HTTP status), the raw status here changes and this test goes RED.
+// quirk, the one helper-constructor path whose status is not an HTTP status at all:
+// ValidateUnmarshallingError produces a ResponseError whose Code is "0094", and
+// JSONResponseError writes the status as strconv.Atoi("0094") = 94. Go's net/http
+// client (app.Test) rejects status 94 as malformed (< 100), so the raw fiber
+// response is inspected directly instead of through an HTTP roundtrip. If the quirk
+// ever changes (e.g. 0094 mapped to a real HTTP status), the raw status here changes
+// and this test goes RED.
 func TestGolden_UnmarshallingStatusInCode(t *testing.T) {
 	t.Parallel()
 
@@ -912,10 +959,12 @@ func TestGolden_UnmarshallingStatusInCode(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), codeVal, "MONEY-PATH: 0094 body[code]")
 }
 
-// TestGolden_ExplicitStatusArms covers §5.2 source 3 / §1.3: the two ambiguous
-// codes whose status comes from renderCanonical (explicit status), NOT from the
-// WithError code->status table. 0485 -> 405, 0143 -> 413. These must be pinned
-// separately so the swap cannot collapse them into their table status (both 400).
+// TestGolden_ExplicitStatusArms covers the third route to the wire, and the only
+// AMBIGUOUS one: the two codes whose status comes from renderCanonical (an explicit
+// status), NOT from the type->status cascade. 0485 -> 405 and 0143 -> 413 here,
+// while the very same codes are mapped to ValidationError, so the sweep above sees
+// them at 400. Nothing else observes the explicit-status side, so without these two
+// cases both arms could collapse into their 400 table status unnoticed.
 func TestGolden_ExplicitStatusArms(t *testing.T) {
 	t.Parallel()
 

@@ -21,14 +21,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the 26
-// mainline error codes whose HTTP status class was re-typed in the four-family
-// consolidation (docs/plans/2026-06-07-error-code-migration.md
-// "Mainline 400 reclassification"). Each row pins code -> HTTP status -> title,
-// driven end-to-end through pkg/net/http.WithError so the typed struct class
-// (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)
-// is exercised exactly as production routes it. A future silent re-type of any of
-// these arms in pkg/errors.go's errorMap breaks this lock.
+// TestMainlineErrorContract_ReclassifiedCodes locks the wire contract for the mainline error
+// codes whose HTTP status class was re-typed in the four-family consolidation. Each row pins
+// code -> HTTP status -> title, driven end-to-end through pkg/net/http.WithError so the typed
+// struct class (ValidationError-400, UnprocessableOperationError-422, EntityConflictError-409)
+// is exercised exactly as production routes it. A future silent re-type of any of these arms in
+// pkg/errors.go's errorMap breaks this lock.
 //
 // Coverage:
 //   - 23 codes 400 -> 422 (ValidationError -> UnprocessableOperationError)
@@ -226,10 +224,9 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 	runErrorContractCases(t, tests)
 }
 
-// TestMainlineErrorContract_DependencyFaultCodes locks the three error-platform
-// follow-up reclassifications (E5, E9, docs/plans/2026-06-07-v4-error-status-migration-notes.md
-// "Error-platform follow-up reclassifications"): codes whose typed struct
-// disagreed with the server-fault vs client-error class their own message describes.
+// TestMainlineErrorContract_DependencyFaultCodes locks the three error-platform follow-up
+// reclassifications: codes whose typed struct disagreed with the server-fault vs client-error
+// class their own message describes.
 //   - 0228 500 -> 503 (InternalServerError -> ServiceUnavailableError)
 //   - 0231 400 -> 500 (ValidationError -> FailedPreconditionError, routed to 500)
 //   - 0178 422 -> 503 (UnprocessableOperationError -> ServiceUnavailableError)
@@ -342,9 +339,8 @@ func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input)
 //   - 0009 ValidationError -> 400: a side spelled NEITHER way (no scalar alias, no legs)
 //   - 0498 ValidationError -> 400: a side spelled BOTH ways at once
 //
-// 0498 is the code this epic introduced. It carries no per-side or per-index argument, so
-// its message is constant and locked whole by the title column plus the golden sweep's
-// (code, status) tuple in pkg/net/http.
+// 0498 carries no per-side or per-index argument, so its message is constant and locked whole by
+// the title column plus the golden sweep's (code, status) tuple in pkg/net/http.
 func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 	legs := []mtransaction.V2LegInput{{Account: "@a", Amount: "100"}}
 
