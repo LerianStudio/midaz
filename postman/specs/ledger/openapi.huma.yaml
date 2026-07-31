@@ -1365,7 +1365,7 @@ components:
             - "null"
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         externalId:
@@ -1460,7 +1460,7 @@ components:
             - "null"
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         holderId:
@@ -2258,7 +2258,7 @@ components:
       properties:
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         email:

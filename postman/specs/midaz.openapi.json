@@ -13878,7 +13878,7 @@
           },
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
@@ -14013,7 +14013,7 @@
           },
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
@@ -15126,7 +15126,7 @@
         "properties": {
           "document": {
             "examples": [
-              "91315026015"
+              "12345678900"
             ],
             "maxLength": 100,
             "type": "string"
