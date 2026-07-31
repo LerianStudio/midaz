@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
@@ -131,8 +132,9 @@ type operationEconomicRow struct {
 	OnHoldAfter    decimal.Decimal
 }
 
-// fetchOperationRows returns the economic projection of every operation for a transaction,
-// ordered by type (CREDIT before DEBIT) for stable cross-ledger comparison.
+// fetchOperationRows returns the economic projection of every operation for a transaction.
+// The row order it returns is not a total order over the set; put the result through
+// sortOperationRows before any index-for-index comparison.
 func fetchOperationRows(t *testing.T, db *sql.DB, txID uuid.UUID) []operationEconomicRow {
 	t.Helper()
 
@@ -182,7 +184,24 @@ func requireProblemCode(t *testing.T, body []byte, wantCode string) {
 func requireDecimalEqual(t *testing.T, want, got decimal.Decimal, msgAndArgs ...any) {
 	t.Helper()
 
-	require.Truef(t, want.Equal(got), "expected decimal %s, got %s (%v)", want.String(), got.String(), msgAndArgs)
+	require.Truef(t, want.Equal(got), "expected decimal %s, got %s (%s)", want.String(), got.String(), decimalContext(msgAndArgs))
+}
+
+// decimalContext renders a caller's trailing message. Callers pass a format string followed by
+// its arguments, so the arguments have to be substituted into it rather than printed alongside
+// it — printing the slice yields the format verbs verbatim and drops the values into a bracketed
+// tail, which is unreadable in exactly the failure it is meant to explain.
+func decimalContext(msgAndArgs []any) string {
+	if len(msgAndArgs) == 0 {
+		return "no context"
+	}
+
+	format, ok := msgAndArgs[0].(string)
+	if !ok {
+		return fmt.Sprintf("%v", msgAndArgs)
+	}
+
+	return fmt.Sprintf(format, msgAndArgs[1:]...)
 }
 
 // volatileResponseKeys are the identity/timestamp fields deleted (recursively) before a
@@ -388,10 +407,11 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 		"v2 direct transaction must be indistinguishable from the v1 /json equivalent (ignoring IDs/timestamps)")
 }
 
-// sortOperationRows returns the projection ordered by (Type, AccountAlias, Amount) so two sets
-// read from two ledgers line up index-for-index. `fetchOperationRows`' `ORDER BY type` is not
-// enough on its own: a multi-leg transaction persists several rows sharing one Type, and the
-// query does not specify their relative order inside that group.
+// sortOperationRows returns the projection in a total order over EVERY field
+// assertOperationSetsEqual compares, so two sets read from two ledgers line up index-for-index.
+// A multi-leg transaction persists several rows sharing one Type, and the sort is not stable, so
+// a key that left any compared field out of the ordering would make that field's comparison
+// arbitrary between two rows tying on the rest.
 func sortOperationRows(rows []operationEconomicRow) []operationEconomicRow {
 	sorted := slices.Clone(rows)
 
@@ -404,7 +424,19 @@ func sortOperationRows(rows []operationEconomicRow) []operationEconomicRow {
 			return c
 		}
 
-		return x.Amount.Cmp(y.Amount)
+		if c := strings.Compare(x.AssetCode, y.AssetCode); c != 0 {
+			return c
+		}
+
+		if c := x.Amount.Cmp(y.Amount); c != 0 {
+			return c
+		}
+
+		if c := x.AvailableAfter.Cmp(y.AvailableAfter); c != 0 {
+			return c
+		}
+
+		return x.OnHoldAfter.Cmp(y.OnHoldAfter)
 	})
 
 	return sorted
@@ -2138,24 +2170,35 @@ func assertLegsSumToTotal(t *testing.T, ops []operationEconomicRow, total decima
 //     before it is compared; and because each shape persists several operations sharing one
 //     Type, the persisted rows are additionally checked to sum to the declared total on both
 //     sides of the entry.
+//
+//     Each case also pins the ABSOLUTE per-operation amount on each surface before the two are
+//     compared. Set equality, leg-sum and final balances are all satisfiable by a funnel writing
+//     operation rows that disagree with the balances it moved — identically on both surfaces,
+//     since the funnel is shared — and that divergence class is live here: subject 13 pins a leg
+//     of this same funnel that validates, moves nothing and persists no row.
 // =============================================================================
 
 func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testing.T) {
 	cases := []struct {
-		name        string
-		v2Body      string
-		v1Body      string
-		wantOpCount int
+		name   string
+		v2Body string
+		v1Body string
+		// wantOps is the resolved (type, amount) of every persisted operation, keyed by alias.
+		wantOps map[string]advancedLegExpectation
 		// wantAvailable is the final available balance of every seeded alias, keyed by alias.
 		wantAvailable map[string]int64
 	}{
 		{
 			// 1000 leaves @srcA and is split 600/400 across two destinations; @srcB is named by
 			// no leg.
-			name:        "split one source across two destinations",
-			v2Body:      splitV2Body,
-			v1Body:      splitV1Body,
-			wantOpCount: 3,
+			name:   "split one source across two destinations",
+			v2Body: splitV2Body,
+			v1Body: splitV1Body,
+			wantOps: map[string]advancedLegExpectation{
+				"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(1000)},
+				"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(600)},
+				"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(400)},
+			},
 			wantAvailable: map[string]int64{
 				"@srcA": multiLegSeedAvailable - 1000,
 				"@srcB": multiLegSeedAvailable,
@@ -2165,10 +2208,14 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 		},
 		{
 			// 600 + 400 is collected from two sources into @dstA; @dstB is named by no leg.
-			name:        "collect two sources into one destination",
-			v2Body:      multiSourceV2Body,
-			v1Body:      multiSourceV1Body,
-			wantOpCount: 3,
+			name:   "collect two sources into one destination",
+			v2Body: multiSourceV2Body,
+			v1Body: multiSourceV1Body,
+			wantOps: map[string]advancedLegExpectation{
+				"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(600)},
+				"@srcB": {opType: cn.DEBIT, amount: decimal.NewFromInt(400)},
+				"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(1000)},
+			},
 			wantAvailable: map[string]int64{
 				"@srcA": multiLegSeedAvailable - 600,
 				"@srcB": multiLegSeedAvailable - 400,
@@ -2217,13 +2264,14 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
 
-			// Operations: same count on both surfaces, pinned to the number of legs the bodies
-			// spell, so a collapsed or dropped leg fails here instead of passing a looser check.
 			v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
 			v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
 
-			require.Len(t, v1Ops, tc.wantOpCount, "v1 operation count")
-			require.Len(t, v2Ops, tc.wantOpCount, "v2 operation count")
+			// Absolute proof first: every leg resolved to ITS OWN expected figure, and the
+			// operation count is pinned to the number of legs the bodies spell, so a collapsed or
+			// dropped leg fails here instead of passing a looser check.
+			assertAdvancedLegOps(t, v1Ops, tc.wantOps)
+			assertAdvancedLegOps(t, v2Ops, tc.wantOps)
 
 			// Same per-account economic projection: type, asset, alias, amount, balance-after.
 			assertOperationSetsEqual(t, v1Ops, v2Ops)
@@ -2280,8 +2328,13 @@ const (
 //     a business error (ErrInsufficientFunds / 0018 -> 422) and NOTHING is written — no
 //     transaction row, and in particular the AFFORDABLE leg's account is left exactly as
 //     seeded. Subject 5 makes the same claim for a single-source transfer, where "all or
-//     nothing" and "the only leg was refused" are the same observation; with two source legs
-//     they are not, and only this shape can tell a partial write apart from a clean rejection.
+//     nothing" and "the only leg was refused" are the same observation; two source legs, one of
+//     them affordable, separate the two.
+//
+//     The balance the atomic commit mutates lives in Redis and reaches PostgreSQL only through
+//     the balance-sync drain, so each surface is drained after its rejection and before the cold
+//     rows are read. Undrained, the untouched-balance assertion reads the seeded rows on every
+//     rejection path and says nothing about what the hot layer did.
 //
 //     Both surfaces are asserted, because the leg arrays would still be a regression if v2
 //     accepted a shape v1 refuses (or refused it with a different code).
@@ -2293,6 +2346,8 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
 
 	// Distinct ledgers under the same org, so each surface's "no transaction persisted" claim
 	// is scoped to its own ledger.
@@ -2320,19 +2375,27 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), underfundedSourceLegV1Body, ledgerV1, v1Balances},
 		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), underfundedSourceLegV2Body, ledgerV2, v2Balances},
 	} {
-		resp := postTransaction(t, surface.app, surface.url, surface.body, "")
-		body := drainBody(t, resp)
+		// A subtest per surface: the helpers below are require-based, so a v1 failure would
+		// otherwise end the test before v2 ran at all.
+		t.Run(surface.name, func(t *testing.T) {
+			resp := postTransaction(t, surface.app, surface.url, surface.body, "")
+			body := drainBody(t, resp)
 
-		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
-			"%s: an underfunded source leg is a business error (ErrInsufficientFunds / 0018) -> 422; body: %s", surface.name, string(body))
-		requireProblemCode(t, body, "0018")
+			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+				"%s: an underfunded source leg is a business error (ErrInsufficientFunds / 0018) -> 422; body: %s", surface.name, string(body))
+			requireProblemCode(t, body, "0018")
 
-		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
-			"%s: an underfunded source leg must not persist a transaction", surface.name)
+			assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
+				"%s: an underfunded source leg must not persist a transaction", surface.name)
 
-		// No partial write: the AFFORDABLE leg's account still holds everything it was seeded
-		// with, and the destination received nothing.
-		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+			// Flush this surface's hot balances into PostgreSQL, so the rows read below carry
+			// whatever the atomic commit left behind rather than the seeded values.
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, surface.ledgerID)
+
+			// No partial write: the AFFORDABLE leg's account still holds everything it was seeded
+			// with, and the destination received nothing.
+			assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+		})
 	}
 }
 
@@ -2582,17 +2645,21 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), shareShortV1Body, ledgerV1, v1Balances},
 		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), shareShortV2Body, ledgerV2, v2Balances},
 	} {
-		resp := postTransaction(t, surface.app, surface.url, surface.body, "")
-		body := drainBody(t, resp)
+		// A subtest per surface: the helpers below are require-based, so a v1 failure would
+		// otherwise end the test before v2 ran at all.
+		t.Run(surface.name, func(t *testing.T) {
+			resp := postTransaction(t, surface.app, surface.url, surface.body, "")
+			body := drainBody(t, resp)
 
-		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
-			"%s: shares that do not close the total are a business error (ErrTransactionValueMismatch / 0073) -> 422; body: %s", surface.name, string(body))
-		requireProblemCode(t, body, "0073")
+			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+				"%s: shares that do not close the total are a business error (ErrTransactionValueMismatch / 0073) -> 422; body: %s", surface.name, string(body))
+			requireProblemCode(t, body, "0073")
 
-		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
-			"%s: shares short of the declared total must not persist a transaction", surface.name)
+			assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
+				"%s: shares short of the declared total must not persist a transaction", surface.name)
 
-		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+			assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+		})
 	}
 }
 
@@ -2646,8 +2713,9 @@ func responseOperationsByAliasAndType(t *testing.T, resp map[string]any) map[str
 //     not just its id — and creates no second transaction. The per-leg claim is what separates
 //     a multi-leg replay from a scalar one: a replay that re-resolved the legs, or resolved only
 //     some of them, would still satisfy an id-only assertion while handing the client a different
-//     economic answer under the same id. The hash source is exercised through the HTTP surface
-//     and never recomputed here, so the seam the four create actions share stays under test.
+//     economic answer under the same id. A client-supplied key REPLACES the body hash as the slot
+//     identity and the replay branch compares no hash, so this subject says nothing about how the
+//     hash is built — only the no-key subjects reach that.
 //
 //     A second subject records the present behaviour of the no-key hash: it is taken over the RAW
 //     body bytes, so permuting the leg array — the same transaction economically — is a different
@@ -2689,7 +2757,13 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		// All four legs must come back with identical economic content, joined by (alias, type) so
 		// serialisation order does not enter the comparison. Read before anything else touches the
 		// two response maps, because stripVolatile mutates in place.
-		require.Equal(t, responseOperationsByAliasAndType(t, firstResult), responseOperationsByAliasAndType(t, secondResult),
+		firstProjection := responseOperationsByAliasAndType(t, firstResult)
+		secondProjection := responseOperationsByAliasAndType(t, secondResult)
+
+		// The projection LENGTH is pinned to the leg count first: two responses agreeing with each
+		// other on a partial set of legs would satisfy the comparison below on its own.
+		require.Len(t, firstProjection, len(directAdvancedLegOps()), "the create response must project every leg the body spells")
+		require.Equal(t, firstProjection, secondProjection,
 			"the replay must return the first transaction's per-leg projection, leg for leg")
 
 		assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),

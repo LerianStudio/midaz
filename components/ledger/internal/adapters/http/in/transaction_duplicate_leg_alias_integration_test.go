@@ -12,6 +12,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,15 @@ import (
 // value. The create funnel resolves per-leg values into a map keyed by the leg's account alias
 // while totalling every leg unconditionally, so two legs sharing one bare alias would collapse
 // into a single map entry — one leg's value overwriting the other's — while the balance check
-// still saw the sum of both. The transaction would then commit with a 201 having moved less than
-// it accounted for. What keeps the two legs apart is the composite per-leg alias
-// ("<index>#alias#balanceKey"), stamped onto every leg before the authoritative resolution runs.
+// still saw the sum of both. What keeps the two legs apart is the composite per-leg alias
+// ("<index>#alias#balanceKey"), stamped onto every leg before the authoritative resolution runs:
+// each leg resolves independently of its siblings, whatever alias they name.
+//
+// The guarantee is asserted, not the failure mode of losing it. Removing the composite alias has
+// been observed to yield a 422/0019 account-ineligibility rejection on both surfaces — one
+// spelling of "the guard is gone", not proof that no way of losing it could commit silently. The
+// per-leg assertions stand on their own terms regardless: they also catch a value corruption such
+// as both legs resolving to 500.
 //
 // This file locks the observable consequence, on both surfaces that can spell the shape: the
 // repeated account is debited the SUM of its legs, each leg persists its own operation row
@@ -64,19 +71,33 @@ const (
 		`"destinations":[{"account":"@dstA","amount":"1000"}]}`
 )
 
-// duplicateLegTotal is the declared amount of both bodies above and therefore what each side of
-// the persisted entry must sum to.
-var duplicateLegTotal = decimal.NewFromInt(1000)
-
 func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T) {
+	// duplicateLegTotal is the declared amount of both bodies above and therefore what each side
+	// of the persisted entry must sum to.
+	duplicateLegTotal := decimal.NewFromInt(1000)
+
 	cases := []struct {
-		name string
-		url  func(orgID, ledgerID uuid.UUID) string
-		body string
-		v2   bool
+		name     string
+		url      func(orgID, ledgerID uuid.UUID) string
+		body     string
+		buildApp func(*testing.T, *TransactionHandler) *fiber.App
 	}{
-		{name: "v1 detailed", url: v1JSONURL, body: duplicateLegV1Body},
-		{name: "v2 leg arrays", url: v2DirectURL, body: duplicateLegV2Body, v2: true},
+		{
+			name: "v1 detailed",
+			url:  v1JSONURL,
+			body: duplicateLegV1Body,
+			buildApp: func(t *testing.T, h *TransactionHandler) *fiber.App {
+				return buildHumaTransactionApp(t, h, true)
+			},
+		},
+		{
+			name: "v2 leg arrays",
+			url:  v2DirectURL,
+			body: duplicateLegV2Body,
+			buildApp: func(t *testing.T, h *TransactionHandler) *fiber.App {
+				return buildHumaV2DirectApp(t, h)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -93,10 +114,7 @@ func TestIntegration_TransactionDuplicateSourceLeg_BothLegsSurvive(t *testing.T)
 			// holding a remainder rather than being absorbed by spare funding.
 			balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
-			app := buildHumaTransactionApp(t, infra.handler, true)
-			if tc.v2 {
-				app = buildHumaV2DirectApp(t, infra.handler)
-			}
+			app := tc.buildApp(t, infra.handler)
 
 			result := decodeTxResponse(t, postTransaction(t, app, tc.url(infra.orgID, infra.ledgerID), tc.body, ""), nethttp.StatusCreated)
 			txID := uuid.MustParse(result["id"].(string))
