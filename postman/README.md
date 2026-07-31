@@ -14,25 +14,30 @@ make generate-docs
 
 `make generate-docs` (root) runs `postman/generator/generate-docs.sh`, which:
 
-1. Regenerates each component's native Huma OAS 3.1 dump
-   (`components/<service>/api/openapi.huma.yaml`) by running its golden-dump test
-   `TestOpenAPISpecDump` with `-update`. No `swag`, no Docker — the spec comes
-   straight from the Huma router at build time.
-2. Copies each `openapi.huma.yaml` into `postman/specs/<service>/` so the hub is
-   self-describing.
+1. Regenerates each component's native Huma OAS 3.1 dumps by running the golden-dump
+   tests with `-update`. No `swag`, no Docker — the spec comes straight from the Huma
+   router at build time. Ledger emits two independent contracts,
+   `components/ledger/api/openapi.huma.yaml` (served under `/v1`) and
+   `openapi.v2.huma.yaml` (served under `/v2`); tracer emits one.
+2. Copies every dump into `postman/specs/<service>/` so the hub is self-describing.
 3. Joins the per-component specs into one consolidated spec
    (`postman/specs/midaz.openapi.{yaml,json}`) with `@redocly/cli join` (ledger
-   first, so it acts as the "main" and takes precedence on shared metadata).
-4. Converts the consolidated spec to a Postman collection and merges into one
-   `MIDAZ.postman_collection.json`, with a single merged
-   `MIDAZ.postman_environment.json`.
+   first, so it acts as the "main" and takes precedence on shared metadata). The
+   ledger `/v2` document is transformed into a joinable input first, because its
+   path keys are server-relative and would otherwise collide with the `/v1` keys.
+   This consolidated spec is a published documentation artifact; it is not the
+   Postman input.
+4. Converts each published per-component spec to its own Postman collection and
+   merges them into one `MIDAZ.postman_collection.json`, with a single merged
+   `MIDAZ.postman_environment.json`. Converting per component (rather than the
+   consolidated spec) is what keeps the per-service base-URL split below.
 
 ### Covered services
 
-| Service | Port | Notes |
-|---------|------|-------|
-| `ledger` | `:3002` | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees, all on one base URL |
-| `tracer` | `:4020` | Real-time transaction validation / fraud prevention |
+| Service | Port | Contracts | Notes |
+|---------|------|-----------|-------|
+| `ledger` | `:3002` | `/v1`, `/v2` | Unified binary: onboarding + transaction + CRM (holders/instruments) + fees, all on one base URL |
+| `tracer` | `:4020` | `/v1` | Real-time transaction validation / fraud prevention |
 
 Only `ledger` and `tracer` are generated. `crm` is a package tree folded into the
 ledger binary (its endpoints are part of the ledger spec) and `reporter-worker` is
@@ -62,10 +67,11 @@ normalize them.
 postman/
 ├── README.md                          # This file
 ├── WORKFLOW.md                        # Ledger end-to-end workflow definition (DO NOT MODIFY)
-├── MIDAZ.postman_collection.json      # Merged collection (ledger + tracer + reporter)
+├── MIDAZ.postman_collection.json      # Merged collection (every published spec)
 ├── MIDAZ.postman_environment.json     # Merged environment
 ├── specs/                             # Published OpenAPI specs
 │   ├── ledger/openapi.huma.yaml       # Per-component Huma OAS 3.1 dumps
+│   ├── ledger/openapi.v2.huma.yaml    # Ledger's independent /v2 contract
 │   ├── tracer/openapi.huma.yaml
 │   └── midaz.openapi.{yaml,json}      # Consolidated (redocly join) spec
 ├── backups/                           # Timestamped collection/environment backups (gitignored)
@@ -82,25 +88,32 @@ postman/
 
 ## Collection structure
 
-The merged collection is one **MIDAZ** collection. The ledger spec is primary, and
-the tracer and reporter specs contribute their own folders (grouped by
-OpenAPI tag). Requests route to per-service base URLs:
+The merged collection is one **MIDAZ** collection. The ledger `/v1` spec is primary;
+every other published spec contributes its own folders, grouped by OpenAPI tag.
+Two specs from the same component would otherwise produce folders under the same
+tag name, so folders from a non-primary contract carry a version tag — ledger's
+`/v2` transaction endpoints land in **Transactions (v2)**.
+
+Request URLs carry the version prefix taken from the spec's `servers` block, so a
+generated URL targets the same path the service mounts the operation on, and `/v1`
+and `/v2` requests to the same resource stay distinct.
+
+Requests route to per-service base URLs:
 
 - Ledger uses `{{onboardingUrl}}` / `{{transactionUrl}}` (both resolve to `:3002`).
 - Tracer uses `{{tracerUrl}}` (`:4020`).
-- Reporter uses `{{reporterUrl}}` (`:4005`).
 
-Set `host` and `authToken` in the environment and the per-service URLs resolve
-automatically.
+Set `authToken` plus the two host roots — `baseUrl` (ledger) and `host` (tracer) —
+in the environment and the per-service URLs resolve automatically.
 
 ## Workflow testing
 
 `WORKFLOW.md` defines an end-to-end ledger flow (Organization -> Ledger -> Account
 -> Transaction -> balance zero-out). `create-workflow.js` turns it into the
 "Complete API Workflow" folder during generation. This workflow chain covers the
-**ledger flow only** — tracer and reporter appear in the collection as
-plain endpoint folders without a scripted workflow. `WORKFLOW.md` is marked
-DO-NOT-MODIFY; treat it as the source of truth for the ledger workflow.
+**ledger `/v1` flow only** — the ledger `/v2` and tracer endpoints appear in the
+collection as plain endpoint folders without a scripted workflow. `WORKFLOW.md` is
+marked DO-NOT-MODIFY; treat it as the source of truth for the ledger workflow.
 
 Run the workflow with Newman:
 

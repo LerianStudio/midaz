@@ -17,7 +17,7 @@ maintainers.
 
 ```
 postman/generator/
-├── generate-docs.sh               # Orchestrator: swag -> openapi -> publish specs -> postman
+├── generate-docs.sh               # Orchestrator: Huma dumps -> publish specs -> join -> postman
 ├── sync-postman.sh                # Converts published specs and merges the collection
 ├── convert-openapi.js             # Per-spec OpenAPI -> Postman converter (+ env template)
 ├── enhance-tests.js               # Adds test scripts to requests
@@ -35,15 +35,21 @@ postman/generator/
 
 ## Scope
 
-`generate-docs.sh` and `sync-postman.sh` cover **ledger, tracer and
-reporter**. The ledger spec is primary; tracer and reporter
-contribute their own folders to the merged collection.
+`sync-postman.sh` converts one Postman collection per published spec and merges
+them. Its `SPEC_SOURCES` list names the specs, so a component can contribute more
+than one: ledger publishes `openapi.huma.yaml` (`/v1`) and `openapi.v2.huma.yaml`
+(`/v2`). The ledger `/v1` spec is primary and its conversion must succeed; the rest
+are optional and a missing spec is skipped. `reporter` is declared as a source but
+`generate-docs.sh` does not generate a reporter spec, so it is always skipped.
+
+Specs from a non-primary contract get a version tag appended to their folder names,
+because OpenAPI tags are shared across versions and would otherwise merge into
+folders with identical names.
 
 The **workflow generator** (`create-workflow.js`, `config/`, `lib/`) is
-**ledger-only by design**: it consumes `postman/WORKFLOW.md` (the ledger
-end-to-end flow) and produces the "Complete API Workflow" folder. Tracer and
-reporter are documented as plain endpoint folders without a scripted
-workflow.
+**ledger-`/v1`-only by design**: it consumes `postman/WORKFLOW.md` (the ledger
+end-to-end flow) and produces the "Complete API Workflow" folder. Everything else
+is documented as plain endpoint folders without a scripted workflow.
 
 ## Usage
 
