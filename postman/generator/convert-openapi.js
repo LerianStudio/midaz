@@ -78,6 +78,9 @@ const yaml = require('js-yaml');
 // runs so it can sit clean under a drift check.
 const EXAMPLE_DATE_TIME = '2025-01-01T00:00:00Z';
 
+// Placeholder for uuid-formatted fields whose schema declares no example of its own.
+const EXAMPLE_UUID = '00000000-0000-0000-0000-000000000000';
+
 //=============================================================================
 // COMMAND LINE ARGUMENT HANDLING
 //=============================================================================
@@ -1092,9 +1095,17 @@ function addRequestBody(requestItem, operation, spec) {
       // If there are explicit examples, use the first one
       if (jsonContent.examples && Object.keys(jsonContent.examples).length > 0) {
         const firstExampleKey = Object.keys(jsonContent.examples)[0];
-        example = jsonContent.examples[firstExampleKey].value;
+        const namedExample = jsonContent.examples[firstExampleKey];
+        example = namedExample.value;
+
+        // A named example may carry prose the body itself cannot: JSON has no comments, so a
+        // rule about the shape has nowhere else to go. It fills the request description only
+        // when the operation supplied none, so an operation's own prose always wins.
+        if (namedExample.description && !requestItem.request.description) {
+          requestItem.request.description = namedExample.description;
+        }
       }
-      
+
       // Remove fields marked with swagger:ignore
       example = removeIgnoredFields(example, jsonContent.schema, spec);
       
@@ -1666,12 +1677,148 @@ internal systems rather than with the client's request.`,
   }
 };
 
-// Request body examples can now come from the OpenAPI spec directly
-const REQUEST_BODY_EXAMPLES = {};
+// Hand-written request bodies, keyed by the component schema name the request body $refs.
+// updateOpenApiSpec injects an entry as that media type's named examples, and addRequestBody
+// prefers a named example over anything it derives from the schema.
+//
+// An entry earns its place when the schema alone cannot yield a body a reader can send: a
+// constraint the schema has no structural expression for, or a value that must come from the
+// collection environment rather than from a type.
+const REQUEST_BODY_EXAMPLES = {
+  // The four v2 create actions (direct, hold, block, unblock) share this body. Each side is
+  // spelled EITHER with its scalar field or with its leg array, and the schema is one flat
+  // object listing both spellings, so a body derived from the schema carries both at once and
+  // the API rejects it. This one spells both sides scalar.
+  CreateTransactionV2Input: {
+    scalar_sides: {
+      summary: 'Both sides spelled scalar',
+      description: `Moves the whole \`amount\` from one account to another.
+
+Each side of the transaction is spelled EITHER with its scalar field (\`from\`, \`to\`) OR with its leg array (\`sources\`, \`destinations\`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.
+
+To split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an \`account\` and carries EXACTLY ONE value expression: \`amount\` for an explicit value, or \`share\` for a percentage of the transaction total. Sending both, or neither, is rejected.
+
+\`\`\`json
+"sources": [
+  { "account": "@external/USD", "amount": "60.00" },
+  { "account": "@treasury/USD", "amount": "40.00" }
+]
+\`\`\`
+
+\`routeId\` (transaction route) and \`operationRouteId\` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.`,
+      value: {
+        asset: 'USD',
+        amount: '100.00',
+        from: '@external/USD',
+        to: '{{accountAlias}}',
+        description: 'Example transaction',
+        code: 'EXAMPLE_TRANSACTION',
+        metadata: {
+          key: 'value'
+        }
+      }
+    }
+  }
+};
 
 //=============================================================================
 // EXAMPLE GENERATION
 //=============================================================================
+
+/**
+ * Read the example a schema declares for itself.
+ *
+ * OpenAPI 3.0 spells it as a singular `example`; 3.1 spells it as an `examples` array and
+ * drops the singular form. Both are read so one code path covers either dialect, and the
+ * caller learns whether an example was found rather than inferring it from the value (a
+ * declared `null`, `0` or `""` is a declaration).
+ *
+ * @param {Object} schema - The schema object from the OpenAPI spec
+ * @returns {{found: boolean, value: *}} The declared example
+ */
+function declaredExample(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return { found: false, value: undefined };
+  }
+
+  if (schema.example !== undefined) {
+    return { found: true, value: schema.example };
+  }
+
+  if (Array.isArray(schema.examples) && schema.examples.length > 0) {
+    return { found: true, value: schema.examples[0] };
+  }
+
+  return { found: false, value: undefined };
+}
+
+/**
+ * Resolve a local $ref to the schema it names.
+ * @param {string} ref - The reference string
+ * @param {Object} spec - The full OpenAPI spec
+ * @returns {Object|undefined} The referenced schema, or undefined when it cannot be resolved
+ */
+function resolveSchemaRef(ref, spec) {
+  if (typeof ref !== 'string' || !spec) {
+    return undefined;
+  }
+
+  const refPath = ref.split('/');
+  const refName = refPath.pop();
+
+  if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
+    return spec.components.schemas[refName];
+  }
+
+  if (spec.definitions) {
+    return spec.definitions[refName];
+  }
+
+  return undefined;
+}
+
+/**
+ * Generate an example for a referenced schema.
+ *
+ * seenRefs holds the refs already open on the current branch. A ref that reappears on its own
+ * branch yields null instead of descending again, so a self-referential or mutually
+ * referential schema cannot recurse without end.
+ *
+ * @param {string} ref - The reference string
+ * @param {string} path - The path of the current property
+ * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec
+ * @param {Set<string>} seenRefs - Refs already open on this branch
+ * @returns {*} Example value, or null when the ref cannot be resolved
+ */
+function generateRefExample(ref, path = '', url = '', spec = null, seenRefs = new Set()) {
+  if (seenRefs.has(ref)) {
+    return null;
+  }
+
+  const refSchema = resolveSchemaRef(ref, spec);
+  if (!refSchema) {
+    return null;
+  }
+
+  const declared = declaredExample(refSchema);
+  if (declared.found) {
+    return declared.value;
+  }
+
+  const branch = new Set(seenRefs);
+  branch.add(ref);
+
+  if (refSchema.properties) {
+    return generateObjectExample(refSchema, path, url, spec, branch);
+  }
+
+  if (refSchema.items) {
+    return generateArrayExample(refSchema, path, url, spec, branch);
+  }
+
+  return null;
+}
 
 /**
  * Generate an example for a Send object with URL-aware account logic
@@ -1781,30 +1928,33 @@ function generateSendExample(url = '') {
  * @param {Object} schema - The schema object from the OpenAPI spec
  * @param {string} path - The path of the current property
  * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec, needed to resolve property $refs
+ * @param {Set<string>} seenRefs - Refs already open on this branch
  * @returns {Object} Example object
  */
-function generateObjectExample(schema, path = '', url = '') {
+function generateObjectExample(schema, path = '', url = '', spec = null, seenRefs = new Set()) {
   const example = {};
-  
+
   if (!schema || !schema.properties) {
     return example;
   }
-  
+
   for (const [propName, propSchema] of Object.entries(schema.properties)) {
     // Build the current property path
     const currentPath = path ? `${path}.${propName}` : propName;
-    
-    // Use existing example if available
-    if (propSchema.example !== undefined) {
-      example[propName] = propSchema.example;
+
+    // Prefer what the property declares over anything derived from its type
+    const declared = declaredExample(propSchema);
+    if (declared.found) {
+      example[propName] = declared.value;
       continue;
     }
-    
+
     // Handle different property types
     switch (propSchema.type) {
       case 'string':
         if (propSchema.format === 'uuid') {
-          example[propName] = null;
+          example[propName] = EXAMPLE_UUID;
         } else if (propSchema.format === 'date-time') {
           example[propName] = EXAMPLE_DATE_TIME;
         } else if (propName.toLowerCase().includes('status')) {
@@ -1861,7 +2011,7 @@ function generateObjectExample(schema, path = '', url = '') {
         example[propName] = false;
         break;
       case 'array':
-        example[propName] = generateArrayExample(propSchema, currentPath, url);
+        example[propName] = generateArrayExample(propSchema, currentPath, url, spec, seenRefs);
         break;
       case 'object':
         if (propName.toLowerCase() === 'address') {
@@ -1871,7 +2021,7 @@ function generateObjectExample(schema, path = '', url = '') {
           // Follow project standard for status fields - always use {"code": "ACTIVE"}
           example[propName] = { code: "ACTIVE" };
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema, currentPath, url);
+          example[propName] = generateObjectExample(propSchema, currentPath, url, spec, seenRefs);
         } else {
           example[propName] = { key: "value" };
         }
@@ -1880,7 +2030,7 @@ function generateObjectExample(schema, path = '', url = '') {
         if (propSchema.$ref) {
           // Handle reference to another schema
           const refName = propSchema.$ref.split('/').pop();
-          
+
           // Special handling for Send schema
           if (refName === 'Send') {
             example[propName] = generateSendExample(url);
@@ -1891,16 +2041,16 @@ function generateObjectExample(schema, path = '', url = '') {
             // Generate detailed address example
             example[propName] = generateAddressExample();
           } else {
-            example[propName] = null;
+            example[propName] = generateRefExample(propSchema.$ref, currentPath, url, spec, seenRefs);
           }
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema, currentPath, url);
+          example[propName] = generateObjectExample(propSchema, currentPath, url, spec, seenRefs);
         } else {
           example[propName] = null;
         }
     }
   }
-  
+
   return example;
 }
 
@@ -1924,25 +2074,28 @@ function generateAddressExample() {
  * @param {Object} schema - The array schema object from the OpenAPI spec
  * @param {string} path - The path of the current property
  * @param {string} url - The URL context for special handling
+ * @param {Object} spec - The full OpenAPI spec, needed to resolve item $refs
+ * @param {Set<string>} seenRefs - Refs already open on this branch
  * @returns {Array} Example array
  */
-function generateArrayExample(schema, path = '', url = '') {
+function generateArrayExample(schema, path = '', url = '', spec = null, seenRefs = new Set()) {
   if (!schema.items) {
     return [];
   }
 
-  // Use existing example if available
-  if (schema.example) {
-    return schema.example;
+  // Prefer what the array declares over anything derived from its item schema
+  const declared = declaredExample(schema);
+  if (declared.found) {
+    return declared.value;
   }
 
   const itemSchema = schema.items;
-  
+
   // Generate an example item based on the item schema
   let exampleItem;
-  
+
   if (itemSchema.type === 'object' && itemSchema.properties) {
-    exampleItem = generateObjectExample(itemSchema, `${path}[]`, url);
+    exampleItem = generateObjectExample(itemSchema, `${path}[]`, url, spec, seenRefs);
   } else if (itemSchema.type === 'string') {
     exampleItem = 'Example string';
   } else if (itemSchema.type === 'number' || itemSchema.type === 'integer') {
@@ -1954,12 +2107,12 @@ function generateArrayExample(schema, path = '', url = '') {
     if (refName === 'Send') {
       exampleItem = generateSendExample(url);
     } else {
-      exampleItem = null;
+      exampleItem = generateRefExample(itemSchema.$ref, `${path}[]`, url, spec, seenRefs);
     }
   } else {
     exampleItem = null;
   }
-  
+
   // Return an array with a single example item
   return [exampleItem];
 }
@@ -1972,44 +2125,35 @@ function generateArrayExample(schema, path = '', url = '') {
  * @returns {Object} Example object
  */
 function generateExampleFromSchema(schema, spec, url = '') {
-  // If schema has an example, use it
-  if (schema.example !== undefined) {
-    return schema.example;
+  // Prefer what the schema declares over anything derived from its type
+  const declared = declaredExample(schema);
+  if (declared.found) {
+    return declared.value;
   }
-  
+
   // If schema has a reference, resolve it
   if (schema.$ref) {
-    const refPath = schema.$ref.split('/');
-    const refName = refPath.pop();
-    
-    // Handle different reference formats
-    let refSchema;
-    if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
-      // OpenAPI 3.0 format
-      refSchema = spec.components.schemas[refName];
-    } else if (spec.definitions) {
-      // Swagger 2.0 format
-      refSchema = spec.definitions[refName];
-    }
-    
+    const refName = schema.$ref.split('/').pop();
+    const refSchema = resolveSchemaRef(schema.$ref, spec);
+
     if (refSchema) {
       // Special handling for specific schemas
       if (refName === 'Send') {
         return generateSendExample(url);
       }
-      
+
       return generateExampleFromSchema(refSchema, spec, url);
     }
   }
-  
+
   // Handle different schema types
   if (schema.type === 'object' || (!schema.type && schema.properties)) {
-    return generateObjectExample(schema, '', url);
+    return generateObjectExample(schema, '', url, spec);
   } else if (schema.type === 'array' && schema.items) {
-    return generateArrayExample(schema, '', url);
+    return generateArrayExample(schema, '', url, spec);
   } else if (schema.type === 'string') {
     if (schema.format === 'uuid') {
-      return '00000000-0000-0000-0000-000000000000';
+      return EXAMPLE_UUID;
     } else if (schema.format === 'date-time') {
       return EXAMPLE_DATE_TIME;
     } else if (schema.enum && schema.enum.length > 0) {
