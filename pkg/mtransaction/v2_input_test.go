@@ -179,7 +179,7 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 // sibling that fails for the same change, which makes a reflective restatement a change detector
 // rather than a second guarantee: no json `omitempty` is proved by
 // TestCreateTransactionV2Input_EmptyScalarSideIsAKnownField, `required:"false"` by the
-// contract's required-list assertions, `dive` by TestV2LegInput_AccountRequiredByTag, and
+// contract's required-list assertions, `dive` by TestV2LegInput_AccountRequired, and
 // `max=500` by TestCreateTransactionV2Input_LegArrayCap. The field TYPE has no such sibling,
 // which is why it stays.
 func TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape(t *testing.T) {

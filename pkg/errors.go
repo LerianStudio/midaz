@@ -2901,6 +2901,21 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	return err
 }
 
+// InvalidTransactionTypeError builds the invalid-transaction-type rejection. Its message takes
+// TWO arguments — the set of value expressions the rejecting surface accepts, and the field
+// reference the caller should look at — and the sentinel is shared by surfaces that accept
+// different sets, so neither can be assumed.
+//
+// It exists so the arity is fixed by a signature rather than by a variadic call: a site that
+// passes one argument through ValidateBusinessError compiles and renders fmt's MISSING marker to
+// the client. Every site that raises constant.ErrInvalidTransactionType goes through here.
+//
+// entityType stays a parameter because it reaches the client in the response envelope, and the
+// surfaces sharing this sentinel do not all name one.
+func InvalidTransactionTypeError(entityType, options, fieldRef string) error {
+	return ValidateBusinessError(constant.ErrInvalidTransactionType, entityType, options, fieldRef)
+}
+
 func HandleKnownBusinessValidationErrors(err error) error {
 	switch {
 	case err.Error() == constant.ErrTransactionAmbiguous.Error():

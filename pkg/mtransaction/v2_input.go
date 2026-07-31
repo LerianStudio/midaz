@@ -87,8 +87,8 @@ type CreateTransactionV2Input struct {
 // balance key, chart of accounts, description or metadata, keeping the array form
 // symmetric with the scalar one.
 type V2LegInput struct {
-	// Account is the leg's account alias. Required as a struct tag rather than a
-	// Translate check so the rejection names the offending leg by index.
+	// Account is the leg's account alias. The obligation is enforced BOTH by this tag and by
+	// an imperative check in Translate; see buildLeg for why the two are complementary.
 	Account string `json:"account" validate:"required"`
 
 	// Amount is the leg's explicit value, carried as a string to preserve JSON
@@ -108,24 +108,24 @@ type V2LegInput struct {
 
 // V2ShareInput expresses a leg's value as a percentage of the transaction total.
 //
-// Both fields are capped at 100. That is stricter than the detailed transaction body, which
-// bounds neither and therefore accepts a share of 200%. The divergence is deliberate: the bounds
-// live on this surface's own fields, so a body the detailed surface accepts keeps its meaning
-// there — the two are different endpoints, and only the new one can afford the tighter contract.
+// PercentageOfPercentage carries an upper bound; Percentage does not. Whether a side's legs sum
+// to the transaction total is a property of the whole body, which no single field's bound can
+// decide, so the funnel's total check owns that rule and answers a side that cannot balance as a
+// business rejection.
 type V2ShareInput struct {
 	// Percentage is the leg's share of the transaction total, in percent. It must be
 	// positive: a zero share moves nothing while the transaction still commits, and a
 	// negative one inverts the leg's accounting direction.
 	//
-	// The upper bound is 100 because a side's legs have to sum to the transaction total, so
-	// a single leg claiming more than the total can never balance — `gt=0` on its siblings
-	// leaves nothing that could offset it. Capping it as a tag rejects that at the decode
-	// boundary, where the rejection names the offending leg.
+	// It carries NO upper bound. PercentageOfPercentage scales it back down — the resolver
+	// computes total x (percentage/100) x (percentageOfPercentage/100) — so 150 narrowed to 50
+	// resolves to 75% of the total and balances against a sibling resolving to the remaining
+	// 25%. A cap here would answer that balanced body 400 at decode.
 	//
-	// The `minimum`/`maximum` tags publish the same bounds in the contract, so a client reads
-	// them instead of discovering them by rejection. They do not enforce anything: the create
-	// ops decode the body imperatively, so the `validate` tags are the only evaluated ones.
-	Percentage int64 `json:"percentage" validate:"required,gt=0,lte=100" example:"60" minimum:"1" maximum:"100"`
+	// The `minimum` tag publishes the lower bound in the contract, so a client reads it instead
+	// of discovering it by rejection. It does not enforce anything: the create ops decode the
+	// body imperatively, so the `validate` tags are the only evaluated ones.
+	Percentage int64 `json:"percentage" validate:"required,gt=0" example:"60" minimum:"1"`
 
 	// PercentageOfPercentage narrows Percentage, in percent: 25 against a Percentage of 60
 	// yields 15% of the transaction total.
@@ -136,35 +136,33 @@ type V2ShareInput struct {
 	// that leaves the field out.
 	//
 	// The upper bound is 100 because a factor above 100 widens rather than narrows: a leg
-	// reading as "half, of which 200%" would move the whole total. Published in the contract
-	// for the same reason as Percentage's.
+	// reading as "half, of which 200%" would move more than the Percentage it is attached to.
+	// That is a violation of what this field means, independent of what the side sums to, which
+	// is why it is a per-field bound. Published in the contract for the same reason as
+	// Percentage's lower bound.
 	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty" validate:"omitempty,gte=0,lte=100" example:"50" minimum:"0" maximum:"100"`
 }
 
-// v2AliasForbiddenChar is the one character a v2 account alias may not contain, on either
-// spelling of either side — the two scalar fields as much as the two leg arrays.
+// validateV2Alias rejects a v2 account alias carrying AliasSeparator. Every alias the v2 surface
+// accepts routes through here — the two scalar fields as much as the two leg arrays — so no
+// spelling of either side can reach the funnel with an alias that can be forged onto another
+// entry's map key.
 //
-// An alias is rewritten into the composite "index#alias#balanceKey" form before downstream code
-// keys its per-entry maps on it, and isConcatedAlias leaves an alias that already looks composite
-// spelled exactly as the client sent it. A client-supplied composite alias therefore reaches
-// those maps unmutated, where it can collide with another entry's key or match none of them —
-// either way an entry is lost, and a transaction that loses one side's entry moves value in one
-// direction only.
+// An alias is rewritten into a composite separator-joined form before downstream code keys its
+// per-entry maps on it, and isConcatedAlias leaves an alias that already looks composite spelled
+// exactly as the client sent it. A client-supplied composite alias therefore reaches those maps
+// unmutated, where it can collide with another entry's key or match none of them — either way an
+// entry is lost, and a transaction that loses one side's entry moves value in one direction only.
 //
-// It is AliasSeparator because that is the character the composite form is built and parsed
-// with; deriving it is what keeps the guard and the format from drifting apart.
+// The rejected character is AliasSeparator because that is what the composite form is built and
+// parsed with; naming the constant is what keeps this guard and that format from drifting apart.
 //
-// The narrow guard is deliberate: the registered alias charset would close this too, but it
-// also excludes `/` and would therefore reject `@external/<ASSET>`, the alias every ledger's
-// external account carries and the only way to spell funding or withdrawal on a surface with no
+// The narrow guard is deliberate: the registered alias charset would close this too, but it also
+// excludes `/` and would therefore reject `@external/<ASSET>`, the alias every ledger's external
+// account carries and the only way to spell funding or withdrawal on a surface with no
 // inflow/outflow action.
-const v2AliasForbiddenChar = AliasSeparator
-
-// validateV2Alias rejects an alias carrying v2AliasForbiddenChar. Every alias the v2 surface
-// accepts routes through here, so no spelling of either side can reach the funnel with an alias
-// that can be forged onto another entry's map key.
 func validateV2Alias(alias string) error {
-	if strings.ContainsRune(alias, v2AliasForbiddenChar) {
+	if strings.ContainsRune(alias, AliasSeparator) {
 		return pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
 	}
 
@@ -296,23 +294,27 @@ func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, to
 	return out, nil
 }
 
-// legReference spells the indexed reference to one entry of a side, matching the shape the
-// decoder's per-leg tag rejections use, so a caller at the 500-leg cap can locate the entry
-// from either class of error.
+// legReference spells the indexed reference to one entry of a side — `sources[0]` — so a caller
+// at the 500-leg cap can locate the entry a rejection is about. The shape matches the validator's
+// own field namespace, so both classes of rejection read alike.
+//
+// Not every decoder rejection carries the index: only the tags whose registered translation reads
+// the full field namespace (`required` among them) name it. The rest render the bare leaf field
+// name, with no side and no index.
 func legReference(fieldName string, i int) string {
 	return fieldName + "[" + strconv.Itoa(i) + "]"
 }
 
 // buildLeg maps one array entry onto a canonical leg. The entry must name an alias, that alias
-// must be free of v2AliasForbiddenChar, and exactly one of the two value expressions must be
-// filled. legRef is the indexed reference to the entry, which the rejections carry so a caller
-// can locate it.
+// must be free of AliasSeparator, and exactly one of the two value expressions must be filled.
+// legRef is the indexed reference to the entry, which the rejections carry so a caller can locate
+// it.
 //
-// The account obligation is enforced here AND as a `required` struct tag. They are
-// complementary, not redundant: only the tag can name the offending entry by index in a
-// missing-field rejection, and only this check covers a caller that builds the input in Go and
-// never runs it through the decoder — Translate is exported from a shared package, and an empty
-// alias reaching the funnel names no account at all.
+// The account obligation is enforced here AND as a `required` struct tag. They are complementary,
+// not redundant: the tag is the guard every HTTP caller meets, because it fires at the decode
+// boundary before Translate runs, while this check is the only one covering a caller that builds
+// the input in Go and skips the decoder — Translate is exported from a shared package, and an
+// empty alias reaching the funnel names no account at all. Both name the entry by index.
 func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef string) (FromTo, error) {
 	if leg.Account == "" {
 		return FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".account")
@@ -320,20 +322,6 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 
 	if err := validateV2Alias(leg.Account); err != nil {
 		return FromTo{}, err
-	}
-
-	expressions := 0
-
-	if leg.Amount != "" {
-		expressions++
-	}
-
-	if leg.Share != nil {
-		expressions++
-	}
-
-	if expressions != 1 {
-		return FromTo{}, invalidLegExpression(legRef)
 	}
 
 	route := leg.OperationRouteID
@@ -347,24 +335,24 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 		IsFrom:       isFrom,
 	}
 
+	// Each arm demands its own expression AND the absence of the other, so "exactly one" is
+	// decided in one place. That leaves the default arm reachable: it answers both-filled and
+	// neither-filled alike, and a THIRD expression added to the leg lands there too instead of
+	// producing a leg with no value at all, which reads as a valid entry and moves nothing.
 	switch {
-	case leg.Amount != "":
+	case leg.Amount != "" && leg.Share == nil:
 		value, err := decimal.NewFromString(leg.Amount)
 		if err != nil || value.LessThanOrEqual(decimal.Zero) {
 			return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 		}
 
 		built.Amount = &Amount{Asset: in.Asset, Value: value}
-	case leg.Share != nil:
+	case leg.Share != nil && leg.Amount == "":
 		built.Share = &Share{
 			Percentage:             leg.Share.Percentage,
 			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
 		}
 	default:
-		// Unreachable while the count guard above and this switch test the same two
-		// expressions. It is here so a THIRD expression added to the leg cannot fall
-		// through and produce a leg with no value at all, which reads as a valid entry
-		// and moves nothing.
 		return FromTo{}, invalidLegExpression(legRef)
 	}
 
@@ -376,7 +364,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 // transaction body, which accepts a third, so the option set has to be passed rather than
 // assumed.
 func invalidLegExpression(legRef string) error {
-	return pkg.ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction,
+	return pkg.InvalidTransactionTypeError(constant.EntityTransaction,
 		constant.TransactionTypeOptionsLeg, legRef)
 }
 

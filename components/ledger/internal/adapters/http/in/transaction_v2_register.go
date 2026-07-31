@@ -161,22 +161,28 @@ var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
 // because Huma defaults MaxBodyBytes only for ops that declare a typed Body field; the v2 ops
 // carry RawBody, which leaves the read unbounded.
 //
-// 1 MiB is roughly 2.5x the largest body the published limits admit: 500 legs per side at
-// ~200 bytes each (~210 KB across both sides) plus the metadata ceiling of 100 keys at a
-// 100-char key and a 2000-char value (~210 KB). The remainder absorbs whitespace, so a
-// pretty-printed body at the leg cap still fits. What this ceiling bounds that the leg cap
-// cannot is the size of the individual fields the leg schema leaves unbounded, such as an
-// account alias.
+// 1 MiB leaves generous headroom over the largest body the per-side leg cap admits: 500 legs per
+// side at ~200 bytes each is ~210 KB across both sides. Metadata is not part of that figure —
+// `keymax=100` and `valuemax=2000` bound the LENGTH of a key and a value, and nothing bounds how
+// many keys a metadata object carries, so metadata alone can fill whatever the byte ceiling
+// leaves. That is precisely what this ceiling is for: it is the only bound on the parts of the
+// body the field-level tags leave open, metadata key count and the unbounded individual fields
+// such as an account alias among them.
 //
 // v2CreateBodyLimit enforces it on the Fiber chain; the same value is declared on the Huma ops
 // so the contract states it and the read is bounded there too.
 const v2CreateMaxBodyBytes int64 = 1 << 20
 
-// v2CreateBodyReadTimeout is the deadline the v2 create ops give a client to deliver its
-// request body. It is stated here for the same reason as v2CreateMaxBodyBytes: Huma defaults it
-// only for ops that declare a typed Body field, and the v2 ops carry RawBody. Without it the
-// read carries no deadline at all, so a client that opens a request and then stalls holds a
-// worker for as long as it likes on the money path.
+// v2CreateBodyReadTimeout is the body-read deadline the v2 create ops declare. It is stated here
+// for the same reason as v2CreateMaxBodyBytes: Huma defaults it only for ops that declare a typed
+// Body field, and the v2 ops carry RawBody.
+//
+// It does NOT bound a stalled client under this binary's Fiber configuration. humafiber applies
+// the deadline to the request connection only when the Fiber app runs with StreamRequestBody
+// enabled and a tiny BodyLimit; the app sets neither, so fasthttp has already buffered the whole
+// body before any handler runs and the deadline is set and cleared over a bytes.Reader that cannot
+// block. What the value does is publish the intended deadline on the op, and it would take effect
+// if the app were ever switched to streaming request bodies.
 //
 // 5 seconds matches Huma's own default for the ops it does default, which is ample for a body
 // bounded at v2CreateMaxBodyBytes.
@@ -189,10 +195,11 @@ const v2CreateBodyReadTimeout = 5 * time.Second
 const v2CreateBodyDescription = "Transaction request body. Each side of the transaction is " +
 	"spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, " +
 	"`destinations`) — never both on the same side, though the two sides may choose " +
-	"differently. Leave the spelling you are not using OUT of the body: an explicit `null` is " +
-	"rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
-	"`metadata` are common to both forms, and `amount` is always the transaction total that " +
-	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
+	"differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an " +
+	"explicit `null` is rejected. `asset`, `amount`, `description`, `code`, `routeId`, " +
+	"`operationRouteId` and `metadata` are common to both forms, and `amount` is always the " +
+	"transaction total that the legs' `share` expressions divide. Each leg array holds at most " +
+	"500 legs."
 
 // v2LegDescription is the prose the published leg component carries. Like the parent
 // component, the leg stays one flat object, so the "exactly one value expression" rule has no
@@ -267,15 +274,25 @@ func describeV2Component(oapi *huma.OpenAPI, ref, description string) {
 // oversized-body answer carries the canonical payload-too-large code like every other v2
 // rejection.
 //
-// It has to sit ahead of the Huma terminal because Huma enforces the same ceiling on its own
-// read and raises it as an internal error: that renders as a bare {status,title,detail} with no
-// `code`, and spells the configured byte figure out in the detail. Rejecting here keeps both
-// out of the response. The guard is attached only to the four create routes; the global Fiber
-// body limit is a different, much larger ceiling that every endpoint in the binary shares.
+// It has to sit ahead of the Huma terminal because Huma enforces the same ceiling on its own read
+// and answers 413 itself, but as a bare {status,title,detail} carrying no `code` and spelling the
+// configured byte figure out in the detail. Rejecting here keeps both out of the response. The
+// guard is attached only to the four create routes; the global Fiber body limit is a different,
+// much larger ceiling that every endpoint in the binary shares.
 //
 // The comparison is `>=` to match Huma's own boundary, where a read that fills the limit
 // exactly is already rejected. That is what leaves the Huma ceiling unreachable and therefore
 // pure defense in depth.
+//
+// The measured value is the DECODED body length, which is what Huma measures too: its reader is
+// handed whatever Fiber's Body() returns, and Body() decompresses when the request declares a
+// Content-Encoding. The declared Content-Length is the compressed wire size instead, so measuring
+// that would let a compressed body over the ceiling through to the layer that renders without a
+// `code`.
+//
+// Reading the body here is safe only while the app leaves StreamRequestBody false. With streaming
+// enabled, c.Body() would drain the request stream and hand the Huma terminal behind this guard a
+// reader with nothing left in it.
 //
 // The 413 is rendered from PayloadTooLargeError rather than the shared registry entry for the
 // code, whose message names a byte figure belonging to a different endpoint.

@@ -10223,10 +10223,11 @@ components:
         with its scalar field (`from`, `to`) OR with its leg array (`sources`,
         `destinations`) — never both on the same side, though the two sides may
         choose differently. Leave the spelling you are not using OUT of the
-        body: an explicit `null` is rejected. `asset`, `amount`, `description`,
-        `code`, `routeId`, `operationRouteId` and `metadata` are common to both
-        forms, and `amount` is always the transaction total that the legs'
-        `share` expressions divide. Each leg array holds at most 500 legs.
+        body: on `from` and `to` an explicit `null` is rejected. `asset`,
+        `amount`, `description`, `code`, `routeId`, `operationRouteId` and
+        `metadata` are common to both forms, and `amount` is always the
+        transaction total that the legs' `share` expressions divide. Each leg
+        array holds at most 500 legs.
       properties:
         amount:
           type: string
@@ -10297,7 +10298,6 @@ components:
           examples:
             - 60
           format: int64
-          maximum: 100
           minimum: 1
           type: integer
         percentageOfPercentage:

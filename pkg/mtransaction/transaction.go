@@ -148,14 +148,18 @@ type FromTo struct {
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
-// AliasSeparator is the character that separates the segments of the composite alias forms
-// this package builds and parses: "index#alias#balanceKey" for an entry key (ConcatAlias) and
-// "alias#balanceKey" for a balance lookup key (AliasKey).
+// AliasSeparator is the character that separates the segments of the composite alias forms this
+// package builds and parses. There are three:
 //
-// Every producer, parser, and guard derives from this one value. Spelling the character
-// literally at each site is what allowed one of them to move while the guard that rejects a
-// client-forged composite alias kept the old character — reopening the forgery it was added
-// to close, with its comment still claiming otherwise.
+//   - "alias#balanceKey" — a balance lookup key (AliasKey).
+//   - "index#alias" — an entry key over an alias carrying no balance key (ConcatAlias).
+//   - "index#alias#balanceKey" — an entry key over a balance lookup key (ConcatAlias applied to
+//     an AliasKey result).
+//
+// Within this package every producer, parser, and guard derives from this one value, so the
+// format and the guard that rejects a client-forged composite alias cannot drift apart. That
+// invariant does NOT hold repository-wide: call sites outside this package spell the character
+// literally while parsing the same forms, so changing this value alone does not change them.
 const AliasSeparator = '#'
 
 // AliasSeparatorString is AliasSeparator as a string, for the strings-package helpers that

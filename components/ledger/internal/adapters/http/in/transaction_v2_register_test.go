@@ -5,6 +5,8 @@
 package in
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -302,12 +305,13 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	require.NotEmptyf(t, schema.Description,
 		"%s is the only place the scalar-or-arrays exclusivity can be stated", v2CreateBodySchemaName)
 
-	// A side field submitted as an explicit null is rejected: dropping json `omitempty` makes
-	// the decoder's re-marshal always emit the key, so a submitted null never matches the
-	// emitted empty value. The published description is the only place a client can learn
-	// that omitting the field is the way to leave a side unspelled.
+	// An explicit null is rejected on the two SCALAR side fields only. Dropping json `omitempty`
+	// makes the decoder's re-marshal always emit the key, and for a string that emitted value is
+	// `""`, which a submitted null does not match. The leg arrays re-marshal a nil slice as
+	// `null`, so a submitted null matches and is accepted as an unspelled side. The published
+	// description is the only place a client can learn which of the two behaviours applies.
 	assert.Containsf(t, schema.Description, "null",
-		"%s description should state that an explicit null side field is rejected", v2CreateBodySchemaName)
+		"%s description should state where an explicit null side field is rejected", v2CreateBodySchemaName)
 
 	for _, field := range v2CreateBodySideFields {
 		t.Run(field, func(t *testing.T) {
@@ -323,12 +327,30 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	}
 }
 
+// v2CreateBodyReadDeadlineCeiling is the loosest body-read deadline the v2 create ops may
+// declare. The exact figure is a judgement rather than a contract: a body capped at
+// v2CreateMaxBodyBytes takes seconds to read, so anything past this ceiling is a published
+// deadline no client would ever reach and none can rely on. It is stated here independently of
+// the constant the registration reads, so a loosened deadline fails the assertion instead of
+// travelling with it.
+const v2CreateBodyReadDeadlineCeiling = 30 * time.Second
+
 // TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads asserts the four body-carrying create
 // ops state BOTH bounds on their request-body read: the byte ceiling and the read deadline.
-// Huma applies its defaults for either one only to ops that declare a typed `Body` field; the
-// v2 create ops carry `RawBody`, so without explicit values the read is unbounded in size and
-// has no deadline, and a client that opens a request and stalls holds a worker indefinitely on
-// the money path. The bodiless lifecycle ops advertise no body, so they carry neither bound.
+// Huma applies its defaults for either one only to ops that declare a typed `Body` field, and the
+// v2 create ops carry `RawBody`, so an unstated ceiling means an unbounded read.
+//
+// The deadline is asserted as declared metadata, not as enforcement. Under this binary's Fiber
+// configuration it does not bound a stalled client (see v2CreateBodyReadTimeout); what the
+// assertion protects is that the op still publishes it. The bodiless lifecycle ops advertise no
+// body, so they carry neither bound.
+//
+// The two bounds are asserted differently on purpose. The byte ceiling is compared against
+// v2CreateMaxBodyBytes because the Fiber guard v2CreateBodyLimit enforces that same constant, so
+// the comparison pins the DECLARED ceiling to the ENFORCED one and fails the moment the op
+// declares a figure the guard does not police. The deadline has no second consumer, so comparing
+// it against the constant the registration itself reads would hold for any value of that constant;
+// it is bounded on both ends instead.
 func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 	t.Parallel()
 
@@ -352,11 +374,12 @@ func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 			}
 
 			assert.EqualValuesf(t, v2CreateMaxBodyBytes, pathItem.Post.MaxBodyBytes,
-				"%s op must state its request-body ceiling instead of reading an unbounded body", rt.action)
-			assert.Equalf(t, v2CreateBodyReadTimeout, pathItem.Post.BodyReadTimeout,
-				"%s op must state its body read deadline instead of reading with none", rt.action)
+				"%s op must declare the same request-body ceiling the Fiber guard enforces", rt.action)
 			assert.Positivef(t, pathItem.Post.BodyReadTimeout,
 				"%s op body read deadline must be a real deadline, not disabled", rt.action)
+			assert.LessOrEqualf(t, pathItem.Post.BodyReadTimeout, v2CreateBodyReadDeadlineCeiling,
+				"%s op body read deadline must stay within %s, not be loosened into effectively no deadline",
+				rt.action, v2CreateBodyReadDeadlineCeiling)
 		})
 	}
 }
@@ -366,9 +389,9 @@ func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 // code, like every other v2 rejection.
 //
 // Asserting the registered MaxBodyBytes value proves only that the ceiling is declared. Huma
-// enforces the same ceiling on its own read, but raises it as an internal error that renders
-// without a `code` and spells the byte figure out in the detail — so enforcement has to be
-// exercised end-to-end, and the response body inspected, to know which layer answered.
+// enforces the same ceiling on its own read and answers 413 too, but without a `code` and with the
+// byte figure spelled out in the detail — so both layers produce the same STATUS, and only
+// inspecting the response body tells which one answered.
 func TestV2CreateOps_OversizedBodyCarriesCanonicalCode(t *testing.T) {
 	t.Parallel()
 
@@ -494,6 +517,53 @@ func TestV2CreateBodyLimit_Boundary(t *testing.T) {
 				"the rejection must not publish the configured byte ceiling")
 		})
 	}
+}
+
+// TestV2CreateBodyLimit_MeasuresDecodedBody pins WHICH length the guard compares against the
+// ceiling. A gzipped body declares a Content-Length of its compressed wire size, while Fiber's
+// Body() — the same call humafiber's reader is handed — returns the decoded bytes. Huma therefore
+// enforces the ceiling against the decoded length, so a guard measuring the declared length would
+// pass an over-ceiling compressed body straight to the layer that answers without a `code`.
+func TestV2CreateBodyLimit_MeasuresDecodedBody(t *testing.T) {
+	t.Parallel()
+
+	plain := oversizedV2CreateBody(v2CreateMaxBodyBytes + 1)
+
+	var compressed bytes.Buffer
+
+	zw := gzip.NewWriter(&compressed)
+	_, err := zw.Write([]byte(plain))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	require.Less(t, int64(compressed.Len()), v2CreateMaxBodyBytes,
+		"the compressed wire size must sit UNDER the ceiling for this case to mean anything")
+
+	app := fiber.New()
+	app.Post("/probe", v2CreateBodyLimit, func(c fiber.Ctx) error {
+		return c.SendStatus(http.StatusTeapot)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/probe", bytes.NewReader(compressed.Bytes()))
+	req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	req.Header.Set(fiber.HeaderContentEncoding, "gzip")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equalf(t, fiber.StatusRequestEntityTooLarge, resp.StatusCode,
+		"a compressed body whose DECODED length passes the ceiling must be rejected by the guard, got: %s", raw)
+
+	var problem map[string]any
+	require.NoErrorf(t, json.Unmarshal(raw, &problem), "response must be JSON, got: %s", raw)
+
+	assert.Equal(t, constant.ErrPayloadTooLarge.Error(), problem["code"],
+		"the rejection must carry the canonical payload-too-large code, not Huma's uncoded 413")
 }
 
 // oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size

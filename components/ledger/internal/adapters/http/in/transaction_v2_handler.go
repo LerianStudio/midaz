@@ -13,7 +13,7 @@ import (
 )
 
 // This file is the v2 transaction terminal.
-// Transport-only: decode the flat single-leg v2 body, translate it to the canonical
+// Transport-only: decode the flat v2 body, translate it to the canonical
 // Transaction, and delegate to the shared createTransactionShell funnel. The v2 create
 // actions (direct, hold, ...) differ only in the pending flag Translate applies and an
 // optional Operation.Type label override, so they share the createTransactionV2 helper.
@@ -29,7 +29,7 @@ import (
 // clean 400).
 
 // CreateTransactionV2InputHuma is the request envelope every v2 create action shares: the
-// flat single-leg shape is identical across them because the action intent is carried by the
+// body shape is identical across them because the action intent is carried by the
 // endpoint, not the body. The org/ledger path params are plain strings (validated by the
 // ParseUUIDPathParameters Fiber middleware attached before this terminal). RawBody keeps the
 // body out of Huma's validator so the flat v2 model is decoded imperatively via
@@ -43,7 +43,7 @@ type CreateTransactionV2InputHuma struct {
 }
 
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
-// context, builds the canonical single-leg Transaction from the flat v2 body
+// context, builds the canonical Transaction from the flat v2 body
 // (decodeAndBuildV2Transaction), and delegates to the shared createTransactionShell keyed by
 // the action-discriminated raw body (v2IdempotencyHashSource). Translate business errors and
 // the input's route-UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
@@ -63,7 +63,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, orgS
 }
 
 // decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
-// http.DecodeAndValidate the v1 create ops run), translates it to the canonical single-leg
+// http.DecodeAndValidate the v1 create ops run), translates it to the canonical
 // Transaction with the caller's pending intent, and stamps the optional Operation.Type
 // override. The returned value is exactly the Transaction createTransactionV2 hands to the
 // funnel, so it is the unit seam for asserting the translate+stamp result.

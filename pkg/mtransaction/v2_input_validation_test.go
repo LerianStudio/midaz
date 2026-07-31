@@ -5,6 +5,7 @@
 package mtransaction_test
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -198,10 +199,12 @@ func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
 
 // TestV2ShareInput_PercentageBounds locks the share bounds. A zero or negative percentage
 // clears struct validation today and reaches the funnel, where the leg silently produces no
-// operation row (zero) or an inverted movement (negative) while the transaction commits. Both
-// bounds are capped at 100: a side's legs must sum to the transaction total, so a factor that
-// resolves above the total can never balance, and a percentage-of-percentage above 100 widens
-// the leg instead of narrowing it.
+// operation row (zero) or an inverted movement (negative) while the transaction commits.
+//
+// Only PercentageOfPercentage carries an upper bound. Percentage has none: it is a factor the
+// narrowing field can scale back down, so a value above 100 is not on its own unbalanceable
+// (see TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances). Whether a side's legs sum
+// to the transaction total is a whole-body property, which a per-field bound cannot decide.
 //
 // atIndex places the offending share on a leg other than the first, which is what pins that
 // the per-leg tags are evaluated at EVERY index rather than only at the head of the array.
@@ -222,19 +225,8 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 		{name: "positive percentage", share: `{"percentage":100}`},
 		{name: "percentage with percentage-of-percentage", share: `{"percentage":60,"percentageOfPercentage":50}`},
 		{name: "percentage-of-percentage at the upper bound", share: `{"percentage":60,"percentageOfPercentage":100}`},
-		{
-			// A percentage above the total can never balance against the opposing side,
-			// and capping it here names the leg instead of surfacing as a mismatch later.
-			name: "percentage over 100", share: `{"percentage":101}`,
-			wantErr: true, wantCode: constant.ErrBadRequest,
-			wantField: "percentage", wantRule: "must be 100 or less",
-		},
-		{
-			// Same rule, on a leg that is not the first: the tag has to fire at every index.
-			name: "percentage over 100 on the second leg", share: `{"percentage":101}`, atIndex: 1,
-			wantErr: true, wantCode: constant.ErrBadRequest,
-			wantField: "percentage", wantRule: "must be 100 or less",
-		},
+		{name: "percentage above 100 carries no field bound", share: `{"percentage":101}`},
+		{name: "percentage above 100 on the second leg", share: `{"percentage":101}`, atIndex: 1},
 		{
 			name: "negative percentage on the second leg", share: `{"percentage":-50}`, atIndex: 1,
 			wantErr: true, wantCode: constant.ErrBadRequest,
@@ -299,10 +291,83 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_AccountRequiredByTag proves the leg account obligation is a struct tag, not
-// an imperative check inside the translator: the tag path runs at the decode boundary and
-// names the offending leg by index, which a translator-side check cannot do.
-func TestV2LegInput_AccountRequiredByTag(t *testing.T) {
+// TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances pins why Percentage carries no
+// upper bound. The resolver computes total x (percentage/100) x (percentageOfPercentage/100),
+// so PercentageOfPercentage scales Percentage back down: a leg reading 150% narrowed to 50%
+// resolves to 75% of the total, and paired with a 50%-narrowed-to-50% sibling the side sums to
+// exactly the total. A per-field cap on Percentage answers that balanced body 400 at decode.
+//
+// The genuinely unbalanceable spelling is covered too: it decodes, and the funnel's whole-body
+// total check is what rejects it. That is the layer that can actually see the sum.
+func TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		sourceLegs  string
+		wantBalance bool
+	}{
+		{
+			// 100 x 1.50 x 0.50 = 75 and 100 x 0.50 x 0.50 = 25, summing to the total.
+			name: "narrowed shares above and below 100 sum to the total",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":150,"percentageOfPercentage":50}},` +
+				`{"account":"@srcB","share":{"percentage":50,"percentageOfPercentage":50}}`,
+			wantBalance: true,
+		},
+		{
+			// 100 x 2.00 = 200 against a 100 total: no sibling narrows it back down.
+			name:       "an unnarrowed share above 100 cannot balance",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":200}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := `{"asset":"BRL","amount":"100",` +
+				`"sources":[` + tt.sourceLegs + `],` +
+				`"destinations":[{"account":"@dstA","amount":"100"}]}`
+
+			var in mtransaction.CreateTransactionV2Input
+
+			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
+			require.NoError(t, err, "a share expression is a whole-body property, not a request-shape violation")
+
+			transaction, err := in.Translate(false)
+			require.NoError(t, err, "Translate carries share expressions forward without resolving them")
+
+			ctx := context.Background()
+
+			responses, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transaction, constant.CREATED)
+
+			if !tt.wantBalance {
+				require.Error(t, err, "a side that cannot sum to the total must be rejected by the funnel")
+				assert.True(t, pkg.IsBusinessError(err),
+					"an unbalanceable body is a business rejection, not a technical failure")
+
+				return
+			}
+
+			require.NoError(t, err, "a side whose narrowed shares sum to the total must be accepted")
+			require.NotNil(t, responses)
+			assert.Equal(t, "100", responses.Total.String(),
+				"the resolved side must sum to the transaction total")
+		})
+	}
+}
+
+// TestV2LegInput_AccountRequired proves the leg account obligation is enforced twice, and that
+// the two guards are complementary rather than redundant. This case exercises the struct tag,
+// which is the guard every HTTP caller meets: it fires at the decode boundary, before Translate
+// runs. The imperative sibling in buildLeg is what covers a caller that builds the input in Go
+// and never runs it through the decoder (TestCreateTransactionV2Input_Translate's
+// "leg without an account is rejected").
+//
+// Both name the offending entry by index. The tag does so inside the rendered message, which
+// the shared decoder builds from the validator's full field namespace; the map KEY stays the
+// bare leaf name.
+func TestV2LegInput_AccountRequired(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

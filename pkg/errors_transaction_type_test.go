@@ -28,12 +28,13 @@ const v1DetailedTransactionTypeMessage = "Only one transaction type ('amount', '
 const v2LegTransactionTypeMessage = "Only one transaction type ('amount' or 'share') " +
 	"must be specified in the 'sources[1]' field for each entry. Please review your input and try again."
 
-// renderedTransactionTypeMessage drives the sentinel through the real registry and hands back
-// the rendered ValidationError message, which is the only part a client reads.
+// renderedTransactionTypeMessage drives the sentinel through the typed factory every call site
+// uses and hands back the rendered ValidationError message, which is the only part a client
+// reads.
 func renderedTransactionTypeMessage(t *testing.T, options, fieldRef string) string {
 	t.Helper()
 
-	err := ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction, options, fieldRef)
+	err := InvalidTransactionTypeError(constant.EntityTransaction, options, fieldRef)
 
 	var vErr ValidationError
 	require.ErrorAs(t, err, &vErr, "the invalid-transaction-type sentinel must render as a ValidationError (400)")
@@ -43,10 +44,40 @@ func renderedTransactionTypeMessage(t *testing.T, options, fieldRef string) stri
 	return vErr.Message
 }
 
-// TestValidateBusinessError_InvalidTransactionTypePerSurface proves the option set is what
-// varies between surfaces and nothing else: the detailed body renders byte-for-byte what it
-// shipped, and the v2 leg renders its own two expressions.
-func TestValidateBusinessError_InvalidTransactionTypePerSurface(t *testing.T) {
+// TestInvalidTransactionTypeError_MatchesRawRegistryCall proves the typed factory is a pure
+// arity gate over the registry and moves nothing else: for every entity type and option set the
+// call sites use, the error it returns is indistinguishable from the raw variadic call the sites
+// made before. This is what keeps the released v1 rendering byte-identical.
+func TestInvalidTransactionTypeError_MatchesRawRegistryCall(t *testing.T) {
+	t.Parallel()
+
+	// The entity types the three call sites pass: the shared decoders leave it empty, the v2
+	// leg names the transaction entity. It stays a parameter because it reaches the client in
+	// the response envelope, so collapsing it to one value would move v1's answer.
+	entityTypes := []string{"", constant.EntityTransaction}
+
+	optionSets := []string{constant.TransactionTypeOptionsDetailed, constant.TransactionTypeOptionsLeg}
+
+	for _, entityType := range entityTypes {
+		for _, options := range optionSets {
+			t.Run(entityType+"/"+options, func(t *testing.T) {
+				t.Parallel()
+
+				const fieldRef = "send.source.from"
+
+				want := ValidateBusinessError(constant.ErrInvalidTransactionType, entityType, options, fieldRef)
+
+				assert.Equal(t, want, InvalidTransactionTypeError(entityType, options, fieldRef),
+					"the factory must render exactly what the raw registry call rendered")
+			})
+		}
+	}
+}
+
+// TestInvalidTransactionTypeError_PerSurface proves the option set is what varies between
+// surfaces and nothing else: the detailed body renders byte-for-byte what it shipped, and the v2
+// leg renders its own two expressions.
+func TestInvalidTransactionTypeError_PerSurface(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -96,11 +127,13 @@ func TestTransactionTypeOptions_LegSetExcludesRemaining(t *testing.T) {
 	}
 }
 
-// TestValidateBusinessError_InvalidTransactionTypeRendersEveryArgument guards the failure mode
-// a two-placeholder message introduces: a caller that passes only one argument renders a
-// message carrying fmt's MISSING marker instead of prose. Both placeholders must be filled by
-// every call site.
-func TestValidateBusinessError_InvalidTransactionTypeRendersEveryArgument(t *testing.T) {
+// TestInvalidTransactionTypeError_RendersEveryPlaceholder locks the registry's two-placeholder
+// format string against the factory's argument list. What forbids a SHORT call is the factory's
+// signature, not this test: an under-filled variadic call renders fmt's MISSING marker to the
+// client, and only a fixed arity can rule that out at compile time. What this test covers is the
+// other half — that a full call still fills both placeholders with prose for every option set the
+// registry publishes, so reordering or dropping a verb in the format string is caught.
+func TestInvalidTransactionTypeError_RendersEveryPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	for _, options := range []string{constant.TransactionTypeOptionsDetailed, constant.TransactionTypeOptionsLeg} {
@@ -108,16 +141,17 @@ func TestValidateBusinessError_InvalidTransactionTypeRendersEveryArgument(t *tes
 
 		assert.NotContains(t, message, "%!", "the rendered message must not carry a formatting marker")
 		assert.NotContains(t, message, "MISSING", "the rendered message must not carry a formatting marker")
+		assert.Contains(t, message, options, "the rendered message must name the accepted option set")
+		assert.Contains(t, message, "sources[0]", "the rendered message must name the field reference")
 	}
 }
 
-// TestValidateBusinessError_InvalidTransactionTypeIsNotWrapped keeps the sentinel resolvable
-// from the rendered error, which is what the handlers' errors.As cascade keys on.
-func TestValidateBusinessError_InvalidTransactionTypeIsNotWrapped(t *testing.T) {
+// TestInvalidTransactionTypeError_IsNotWrapped keeps the sentinel resolvable from the rendered
+// error, which is what the handlers' errors.As cascade keys on.
+func TestInvalidTransactionTypeError_IsNotWrapped(t *testing.T) {
 	t.Parallel()
 
-	err := ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction,
-		constant.TransactionTypeOptionsLeg, "sources[0]")
+	err := InvalidTransactionTypeError(constant.EntityTransaction, constant.TransactionTypeOptionsLeg, "sources[0]")
 
 	var vErr ValidationError
 	require.True(t, errors.As(err, &vErr))
