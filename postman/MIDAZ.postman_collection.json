@@ -99,7 +99,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -217,7 +217,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -353,7 +353,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -717,7 +717,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -849,7 +849,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -999,7 +999,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -1371,7 +1371,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -1517,7 +1517,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -1681,7 +1681,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -2043,7 +2043,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -2189,7 +2189,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -2353,7 +2353,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -2835,7 +2835,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -2981,7 +2981,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -3145,7 +3145,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -3531,7 +3531,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -3677,7 +3677,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -3841,7 +3841,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -4644,7 +4644,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -4792,7 +4792,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -4982,7 +4982,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -5160,7 +5160,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -5338,7 +5338,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -5484,7 +5484,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -5648,7 +5648,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -6018,7 +6018,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountAlias\": \"Example accountAlias\",\n  \"accountId\": null,\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"balance\": null,\n  \"balanceAffected\": false,\n  \"balanceAfter\": null,\n  \"balanceId\": null,\n  \"balanceKey\": \"Example balanceKey\",\n  \"chartOfAccounts\": \"Example chartOfAccounts\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": null,\n  \"route\": \"Example route\",\n  \"routeCode\": \"Example routeCode\",\n  \"routeDescription\": \"Example routeDescription\",\n  \"routeId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountAlias\": \"@person1\",\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"amount\": {\n    \"value\": \"1500\"\n  },\n  \"assetCode\": \"BRL\",\n  \"balance\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceAffected\": true,\n  \"balanceAfter\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceId\": \"00000000-0000-0000-0000-000000000000\",\n  \"balanceKey\": \"asset-freeze\",\n  \"chartOfAccounts\": \"1000\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Credit card operation\",\n  \"direction\": \"debit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeCode\": \"ROUTE-001\",\n  \"routeDescription\": \"Settlement route for service charges\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"DEBIT\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -6468,7 +6468,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountAlias\": \"Example accountAlias\",\n  \"accountId\": null,\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"balance\": null,\n  \"balanceAffected\": false,\n  \"balanceAfter\": null,\n  \"balanceId\": null,\n  \"balanceKey\": \"Example balanceKey\",\n  \"chartOfAccounts\": \"Example chartOfAccounts\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": null,\n  \"route\": \"Example route\",\n  \"routeCode\": \"Example routeCode\",\n  \"routeDescription\": \"Example routeDescription\",\n  \"routeId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountAlias\": \"@person1\",\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"amount\": {\n    \"value\": \"1500\"\n  },\n  \"assetCode\": \"BRL\",\n  \"balance\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceAffected\": true,\n  \"balanceAfter\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceId\": \"00000000-0000-0000-0000-000000000000\",\n  \"balanceKey\": \"asset-freeze\",\n  \"chartOfAccounts\": \"1000\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Credit card operation\",\n  \"direction\": \"debit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeCode\": \"ROUTE-001\",\n  \"routeDescription\": \"Settlement route for service charges\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"DEBIT\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -6614,7 +6614,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"allowReceiving\": false,\n  \"allowSending\": false,\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -7290,7 +7290,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"allowReceiving\": false,\n  \"allowSending\": false,\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -7828,7 +7828,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -8803,7 +8803,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -9171,7 +9171,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -9347,7 +9347,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"doingBusinessAs\": null,\n  \"id\": null,\n  \"legalDocument\": \"Example legalDocument\",\n  \"legalName\": \"Example legalName\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -9565,7 +9565,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"items\": null,\n  \"limit\": 100,\n  \"page\": 100,\n  \"total\": 100\n}"
+              "body": "{\n  \"items\": null,\n  \"limit\": 10,\n  \"page\": 1,\n  \"total\": 10\n}"
             }
           ],
           "event": [
@@ -9743,7 +9743,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountTarget\": null,\n  \"assetCode\": \"USD\",\n  \"countMode\": \"Example countMode\",\n  \"createdAt\": \"Example createdAt\",\n  \"creditAccountAlias\": \"Example creditAccountAlias\",\n  \"debitAccountAlias\": \"Example debitAccountAlias\",\n  \"deletedAt\": \"Example deletedAt\",\n  \"description\": \"Example description\",\n  \"discountTiers\": null,\n  \"enable\": null,\n  \"eventFilter\": null,\n  \"feeAmount\": \"Example feeAmount\",\n  \"freeQuota\": 100,\n  \"id\": \"Example id\",\n  \"label\": \"Example label\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maintenanceCreditAccount\": \"Example maintenanceCreditAccount\",\n  \"organizationId\": \"Example organizationId\",\n  \"pricingModel\": \"Example pricingModel\",\n  \"tiers\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"Example updatedAt\"\n}"
+              "body": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -10030,7 +10030,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountTarget\": null,\n  \"assetCode\": \"USD\",\n  \"countMode\": \"Example countMode\",\n  \"createdAt\": \"Example createdAt\",\n  \"creditAccountAlias\": \"Example creditAccountAlias\",\n  \"debitAccountAlias\": \"Example debitAccountAlias\",\n  \"deletedAt\": \"Example deletedAt\",\n  \"description\": \"Example description\",\n  \"discountTiers\": null,\n  \"enable\": null,\n  \"eventFilter\": null,\n  \"feeAmount\": \"Example feeAmount\",\n  \"freeQuota\": 100,\n  \"id\": \"Example id\",\n  \"label\": \"Example label\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maintenanceCreditAccount\": \"Example maintenanceCreditAccount\",\n  \"organizationId\": \"Example organizationId\",\n  \"pricingModel\": \"Example pricingModel\",\n  \"tiers\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"Example updatedAt\"\n}"
+              "body": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -10220,7 +10220,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountTarget\": null,\n  \"assetCode\": \"USD\",\n  \"countMode\": \"Example countMode\",\n  \"createdAt\": \"Example createdAt\",\n  \"creditAccountAlias\": \"Example creditAccountAlias\",\n  \"debitAccountAlias\": \"Example debitAccountAlias\",\n  \"deletedAt\": \"Example deletedAt\",\n  \"description\": \"Example description\",\n  \"discountTiers\": null,\n  \"enable\": null,\n  \"eventFilter\": null,\n  \"feeAmount\": \"Example feeAmount\",\n  \"freeQuota\": 100,\n  \"id\": \"Example id\",\n  \"label\": \"Example label\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maintenanceCreditAccount\": \"Example maintenanceCreditAccount\",\n  \"organizationId\": \"Example organizationId\",\n  \"pricingModel\": \"Example pricingModel\",\n  \"tiers\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"Example updatedAt\"\n}"
+              "body": "{\n  \"accountTarget\": {\n    \"aliases\": [\n      \"account_alpha\",\n      \"account_beta\"\n    ],\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"assetCode\": \"BRL\",\n  \"countMode\": \"perRoute\",\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"creditAccountAlias\": \"account_fees_credit\",\n  \"debitAccountAlias\": \"account_fees_debit\",\n  \"deletedAt\": \"2026-06-01T00:00:00Z\",\n  \"description\": \"Charges per completed transaction route\",\n  \"discountTiers\": null,\n  \"enable\": true,\n  \"eventFilter\": {\n    \"status\": \"APPROVED\",\n    \"transactionRoute\": \"payment_route\"\n  },\n  \"feeAmount\": \"50.00\",\n  \"freeQuota\": 100,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"label\": \"Monthly Volume Billing\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maintenanceCreditAccount\": \"account_maintenance_credit\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"pricingModel\": \"tiered\",\n  \"tiers\": null,\n  \"type\": \"volume\",\n  \"updatedAt\": \"2026-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -10406,7 +10406,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"results\": null,\n  \"summary\": null\n}"
+              "body": "{\n  \"results\": null,\n  \"summary\": {\n    \"totalMaintenance\": 3,\n    \"totalNetAmount\": \"456.78\",\n    \"totalResults\": 10,\n    \"totalVolume\": 7\n  }\n}"
             }
           ],
           "event": [
@@ -10592,7 +10592,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"aead_primary_key_id\": 100,\n  \"kek_path\": \"Example kek_path\",\n  \"organization_id\": \"Example organization_id\",\n  \"prf_primary_key_id\": 100,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}"
+              "body": "{\n  \"aead_primary_key_id\": 1,\n  \"kek_path\": \"org-00000000-0000-0000-0000-000000000000\",\n  \"organization_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"prf_primary_key_id\": 1,\n  \"status\": \"active\"\n}"
             }
           ],
           "event": [
@@ -10754,7 +10754,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"organization_id\": \"Example organization_id\",\n  \"provisioned\": false,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}"
+              "body": "{\n  \"organization_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"provisioned\": true,\n  \"status\": \"active\"\n}"
             }
           ],
           "event": [
@@ -11394,7 +11394,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"addresses\": null,\n  \"contact\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"externalId\": \"Example externalId\",\n  \"id\": null,\n  \"legalPerson\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"naturalPerson\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"externalId\": \"G4K7N8M2\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"91315026015\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -11705,7 +11705,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"addresses\": null,\n  \"contact\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"externalId\": \"Example externalId\",\n  \"id\": null,\n  \"legalPerson\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"naturalPerson\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"externalId\": \"G4K7N8M2\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"91315026015\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -11895,7 +11895,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"addresses\": null,\n  \"contact\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"externalId\": \"Example externalId\",\n  \"id\": null,\n  \"legalPerson\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"naturalPerson\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"addresses\": {\n    \"additional1\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"additional2\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    },\n    \"primary\": {\n      \"city\": \"New York\",\n      \"country\": \"US\",\n      \"line1\": \"123 Financial Avenue\",\n      \"line2\": \"Suite 1500\",\n      \"state\": \"NY\",\n      \"zipCode\": \"10001\"\n    }\n  },\n  \"contact\": {\n    \"mobilePhone\": \"+1555555555\",\n    \"otherPhone\": \"+1555555555\",\n    \"primaryEmail\": \"john.doe@example.com\",\n    \"secondaryEmail\": \"john.doe@example.com\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"externalId\": \"G4K7N8M2\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"legalPerson\": {\n    \"activity\": \"Electronic devices development\",\n    \"foundingDate\": \"2025-01-01\",\n    \"representative\": {\n      \"document\": \"91315026015\",\n      \"email\": \"john.doe@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"CFO\"\n    },\n    \"size\": \"Medium\",\n    \"status\": \"Active\",\n    \"tradeName\": \"Lerian Studio\",\n    \"type\": \"Limited Liability\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"John Doe\",\n  \"naturalPerson\": {\n    \"birthDate\": \"1990-01-01\",\n    \"civilStatus\": \"Single\",\n    \"fatherName\": \"John Doe\",\n    \"favoriteName\": \"John\",\n    \"gender\": \"Male\",\n    \"motherName\": \"Jane Doe\",\n    \"nationality\": \"Brazilian\",\n    \"socialName\": \"John Doe\",\n    \"status\": \"Active\"\n  },\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -12331,7 +12331,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"bankingDetails\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": null,\n  \"relatedParties\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -12663,7 +12663,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"bankingDetails\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": null,\n  \"relatedParties\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -12867,7 +12867,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"bankingDetails\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"document\": \"Example document\",\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": null,\n  \"relatedParties\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"bankingDetails\": {\n    \"account\": \"123450\",\n    \"bankId\": \"12345\",\n    \"branch\": \"0001\",\n    \"closingDate\": \"2025-12-31\",\n    \"countryCode\": \"US\",\n    \"iban\": \"US12345678901234567890\",\n    \"openingDate\": \"2025-01-01\",\n    \"type\": \"CACC\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"document\": \"91315026015\",\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"regulatoryFields\": {\n    \"participantDocument\": \"12345678912345\"\n  },\n  \"relatedParties\": null,\n  \"type\": \"NATURAL_PERSON\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -13712,7 +13712,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -14110,7 +14110,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -14300,7 +14300,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"settings\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"settings\": {\n    \"accounting\": {\n      \"requireHolder\": false,\n      \"validateAccountType\": false,\n      \"validateRoutes\": false\n    },\n    \"overrides\": {\n      \"allowFeeSkip\": false,\n      \"allowHolderSkip\": false,\n      \"allowTracerSkip\": false\n    },\n    \"tracer\": {\n      \"failPosture\": \"open\",\n      \"mode\": \"off\",\n      \"timeoutMs\": 250\n    }\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -14474,7 +14474,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accounting\": null,\n  \"overrides\": null,\n  \"tracer\": null\n}"
+              "body": "{\n  \"accounting\": {\n    \"requireHolder\": false,\n    \"validateAccountType\": false,\n    \"validateRoutes\": false\n  },\n  \"overrides\": {\n    \"allowFeeSkip\": false,\n    \"allowHolderSkip\": false,\n    \"allowTracerSkip\": false\n  },\n  \"tracer\": {\n    \"failPosture\": \"open\",\n    \"mode\": \"off\",\n    \"timeoutMs\": 250\n  }\n}"
             }
           ],
           "event": [
@@ -14666,7 +14666,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accounting\": null,\n  \"overrides\": null,\n  \"tracer\": null\n}"
+              "body": "{\n  \"accounting\": {\n    \"requireHolder\": false,\n    \"validateAccountType\": false,\n    \"validateRoutes\": false\n  },\n  \"overrides\": {\n    \"allowFeeSkip\": false,\n    \"allowHolderSkip\": false,\n    \"allowTracerSkip\": false\n  },\n  \"tracer\": {\n    \"failPosture\": \"open\",\n    \"mode\": \"off\",\n    \"timeoutMs\": 250\n  }\n}"
             }
           ],
           "event": [
@@ -15138,7 +15138,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"keyValue\": \"Example keyValue\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": \"Example organizationId\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -15446,7 +15446,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"keyValue\": \"Example keyValue\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": \"Example organizationId\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -15650,7 +15650,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"keyValue\": \"Example keyValue\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": \"Example organizationId\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"keyValue\": \"current_assets\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -16218,7 +16218,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -16406,7 +16406,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -16594,7 +16594,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -17020,7 +17020,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -17224,7 +17224,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"alias\": null,\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": null,\n  \"holderCheckSkipped\": false,\n  \"holderId\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"blocked\": null,\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"holderCheckSkipped\": false,\n  \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -18068,7 +18068,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"allowReceiving\": false,\n  \"allowSending\": false,\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -18820,7 +18820,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"allowReceiving\": false,\n  \"allowSending\": false,\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -19024,7 +19024,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"allowReceiving\": false,\n  \"allowSending\": false,\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"allowReceiving\": true,\n  \"allowSending\": true,\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -19228,7 +19228,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountId\": null,\n  \"accountType\": \"Example accountType\",\n  \"alias\": \"Example alias\",\n  \"assetCode\": \"USD\",\n  \"available\": \"Example available\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"key\": \"Example key\",\n  \"ledgerId\": null,\n  \"onHold\": \"Example onHold\",\n  \"organizationId\": null,\n  \"overdraftUsed\": \"Example overdraftUsed\",\n  \"settings\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"version\": 100\n}"
+              "body": "{\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"accountType\": \"creditCard\",\n  \"alias\": \"@person1\",\n  \"assetCode\": \"USD\",\n  \"available\": \"1500\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"direction\": \"credit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"key\": \"asset-freeze\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"onHold\": \"500\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"overdraftUsed\": \"0\",\n  \"settings\": {\n    \"allowOverdraft\": false,\n    \"balanceScope\": \"transactional\",\n    \"overdraftLimit\": \"1000.00\",\n    \"overdraftLimitEnabled\": false\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"version\": 1\n}"
             }
           ],
           "event": [
@@ -19746,7 +19746,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountAlias\": \"Example accountAlias\",\n  \"accountId\": null,\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"balance\": null,\n  \"balanceAffected\": false,\n  \"balanceAfter\": null,\n  \"balanceId\": null,\n  \"balanceKey\": \"Example balanceKey\",\n  \"chartOfAccounts\": \"Example chartOfAccounts\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": null,\n  \"route\": \"Example route\",\n  \"routeCode\": \"Example routeCode\",\n  \"routeDescription\": \"Example routeDescription\",\n  \"routeId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountAlias\": \"@person1\",\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"amount\": {\n    \"value\": \"1500\"\n  },\n  \"assetCode\": \"BRL\",\n  \"balance\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceAffected\": true,\n  \"balanceAfter\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceId\": \"00000000-0000-0000-0000-000000000000\",\n  \"balanceKey\": \"asset-freeze\",\n  \"chartOfAccounts\": \"1000\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Credit card operation\",\n  \"direction\": \"debit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeCode\": \"ROUTE-001\",\n  \"routeDescription\": \"Settlement route for service charges\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"DEBIT\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -19964,7 +19964,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"accountAlias\": \"Example accountAlias\",\n  \"accountId\": null,\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"balance\": null,\n  \"balanceAffected\": false,\n  \"balanceAfter\": null,\n  \"balanceId\": null,\n  \"balanceKey\": \"Example balanceKey\",\n  \"chartOfAccounts\": \"Example chartOfAccounts\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"direction\": \"Example direction\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": null,\n  \"route\": \"Example route\",\n  \"routeCode\": \"Example routeCode\",\n  \"routeDescription\": \"Example routeDescription\",\n  \"routeId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null,\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"accountAlias\": \"@person1\",\n  \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"amount\": {\n    \"value\": \"1500\"\n  },\n  \"assetCode\": \"BRL\",\n  \"balance\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceAffected\": true,\n  \"balanceAfter\": {\n    \"available\": \"1500\",\n    \"onHold\": \"500\",\n    \"overdraftUsed\": \"130\",\n    \"version\": 2\n  },\n  \"balanceId\": \"00000000-0000-0000-0000-000000000000\",\n  \"balanceKey\": \"asset-freeze\",\n  \"chartOfAccounts\": \"1000\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Credit card operation\",\n  \"direction\": \"debit\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeCode\": \"ROUTE-001\",\n  \"routeDescription\": \"Settlement route for service charges\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"type\": \"DEBIT\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -20412,7 +20412,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -20838,7 +20838,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -21042,7 +21042,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"Example type\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"code\": \"USD\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -21254,7 +21254,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": null,\n  \"instrument\": null,\n  \"instrumentError\": null\n}"
+              "body": "{\n  \"account\": {\n    \"alias\": \"@treasury_checking\",\n    \"assetCode\": \"USD\",\n    \"blocked\": null,\n    \"createdAt\": \"2021-01-01T00:00:00Z\",\n    \"deletedAt\": \"2021-01-01T00:00:00Z\",\n    \"entityId\": \"EXT-ACC-12345\",\n    \"holderCheckSkipped\": false,\n    \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n    \"id\": \"00000000-0000-0000-0000-000000000000\",\n    \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Corporate Checking Account\",\n    \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n    \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n    \"status\": {\n      \"code\": \"ACTIVE\"\n    },\n    \"type\": \"deposit\",\n    \"updatedAt\": \"2021-01-01T00:00:00Z\"\n  },\n  \"instrument\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"bankingDetails\": {\n      \"account\": \"123450\",\n      \"bankId\": \"12345\",\n      \"branch\": \"0001\",\n      \"closingDate\": \"2025-12-31\",\n      \"countryCode\": \"US\",\n      \"iban\": \"US12345678901234567890\",\n      \"openingDate\": \"2025-01-01\",\n      \"type\": \"CACC\"\n    },\n    \"createdAt\": \"2025-01-01T00:00:00Z\",\n    \"deletedAt\": \"2025-01-01T00:00:00Z\",\n    \"document\": \"91315026015\",\n    \"holderId\": \"00000000-0000-0000-0000-000000000000\",\n    \"id\": \"00000000-0000-0000-0000-000000000000\",\n    \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"regulatoryFields\": {\n      \"participantDocument\": \"12345678912345\"\n    },\n    \"relatedParties\": null,\n    \"type\": \"NATURAL_PERSON\",\n    \"updatedAt\": \"2025-01-01T00:00:00Z\"\n  },\n  \"instrumentError\": {\n    \"reason\": \"0001\",\n    \"status\": \"FAILED\"\n  }\n}"
             }
           ],
           "event": [
@@ -21690,7 +21690,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": null,\n  \"accountingEntries\": null,\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"Example operationType\",\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Cashin from service charge\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -21998,7 +21998,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": null,\n  \"accountingEntries\": null,\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"Example operationType\",\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Cashin from service charge\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -22202,7 +22202,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": null,\n  \"accountingEntries\": null,\n  \"code\": \"Example code\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"Example operationType\",\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"account\": {\n    \"ruleType\": \"alias\",\n    \"validIf\": null\n  },\n  \"accountingEntries\": {\n    \"block\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"cancel\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"commit\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"direct\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"hold\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"overdraft\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"revert\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    },\n    \"unblock\": {\n      \"credit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      },\n      \"debit\": {\n        \"code\": \"1001\",\n        \"description\": \"Cash\"\n      }\n    }\n  },\n  \"code\": \"EXT-001\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationType\": \"source\",\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Cashin from service charge\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -22674,7 +22674,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -23100,7 +23100,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -23304,7 +23304,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"entityId\": \"Example entityId\",\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -23752,7 +23752,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -24178,7 +24178,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -24382,7 +24382,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"organizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -24818,7 +24818,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Settlement route for service charges\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Charge Settlement\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -25126,7 +25126,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Settlement route for service charges\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Charge Settlement\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -25330,7 +25330,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"Example organizationId\",\n  \"title\": \"Example title\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Settlement route for service charges\",\n  \"id\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"ledgerId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRoutes\": null,\n  \"organizationId\": \"01965ed9-7fa4-75b2-8872-fc9e8509ab0a\",\n  \"title\": \"Charge Settlement\",\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -25804,7 +25804,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -26022,7 +26022,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -26240,7 +26240,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -26470,7 +26470,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -26839,7 +26839,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -27057,7 +27057,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -27243,7 +27243,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -27447,7 +27447,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -27635,7 +27635,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -27823,7 +27823,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -28011,7 +28011,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -28253,7 +28253,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"items\": null,\n  \"limit\": 100,\n  \"page\": 100,\n  \"total\": 100\n}"
+              "body": "{\n  \"items\": null,\n  \"limit\": 10,\n  \"page\": 1,\n  \"total\": 10\n}"
             }
           ],
           "event": [
@@ -28431,7 +28431,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": null,\n  \"enable\": null,\n  \"feeGroupLabel\": \"Example feeGroupLabel\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maximumAmount\": \"Example maximumAmount\",\n  \"minimumAmount\": \"Example minimumAmount\",\n  \"segmentId\": \"Example segmentId\",\n  \"transactionRoute\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"waivedAccounts\": null\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"2\",\n  \"minimumAmount\": \"100\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}"
             }
           ],
           "event": [
@@ -28718,7 +28718,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": null,\n  \"enable\": null,\n  \"feeGroupLabel\": \"Example feeGroupLabel\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maximumAmount\": \"Example maximumAmount\",\n  \"minimumAmount\": \"Example minimumAmount\",\n  \"segmentId\": \"Example segmentId\",\n  \"transactionRoute\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"waivedAccounts\": null\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"2\",\n  \"minimumAmount\": \"100\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}"
             }
           ],
           "event": [
@@ -28908,7 +28908,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": null,\n  \"enable\": null,\n  \"feeGroupLabel\": \"Example feeGroupLabel\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"Example id\",\n  \"ledgerId\": \"Example ledgerId\",\n  \"maximumAmount\": \"Example maximumAmount\",\n  \"minimumAmount\": \"Example minimumAmount\",\n  \"segmentId\": \"Example segmentId\",\n  \"transactionRoute\": null,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\",\n  \"waivedAccounts\": null\n}"
+              "body": "{\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Pacote de taxas administrativas padrão\",\n  \"enable\": null,\n  \"feeGroupLabel\": \"Pacote Padrão\",\n  \"fees\": {\n    \"key\": \"value\"\n  },\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"maximumAmount\": \"2\",\n  \"minimumAmount\": \"100\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionRoute\": \"debitoted\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\",\n  \"waivedAccounts\": [\n    \"acc001\",\n    \"acc002\"\n  ]\n}"
             }
           ],
           "event": [
@@ -29522,7 +29522,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"entityName\": \"Example entityName\",\n  \"indexName\": \"Example indexName\",\n  \"metadataKey\": \"Example metadataKey\",\n  \"sparse\": false,\n  \"stats\": null,\n  \"unique\": false\n}"
+              "body": "{\n  \"entityName\": \"transaction\",\n  \"indexName\": \"metadata.tier_1\",\n  \"metadataKey\": \"tier\",\n  \"sparse\": true,\n  \"stats\": {\n    \"accesses\": 1523,\n    \"statsSince\": \"2024-12-01T10:30:00Z\"\n  },\n  \"unique\": false\n}"
             }
           ],
           "event": [
@@ -29774,10 +29774,10 @@
                 }
               ]
             },
-            "description": "",
+            "description": "Moves the whole `amount` from one account to another.\n\nEach side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.\n\nTo split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an `account` and carries EXACTLY ONE value expression: `amount` for an explicit value, or `share` for a percentage of the transaction total. Sending both, or neither, is rejected.\n\n```json\n\"sources\": [\n  { \"account\": \"@external/USD\", \"amount\": \"60.00\" },\n  { \"account\": \"@treasury/USD\", \"amount\": \"40.00\" }\n]\n```\n\n`routeId` (transaction route) and `operationRouteId` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+              "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -29845,7 +29845,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+                  "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -29863,7 +29863,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -29992,10 +29992,10 @@
                 }
               ]
             },
-            "description": "",
+            "description": "Moves the whole `amount` from one account to another.\n\nEach side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.\n\nTo split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an `account` and carries EXACTLY ONE value expression: `amount` for an explicit value, or `share` for a percentage of the transaction total. Sending both, or neither, is rejected.\n\n```json\n\"sources\": [\n  { \"account\": \"@external/USD\", \"amount\": \"60.00\" },\n  { \"account\": \"@treasury/USD\", \"amount\": \"40.00\" }\n]\n```\n\n`routeId` (transaction route) and `operationRouteId` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+              "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -30063,7 +30063,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+                  "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -30081,7 +30081,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -30210,10 +30210,10 @@
                 }
               ]
             },
-            "description": "",
+            "description": "Moves the whole `amount` from one account to another.\n\nEach side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.\n\nTo split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an `account` and carries EXACTLY ONE value expression: `amount` for an explicit value, or `share` for a percentage of the transaction total. Sending both, or neither, is rejected.\n\n```json\n\"sources\": [\n  { \"account\": \"@external/USD\", \"amount\": \"60.00\" },\n  { \"account\": \"@treasury/USD\", \"amount\": \"40.00\" }\n]\n```\n\n`routeId` (transaction route) and `operationRouteId` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+              "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -30281,7 +30281,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+                  "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -30299,7 +30299,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -30428,10 +30428,10 @@
                 }
               ]
             },
-            "description": "",
+            "description": "Moves the whole `amount` from one account to another.\n\nEach side of the transaction is spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, `destinations`) — never both on the same side, though the two sides may choose differently. Leave the spelling you are not using out of the body.\n\nTo split a side across several accounts, replace its scalar field with the matching leg array. Each leg names an `account` and carries EXACTLY ONE value expression: `amount` for an explicit value, or `share` for a percentage of the transaction total. Sending both, or neither, is rejected.\n\n```json\n\"sources\": [\n  { \"account\": \"@external/USD\", \"amount\": \"60.00\" },\n  { \"account\": \"@treasury/USD\", \"amount\": \"40.00\" }\n]\n```\n\n`routeId` (transaction route) and `operationRouteId` (per-leg operation route) are optional and left out here; both must name a route that exists in the ledger.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+              "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -30499,7 +30499,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"amount\": \"Example amount\",\n  \"asset\": \"USD\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"destinations\": null,\n  \"from\": \"Example from\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operationRouteId\": null,\n  \"routeId\": null,\n  \"sources\": null,\n  \"to\": \"Example to\"\n}",
+                  "raw": "{\n  \"asset\": \"USD\",\n  \"amount\": \"100.00\",\n  \"from\": \"@external/USD\",\n  \"to\": \"{{accountAlias}}\",\n  \"description\": \"Example transaction\",\n  \"code\": \"EXAMPLE_TRANSACTION\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -30517,7 +30517,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -30705,7 +30705,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -30893,7 +30893,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -31081,7 +31081,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"amount\": null,\n  \"assetCode\": \"USD\",\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": null,\n  \"description\": \"Example description\",\n  \"destination\": null,\n  \"feesSkipped\": false,\n  \"id\": null,\n  \"ledgerId\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": null,\n  \"parentTransactionId\": null,\n  \"route\": \"Example route\",\n  \"routeId\": null,\n  \"source\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"amount\": \"1500\",\n  \"assetCode\": \"BRL\",\n  \"chartOfAccountsGroupName\": \"Chart of accounts group name\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Transaction description\",\n  \"destination\": [\n    \"@person2\"\n  ],\n  \"feesSkipped\": false,\n  \"id\": \"00000000-0000-0000-0000-000000000000\",\n  \"ledgerId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"operations\": null,\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"parentTransactionId\": \"00000000-0000-0000-0000-000000000000\",\n  \"route\": \"00000000-0000-0000-0000-000000000000\",\n  \"routeId\": \"00000000-0000-0000-0000-000000000000\",\n  \"source\": [\n    \"@person1\"\n  ],\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"tracerSkipped\": false,\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -31449,7 +31449,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"auditEvents\": null,\n  \"hasMore\": false,\n  \"nextCursor\": \"Example nextCursor\"\n}"
+              "body": "{\n  \"auditEvents\": null,\n  \"hasMore\": true,\n  \"nextCursor\": \"eyJpZCI6IjAxOTI4In0=\"\n}"
             }
           ],
           "event": [
@@ -31607,7 +31607,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"actor\": null,\n  \"context\": {\n    \"key\": \"value\"\n  },\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"eventId\": null,\n  \"eventType\": \"Example eventType\",\n  \"hash\": \"Example hash\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"previousHash\": \"Example previousHash\",\n  \"resourceId\": \"Example resourceId\",\n  \"resourceType\": \"Example resourceType\",\n  \"result\": \"Example result\"\n}"
+              "body": "{\n  \"action\": \"VALIDATE\",\n  \"actor\": {\n    \"actorType\": \"user\",\n    \"id\": \"00000000-0000-0000-0000-000000000000\",\n    \"ipAddress\": \"203.0.113.42\",\n    \"name\": \"Jane Doe\",\n    \"role\": \"admin\"\n  },\n  \"context\": {\n    \"key\": \"value\"\n  },\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"eventId\": \"00000000-0000-0000-0000-000000000000\",\n  \"eventType\": \"TRANSACTION_VALIDATED\",\n  \"hash\": \"a3f1e2b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"previousHash\": \"b4e2f3a5c6d7e8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3\",\n  \"resourceId\": \"00000000-0000-0000-0000-000000000000\",\n  \"resourceType\": \"transaction\",\n  \"result\": \"ALLOW\"\n}"
             }
           ],
           "event": [
@@ -31767,7 +31767,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"firstInvalidId\": 100,\n  \"isValid\": false,\n  \"message\": \"Example message\",\n  \"totalChecked\": 100\n}"
+              "body": "{\n  \"firstInvalidId\": 42,\n  \"isValid\": true,\n  \"message\": \"hash chain intact\",\n  \"totalChecked\": 1000\n}"
             }
           ],
           "event": [
@@ -32075,7 +32075,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"hasMore\": false,\n  \"limits\": null,\n  \"nextCursor\": \"Example nextCursor\"\n}"
+              "body": "{\n  \"hasMore\": true,\n  \"limits\": null,\n  \"nextCursor\": \"eyJpZCI6IjAxOTI4In0=\"\n}"
             }
           ],
           "event": [
@@ -32235,7 +32235,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -32501,7 +32501,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -32677,7 +32677,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -32837,7 +32837,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -32997,7 +32997,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -33157,7 +33157,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"activeTimeEnd\": \"Example activeTimeEnd\",\n  \"activeTimeStart\": \"Example activeTimeStart\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2025-01-01T00:00:00Z\",\n  \"customStartDate\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"limitId\": null,\n  \"limitType\": \"Example limitType\",\n  \"maxAmount\": \"Example maxAmount\",\n  \"name\": \"Example name\",\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"activeTimeEnd\": \"17:00\",\n  \"activeTimeStart\": \"09:00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"customEndDate\": \"2021-12-31T23:59:59Z\",\n  \"customStartDate\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Caps daily USD outflows for retail accounts\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"limitType\": \"DAILY\",\n  \"maxAmount\": \"1000.00\",\n  \"name\": \"Daily USD spending cap\",\n  \"resetAt\": \"2021-01-02T00:00:00Z\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -33317,7 +33317,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"currentUsage\": \"Example currentUsage\",\n  \"limitAmount\": \"Example limitAmount\",\n  \"limitId\": null,\n  \"nearLimit\": false,\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"utilizationPercent\": 100\n}"
+              "body": "{\n  \"currentUsage\": \"500.00\",\n  \"limitAmount\": \"1000.00\",\n  \"limitId\": \"00000000-0000-0000-0000-000000000000\",\n  \"nearLimit\": false,\n  \"resetAt\": \"2025-01-01T00:00:00Z\",\n  \"utilizationPercent\": 50\n}"
             }
           ],
           "event": [
@@ -33483,7 +33483,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"denied\": false,\n  \"reservationIds\": null,\n  \"transactionId\": null\n}"
+              "body": "{\n  \"denied\": false,\n  \"reservationIds\": null,\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [
@@ -33645,7 +33645,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"flipped\": 100,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null\n}"
+              "body": "{\n  \"flipped\": 2,\n  \"status\": \"CONFIRMED\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [
@@ -33807,7 +33807,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"flipped\": 100,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"transactionId\": null\n}"
+              "body": "{\n  \"flipped\": 2,\n  \"status\": \"CONFIRMED\",\n  \"transactionId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [
@@ -33967,7 +33967,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"reservationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}"
+              "body": "{\n  \"reservationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": \"CONFIRMED\"\n}"
             }
           ],
           "event": [
@@ -34127,7 +34127,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"reservationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}"
+              "body": "{\n  \"reservationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": \"CONFIRMED\"\n}"
             }
           ],
           "event": [
@@ -34435,7 +34435,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"hasMore\": false,\n  \"nextCursor\": \"Example nextCursor\",\n  \"rules\": null\n}"
+              "body": "{\n  \"hasMore\": true,\n  \"nextCursor\": \"eyJpZCI6IjAxOTI4In0=\",\n  \"rules\": null\n}"
             }
           ],
           "event": [
@@ -34595,7 +34595,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -34861,7 +34861,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -35037,7 +35037,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -35197,7 +35197,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -35357,7 +35357,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -35517,7 +35517,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"action\": \"Example action\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2025-01-01T00:00:00Z\",\n  \"deletedAt\": \"2025-01-01T00:00:00Z\",\n  \"description\": \"Example description\",\n  \"expression\": \"Example expression\",\n  \"name\": \"Example name\",\n  \"ruleId\": null,\n  \"scopes\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"updatedAt\": \"2025-01-01T00:00:00Z\"\n}"
+              "body": "{\n  \"action\": \"DENY\",\n  \"activatedAt\": \"2021-01-01T00:00:00Z\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"deactivatedAt\": \"2021-01-01T00:00:00Z\",\n  \"deletedAt\": \"2021-01-01T00:00:00Z\",\n  \"description\": \"Denies transactions over $1000 from checking accounts\",\n  \"expression\": \"transaction.amount > 1000 && account.type == 'checking'\",\n  \"name\": \"Block high-value checking transactions\",\n  \"ruleId\": \"00000000-0000-0000-0000-000000000000\",\n  \"scopes\": null,\n  \"status\": \"ACTIVE\",\n  \"updatedAt\": \"2021-01-01T00:00:00Z\"\n}"
             }
           ],
           "event": [
@@ -35825,7 +35825,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"hasMore\": false,\n  \"nextCursor\": \"Example nextCursor\",\n  \"transactionValidations\": null\n}"
+              "body": "{\n  \"hasMore\": true,\n  \"nextCursor\": \"eyJpZCI6IjAxOTI4In0=\",\n  \"transactionValidations\": null\n}"
             }
           ],
           "event": [
@@ -35985,7 +35985,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"decision\": \"Example decision\",\n  \"evaluatedAt\": \"2025-01-01T00:00:00Z\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"processingTimeMs\": 100,\n  \"reason\": \"Example reason\",\n  \"requestId\": null,\n  \"totalRulesLoaded\": 100,\n  \"truncated\": false,\n  \"validationId\": null\n}"
+              "body": "{\n  \"decision\": \"ALLOW\",\n  \"evaluatedAt\": \"2021-01-01T00:00:00Z\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"processingTimeMs\": 12.5,\n  \"reason\": \"Transaction denied by rule 'Block high-value checking transactions'\",\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"totalRulesLoaded\": 42,\n  \"truncated\": false,\n  \"validationId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [
@@ -36143,7 +36143,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"account\": null,\n  \"amount\": \"Example amount\",\n  \"createdAt\": \"2025-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"decision\": \"Example decision\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"merchant\": null,\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": null,\n  \"processingTimeMs\": 100,\n  \"reason\": \"Example reason\",\n  \"requestId\": null,\n  \"segment\": null,\n  \"subType\": \"Example subType\",\n  \"totalRulesLoaded\": 100,\n  \"transactionTimestamp\": \"2025-01-01T00:00:00Z\",\n  \"transactionType\": \"Example transactionType\",\n  \"truncated\": false,\n  \"validationId\": null\n}"
+              "body": "{\n  \"account\": {\n    \"accountId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"status\": \"active\",\n    \"type\": \"checking\"\n  },\n  \"amount\": \"100.00\",\n  \"createdAt\": \"2021-01-01T00:00:00Z\",\n  \"currency\": \"USD\",\n  \"decision\": \"ALLOW\",\n  \"evaluatedRuleIds\": null,\n  \"limitUsageDetails\": null,\n  \"matchedRuleIds\": null,\n  \"merchant\": {\n    \"category\": \"5411\",\n    \"country\": \"US\",\n    \"merchantId\": \"00000000-0000-0000-0000-000000000000\",\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"Acme Store\"\n  },\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"portfolio\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"growth\",\n    \"portfolioId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"processingTimeMs\": 12.5,\n  \"reason\": \"Transaction denied by rule 'Block high-value checking transactions'\",\n  \"requestId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segment\": {\n    \"metadata\": {\n      \"key\": \"value\"\n    },\n    \"name\": \"retail\",\n    \"segmentId\": \"00000000-0000-0000-0000-000000000000\"\n  },\n  \"subType\": \"purchase\",\n  \"totalRulesLoaded\": 42,\n  \"transactionTimestamp\": \"2021-01-01T00:00:00Z\",\n  \"transactionType\": \"CARD\",\n  \"truncated\": false,\n  \"validationId\": \"00000000-0000-0000-0000-000000000000\"\n}"
             }
           ],
           "event": [
