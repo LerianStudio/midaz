@@ -626,14 +626,8 @@ function createPostmanCollection(spec) {
       }
       
       const operation = pathItem[method];
-      
-      // Skip transaction management endpoints that are still being implemented
-      if (path.includes('/commit') || path.includes('/cancel') || path.includes('/revert')) {
-        console.log(`Skipping endpoint ${method.toUpperCase()} ${path} - still being implemented`);
-        continue;
-      }
-      
-      // Skip asset-rates endpoints that are still being implemented  
+
+      // Skip asset-rates endpoints that are still being implemented
       if (path.includes('/asset-rates')) {
         console.log(`Skipping endpoint ${method.toUpperCase()} ${path} - still being implemented`);
         continue;
@@ -733,7 +727,7 @@ function createRequestItem(operation, path, method, spec) {
     request: {
       method: method.toUpperCase(),
       header: [],
-      url: createUrl(path, baseUrlVariable),
+      url: createUrl(path, baseUrlVariable, spec),
       description: operation.description || ''
     },
     response: []
@@ -770,14 +764,49 @@ function createRequestItem(operation, path, method, spec) {
 }
 
 /**
+ * Resolve the base-path segments an operation is served under.
+ *
+ * OpenAPI keeps the base path in `servers`, not in the path keys: the Huma dumps
+ * declare `servers: [{ url: "/v1" }]` (or "/v2") and key their paths from there,
+ * so a Postman URL built from the path key alone is missing the version prefix.
+ * A path item's own `servers` takes precedence over the document's, which is how
+ * the consolidated spec carries per-version bases in one document.
+ *
+ * @param {Object} spec - The full OpenAPI spec
+ * @param {string} path - The path key of the endpoint
+ * @returns {string[]} Base-path segments, empty when the base path is "/"
+ */
+function serverPathSegments(spec, path) {
+  const servers = spec?.paths?.[path]?.servers || spec?.servers;
+  if (!Array.isArray(servers) || servers.length === 0 || !servers[0].url) {
+    return [];
+  }
+
+  let basePath = servers[0].url;
+
+  // Absolute server URLs carry the base path in their pathname; relative ones are
+  // already the base path.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(basePath)) {
+    try {
+      basePath = new URL(basePath).pathname;
+    } catch {
+      return [];
+    }
+  }
+
+  return basePath.split('/').filter(p => p);
+}
+
+/**
  * Create a URL object for the Postman collection
  * @param {string} path - The path of the endpoint
  * @param {string} baseUrlVariable - The base URL variable
+ * @param {Object} spec - The full OpenAPI spec
  * @returns {Object} The URL object
  */
-function createUrl(path, baseUrlVariable) {
+function createUrl(path, baseUrlVariable, spec) {
   // Convert path segments to use Postman environment variables
-  const convertedPathSegments = path.split('/').filter(p => p).map(p => {
+  const mappedPathSegments = path.split('/').filter(p => p).map(p => {
     // Handle path parameters to use environment variables (camelCase)
     if (p.startsWith('{') && p.endsWith('}')) {
       const paramName = p.slice(1, -1);
@@ -821,9 +850,12 @@ function createUrl(path, baseUrlVariable) {
     return p;
   });
 
+  // Prepend the base path so the request targets the version the spec serves it under
+  const convertedPathSegments = serverPathSegments(spec, path).concat(mappedPathSegments);
+
   // Build the raw URL using the converted path segments
   const convertedPath = '/' + convertedPathSegments.join('/');
-  
+
   return {
     raw: `${baseUrlVariable}${convertedPath}`,
     host: [`${baseUrlVariable}`],

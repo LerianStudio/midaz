@@ -24,8 +24,17 @@ POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
 
-# Components merged into the unified MIDAZ collection (ledger is primary)
-COMPONENTS=("ledger" "tracer" "reporter")
+# Specs merged into the unified MIDAZ collection, as "component|spec-file|version-tag".
+# A component may publish more than one spec: ledger serves an independent /v2 contract
+# alongside its /v1 dump. The version tag keeps per-spec temp files apart and is appended
+# to folder names, so two specs from one component stay distinct folders after the merge.
+# Ledger is listed first and is the primary; the rest are optional.
+SPEC_SOURCES=(
+    "ledger|openapi.huma.yaml|"
+    "ledger|openapi.v2.huma.yaml|v2"
+    "tracer|openapi.huma.yaml|"
+    "reporter|openapi.huma.yaml|"
+)
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -61,25 +70,46 @@ if [ -f "${POSTMAN_COLLECTION}" ] || [ -f "${POSTMAN_ENVIRONMENT}" ]; then
     [ -f "${POSTMAN_ENVIRONMENT}" ] && cp "${POSTMAN_ENVIRONMENT}" "${BACKUP_DIR}/MIDAZ.postman_environment.${TIMESTAMP}.json"
 fi
 
+# Append a version tag to every top-level folder name of a converted collection. Folder
+# names come from OpenAPI tags, and two contracts over the same surface share those tags,
+# so untagged folders from a component's second spec carry names identical to its first.
+tag_folder_names() {
+    local collection=$1
+    local version=$2
+
+    if [ -z "${version}" ]; then
+        return 0
+    fi
+
+    local tagged="${collection}.tagged"
+    jq --arg version "${version}" \
+        '.item |= ((. // []) | map(.name = "\(.name) (\($version))"))' \
+        "${collection}" > "${tagged}" && mv "${tagged}" "${collection}"
+}
+
 # Function to convert OpenAPI to Postman (runs in parallel)
-convert_component() {
+convert_spec() {
     local component=$1
     local input_file=$2
-    local output_collection="${TEMP_DIR}/${component}.postman_collection.json"
-    local output_env="${TEMP_DIR}/${component}.environment.json"
-    local status_file="${TEMP_DIR}/${component}.status"
+    local key=$3
+    local version=$4
+    local output_collection="${TEMP_DIR}/${key}.postman_collection.json"
+    local output_env="${TEMP_DIR}/${key}.environment.json"
+    local status_file="${TEMP_DIR}/${key}.status"
+    local err_file="${TEMP_DIR}/${key}.err"
 
     {
         if [ -f "${input_file}" ]; then
-            echo "Processing ${component}..." >&2
-            if node "${CONVERTER}" "${input_file}" "${output_collection}" --env "${output_env}" --component "${component}" 2>"${TEMP_DIR}/${component}.err"; then
+            echo "Processing ${key}..." >&2
+            if node "${CONVERTER}" "${input_file}" "${output_collection}" --env "${output_env}" --component "${component}" 2>"${err_file}" \
+                && tag_folder_names "${output_collection}" "${version}"; then
                 echo "SUCCESS" > "${status_file}"
             else
                 echo "FAILED" > "${status_file}"
-                cat "${TEMP_DIR}/${component}.err" >&2
+                cat "${err_file}" >&2
             fi
         else
-            echo "${component} API spec not found. Skipping..." >&2
+            echo "${key} API spec not found. Skipping..." >&2
             echo "SKIPPED" > "${status_file}"
         fi
     } &
@@ -87,10 +117,15 @@ convert_component() {
 
 echo "Converting OpenAPI specs to Postman collections..."
 
-# Process all components in parallel from their published specs
+# Process all declared specs in parallel. The temp-file key is the component plus the
+# version tag, so a component's second spec cannot overwrite its first.
+declare -a SOURCE_KEYS=()
 declare -a CONVERT_PIDS=()
-for component in "${COMPONENTS[@]}"; do
-    convert_component "${component}" "${SPECS_DIR}/${component}/openapi.huma.yaml"
+for source in "${SPEC_SOURCES[@]}"; do
+    IFS='|' read -r component spec_file version <<< "${source}"
+    key="${component}${version:+-${version}}"
+    SOURCE_KEYS+=("${key}")
+    convert_spec "${component}" "${SPECS_DIR}/${component}/${spec_file}" "${key}" "${version}"
     CONVERT_PIDS+=("$!")
 done
 
@@ -110,15 +145,15 @@ merge_all_collections() {
     local -a environments=()
 
     # Collect all successful collections and environments
-    for component in "${COMPONENTS[@]}"; do
-        local status=$(cat "${TEMP_DIR}/${component}.status" 2>/dev/null || echo "FAILED")
+    for key in "${SOURCE_KEYS[@]}"; do
+        local status=$(cat "${TEMP_DIR}/${key}.status" 2>/dev/null || echo "FAILED")
         if [ "$status" != "SUCCESS" ]; then
-            echo "Skipping ${component}: conversion status is ${status}"
+            echo "Skipping ${key}: conversion status is ${status}"
             continue
         fi
 
-        local coll="${TEMP_DIR}/${component}.postman_collection.json"
-        local env="${TEMP_DIR}/${component}.environment.json"
+        local coll="${TEMP_DIR}/${key}.postman_collection.json"
+        local env="${TEMP_DIR}/${key}.environment.json"
         if [ -f "$coll" ]; then
             collections+=("$coll")
         fi
