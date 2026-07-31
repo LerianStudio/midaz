@@ -175,7 +175,7 @@ func TestValidateVaultConfig(t *testing.T) {
 			name: "envelope mode with unset auth method fails closed",
 			mode: crypto.EncryptionModeEnvelope,
 			cfg: &Config{
-				VaultAddr:      "https://vault.example.com:8200",
+				VaultAddr: "https://vault.example.com:8200",
 			},
 			expectError:   true,
 			errorContains: "KMS_VAULT_AUTH_METHOD",
@@ -437,8 +437,8 @@ func TestWireEncryptionServices_LegacyMode(t *testing.T) {
 	// invokes legacyCrypto during wiring, so a nil value is sufficient here.
 	// ProvisioningService stays nil.
 	out := wireEncryptionServices(wireEncryptionServicesInput{
-		mode:           crypto.EncryptionModeLegacy.String(),
-		legacyCrypto:   nil,
+		mode:         crypto.EncryptionModeLegacy.String(),
+		legacyCrypto: nil,
 	})
 
 	require.NoError(t, out.err)
@@ -453,10 +453,10 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 		t.Parallel()
 
 		out := wireEncryptionServices(wireEncryptionServicesInput{
-			mode:           crypto.EncryptionModeEnvelope.String(),
-			vaultClient:    nil,
-			keysetRepo:     &mockKeysetRepo{},
-			registryRepo:   &mockRegistryRepo{},
+			mode:         crypto.EncryptionModeEnvelope.String(),
+			vaultClient:  nil,
+			keysetRepo:   &mockKeysetRepo{},
+			registryRepo: &mockRegistryRepo{},
 		})
 
 		require.Error(t, out.err)
@@ -467,10 +467,10 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 		t.Parallel()
 
 		out := wireEncryptionServices(wireEncryptionServicesInput{
-			mode:           crypto.EncryptionModeEnvelope.String(),
-			vaultClient:    newWiringVaultClient(t),
-			keysetRepo:     nil,
-			registryRepo:   &mockRegistryRepo{},
+			mode:         crypto.EncryptionModeEnvelope.String(),
+			vaultClient:  newWiringVaultClient(t),
+			keysetRepo:   nil,
+			registryRepo: &mockRegistryRepo{},
 		})
 
 		require.Error(t, out.err)
@@ -481,10 +481,10 @@ func TestWireEncryptionServices_EnvelopeGuards(t *testing.T) {
 		t.Parallel()
 
 		out := wireEncryptionServices(wireEncryptionServicesInput{
-			mode:           crypto.EncryptionModeEnvelope.String(),
-			vaultClient:    newWiringVaultClient(t),
-			keysetRepo:     &mockKeysetRepo{},
-			registryRepo:   nil,
+			mode:         crypto.EncryptionModeEnvelope.String(),
+			vaultClient:  newWiringVaultClient(t),
+			keysetRepo:   &mockKeysetRepo{},
+			registryRepo: nil,
 		})
 
 		require.Error(t, out.err)
