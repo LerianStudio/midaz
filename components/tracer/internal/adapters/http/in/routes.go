@@ -109,9 +109,9 @@ type RouteConfig struct {
 	// is recorded. Parsed once at boot in bootstrap; never re-parsed per request.
 	TrustedProxyCIDRs []*net.IPNet
 
-	// SwaggerEnabled gates the native Huma OpenAPI 3.1 spec + Scalar docs surface
+	// OpenAPIDocsEnabled gates the native Huma OpenAPI 3.1 spec + Scalar docs surface
 	// (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs). Default false.
-	SwaggerEnabled bool
+	OpenAPIDocsEnabled bool
 }
 
 // reservationPathPrefix is the full mounted prefix of the reservation surface
@@ -435,11 +435,11 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		AuditEvent:            NewAuditEventHandler(auditEventService),
 	})
 
-	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on SwaggerEnabled. Mounted
+	// Native Huma OpenAPI 3.1 spec + Scalar docs, gated on OpenAPIDocsEnabled. Mounted
 	// AFTER every huma.Register above so the snapshotted spec is complete. These
 	// routes are off the auth/tenant chain (public-within-the-gate). Never
 	// registered when the flag is false.
-	if cfg.SwaggerEnabled {
+	if cfg.OpenAPIDocsEnabled {
 		openapi.ServeSpec(f, humaAPI, lg, "/v1", "Midaz Tracer API")
 	}
 

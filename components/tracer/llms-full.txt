@@ -66,8 +66,8 @@ Every validation creates immutable audit event. Hash chain verification for SOX/
 - `GET /readyz` — Readiness probe (Lerian-canonical; checks PostgreSQL + rule cache health)
 - `GET /metrics` — Prometheus metrics (mounted before the `/v1` group)
 - `GET /version` — Build version
-- `GET /v1/openapi.{json,yaml}` — Huma OpenAPI 3.1 spec (served when `SWAGGER_ENABLED=true`)
-- `GET /v1/docs` — Scalar API docs UI (served when `SWAGGER_ENABLED=true`)
+- `GET /v1/openapi.{json,yaml}` — Huma OpenAPI 3.1 spec (served when `OPENAPI_DOCS_ENABLED=true`)
+- `GET /v1/docs` — Scalar API docs UI (served when `OPENAPI_DOCS_ENABLED=true`)
 
 ## Authentication
 - API Key via `X-API-Key` header

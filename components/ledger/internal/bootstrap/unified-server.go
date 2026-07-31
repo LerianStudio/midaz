@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"os"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
@@ -34,11 +33,12 @@ type RouteRegistrar func(router fiber.Router)
 // runs before each Huma terminal). Nil means no Huma routes are mounted.
 type HumaRouteRegistrar func(group fiber.Router, api huma.API)
 
-// swaggerEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
-// surface should be served (openapi.ServeSpec: /v1/openapi.{json,yaml}, /v1/docs).
-// Off by default; opt in with LEDGER_HUMA_DOCS_ENABLED=true.
-func swaggerEnabled() bool {
-	return os.Getenv("LEDGER_HUMA_DOCS_ENABLED") == "true"
+// openAPIDocsEnabled reports whether the native Huma OpenAPI 3.1 spec + Scalar docs
+// surface should be served (openapi.ServeSpec: openapi.{json,yaml} and docs under
+// every mounted contract prefix). Off by default; opt in with OPENAPI_DOCS_ENABLED=true.
+// An absent or unparseable value leaves the contract unserved.
+func openAPIDocsEnabled() bool {
+	return libCommons.GetenvBoolOrDefault("OPENAPI_DOCS_ENABLED", false)
 }
 
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
@@ -175,7 +175,7 @@ func NewUnifiedServer(
 // (idempotent RFC 9457 model override, MUST precede any huma.Register), the Fiber
 // group + Huma document creation, the ledger schema namer, the BearerAuth + ApiKeyAuth
 // SPEC-ONLY security scheme declarations, the mount closure invocation, and the
-// swaggerEnabled()-gated native OpenAPI 3.1 spec + Scalar docs surface.
+// openAPIDocsEnabled()-gated native OpenAPI 3.1 spec + Scalar docs surface.
 //
 // Every contract installs the ledger schema namer within its own registry to
 // disambiguate the nested operation.* schemas (operation.{Status,Balance,Amount})
@@ -226,7 +226,7 @@ func mountHumaContract(
 
 	mount(group, api)
 
-	if swaggerEnabled() {
+	if openAPIDocsEnabled() {
 		openapi.ServeSpec(app, api, logger, prefix, title)
 	}
 }
