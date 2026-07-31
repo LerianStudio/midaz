@@ -220,7 +220,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 		},
 		// WaitForNextFunc: fixed backoff when idle (ZSET empty)
 		func(waitCtx context.Context) bool {
-			return waitOrDone(waitCtx, w.idleWait, w.logger)
+			return waitOrDone(waitCtx, w.idleWait)
 		},
 	)
 
@@ -405,7 +405,7 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 			},
 			// WaitForNextFunc: fixed backoff when idle (ZSET empty for this tenant)
 			func(waitCtx context.Context) bool {
-				return waitOrDone(waitCtx, w.idleWait, w.logger)
+				return waitOrDone(waitCtx, w.idleWait)
 			},
 		)
 
@@ -460,22 +460,10 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransact
 		return false
 	}
 
-	w.logger.Log(
-		ctx, libLog.LevelDebug, "BalanceSyncWorker: flushBatch called",
-		libLog.Int("keys", len(keys)),
-	)
-
 	groups := w.groupKeysByOrgLedger(ctx, keys)
 	processed := false
 
 	for _, group := range groups {
-		w.logger.Log(
-			ctx, libLog.LevelDebug, "BalanceSyncWorker: syncing group",
-			libLog.String("org_id", group.orgID.String()),
-			libLog.String("ledger_id", group.ledgerID.String()),
-			libLog.Int("keys", len(group.keys)),
-		)
-
 		if w.processSyncBatch(ctx, group.orgID, group.ledgerID, group.keys) {
 			processed = true
 		}
@@ -604,15 +592,10 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 // if the context is cancelled during the wait (shutdown requested). Used both as
 // the WaitForNextFunc callback (idle backoff between polls) and as error backoff
 // in the collector's fetch loop. A duration <= 0 returns false without sleeping.
-func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool {
+func waitOrDone(ctx context.Context, d time.Duration) bool {
 	if d <= 0 {
 		return false
 	}
-
-	logger.Log(
-		ctx, libLog.LevelDebug, "balance_sync: idle wait",
-		libLog.String("duration", d.String()),
-	)
 
 	t := time.NewTimer(d)
 	defer t.Stop()
@@ -724,7 +707,7 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 			return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(fetchCtx, limit)
 		},
 		func(waitCtx context.Context) bool {
-			return waitOrDone(waitCtx, d.idleWait, d.logger)
+			return waitOrDone(waitCtx, d.idleWait)
 		},
 	)
 
