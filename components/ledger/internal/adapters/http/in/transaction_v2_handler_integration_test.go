@@ -2327,3 +2327,263 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
 	}
 }
+
+// The share bodies below spell the same intent on both surfaces: one source paying the whole
+// 1000, and two destinations taking their value as a percentage of it instead of as an absolute
+// amount. Translate carries a v2 leg's share expression forward untouched, so the number each
+// leg resolves to is produced by the same funnel arithmetic v1 reaches — which is what these
+// pairs are here to demonstrate against the released surface rather than against a hand-computed
+// figure.
+//
+// shareSplit* is the plain two-factor-free split (70/30). sharePop* additionally exercises
+// percentageOfPercentage on ONE of the two legs: @dstA narrows 80% by 25% (20% of the total) and
+// @dstB spells 80% with the field OMITTED, so the same body pins both the narrowing and the
+// omitted-field behaviour. All four factors divide 1000 exactly, so no assertion depends on how
+// the decimal divide rounds.
+const (
+	shareSplitV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
+		`"sources":[{"account":"@srcA","amount":"1000"}],` +
+		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":30}}]}`
+
+	shareSplitV1Body = `{
+		"description":"share leg parity",
+		"send":{
+			"asset":"USD","value":"1000",
+			"source":{"from":[{"accountAlias":"@srcA","amount":{"asset":"USD","value":"1000"}}]},
+			"distribute":{"to":[
+				{"accountAlias":"@dstA","share":{"percentage":70}},
+				{"accountAlias":"@dstB","share":{"percentage":30}}
+			]}
+		}
+	}`
+
+	sharePopV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
+		`"sources":[{"account":"@srcA","amount":"1000"}],` +
+		`"destinations":[{"account":"@dstA","share":{"percentage":80,"percentageOfPercentage":25}},` +
+		`{"account":"@dstB","share":{"percentage":80}}]}`
+
+	sharePopV1Body = `{
+		"description":"share leg parity",
+		"send":{
+			"asset":"USD","value":"1000",
+			"source":{"from":[{"accountAlias":"@srcA","amount":{"asset":"USD","value":"1000"}}]},
+			"distribute":{"to":[
+				{"accountAlias":"@dstA","share":{"percentage":80,"percentageOfPercentage":25}},
+				{"accountAlias":"@dstB","share":{"percentage":80}}
+			]}
+		}
+	}`
+)
+
+// =============================================================================
+// 21. SHARE-LEG PARITY (core): a destination side whose legs express their value as a share of
+//     the transaction total resolves to the same per-operation figures on the v2 leg arrays as
+//     on the v1 detailed body — with and without the second factor. Subject 12 already commits a
+//     50/50 share body through v2 against absolute figures; the delta here is the cross-surface
+//     comparison, plus percentageOfPercentage, which subject 12 never spells.
+//
+//     Each case pins the RESOLVED per-operation amount on each surface before comparing the two,
+//     because a split can be identical on both surfaces and still be wrong — an ignored second
+//     factor, or a whole share landing on one leg, produces matching sets that a
+//     cross-surface-only comparison would accept.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testing.T) {
+	cases := []struct {
+		name   string
+		v2Body string
+		v1Body string
+		// wantOps is the resolved (type, amount) of every persisted operation, keyed by alias.
+		wantOps map[string]advancedLegExpectation
+		// wantAvailable is the final available balance of every seeded alias, keyed by alias.
+		wantAvailable map[string]int64
+	}{
+		{
+			// 1000 leaves @srcA and is split 70/30 across two share legs; @srcB is named by no
+			// leg. Any other in-bounds pair adding to 100 — 71/29 — closes the total just as
+			// well, so the per-leg figures are pinned rather than only their sum.
+			name:   "split one source across two share legs",
+			v2Body: shareSplitV2Body,
+			v1Body: shareSplitV1Body,
+			wantOps: map[string]advancedLegExpectation{
+				"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(1000)},
+				"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(700)},
+				"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(300)},
+			},
+			wantAvailable: map[string]int64{
+				"@srcA": multiLegSeedAvailable - 1000,
+				"@srcB": multiLegSeedAvailable,
+				"@dstA": 700,
+				"@dstB": 300,
+			},
+		},
+		{
+			// @dstA: 80% narrowed by 25% -> 20% of 1000 = 200. @dstB: 80% with the second factor
+			// omitted -> 800. The two close the total only if the narrowing is applied to the
+			// first leg AND not applied to the second, so a surface that ignored the field, or
+			// that read an omitted field as a zero share, fails the funnel's total check instead
+			// of producing a subtly wrong split.
+			name:   "share narrowed by percentageOfPercentage on one leg only",
+			v2Body: sharePopV2Body,
+			v1Body: sharePopV1Body,
+			wantOps: map[string]advancedLegExpectation{
+				"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(1000)},
+				"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(200)},
+				"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(800)},
+			},
+			wantAvailable: map[string]int64{
+				"@srcA": multiLegSeedAvailable - 1000,
+				"@srcB": multiLegSeedAvailable,
+				"@dstA": 200,
+				"@dstB": 800,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// NOT parallel: process-global huma state (see file header).
+			t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+			infra := setupTestInfra(t)
+			t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+			ctx := context.Background()
+
+			// Two ledgers under the SAME org so both surfaces can use IDENTICAL aliases and
+			// starting balances; the only legitimate difference is then the ledger id plus
+			// per-row IDs and timestamps.
+			ledgerV1 := infra.ledgerID
+			ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+			seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+			v1Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV1, multiLegSeedAvailable))
+			v2Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV2, multiLegSeedAvailable))
+
+			v1App := buildHumaTransactionApp(t, infra.handler, true)
+			v2App := buildHumaV2DirectApp(t, infra.handler)
+
+			// Each surface is fully processed (create -> drain -> assert) BEFORE the next is
+			// created, because the balance-sync schedule ZSET is GLOBAL, not per-ledger:
+			// draining ledgerV1 while ledgerV2's keys are still pending would claim them under
+			// the wrong ledger and leave ledgerV2's cold balances stale.
+			v1Resp := decodeTxResponse(t, postTransaction(t, v1App, v1JSONURL(infra.orgID, ledgerV1), tc.v1Body, ""), nethttp.StatusCreated)
+			v1TxID := uuid.MustParse(v1Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
+
+			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2TxID := uuid.MustParse(v2Resp["id"].(string))
+			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
+			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
+
+			v1Ops := fetchOperationRows(t, infra.pgContainer.DB, v1TxID)
+			v2Ops := fetchOperationRows(t, infra.pgContainer.DB, v2TxID)
+
+			// Absolute proof first: every share leg resolved to ITS OWN expected figure, and the
+			// operation count is pinned to the number of legs the bodies spell.
+			assertAdvancedLegOps(t, v1Ops, tc.wantOps)
+			assertAdvancedLegOps(t, v2Ops, tc.wantOps)
+
+			// Same per-account economic projection: type, asset, alias, amount, balance-after.
+			assertOperationSetsEqual(t, v1Ops, v2Ops)
+
+			// Same final balances on every seeded account, including the source no leg names.
+			assertAliasBalances(t, infra.pgContainer.DB, v1Balances, tc.wantAvailable, "v1")
+			assertAliasBalances(t, infra.pgContainer.DB, v2Balances, tc.wantAvailable, "v2")
+
+			assert.Equal(t, "USD", v1Resp["assetCode"])
+			assert.Equal(t, "USD", v2Resp["assetCode"])
+
+			// Response deep-equal, ignoring IDs and timestamps. The `operations` array is emitted
+			// in balance-internal-key ("alias#balanceKey") order, which both surfaces reach
+			// through the same create funnel; every alias these bodies name is distinct, so that
+			// key orders the set totally and the two arrays line up index-for-index.
+			require.Equal(t, stripVolatile(v1Resp), stripVolatile(v2Resp),
+				"the v2 share-leg response must be indistinguishable from the v1 detailed equivalent (ignoring IDs/timestamps)")
+		})
+	}
+}
+
+// shareShortV2Body / shareShortV1Body spell a destination side whose shares add up to 90% of the
+// declared 1000, on each surface. 70 and 20 are each individually within the bound the v2 field
+// publishes, so nothing per-field can refuse this body — whether a side's legs close the total is
+// a whole-body property, and the funnel's own comparison is the only thing that owns it.
+const (
+	shareShortV2Body = `{"description":"share legs short of the total","asset":"USD","amount":"1000",` +
+		`"sources":[{"account":"@srcA","amount":"1000"}],` +
+		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":20}}]}`
+
+	shareShortV1Body = `{
+		"description":"share legs short of the total",
+		"send":{
+			"asset":"USD","value":"1000",
+			"source":{"from":[{"accountAlias":"@srcA","amount":{"asset":"USD","value":"1000"}}]},
+			"distribute":{"to":[
+				{"accountAlias":"@dstA","share":{"percentage":70}},
+				{"accountAlias":"@dstB","share":{"percentage":20}}
+			]}
+		}
+	}`
+)
+
+// =============================================================================
+// 22. SHARE LEGS THAT DO NOT CLOSE THE TOTAL ARE REFUSED WITH NO LEDGER EFFECT: shares summing
+//     to 90% of the declared amount are rejected by the funnel's total comparison
+//     (ErrTransactionValueMismatch / 0073 -> 422) with nothing persisted, on BOTH surfaces. The
+//     canonical code is asserted and not merely the status, because the v2 surface answers with
+//     several distinct 4xx layers and only the code says which one refused: a shape or bound
+//     rejection here would mean the funnel comparison was never reached, and the claim being made
+//     is precisely that it was.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Distinct ledgers under the same org, so each surface's "no transaction persisted" claim is
+	// scoped to its own ledger.
+	ledgerV1 := infra.ledgerID
+	ledgerV2 := uuid.Must(libCommons.GenerateUUIDv7())
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, ledgerV2)
+
+	v1Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV1, multiLegSeedAvailable))
+	v2Balances := advancedLegBalanceIDs(seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, ledgerV2, multiLegSeedAvailable))
+
+	v1App := buildHumaTransactionApp(t, infra.handler, true)
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	untouched := map[string]int64{
+		"@srcA": multiLegSeedAvailable,
+		"@srcB": multiLegSeedAvailable,
+		"@dstA": 0,
+		"@dstB": 0,
+	}
+
+	for _, surface := range []struct {
+		name     string
+		app      *fiber.App
+		url      string
+		body     string
+		ledgerID uuid.UUID
+		balances map[string]uuid.UUID
+	}{
+		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), shareShortV1Body, ledgerV1, v1Balances},
+		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), shareShortV2Body, ledgerV2, v2Balances},
+	} {
+		resp := postTransaction(t, surface.app, surface.url, surface.body, "")
+		body := drainBody(t, resp)
+
+		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+			"%s: shares that do not close the total are a business error (ErrTransactionValueMismatch / 0073) -> 422; body: %s", surface.name, string(body))
+		requireProblemCode(t, body, "0073")
+
+		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, surface.ledgerID),
+			"%s: shares short of the declared total must not persist a transaction", surface.name)
+
+		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
+	}
+}
