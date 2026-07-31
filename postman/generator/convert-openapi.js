@@ -107,8 +107,8 @@ function parseCommandLineArgs() {
   }
 
   // Component name drives ledger-only enrichment (base-URL routing, env template).
-  // Non-ledger components (tracer, reporter) get a generic single-base-URL
-  // collection and a minimal environment.
+  // Non-ledger components get a generic single-base-URL collection and a
+  // minimal environment.
   let component = 'ledger';
   if (args.includes('--component') && args.indexOf('--component') + 1 < args.length) {
     component = args[args.indexOf('--component') + 1];
@@ -712,8 +712,8 @@ function createRequestItem(operation, path, method, spec) {
   // Determine the base URL variable. Ledger's unified binary historically split
   // onboarding vs transaction surfaces; both now serve on :3002, but the env
   // template keeps both aliases for backward compatibility. Non-ledger components
-  // (tracer, reporter) expose a single base URL under a component-scoped
-  // variable so the merged MIDAZ environment carries distinct, non-colliding keys.
+  // expose a single base URL under a component-scoped variable so the merged
+  // MIDAZ environment carries distinct, non-colliding keys.
   let baseUrlVariable = `{{${componentEnvPrefix(COMPONENT)}Url}}`;
   if (COMPONENT === 'ledger') {
     if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') ||
@@ -1208,8 +1208,7 @@ function addResponseExamples(requestItem, operation, spec) {
  */
 // Default host port per non-ledger component (single base URL each).
 const COMPONENT_PORTS = {
-  tracer: '4020',
-  reporter: '4005'
+  tracer: '4020'
 };
 
 // camelCase env-variable prefix for a component (strips hyphens, e.g. data-source -> datasource).
@@ -1219,8 +1218,8 @@ function componentEnvPrefix(component) {
 
 function createEnvironmentTemplate(spec) {
   // Non-ledger components get a minimal environment (host + component-scoped url/port)
-  // so tracer and reporter collections are not polluted with ledger resource keys,
-  // and their keys do not collide with ledger's on merge into the MIDAZ environment.
+  // so their collections are not polluted with ledger resource keys, and their keys
+  // do not collide with ledger's on merge into the MIDAZ environment.
   if (COMPONENT !== 'ledger') {
     const prefix = componentEnvPrefix(COMPONENT);
     const port = COMPONENT_PORTS[COMPONENT] || '3002';

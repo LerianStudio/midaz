@@ -33,7 +33,6 @@ SPEC_SOURCES=(
     "ledger|openapi.huma.yaml|"
     "ledger|openapi.v2.huma.yaml|v2"
     "tracer|openapi.huma.yaml|"
-    "reporter|openapi.huma.yaml|"
 )
 
 # Colors for output
@@ -135,6 +134,24 @@ for pid in "${CONVERT_PIDS[@]}"; do
     wait "${pid}"
 done
 set -e
+
+# A declared spec that is PRESENT must convert. Only SKIPPED is tolerated (the spec
+# file is absent, so the component simply contributes nothing). FAILED means the
+# converter rejected a spec that exists, and merging past that drops the whole
+# spec's folders from the emitted collection with no other signal.
+FAILED_KEYS=()
+for key in "${SOURCE_KEYS[@]}"; do
+    status=$(cat "${TEMP_DIR}/${key}.status" 2>/dev/null || echo "FAILED")
+    if [ "${status}" = "FAILED" ]; then
+        FAILED_KEYS+=("${key}")
+    fi
+done
+
+if [ "${#FAILED_KEYS[@]}" -gt 0 ]; then
+    echo -e "${RED}OpenAPI conversion failed for: ${FAILED_KEYS[*]}${NC}" >&2
+    rm -rf "${TEMP_DIR}"
+    exit 1
+fi
 
 # Check ledger conversion result (ledger is the required primary collection)
 LEDGER_STATUS=$(cat "${TEMP_DIR}/ledger.status" 2>/dev/null || echo "FAILED")
