@@ -1383,6 +1383,19 @@ func assertAdvancedLegOps(t *testing.T, ops []operationEconomicRow, want map[str
 	}
 }
 
+// directAdvancedLegOps is the settled operation set advancedLegV2Body produces on the DIRECT
+// action: each source moved by its own explicit-amount leg, each destination by its own share
+// leg. Shared by every subject that commits that body on that action, so the expectation exists
+// once and cannot drift between them.
+func directAdvancedLegOps() map[string]advancedLegExpectation {
+	return map[string]advancedLegExpectation{
+		"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(60)},
+		"@srcB": {opType: cn.DEBIT, amount: decimal.NewFromInt(40)},
+		"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(50)},
+		"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(50)},
+	}
+}
+
 // =============================================================================
 // 12. ADVANCED (LEG-ARRAY) FORM ACROSS ALL FOUR CREATE ACTIONS: `direct`, `hold`, `block` and
 //     `unblock` all accept the leg-array body and commit it, because all four share one
@@ -1406,12 +1419,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 			name:       "direct settles every leg with plain debit and credit labels",
 			url:        v2DirectURL,
 			wantStatus: cn.APPROVED,
-			wantOps: map[string]advancedLegExpectation{
-				"@srcA": {opType: cn.DEBIT, amount: decimal.NewFromInt(60)},
-				"@srcB": {opType: cn.DEBIT, amount: decimal.NewFromInt(40)},
-				"@dstA": {opType: cn.CREDIT, amount: decimal.NewFromInt(50)},
-				"@dstB": {opType: cn.CREDIT, amount: decimal.NewFromInt(50)},
-			},
+			wantOps:    directAdvancedLegOps(),
 		},
 		{
 			// A hold reserves the sources only; the destination credit lands on commit, so a
@@ -2586,4 +2594,205 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 
 		assertAliasBalances(t, infra.pgContainer.DB, surface.balances, untouched, surface.name)
 	}
+}
+
+// advancedLegPermutedV2Body is advancedLegV2Body with its two source legs written in the
+// opposite order. Economically it is the same transaction; as bytes it is a different request.
+const advancedLegPermutedV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
+	`"sources":[{"account":"@srcB","amount":"40"},{"account":"@srcA","amount":"60"}],` +
+	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+
+// responseOperationsByAliasAndType projects a transaction RESPONSE's operations array into a map
+// keyed by "<accountAlias>/<type>", each value the operation object with its identity, timestamp
+// and route keys stripped by stripVolatile — so what remains is the economic content of the leg.
+// It is the response-JSON counterpart of operationsByAliasAndType, which does the same join over
+// the persisted rows; the two cannot share an implementation because they read different shapes.
+//
+// Keying by (alias, type) rather than comparing the arrays index-for-index keeps the comparison
+// independent of the order the operations are serialised in.
+func responseOperationsByAliasAndType(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+
+	ops, ok := resp["operations"].([]any)
+	require.True(t, ok, "a committed transaction response must carry an operations array")
+	require.NotEmpty(t, ops, "a committed transaction response must carry at least one operation")
+
+	out := make(map[string]any, len(ops))
+
+	for _, raw := range ops {
+		op, isObject := raw.(map[string]any)
+		require.True(t, isObject, "each response operation must decode as an object")
+
+		alias, hasAlias := op["accountAlias"].(string)
+		require.True(t, hasAlias, "each response operation must carry a string accountAlias")
+
+		opType, hasType := op["type"].(string)
+		require.True(t, hasType, "each response operation must carry a string type")
+
+		key := alias + "/" + opType
+
+		_, dup := out[key]
+		require.Falsef(t, dup, "two response operations share alias %s and type %s", alias, opType)
+
+		out[key] = stripVolatile(op)
+	}
+
+	return out
+}
+
+// =============================================================================
+// 23. ADVANCED (LEG-ARRAY) IDEMPOTENCY OVER REAL REDIS: an advanced body replayed under the
+//     SAME X-Idempotency key returns the FIRST transaction — with its FULL per-leg projection,
+//     not just its id — and creates no second transaction. The per-leg claim is what separates
+//     a multi-leg replay from a scalar one: a replay that re-resolved the legs, or resolved only
+//     some of them, would still satisfy an id-only assertion while handing the client a different
+//     economic answer under the same id. The hash source is exercised through the HTTP surface
+//     and never recomputed here, so the seam the four create actions share stays under test.
+//
+//     A second subject records the present behaviour of the no-key hash: it is taken over the RAW
+//     body bytes, so permuting the leg array — the same transaction economically — is a different
+//     byte sequence and lands in its own slot. That follows from where the hash is taken; it is
+//     NOT a semantic guarantee that leg order is part of a request's identity.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
+	t.Run("replay returns the first transaction leg for leg", func(t *testing.T) {
+		// NOT parallel: process-global huma state (see file header).
+		t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+		infra := setupTestInfra(t)
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+		ctx := context.Background()
+
+		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+		v2App := buildHumaV2DirectApp(t, infra.handler)
+		url := v2DirectURL(infra.orgID, infra.ledgerID)
+		idempotencyKey := uuid.NewString()
+
+		first := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
+		assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first advanced call must not be a replay")
+
+		firstTxID := firstResult["id"].(string)
+
+		// Wait for the async idempotency-value store before replaying (see helper doc).
+		waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
+
+		second := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
+
+		assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical advanced call must be a replay")
+		assert.Equal(t, firstTxID, secondResult["id"].(string), "replay must return the FIRST transaction's id")
+
+		// All four legs must come back with identical economic content, joined by (alias, type) so
+		// serialisation order does not enter the comparison. Read before anything else touches the
+		// two response maps, because stripVolatile mutates in place.
+		require.Equal(t, responseOperationsByAliasAndType(t, firstResult), responseOperationsByAliasAndType(t, secondResult),
+			"the replay must return the first transaction's per-leg projection, leg for leg")
+
+		assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+			"an idempotent advanced replay must NOT create a second transaction")
+
+		// The ledger holds exactly the first transaction's four legs, and the money moved once.
+		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+		assertAdvancedLegOps(t, fetchOperationRows(t, infra.pgContainer.DB, uuid.MustParse(firstTxID)), directAdvancedLegOps())
+		assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+			"@srcA": 940,
+			"@srcB": 960,
+			"@dstA": 50,
+			"@dstB": 50,
+		}, "advanced replay")
+	})
+
+	t.Run("permuting the leg array is a different no-key slot", func(t *testing.T) {
+		// NOT parallel: process-global huma state (see file header).
+		t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+		infra := setupTestInfra(t)
+		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+		ctx := context.Background()
+
+		// Both sources are seeded well above the sum of the two commits below, so neither
+		// transaction can be turned back by the funds guard.
+		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+		v2App := buildHumaV2DirectApp(t, infra.handler)
+		url := v2DirectURL(infra.orgID, infra.ledgerID)
+
+		// No X-Idempotency header on either call, so each derives its key from its own body bytes.
+		firstResult := decodeTxResponse(t, postTransaction(t, v2App, url, advancedLegV2Body, ""), nethttp.StatusCreated)
+
+		permuted := postTransaction(t, v2App, url, advancedLegPermutedV2Body, "")
+		permutedResult := decodeTxResponse(t, permuted, nethttp.StatusCreated)
+
+		assert.Equal(t, "false", permuted.Header.Get("X-Idempotency-Replayed"),
+			"the permuted body hashes to its own slot, so it must not replay the original")
+		assert.NotEqual(t, firstResult["id"].(string), permutedResult["id"].(string),
+			"a permuted leg array is a distinct byte sequence and therefore a distinct transaction")
+		assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+			"both bodies must commit: the raw-body hash does not canonicalise leg order")
+
+		// The two commits are economically identical, so every account moved twice by the same
+		// leg — the permutation changed the request identity, not the accounting.
+		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+		assertAliasBalances(t, infra.pgContainer.DB, advancedLegBalanceIDs(balances), map[string]int64{
+			"@srcA": 880,
+			"@srcB": 920,
+			"@dstA": 100,
+			"@dstB": 100,
+		}, "permuted advanced")
+	})
+}
+
+// =============================================================================
+// 24. ADVANCED (LEG-ARRAY) DIRECT↔HOLD NO-KEY CROSS-DEDUP: the v2 action is carried by the
+//     ENDPOINT, not the body, so a byte-identical ADVANCED body posted to /direct and then to
+//     /hold in the same org/ledger with NO X-Idempotency header must not cross-replay. Subject 9
+//     makes this claim for the scalar body; the delta here is that the leg-array spelling — a
+//     longer, structurally richer byte sequence feeding the same hash source — keeps the two
+//     actions in distinct slots, so two DISTINCT transactions land with their own statuses.
+// =============================================================================
+
+func TestIntegration_TransactionV2Advanced_DirectHoldNoKeyCrossDedup(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	// Each source is seeded well above its direct leg plus its hold reservation, so both actions
+	// clear the funds guard and reach persistence.
+	seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
+	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "the advanced direct create must not be a replay")
+
+	directTxID := uuid.MustParse(directResult["id"].(string))
+
+	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
+	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
+		"the advanced hold create must NOT replay the advanced direct transaction (distinct action identity, distinct slot)")
+
+	holdTxID := uuid.MustParse(holdResult["id"].(string))
+
+	assert.NotEqual(t, directTxID, holdTxID,
+		"an identical advanced body posted to /direct and /hold must create two DISTINCT transactions")
+
+	// Distinct statuses: the direct settles immediately, the hold stays PENDING.
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, directTxID),
+		"the advanced direct transaction should be APPROVED, not PENDING")
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, holdTxID),
+		"the advanced hold transaction should be PENDING")
+
+	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+		"an advanced direct + hold with an identical no-key body must persist two transactions, not replay one")
 }
