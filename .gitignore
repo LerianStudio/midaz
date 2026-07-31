@@ -13,6 +13,7 @@ tmp/
 .run/transaction.run.xml
 .ring/
 docs/ring*/
+.worktrees/
 
 # OS generated files
 .DS_Store
