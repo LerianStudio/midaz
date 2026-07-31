@@ -5,6 +5,7 @@
 package mtransaction
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -57,10 +58,10 @@ type CreateTransactionV2Input struct {
 	// The json tag carries no `omitempty` for the same reason as From: an explicit
 	// `"sources": []` stays a KNOWN field and is answered with the side error.
 	// `required:"false"` keeps the published schema from declaring the array form
-	// mandatory. `max=500` bounds the per-side leg count, which is what keeps a
-	// request off the create funnel's quadratic per-leg passes — the byte ceiling
-	// alone admits tens of thousands of legs. `dive` is what makes the per-leg tags
-	// apply to each element.
+	// mandatory. `max=500` bounds the per-side leg count, which nothing else does: the
+	// request-body byte ceiling alone admits tens of thousands of legs, and each one
+	// carries its own downstream cost. `dive` is what makes the per-leg tags apply to
+	// each element.
 	Sources []V2LegInput `json:"sources" validate:"max=500,dive" required:"false"`
 
 	// Destinations are the credit legs of the array form. Mutually exclusive with
@@ -106,29 +107,69 @@ type V2LegInput struct {
 }
 
 // V2ShareInput expresses a leg's value as a percentage of the transaction total.
+//
+// Both fields are capped at 100. That is stricter than the detailed transaction body, which
+// bounds neither and therefore accepts a share of 200%. The divergence is deliberate: the bounds
+// live on this surface's own fields, so a body the detailed surface accepts keeps its meaning
+// there — the two are different endpoints, and only the new one can afford the tighter contract.
 type V2ShareInput struct {
 	// Percentage is the leg's share of the transaction total, in percent. It must be
 	// positive: a zero share moves nothing while the transaction still commits, and a
 	// negative one inverts the leg's accounting direction.
-	Percentage int64 `json:"percentage" validate:"required,gt=0"`
+	//
+	// The upper bound is 100 because a side's legs have to sum to the transaction total, so
+	// a single leg claiming more than the total can never balance — `gt=0` on its siblings
+	// leaves nothing that could offset it. Capping it as a tag rejects that at the decode
+	// boundary, where the rejection names the offending leg.
+	//
+	// The `minimum`/`maximum` tags publish the same bounds in the contract, so a client reads
+	// them instead of discovering them by rejection. They do not enforce anything: the create
+	// ops decode the body imperatively, so the `validate` tags are the only evaluated ones.
+	Percentage int64 `json:"percentage" validate:"required,gt=0,lte=100" example:"60" minimum:"1" maximum:"100"`
 
-	// PercentageOfPercentage narrows Percentage to a fraction of itself, in
-	// percent, mirroring the canonical share semantics.
-	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty" validate:"omitempty,gte=0,lte=100"`
+	// PercentageOfPercentage narrows Percentage, in percent: 25 against a Percentage of 60
+	// yields 15% of the transaction total.
+	//
+	// ZERO MEANS NO NARROWING, not a zero share. On an int64 it is indistinguishable from
+	// the field being omitted, and omitted has to mean "take the whole Percentage", so a leg
+	// that spells 0 gets the full Percentage. Rejecting 0 instead would reject every body
+	// that leaves the field out.
+	//
+	// The upper bound is 100 because a factor above 100 widens rather than narrows: a leg
+	// reading as "half, of which 200%" would move the whole total. Published in the contract
+	// for the same reason as Percentage's.
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty" validate:"omitempty,gte=0,lte=100" example:"50" minimum:"0" maximum:"100"`
 }
 
-// legAliasForbiddenChar is the one character a v2 leg alias may not contain. A leg
-// alias is rewritten into the composite "index#alias#balanceKey" form before the
-// funnel keys its per-leg map on it, and an alias that already looks composite keeps
-// the spelling the client sent — so two legs can be forged onto ONE map key, where
-// the last write wins and the difference is minted. Only this character can make an
-// alias look composite, so rejecting it closes the vector.
+// v2AliasForbiddenChar is the one character a v2 account alias may not contain, on either
+// spelling of either side — the two scalar fields as much as the two leg arrays.
 //
-// The narrow guard is deliberate: the registered alias charset would close this too,
-// but it also excludes `/` and would therefore reject `@external/<ASSET>`, the alias
-// every ledger's external account carries and the only way to spell funding or
-// withdrawal on a surface with no inflow/outflow action.
-const legAliasForbiddenChar = '#'
+// An alias is rewritten into the composite "index#alias#balanceKey" form before downstream code
+// keys its per-entry maps on it, and isConcatedAlias leaves an alias that already looks composite
+// spelled exactly as the client sent it. A client-supplied composite alias therefore reaches
+// those maps unmutated, where it can collide with another entry's key or match none of them —
+// either way an entry is lost, and a transaction that loses one side's entry moves value in one
+// direction only.
+//
+// It is AliasSeparator because that is the character the composite form is built and parsed
+// with; deriving it is what keeps the guard and the format from drifting apart.
+//
+// The narrow guard is deliberate: the registered alias charset would close this too, but it
+// also excludes `/` and would therefore reject `@external/<ASSET>`, the alias every ledger's
+// external account carries and the only way to spell funding or withdrawal on a surface with no
+// inflow/outflow action.
+const v2AliasForbiddenChar = AliasSeparator
+
+// validateV2Alias rejects an alias carrying v2AliasForbiddenChar. Every alias the v2 surface
+// accepts routes through here, so no spelling of either side can reach the funnel with an alias
+// that can be forged onto another entry's map key.
+func validateV2Alias(alias string) error {
+	if strings.ContainsRune(alias, v2AliasForbiddenChar) {
+		return pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
+	}
+
+	return nil
+}
 
 // Translate converts the flat v2 input into the canonical Transaction. The
 // pending flag encodes the action intent (direct=false, hold=true) and is set by
@@ -146,11 +187,10 @@ const legAliasForbiddenChar = '#'
 // request-level route. Nil route pointers stay nil so downstream ledger settings
 // resolve defaults.
 //
-// Two validations deliberately stay OUT of here and belong to the create funnel,
-// which owns the value resolution both would have to duplicate: whether the legs
-// sum to the transaction total, and whether two legs in the array spelling name the
-// same account. The scalar From == To check below stays because comparing a single
-// pair costs nothing.
+// Whether the legs sum to the transaction total is NOT checked here: that comparison needs the
+// resolved per-leg values, which Translate does not compute — it only carries each leg's value
+// expression forward. The scalar From == To check below stays because comparing a single pair
+// costs nothing.
 func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, error) {
 	if err := in.validateSideSpelling(); err != nil {
 		return Transaction{}, err
@@ -225,8 +265,15 @@ func validateSideSpelledOnce(alias string, hasLegs bool, fieldNames string) erro
 // scalar spelling and yields a single leg carrying the whole transaction total;
 // otherwise each entry yields its own leg. fieldName names the side's leg array in
 // the per-leg error messages.
+//
+// The alias guard runs on BOTH spellings. The scalar alias arrives straight off the request
+// with no per-leg tag behind it, so this is the only place it is checked at all.
 func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, total decimal.Decimal, isFrom bool, fieldName string) ([]FromTo, error) {
 	if len(legs) == 0 {
+		if err := validateV2Alias(alias); err != nil {
+			return nil, err
+		}
+
 		return []FromTo{{
 			AccountAlias: alias,
 			Amount:       &Amount{Asset: in.Asset, Value: total},
@@ -237,8 +284,8 @@ func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, to
 
 	out := make([]FromTo, 0, len(legs))
 
-	for _, leg := range legs {
-		built, err := in.buildLeg(leg, isFrom, fieldName)
+	for i, leg := range legs {
+		built, err := in.buildLeg(leg, isFrom, legReference(fieldName, i))
 		if err != nil {
 			return nil, err
 		}
@@ -249,15 +296,30 @@ func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, alias string, to
 	return out, nil
 }
 
-// buildLeg maps one array entry onto a canonical leg. The entry must name an alias
-// free of legAliasForbiddenChar and fill exactly one of the two value expressions;
-// the shared invalid-transaction-type error is the same one the v1 detailed body
-// raises for the latter rule, so both surfaces reject it identically. That the entry
-// names an account AT ALL is a struct tag rather than a check here, so the rejection
-// names the offending leg by index.
-func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, fieldName string) (FromTo, error) {
-	if strings.ContainsRune(leg.Account, legAliasForbiddenChar) {
-		return FromTo{}, pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
+// legReference spells the indexed reference to one entry of a side, matching the shape the
+// decoder's per-leg tag rejections use, so a caller at the 500-leg cap can locate the entry
+// from either class of error.
+func legReference(fieldName string, i int) string {
+	return fieldName + "[" + strconv.Itoa(i) + "]"
+}
+
+// buildLeg maps one array entry onto a canonical leg. The entry must name an alias, that alias
+// must be free of v2AliasForbiddenChar, and exactly one of the two value expressions must be
+// filled. legRef is the indexed reference to the entry, which the rejections carry so a caller
+// can locate it.
+//
+// The account obligation is enforced here AND as a `required` struct tag. They are
+// complementary, not redundant: only the tag can name the offending entry by index in a
+// missing-field rejection, and only this check covers a caller that builds the input in Go and
+// never runs it through the decoder — Translate is exported from a shared package, and an empty
+// alias reaching the funnel names no account at all.
+func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef string) (FromTo, error) {
+	if leg.Account == "" {
+		return FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".account")
+	}
+
+	if err := validateV2Alias(leg.Account); err != nil {
+		return FromTo{}, err
 	}
 
 	expressions := 0
@@ -271,7 +333,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, fieldNa
 	}
 
 	if expressions != 1 {
-		return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction, fieldName)
+		return FromTo{}, invalidLegExpression(legRef)
 	}
 
 	route := leg.OperationRouteID
@@ -298,9 +360,24 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, fieldNa
 			Percentage:             leg.Share.Percentage,
 			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
 		}
+	default:
+		// Unreachable while the count guard above and this switch test the same two
+		// expressions. It is here so a THIRD expression added to the leg cannot fall
+		// through and produce a leg with no value at all, which reads as a valid entry
+		// and moves nothing.
+		return FromTo{}, invalidLegExpression(legRef)
 	}
 
 	return built, nil
+}
+
+// invalidLegExpression rejects an entry that does not fill exactly one value expression. The
+// message names the two expressions a v2 leg accepts; the sentinel is shared with the detailed
+// transaction body, which accepts a third, so the option set has to be passed rather than
+// assumed.
+func invalidLegExpression(legRef string) error {
+	return pkg.ValidateBusinessError(constant.ErrInvalidTransactionType, constant.EntityTransaction,
+		constant.TransactionTypeOptionsLeg, legRef)
 }
 
 // cloneStringPtr returns an independent copy of p, or nil when p is nil, so

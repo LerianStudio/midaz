@@ -150,13 +150,13 @@ func AliasKey(alias, balanceKey string) string {
 		balanceKey = "default"
 	}
 
-	return alias + "#" + balanceKey
+	return alias + AliasSeparatorString + balanceKey
 }
 
 // SplitAlias function to split alias with index
 func SplitAlias(alias string) string {
-	if strings.Contains(alias, "#") {
-		return strings.Split(alias, "#")[1]
+	if strings.Contains(alias, AliasSeparatorString) {
+		return strings.Split(alias, AliasSeparatorString)[1]
 	}
 
 	return alias
@@ -164,7 +164,7 @@ func SplitAlias(alias string) string {
 
 // ConcatAlias function to concat alias with index
 func ConcatAlias(i int, alias string) string {
-	return strconv.Itoa(i) + "#" + alias
+	return strconv.Itoa(i) + AliasSeparatorString + alias
 }
 
 // OperateBalances Function to sum or sub two balances and Normalize the scale.

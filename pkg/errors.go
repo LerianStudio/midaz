@@ -892,7 +892,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidTransactionType.Error(),
 			Title:      "Invalid Transaction Type",
-			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
+			// Takes the accepted option set as its FIRST argument (see
+			// constant.TransactionTypeOptions*) because the sentinel is shared by
+			// surfaces that accept different expressions, and the second as the field
+			// reference. Naming an expression the rejecting surface does not accept
+			// steers the caller into resubmitting something answered with a different
+			// rejection.
+			Message: fmt.Sprintf("Only one transaction type (%v) must be specified in the '%v' field for each entry. Please review your input and try again.", args...),
 		},
 		constant.ErrMutuallyExclusiveTransactionFields: ValidationError{
 			EntityType: entityType,

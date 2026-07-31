@@ -227,7 +227,7 @@ func ValidateStruct(s any) error {
 			case "nonested":
 				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 			case "singletransactiontype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
+				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
 			case "invalidaliascharacters":
 				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
 			case "invalidaccounttype":

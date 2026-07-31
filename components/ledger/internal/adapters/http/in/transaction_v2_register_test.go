@@ -5,8 +5,11 @@
 package in
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -298,6 +302,13 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	require.NotEmptyf(t, schema.Description,
 		"%s is the only place the scalar-or-arrays exclusivity can be stated", v2CreateBodySchemaName)
 
+	// A side field submitted as an explicit null is rejected: dropping json `omitempty` makes
+	// the decoder's re-marshal always emit the key, so a submitted null never matches the
+	// emitted empty value. The published description is the only place a client can learn
+	// that omitting the field is the way to leave a side unspelled.
+	assert.Containsf(t, schema.Description, "null",
+		"%s description should state that an explicit null side field is rejected", v2CreateBodySchemaName)
+
 	for _, field := range v2CreateBodySideFields {
 		t.Run(field, func(t *testing.T) {
 			t.Parallel()
@@ -312,12 +323,13 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	}
 }
 
-// TestRegisterTransactionV2Routes_CreateOpsCapBodyBytes asserts the four body-carrying create
-// ops state their own request-body byte ceiling. Huma applies its 1 MiB default only to ops
-// that declare a typed `Body` field; the v2 create ops carry `RawBody`, which leaves
-// MaxBodyBytes at zero and the read unbounded. The bodiless lifecycle ops advertise no body,
-// so they carry no ceiling.
-func TestRegisterTransactionV2Routes_CreateOpsCapBodyBytes(t *testing.T) {
+// TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads asserts the four body-carrying create
+// ops state BOTH bounds on their request-body read: the byte ceiling and the read deadline.
+// Huma applies its defaults for either one only to ops that declare a typed `Body` field; the
+// v2 create ops carry `RawBody`, so without explicit values the read is unbounded in size and
+// has no deadline, and a client that opens a request and stalls holds a worker indefinitely on
+// the money path. The bodiless lifecycle ops advertise no body, so they carry neither bound.
+func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 	t.Parallel()
 
 	paths := registerV2TransactionContractForTest().Paths
@@ -333,14 +345,166 @@ func TestRegisterTransactionV2Routes_CreateOpsCapBodyBytes(t *testing.T) {
 			if !rt.hasBody {
 				assert.Zerof(t, pathItem.Post.MaxBodyBytes,
 					"bodiless lifecycle op %s needs no body ceiling", rt.action)
+				assert.Zerof(t, pathItem.Post.BodyReadTimeout,
+					"bodiless lifecycle op %s needs no body read deadline", rt.action)
 
 				return
 			}
 
 			assert.EqualValuesf(t, v2CreateMaxBodyBytes, pathItem.Post.MaxBodyBytes,
 				"%s op must state its request-body ceiling instead of reading an unbounded body", rt.action)
+			assert.Equalf(t, v2CreateBodyReadTimeout, pathItem.Post.BodyReadTimeout,
+				"%s op must state its body read deadline instead of reading with none", rt.action)
+			assert.Positivef(t, pathItem.Post.BodyReadTimeout,
+				"%s op body read deadline must be a real deadline, not disabled", rt.action)
 		})
 	}
+}
+
+// TestV2CreateOps_OversizedBodyCarriesCanonicalCode drives a real oversized POST through the
+// mounted Fiber chain and asserts the answer is a 413 carrying the canonical payload-too-large
+// code, like every other v2 rejection.
+//
+// Asserting the registered MaxBodyBytes value proves only that the ceiling is declared. Huma
+// enforces the same ceiling on its own read, but raises it as an internal error that renders
+// without a `code` and spells the byte figure out in the detail — so enforcement has to be
+// exercised end-to-end, and the response body inspected, to know which layer answered.
+func TestV2CreateOps_OversizedBodyCarriesCanonicalCode(t *testing.T) {
+	t.Parallel()
+
+	app := registerV2TransactionRoutesForTest(&middleware.AuthClient{Enabled: false})
+
+	// One byte past the declared ceiling: large enough that no layer can accept it, and the
+	// payload itself stays valid JSON so nothing else can reject it first.
+	oversized := oversizedV2CreateBody(v2CreateMaxBodyBytes + 1)
+
+	for _, rt := range v2Routes {
+		if !rt.hasBody {
+			continue
+		}
+
+		t.Run(rt.action, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, concreteV2Path(rt.fiberPath), strings.NewReader(oversized))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equalf(t, fiber.StatusRequestEntityTooLarge, resp.StatusCode,
+				"an oversized v2 %s body must be rejected as request-entity-too-large, got: %s", rt.action, raw)
+
+			var body map[string]any
+			require.NoErrorf(t, json.Unmarshal(raw, &body), "response must be JSON, got: %s", raw)
+
+			assert.Equalf(t, constant.ErrPayloadTooLarge.Error(), body["code"],
+				"the v2 %s oversized-body rejection must carry the canonical payload-too-large code", rt.action)
+
+			detail, _ := body["detail"].(string)
+			assert.NotContainsf(t, detail, strconv.FormatInt(v2CreateMaxBodyBytes, 10),
+				"the v2 %s rejection must not publish the configured byte ceiling", rt.action)
+			assert.NotContainsf(t, detail, "limit=",
+				"the v2 %s rejection must not leak the internal limit phrasing", rt.action)
+		})
+	}
+}
+
+// TestV2CreateBodyLimit_Boundary drives the guard in isolation, with a sentinel terminal behind
+// it, so both sides of the boundary are observable. The end-to-end sweep above proves the guard
+// is wired onto every create route but cannot exercise the accepting side: a body that passes
+// reaches the real terminal.
+//
+// The rejecting threshold is `>=` deliberately. Huma enforces the same ceiling on its own read
+// and rejects a read that fills the limit EXACTLY, so a guard using `>` would hand the
+// exactly-at-the-ceiling body to the layer that renders without a code — which is the whole
+// defect being fixed.
+func TestV2CreateBodyLimit_Boundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		size       int64
+		wantPassed bool
+	}{
+		{name: "well under the ceiling", size: 1024, wantPassed: true},
+		{name: "one byte under the ceiling", size: v2CreateMaxBodyBytes - 1, wantPassed: true},
+		{name: "exactly at the ceiling", size: v2CreateMaxBodyBytes},
+		{name: "one byte over the ceiling", size: v2CreateMaxBodyBytes + 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			const sentinelStatus = http.StatusTeapot
+
+			// The terminal echoes the body length it can still read, so a guard that
+			// consumed the body while measuring it would show up as a short read here
+			// rather than as a mystery decode failure further in.
+			var seenBySuccessor int
+
+			app := fiber.New()
+			app.Post("/probe", v2CreateBodyLimit, func(c fiber.Ctx) error {
+				seenBySuccessor = len(c.Body())
+
+				return c.SendStatus(sentinelStatus)
+			})
+
+			body := oversizedV2CreateBody(tt.size)
+			require.EqualValues(t, tt.size, len(body), "the padded body must be exactly the requested size")
+
+			req := httptest.NewRequest(http.MethodPost, "/probe", strings.NewReader(body))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			if tt.wantPassed {
+				assert.Equal(t, sentinelStatus, resp.StatusCode,
+					"a body under the ceiling must reach the terminal")
+				assert.Equal(t, len(body), seenBySuccessor,
+					"the guard must leave the whole body readable by the terminal behind it")
+
+				return
+			}
+
+			assert.Equal(t, fiber.StatusRequestEntityTooLarge, resp.StatusCode,
+				"a body at or past the ceiling must be rejected by the guard")
+
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var problem map[string]any
+			require.NoErrorf(t, json.Unmarshal(raw, &problem), "response must be JSON, got: %s", raw)
+
+			assert.Equal(t, constant.ErrPayloadTooLarge.Error(), problem["code"],
+				"the rejection must carry the canonical payload-too-large code")
+
+			detail, _ := problem["detail"].(string)
+			assert.NotEmpty(t, detail, "the rejection must carry a human-readable detail")
+			assert.NotContains(t, detail, strconv.FormatInt(v2CreateMaxBodyBytes, 10),
+				"the rejection must not publish the configured byte ceiling")
+		})
+	}
+}
+
+// oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size
+// bytes with a single description field, so the only thing a rejection can be about is length.
+func oversizedV2CreateBody(size int64) string {
+	const prefix = `{"asset":"BRL","amount":"100","from":"@a","to":"@b","description":"`
+	const suffix = `"}`
+
+	padding := size - int64(len(prefix)) - int64(len(suffix))
+
+	return prefix + strings.Repeat("x", int(padding)) + suffix
 }
 
 // TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions asserts the published

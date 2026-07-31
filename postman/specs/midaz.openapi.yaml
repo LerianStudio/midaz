@@ -10222,10 +10222,11 @@ components:
         Transaction request body. Each side of the transaction is spelled EITHER
         with its scalar field (`from`, `to`) OR with its leg array (`sources`,
         `destinations`) — never both on the same side, though the two sides may
-        choose differently. `asset`, `amount`, `description`, `code`, `routeId`,
-        `operationRouteId` and `metadata` are common to both forms, and `amount`
-        is always the transaction total that the legs' `share` expressions
-        divide. Each leg array holds at most 500 legs.
+        choose differently. Leave the spelling you are not using OUT of the
+        body: an explicit `null` is rejected. `asset`, `amount`, `description`,
+        `code`, `routeId`, `operationRouteId` and `metadata` are common to both
+        forms, and `amount` is always the transaction total that the legs'
+        `share` expressions divide. Each leg array holds at most 500 legs.
       properties:
         amount:
           type: string
@@ -10293,10 +10294,18 @@ components:
       additionalProperties: false
       properties:
         percentage:
+          examples:
+            - 60
           format: int64
+          maximum: 100
+          minimum: 1
           type: integer
         percentageOfPercentage:
+          examples:
+            - 50
           format: int64
+          maximum: 100
+          minimum: 0
           type: integer
       required:
         - percentage

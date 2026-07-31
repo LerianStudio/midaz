@@ -169,65 +169,32 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_GroupFieldTags locks the struct-tag shape of the two
-// discriminated side groups. Every tag asserted here is load-bearing:
+// TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape asserts the four side fields are
+// typed independently of the canonical transaction: two plain strings and two slices of the v2
+// leg type. Embedding a canonical or mmodel type here would leak domain evolution straight onto
+// the published wire contract, and nothing else in the suite would notice — the shapes coincide
+// today, so every behavioural test would still pass.
 //
-//   - `from`/`to` carry no `validate:"required"`: a struct tag cannot express
-//     "exactly one of a pair", so the side obligation is decided in Translate.
-//   - NO side field carries json `omitempty`: an explicit `"from": ""` or
-//     `"sources": []` would otherwise vanish from the unknown-field re-marshal and be
-//     rejected as an unknown field instead of reaching the side discriminator.
-//   - EVERY side field carries `required:"false"`: dropping `omitempty` is what
-//     normally keeps a field out of the published `required` list, so without the
-//     explicit tag the contract would declare one spelling mandatory.
-//   - `sources`/`destinations` carry `validate:"max=500,dive"`: the cap bounds the
-//     per-side leg count, and without `dive` the per-leg tags — the leg's
-//     `validate:"required"` account and `validate:"omitempty,uuid"` route — are never
-//     evaluated.
-func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
+// The tag assertions this test used to carry were dropped. Each tag it pinned has a behavioural
+// sibling that fails for the same change, which makes a reflective restatement a change detector
+// rather than a second guarantee: no json `omitempty` is proved by
+// TestCreateTransactionV2Input_EmptyScalarSideIsAKnownField, `required:"false"` by the
+// contract's required-list assertions, `dive` by TestV2LegInput_AccountRequiredByTag, and
+// `max=500` by TestCreateTransactionV2Input_LegArrayCap. The field TYPE has no such sibling,
+// which is why it stays.
+func TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape(t *testing.T) {
 	t.Parallel()
 
 	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
-	legSliceType := reflect.TypeFor[[]mtransaction.V2LegInput]()
 
 	tests := []struct {
-		field           string
-		wantType        reflect.Type
-		wantJSON        string
-		wantValidate    string
-		wantRequiredTag string
-		hasRequiredTag  bool
+		field    string
+		wantType reflect.Type
 	}{
-		{
-			field:           "From",
-			wantType:        reflect.TypeFor[string](),
-			wantJSON:        "from",
-			wantRequiredTag: "false",
-			hasRequiredTag:  true,
-		},
-		{
-			field:           "To",
-			wantType:        reflect.TypeFor[string](),
-			wantJSON:        "to",
-			wantRequiredTag: "false",
-			hasRequiredTag:  true,
-		},
-		{
-			field:           "Sources",
-			wantType:        legSliceType,
-			wantJSON:        "sources",
-			wantValidate:    "max=500,dive",
-			wantRequiredTag: "false",
-			hasRequiredTag:  true,
-		},
-		{
-			field:           "Destinations",
-			wantType:        legSliceType,
-			wantJSON:        "destinations",
-			wantValidate:    "max=500,dive",
-			wantRequiredTag: "false",
-			hasRequiredTag:  true,
-		},
+		{field: "From", wantType: reflect.TypeFor[string]()},
+		{field: "To", wantType: reflect.TypeFor[string]()},
+		{field: "Sources", wantType: reflect.TypeFor[[]mtransaction.V2LegInput]()},
+		{field: "Destinations", wantType: reflect.TypeFor[[]mtransaction.V2LegInput]()},
 	}
 
 	for _, tt := range tests {
@@ -236,13 +203,8 @@ func TestCreateTransactionV2Input_GroupFieldTags(t *testing.T) {
 
 			field, ok := inputType.FieldByName(tt.field)
 			require.Truef(t, ok, "CreateTransactionV2Input should carry a %s field", tt.field)
-			assert.Equalf(t, tt.wantType, field.Type, "%s should mirror the v2 leg shape, not a canonical type", tt.field)
-			assert.Equalf(t, tt.wantJSON, field.Tag.Get("json"), "%s json tag", tt.field)
-			assert.Equalf(t, tt.wantValidate, field.Tag.Get("validate"), "%s validate tag", tt.field)
-
-			requiredTag, present := field.Tag.Lookup("required")
-			assert.Equalf(t, tt.hasRequiredTag, present, "%s required tag presence", tt.field)
-			assert.Equalf(t, tt.wantRequiredTag, requiredTag, "%s required tag value", tt.field)
+			assert.Equalf(t, tt.wantType, field.Type,
+				"%s must mirror the v2 wire shape explicitly, not embed a canonical type", tt.field)
 		})
 	}
 }
@@ -755,22 +717,19 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantValidationError: true,
 		},
 		{
-			// The leg account obligation is a struct tag on V2LegInput, enforced at the
-			// decode boundary where the rejection can name the offending leg index (see
-			// TestV2LegInput_AccountRequiredByTag). Translate itself is permissive, so a
-			// caller reaching it without validating first gets an empty alias, not an
-			// error. Pinned so the guard cannot silently move back down here.
-			name: "leg without an account is not Translate's rule",
+			// The leg account obligation is enforced BOTH by the struct tag at the decode
+			// boundary and here, because Translate is exported from a shared package: a
+			// caller that assembles the input in Go and skips the decoder gets no tag
+			// evaluation, and an empty alias reaching the funnel names no account at all.
+			name: "leg without an account is rejected",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
 			),
-			verify: func(t *testing.T, got mtransaction.Transaction) {
-				t.Helper()
-
-				require.Len(t, got.Send.Source.From, 1)
-				assert.Empty(t, got.Send.Source.From[0].AccountAlias)
-			},
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "sources[0].account",
 		},
 		{
 			// Both spellings on the SOURCE side: the side has no single reading, so it is
@@ -865,7 +824,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
 			wantValidationError: true,
-			wantMessagePart:     "'sources'",
+			wantMessagePart:     "'sources[0]'",
 		},
 		{
 			name: "leg without any value expression is an invalid transaction type",
@@ -876,7 +835,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
 			wantValidationError: true,
-			wantMessagePart:     "'sources'",
+			wantMessagePart:     "'sources[0]'",
 		},
 		{
 			name: "destination leg without any value expression names the destinations field",
@@ -887,21 +846,18 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
 			wantValidationError: true,
-			wantMessagePart:     "'destinations'",
+			wantMessagePart:     "'destinations[0]'",
 		},
 		{
-			// The destination half of the same layer move.
-			name: "destination leg without an account is not Translate's rule",
+			name: "destination leg without an account is rejected",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
 				[]mtransaction.V2LegInput{{Amount: "1000"}},
 			),
-			verify: func(t *testing.T, got mtransaction.Transaction) {
-				t.Helper()
-
-				require.Len(t, got.Send.Distribute.To, 1)
-				assert.Empty(t, got.Send.Distribute.To[0].AccountAlias)
-			},
+			wantErr:             true,
+			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
+			wantValidationError: true,
+			wantMessagePart:     "destinations[0].account",
 		},
 		{
 			name: "non-numeric leg amount is a non-positive business error",
@@ -940,7 +896,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 
 					if tt.wantMessagePart != "" {
 						assert.Contains(t, vErr.Message, tt.wantMessagePart,
-							"the message must name the offending side so the caller knows which group to fix")
+							"the message must name the offending side AND leg index so the caller knows which entry to fix")
 					}
 
 					return

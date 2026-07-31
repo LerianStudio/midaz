@@ -148,19 +148,34 @@ type FromTo struct {
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
+// AliasSeparator is the character that separates the segments of the composite alias forms
+// this package builds and parses: "index#alias#balanceKey" for an entry key (ConcatAlias) and
+// "alias#balanceKey" for a balance lookup key (AliasKey).
+//
+// Every producer, parser, and guard derives from this one value. Spelling the character
+// literally at each site is what allowed one of them to move while the guard that rejects a
+// client-forged composite alias kept the old character — reopening the forgery it was added
+// to close, with its comment still claiming otherwise.
+const AliasSeparator = '#'
+
+// AliasSeparatorString is AliasSeparator as a string, for the strings-package helpers that
+// take one.
+const AliasSeparatorString = string(AliasSeparator)
+
 // SplitAlias function to split alias with index.
 func (ft FromTo) SplitAlias() string {
-	if strings.Contains(ft.AccountAlias, "#") {
-		return strings.Split(ft.AccountAlias, "#")[1]
+	if strings.Contains(ft.AccountAlias, AliasSeparatorString) {
+		return strings.Split(ft.AccountAlias, AliasSeparatorString)[1]
 	}
 
 	return ft.AccountAlias
 }
 
-// SplitAliasWithKey extracts the substring after the '#' character from the provided alias or returns the alias if '#' is not present.
+// SplitAliasWithKey extracts the substring after the first alias separator in the provided
+// alias, or returns the alias unchanged when it carries none.
 func SplitAliasWithKey(alias string) string {
-	if idx := strings.Index(alias, "#"); idx != -1 {
-		return alias[idx+1:]
+	if idx := strings.Index(alias, AliasSeparatorString); idx != -1 {
+		return alias[idx+len(AliasSeparatorString):]
 	}
 
 	return alias
@@ -174,18 +189,18 @@ func (ft FromTo) ConcatAlias(i int) string {
 		balanceKey = constant.DefaultBalanceKey
 	}
 
-	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + balanceKey
+	return strconv.Itoa(i) + AliasSeparatorString + ft.AccountAlias + AliasSeparatorString + balanceKey
 }
 
 // isConcatedAlias returns true if the alias is already in the composite
-// "index#alias#balanceKey" format (starts with a digit followed by #).
+// "index#alias#balanceKey" format (starts with a digit followed by the alias separator).
 func isConcatedAlias(alias string) bool {
 	if len(alias) < 2 {
 		return false
 	}
 
 	for i, c := range alias {
-		if c == '#' {
+		if c == AliasSeparator {
 			return i > 0
 		}
 
