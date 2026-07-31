@@ -7,7 +7,6 @@ package in
 import (
 	"net/http"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -71,7 +70,6 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
 		MaxBodyBytes:     v2CreateMaxBodyBytes,
-		BodyReadTimeout:  v2CreateBodyReadTimeout,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionDirectV2Huma)
 
@@ -84,7 +82,6 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
 		MaxBodyBytes:     v2CreateMaxBodyBytes,
-		BodyReadTimeout:  v2CreateBodyReadTimeout,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionHoldV2Huma)
 
@@ -97,7 +94,6 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
 		MaxBodyBytes:     v2CreateMaxBodyBytes,
-		BodyReadTimeout:  v2CreateBodyReadTimeout,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlockV2Huma)
 
@@ -110,7 +106,6 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
 		MaxBodyBytes:     v2CreateMaxBodyBytes,
-		BodyReadTimeout:  v2CreateBodyReadTimeout,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockV2Huma)
 
@@ -169,24 +164,9 @@ var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
 // body the field-level tags leave open, metadata key count and the unbounded individual fields
 // such as an account alias among them.
 //
-// v2CreateBodyLimit enforces it on the Fiber chain; the same value is declared on the Huma ops
-// so the contract states it and the read is bounded there too.
+// v2CreateBodyLimit enforces it on the Fiber chain; the ops declare the same value so Huma bounds
+// its own read too.
 const v2CreateMaxBodyBytes int64 = 1 << 20
-
-// v2CreateBodyReadTimeout is the body-read deadline the v2 create ops declare. It is stated here
-// for the same reason as v2CreateMaxBodyBytes: Huma defaults it only for ops that declare a typed
-// Body field, and the v2 ops carry RawBody.
-//
-// It does NOT bound a stalled client under this binary's Fiber configuration. humafiber applies
-// the deadline to the request connection only when the Fiber app runs with StreamRequestBody
-// enabled and a tiny BodyLimit; the app sets neither, so fasthttp has already buffered the whole
-// body before any handler runs and the deadline is set and cleared over a bytes.Reader that cannot
-// block. What the value does is publish the intended deadline on the op, and it would take effect
-// if the app were ever switched to streaming request bodies.
-//
-// 5 seconds matches Huma's own default for the ops it does default, which is ample for a body
-// bounded at v2CreateMaxBodyBytes.
-const v2CreateBodyReadTimeout = 5 * time.Second
 
 // v2CreateBodyDescription is the prose the published create-body component carries. The
 // component stays ONE flat object listing both spellings of the transaction sides, so the
@@ -272,33 +252,36 @@ func describeV2Component(oapi *huma.OpenAPI, ref, description string) {
 
 // v2CreateBodyLimit rejects a v2 create request whose body reaches v2CreateMaxBodyBytes, so the
 // oversized-body answer carries the canonical payload-too-large code like every other v2
-// rejection.
+// rejection. It sits ahead of the Huma terminal because Huma enforces the same ceiling itself but
+// answers without a `code` and with the configured byte figure spelled out in the detail.
 //
-// It has to sit ahead of the Huma terminal because Huma enforces the same ceiling on its own read
-// and answers 413 itself, but as a bare {status,title,detail} carrying no `code` and spelling the
-// configured byte figure out in the detail. Rejecting here keeps both out of the response. The
-// guard is attached only to the four create routes; the global Fiber body limit is a different,
-// much larger ceiling that every endpoint in the binary shares.
+// The comparison is `>=` to match Huma's own boundary, where a read that fills the limit exactly
+// is already rejected.
 //
-// The comparison is `>=` to match Huma's own boundary, where a read that fills the limit
-// exactly is already rejected. That is what leaves the Huma ceiling unreachable and therefore
-// pure defense in depth.
+// The value measured is the DECODED body length, which is what Huma measures too. A declared
+// Content-Length is the compressed wire size instead, so measuring that would let a compressed
+// body over the ceiling reach the layer that renders without a `code`.
 //
-// The measured value is the DECODED body length, which is what Huma measures too: its reader is
-// handed whatever Fiber's Body() returns, and Body() decompresses when the request declares a
-// Content-Encoding. The declared Content-Length is the compressed wire size instead, so measuring
-// that would let a compressed body over the ceiling through to the layer that renders without a
-// `code`.
-//
-// Reading the body here is safe only while the app leaves StreamRequestBody false. With streaming
-// enabled, c.Body() would drain the request stream and hand the Huma terminal behind this guard a
-// reader with nothing left in it.
+// A decoded length is only available while Fiber can decode. Fiber bounds decompression by the
+// app-wide fiber.Config BodyLimit — 4 MiB here, since the app leaves it unset — and reports a body
+// past it by setting the response status itself and returning the failure text in place of the
+// body. That text is far shorter than this ceiling, so the status has to be consulted as well as
+// the length; measuring the length alone reads an undecodable body as a small one and forwards it.
+// TestV2CreateBodyLimit_MeasuresDecodedBody pins both regions.
 //
 // The 413 is rendered from PayloadTooLargeError rather than the shared registry entry for the
 // code, whose message names a byte figure belonging to a different endpoint.
 func v2CreateBodyLimit(c fiber.Ctx) error {
 	size := len(c.Body())
-	if int64(size) < v2CreateMaxBodyBytes {
+
+	switch status := c.Response().StatusCode(); {
+	case status == http.StatusRequestEntityTooLarge:
+		return rejectOversizedV2Body(c)
+	case status >= http.StatusBadRequest:
+		// An encoding Fiber refuses outright. It has already chosen the answer, and what
+		// c.Body() returned is failure text, so the terminal must not be handed it as a body.
+		return nil
+	case int64(size) < v2CreateMaxBodyBytes:
 		return c.Next()
 	}
 
@@ -309,6 +292,13 @@ func v2CreateBodyLimit(c fiber.Ctx) error {
 		"Rejected an oversized transaction body",
 		libLog.Int("http.request.body.size", size),
 	)
+
+	return rejectOversizedV2Body(c)
+}
+
+// rejectOversizedV2Body renders the canonical payload-too-large answer for a v2 create request.
+func rejectOversizedV2Body(c fiber.Ctx) error {
+	ctx := c.Context()
 
 	libOpentelemetry.HandleSpanBusinessErrorEvent(
 		trace.SpanFromContext(ctx), "request body exceeds the accepted size", constant.ErrPayloadTooLarge,

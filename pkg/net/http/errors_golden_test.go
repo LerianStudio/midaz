@@ -624,10 +624,14 @@ func sentinelRegistryPaths(t *testing.T) []string {
 // rather than restating it is what makes TestGolden_SentinelInventoryComplete an actual guard —
 // comparing two hand-written literals would observe the registry not at all.
 //
-// An Err* var whose initialiser is NOT errors.New fails the walk instead of being skipped. The
-// walk is the only thing that decides what gets swept, so a form it does not recognise has to be
-// a visible failure: silently ignoring one would let a sentinel introduced via fmt.Errorf or a
-// helper escape the sweep with the two-way diff still green.
+// Candidates are selected by the errors.New INITIALISER, not by the name, because the initialiser
+// is what makes a var a sentinel. Selecting on the `Err` prefix would silently skip a sentinel
+// named without it — the sweep would never drive it, and the two-way diff would stay green.
+//
+// Both halves of the convention then have to fail loudly, since the walk is the only thing that
+// decides what gets swept: a prefixed var built some other way (fmt.Errorf, a helper) is a form
+// this parser cannot classify, and an errors.New var without the prefix breaks the naming
+// invariant every sentinel in the registry holds.
 func declaredSentinelNames(t *testing.T) []string {
 	t.Helper()
 
@@ -652,12 +656,19 @@ func declaredSentinelNames(t *testing.T) []string {
 				}
 
 				for i, name := range value.Names {
-					if !strings.HasPrefix(name.Name, "Err") {
+					hasErrPrefix := strings.HasPrefix(name.Name, "Err")
+					isErrorsNew := i < len(value.Values) && isErrorsNewCall(value.Values[i])
+
+					if !hasErrPrefix && !isErrorsNew {
 						continue
 					}
 
-					require.Truef(t, i < len(value.Values) && isErrorsNewCall(value.Values[i]),
-						"%s declares %s without an errors.New initialiser: this walk cannot classify it, so it would escape the golden sweep — declare it with errors.New or teach this parser the new form",
+					require.Truef(t, isErrorsNew,
+						"%s declares %s with the Err prefix but no errors.New initialiser: this walk cannot classify it, so it would escape the golden sweep — declare it with errors.New or teach this parser the new form",
+						filepath.Base(path), name.Name)
+
+					require.Truef(t, hasErrPrefix,
+						"%s declares the errors.New sentinel %s without the Err prefix, which every sentinel in this registry carries — rename it so the registry stays greppable by that prefix",
 						filepath.Base(path), name.Name)
 
 					names = append(names, name.Name)

@@ -106,26 +106,27 @@ type V2LegInput struct {
 	OperationRouteID *string `json:"operationRouteId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
-// V2ShareInput expresses a leg's value as a percentage of the transaction total.
+// V2ShareInput expresses a leg's value as a percentage of the transaction total. The resolver
+// computes total x (percentage/100) x (percentageOfPercentage/100).
 //
-// PercentageOfPercentage carries an upper bound; Percentage does not. Whether a side's legs sum
-// to the transaction total is a property of the whole body, which no single field's bound can
-// decide, so the funnel's total check owns that rule and answers a side that cannot balance as a
-// business rejection.
+// Both factors carry the same upper bound of 100, so whether a body is accepted does not depend on
+// which of the two the client puts the larger number in. That symmetry is chosen with its cost
+// named: a body whose two factors multiply back into range — 150 narrowed to 50, resolving to 75%
+// of the total — is refused even though it would balance, and not every such body can be respelled
+// with both factors in range. The refusal is a 400 naming the field.
+//
+// Whether a side's legs sum to the transaction total stays a whole-body property that no per-field
+// bound can decide; the funnel's total check owns that rule.
 type V2ShareInput struct {
-	// Percentage is the leg's share of the transaction total, in percent. It must be
-	// positive: a zero share moves nothing while the transaction still commits, and a
-	// negative one inverts the leg's accounting direction.
+	// Percentage is the leg's share of the transaction total, in percent, bounded to 1..100. It
+	// must be positive: a zero share moves nothing while the transaction still commits, and a
+	// negative one inverts the leg's accounting direction. buildLeg enforces the lower bound
+	// imperatively as well, covering a caller that builds the input in Go and skips the decoder.
 	//
-	// It carries NO upper bound. PercentageOfPercentage scales it back down — the resolver
-	// computes total x (percentage/100) x (percentageOfPercentage/100) — so 150 narrowed to 50
-	// resolves to 75% of the total and balances against a sibling resolving to the remaining
-	// 25%. A cap here would answer that balanced body 400 at decode.
-	//
-	// The `minimum` tag publishes the lower bound in the contract, so a client reads it instead
-	// of discovering it by rejection. It does not enforce anything: the create ops decode the
-	// body imperatively, so the `validate` tags are the only evaluated ones.
-	Percentage int64 `json:"percentage" validate:"required,gt=0" example:"60" minimum:"1"`
+	// The `minimum` and `maximum` tags publish the bounds in the contract, so a client reads them
+	// instead of discovering them by rejection. They do not enforce anything: the create ops
+	// decode the body imperatively, so the `validate` tags are the only evaluated ones.
+	Percentage int64 `json:"percentage" validate:"required,gt=0,lte=100" example:"60" minimum:"1" maximum:"100"`
 
 	// PercentageOfPercentage narrows Percentage, in percent: 25 against a Percentage of 60
 	// yields 15% of the transaction total.
@@ -133,13 +134,9 @@ type V2ShareInput struct {
 	// ZERO MEANS NO NARROWING, not a zero share. On an int64 it is indistinguishable from
 	// the field being omitted, and omitted has to mean "take the whole Percentage", so a leg
 	// that spells 0 gets the full Percentage. Rejecting 0 instead would reject every body
-	// that leaves the field out.
+	// that leaves the field out — which is why its lower bound is 0 where Percentage's is 1.
 	//
-	// The upper bound is 100 because a factor above 100 widens rather than narrows: a leg
-	// reading as "half, of which 200%" would move more than the Percentage it is attached to.
-	// That is a violation of what this field means, independent of what the side sums to, which
-	// is why it is a per-field bound. Published in the contract for the same reason as
-	// Percentage's lower bound.
+	// Bounds published in the contract for the same reason as Percentage's.
 	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty" validate:"omitempty,gte=0,lte=100" example:"50" minimum:"0" maximum:"100"`
 }
 
@@ -310,11 +307,13 @@ func legReference(fieldName string, i int) string {
 // legRef is the indexed reference to the entry, which the rejections carry so a caller can locate
 // it.
 //
-// The account obligation is enforced here AND as a `required` struct tag. They are complementary,
-// not redundant: the tag is the guard every HTTP caller meets, because it fires at the decode
-// boundary before Translate runs, while this check is the only one covering a caller that builds
-// the input in Go and skips the decoder — Translate is exported from a shared package, and an
-// empty alias reaching the funnel names no account at all. Both name the entry by index.
+// The account obligation and the share's positive-percentage obligation are each enforced here AND
+// as a struct tag. They are complementary, not redundant: the tag is the guard every HTTP caller
+// meets, because it fires at the decode boundary before Translate runs, while these checks are the
+// only ones covering a caller that builds the input in Go and skips the decoder — Translate is
+// exported from a shared package. An empty alias reaching the funnel names no account at all, and
+// a non-positive percentage resolves to no operation row (zero) or an inverted movement
+// (negative) while the transaction still commits.
 func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef string) (FromTo, error) {
 	if leg.Account == "" {
 		return FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".account")
@@ -337,7 +336,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 
 	// Each arm demands its own expression AND the absence of the other, so "exactly one" is
 	// decided in one place. That leaves the default arm reachable: it answers both-filled and
-	// neither-filled alike, and a THIRD expression added to the leg lands there too instead of
+	// neither-filled alike, and a THIRD expression filled on its own lands there too instead of
 	// producing a leg with no value at all, which reads as a valid entry and moves nothing.
 	switch {
 	case leg.Amount != "" && leg.Share == nil:
@@ -348,6 +347,10 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 
 		built.Amount = &Amount{Asset: in.Asset, Value: value}
 	case leg.Share != nil && leg.Amount == "":
+		if leg.Share.Percentage <= 0 {
+			return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+		}
+
 		built.Share = &Share{
 			Percentage:             leg.Share.Percentage,
 			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
@@ -364,7 +367,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 // transaction body, which accepts a third, so the option set has to be passed rather than
 // assumed.
 func invalidLegExpression(legRef string) error {
-	return pkg.InvalidTransactionTypeError(constant.EntityTransaction,
+	return pkg.ValidateTransactionTypeError(constant.EntityTransaction,
 		constant.TransactionTypeOptionsLeg, legRef)
 }
 

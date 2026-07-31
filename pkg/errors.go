@@ -2901,7 +2901,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	return err
 }
 
-// InvalidTransactionTypeError builds the invalid-transaction-type rejection. Its message takes
+// ValidateTransactionTypeError builds the invalid-transaction-type rejection. Its message takes
 // TWO arguments — the set of value expressions the rejecting surface accepts, and the field
 // reference the caller should look at — and the sentinel is shared by surfaces that accept
 // different sets, so neither can be assumed.
@@ -2912,7 +2912,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 //
 // entityType stays a parameter because it reaches the client in the response envelope, and the
 // surfaces sharing this sentinel do not all name one.
-func InvalidTransactionTypeError(entityType, options, fieldRef string) error {
+func ValidateTransactionTypeError(entityType, options, fieldRef string) error {
 	return ValidateBusinessError(constant.ErrInvalidTransactionType, entityType, options, fieldRef)
 }
 

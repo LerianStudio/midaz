@@ -201,10 +201,9 @@ func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
 // clears struct validation today and reaches the funnel, where the leg silently produces no
 // operation row (zero) or an inverted movement (negative) while the transaction commits.
 //
-// Only PercentageOfPercentage carries an upper bound. Percentage has none: it is a factor the
-// narrowing field can scale back down, so a value above 100 is not on its own unbalanceable
-// (see TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances). Whether a side's legs sum
-// to the transaction total is a whole-body property, which a per-field bound cannot decide.
+// Both factors carry the same bounds at the top, so a leg cannot escape the cap by moving the
+// large number from one factor to the other. Their LOWER bounds differ: 0 means "no narrowing"
+// on PercentageOfPercentage, while a zero Percentage is a leg that moves nothing.
 //
 // atIndex places the offending share on a leg other than the first, which is what pins that
 // the per-leg tags are evaluated at EVERY index rather than only at the head of the array.
@@ -225,8 +224,17 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 		{name: "positive percentage", share: `{"percentage":100}`},
 		{name: "percentage with percentage-of-percentage", share: `{"percentage":60,"percentageOfPercentage":50}`},
 		{name: "percentage-of-percentage at the upper bound", share: `{"percentage":60,"percentageOfPercentage":100}`},
-		{name: "percentage above 100 carries no field bound", share: `{"percentage":101}`},
-		{name: "percentage above 100 on the second leg", share: `{"percentage":101}`, atIndex: 1},
+		{name: "percentage at the upper bound", share: `{"percentage":100,"percentageOfPercentage":50}`},
+		{
+			name: "percentage over 100", share: `{"percentage":101}`,
+			wantErr: true, wantCode: constant.ErrBadRequest,
+			wantField: "percentage", wantRule: "must be 100 or less",
+		},
+		{
+			name: "percentage over 100 on the second leg", share: `{"percentage":101}`, atIndex: 1,
+			wantErr: true, wantCode: constant.ErrBadRequest,
+			wantField: "percentage", wantRule: "must be 100 or less",
+		},
 		{
 			name: "negative percentage on the second leg", share: `{"percentage":-50}`, atIndex: 1,
 			wantErr: true, wantCode: constant.ErrBadRequest,
@@ -291,33 +299,58 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 	}
 }
 
-// TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances pins why Percentage carries no
-// upper bound. The resolver computes total x (percentage/100) x (percentageOfPercentage/100),
-// so PercentageOfPercentage scales Percentage back down: a leg reading 150% narrowed to 50%
-// resolves to 75% of the total, and paired with a 50%-narrowed-to-50% sibling the side sums to
-// exactly the total. A per-field cap on Percentage answers that balanced body 400 at decode.
+// TestV2ShareInput_ResolvesPerLegAmounts pins what each share expression RESOLVES TO, per leg.
+// The resolver computes total x (percentage/100) x (percentageOfPercentage/100), and the per-leg
+// figure is the only observable that distinguishes one factor pair from another: the side's sum
+// and the transaction total agree for many wrong splits, and Responses.Total is assigned from the
+// amount the body declared rather than from anything the resolver derived.
 //
-// The genuinely unbalanceable spelling is covered too: it decodes, and the funnel's whole-body
-// total check is what rejects it. That is the layer that can actually see the sum.
-func TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances(t *testing.T) {
+// Every balancing row is asymmetric in BOTH factors, so dropping either one of them out of the
+// product changes some leg's resolved amount instead of being absorbed by a sibling. The
+// per-factor bounds themselves are locked in TestV2ShareInput_PercentageBounds.
+func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		sourceLegs  string
-		wantBalance bool
+		name       string
+		sourceLegs string
+		// wantPerLeg maps each source alias to the amount the resolver must land on.
+		// Empty means the side cannot balance and the funnel must reject it.
+		wantPerLeg map[string]string
 	}{
 		{
-			// 100 x 1.50 x 0.50 = 75 and 100 x 0.50 x 0.50 = 25, summing to the total.
-			name: "narrowed shares above and below 100 sum to the total",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":150,"percentageOfPercentage":50}},` +
+			// 100 x 1.00 x 0.75 = 75 and 100 x 0.50 x 0.50 = 25. Percentage alone would sum
+			// 150, PercentageOfPercentage alone 125 — neither reaches the total.
+			name: "narrowed shares within both bounds",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":100,"percentageOfPercentage":75}},` +
 				`{"account":"@srcB","share":{"percentage":50,"percentageOfPercentage":50}}`,
-			wantBalance: true,
+			wantPerLeg: map[string]string{"@srcA": "75", "@srcB": "25"},
 		},
 		{
-			// 100 x 2.00 = 200 against a 100 total: no sibling narrows it back down.
-			name:       "an unnarrowed share above 100 cannot balance",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":200}}`,
+			// A zero narrowing factor means NO narrowing, so this leg takes the whole
+			// Percentage: 100 x 0.50 x 1.00 = 50. Were zero read as a zero share the leg would
+			// resolve to 0 and the side would sum to 50 against a 100 total.
+			name: "a zero narrowing factor takes the whole percentage",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":50,"percentageOfPercentage":0}},` +
+				`{"account":"@srcB","share":{"percentage":50}}`,
+			wantPerLeg: map[string]string{"@srcA": "50", "@srcB": "50"},
+		},
+		{
+			// 100 x 0.80 x 0.25 = 20 and 100 x 1.00 x 0.80 = 80. A second witness with the
+			// factors asymmetric the other way round, so neither leg's pair can be swapped for
+			// the other's without changing what it resolves to.
+			name: "asymmetric factors on both legs",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":80,"percentageOfPercentage":25}},` +
+				`{"account":"@srcB","share":{"percentage":100,"percentageOfPercentage":80}}`,
+			wantPerLeg: map[string]string{"@srcA": "20", "@srcB": "80"},
+		},
+		{
+			// Two legs at the full total each: 100 + 100 against a 100 total. Both factors stay
+			// within their bounds, so nothing at decode can see the overshoot and the funnel's
+			// whole-body total check is what rejects it.
+			name: "in-range shares that overshoot the total",
+			sourceLegs: `{"account":"@srcA","share":{"percentage":100}},` +
+				`{"account":"@srcB","share":{"percentage":100}}`,
 		},
 	}
 
@@ -337,22 +370,33 @@ func TestV2ShareInput_NarrowedPercentageAboveOneHundredBalances(t *testing.T) {
 			transaction, err := in.Translate(false)
 			require.NoError(t, err, "Translate carries share expressions forward without resolving them")
 
-			ctx := context.Background()
+			responses, err := mtransaction.ValidateSendSourceAndDistribute(
+				context.Background(), transaction, constant.CREATED,
+			)
 
-			responses, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transaction, constant.CREATED)
-
-			if !tt.wantBalance {
+			if tt.wantPerLeg == nil {
 				require.Error(t, err, "a side that cannot sum to the total must be rejected by the funnel")
-				assert.True(t, pkg.IsBusinessError(err),
-					"an unbalanceable body is a business rejection, not a technical failure")
+
+				// The sentinel, not merely the business class: the ambiguity guard in the same
+				// function is also a business rejection, so asserting the class alone would
+				// pass for a rejection this row is not about.
+				var vErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &vErr)
+				assert.Equal(t, constant.ErrTransactionValueMismatch.Error(), vErr.Code,
+					"the rejection must be the whole-body total check, not another business guard")
 
 				return
 			}
 
 			require.NoError(t, err, "a side whose narrowed shares sum to the total must be accepted")
 			require.NotNil(t, responses)
-			assert.Equal(t, "100", responses.Total.String(),
-				"the resolved side must sum to the transaction total")
+
+			for alias, want := range tt.wantPerLeg {
+				resolved, ok := responses.From[alias]
+				require.Truef(t, ok, "the resolved side must carry an entry for %s", alias)
+				assert.Equalf(t, want, resolved.Value.String(),
+					"leg %s must resolve to its share of the transaction total", alias)
+			}
 		})
 	}
 }
@@ -403,6 +447,52 @@ func TestV2LegInput_AccountRequired(t *testing.T) {
 			fields := requireKnownFieldsError(t, err, constant.ErrMissingFieldsInRequest)
 			assert.Equal(t, tt.wantPath, fields["account"],
 				"the rejection must name the offending leg by index")
+		})
+	}
+}
+
+// TestV2LegInput_NonPositivePercentageRejectedByTranslate proves Translate rejects a share leg
+// whose percentage is not positive on its own, rather than relying on the decoder's `gt=0` tag.
+// Translate is exported from a shared package, so a caller that assembles the input in Go and
+// never runs DecodeAndValidate gets no tag evaluation — and the funnel resolves a zero-percentage
+// leg to no operation row at all while the transaction still commits, or inverts the leg's
+// accounting direction when the percentage is negative.
+//
+// This mirrors the account obligation, which is enforced by tag and imperatively for the same
+// reason. The tag stays because only it names the offending leg's field in the decode rejection.
+func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		share *mtransaction.V2ShareInput
+	}{
+		{name: "zero percentage", share: &mtransaction.V2ShareInput{Percentage: 0}},
+		{name: "negative percentage", share: &mtransaction.V2ShareInput{Percentage: -50}},
+		{
+			name:  "zero percentage with a narrowing factor",
+			share: &mtransaction.V2ShareInput{Percentage: 0, PercentageOfPercentage: 50},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := arrayV2Input(
+				[]mtransaction.V2LegInput{{Account: "@srcA", Share: tt.share}},
+				[]mtransaction.V2LegInput{{Account: "@dstA", Amount: "1000"}},
+			)
+
+			got, err := input.Translate(false)
+			require.Error(t, err, "a share leg with a non-positive percentage must not reach the funnel")
+
+			// Same sentinel the explicit-amount arm raises for a non-positive value, so both
+			// value expressions answer a non-positive leg alike.
+			var vErr pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &vErr)
+			assert.Equal(t, constant.ErrInvalidTransactionNonPositiveValue.Error(), vErr.Code)
+			assert.True(t, got.IsEmpty(), "the error path must not leak a populated transaction")
 		})
 	}
 }

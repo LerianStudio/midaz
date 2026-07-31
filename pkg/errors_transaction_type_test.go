@@ -34,7 +34,7 @@ const v2LegTransactionTypeMessage = "Only one transaction type ('amount' or 'sha
 func renderedTransactionTypeMessage(t *testing.T, options, fieldRef string) string {
 	t.Helper()
 
-	err := InvalidTransactionTypeError(constant.EntityTransaction, options, fieldRef)
+	err := ValidateTransactionTypeError(constant.EntityTransaction, options, fieldRef)
 
 	var vErr ValidationError
 	require.ErrorAs(t, err, &vErr, "the invalid-transaction-type sentinel must render as a ValidationError (400)")
@@ -44,11 +44,11 @@ func renderedTransactionTypeMessage(t *testing.T, options, fieldRef string) stri
 	return vErr.Message
 }
 
-// TestInvalidTransactionTypeError_MatchesRawRegistryCall proves the typed factory is a pure
+// TestValidateTransactionTypeError_MatchesRawRegistryCall proves the typed factory is a pure
 // arity gate over the registry and moves nothing else: for every entity type and option set the
 // call sites use, the error it returns is indistinguishable from the raw variadic call the sites
 // made before. This is what keeps the released v1 rendering byte-identical.
-func TestInvalidTransactionTypeError_MatchesRawRegistryCall(t *testing.T) {
+func TestValidateTransactionTypeError_MatchesRawRegistryCall(t *testing.T) {
 	t.Parallel()
 
 	// The entity types the three call sites pass: the shared decoders leave it empty, the v2
@@ -67,17 +67,17 @@ func TestInvalidTransactionTypeError_MatchesRawRegistryCall(t *testing.T) {
 
 				want := ValidateBusinessError(constant.ErrInvalidTransactionType, entityType, options, fieldRef)
 
-				assert.Equal(t, want, InvalidTransactionTypeError(entityType, options, fieldRef),
+				assert.Equal(t, want, ValidateTransactionTypeError(entityType, options, fieldRef),
 					"the factory must render exactly what the raw registry call rendered")
 			})
 		}
 	}
 }
 
-// TestInvalidTransactionTypeError_PerSurface proves the option set is what varies between
+// TestValidateTransactionTypeError_PerSurface proves the option set is what varies between
 // surfaces and nothing else: the detailed body renders byte-for-byte what it shipped, and the v2
 // leg renders its own two expressions.
-func TestInvalidTransactionTypeError_PerSurface(t *testing.T) {
+func TestValidateTransactionTypeError_PerSurface(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -127,13 +127,13 @@ func TestTransactionTypeOptions_LegSetExcludesRemaining(t *testing.T) {
 	}
 }
 
-// TestInvalidTransactionTypeError_RendersEveryPlaceholder locks the registry's two-placeholder
+// TestValidateTransactionTypeError_RendersEveryPlaceholder locks the registry's two-placeholder
 // format string against the factory's argument list. What forbids a SHORT call is the factory's
 // signature, not this test: an under-filled variadic call renders fmt's MISSING marker to the
 // client, and only a fixed arity can rule that out at compile time. What this test covers is the
 // other half — that a full call still fills both placeholders with prose for every option set the
 // registry publishes, so reordering or dropping a verb in the format string is caught.
-func TestInvalidTransactionTypeError_RendersEveryPlaceholder(t *testing.T) {
+func TestValidateTransactionTypeError_RendersEveryPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	for _, options := range []string{constant.TransactionTypeOptionsDetailed, constant.TransactionTypeOptionsLeg} {
@@ -146,12 +146,12 @@ func TestInvalidTransactionTypeError_RendersEveryPlaceholder(t *testing.T) {
 	}
 }
 
-// TestInvalidTransactionTypeError_IsNotWrapped keeps the sentinel resolvable from the rendered
+// TestValidateTransactionTypeError_IsNotWrapped keeps the sentinel resolvable from the rendered
 // error, which is what the handlers' errors.As cascade keys on.
-func TestInvalidTransactionTypeError_IsNotWrapped(t *testing.T) {
+func TestValidateTransactionTypeError_IsNotWrapped(t *testing.T) {
 	t.Parallel()
 
-	err := InvalidTransactionTypeError(constant.EntityTransaction, constant.TransactionTypeOptionsLeg, "sources[0]")
+	err := ValidateTransactionTypeError(constant.EntityTransaction, constant.TransactionTypeOptionsLeg, "sources[0]")
 
 	var vErr ValidationError
 	require.True(t, errors.As(err, &vErr))

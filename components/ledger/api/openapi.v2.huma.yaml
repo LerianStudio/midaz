@@ -487,6 +487,7 @@ components:
           examples:
             - 60
           format: int64
+          maximum: 100
           minimum: 1
           type: integer
         percentageOfPercentage:

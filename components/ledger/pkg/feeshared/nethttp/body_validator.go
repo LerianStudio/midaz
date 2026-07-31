@@ -60,7 +60,7 @@ func ValidateStruct(s any) error {
 
 		for _, fieldError := range validationErrors {
 			if fieldError.Tag() == "singletransactiontype" {
-				return pkg.InvalidTransactionTypeError("",
+				return pkg.ValidateTransactionTypeError("",
 					constant.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
 			}
 		}

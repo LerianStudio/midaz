@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
@@ -327,32 +326,39 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSideForms(t *testing
 	}
 }
 
-// v2CreateBodyReadDeadlineCeiling is the loosest body-read deadline the v2 create ops may
-// declare. The exact figure is a judgement rather than a contract: a body capped at
-// v2CreateMaxBodyBytes takes seconds to read, so anything past this ceiling is a published
-// deadline no client would ever reach and none can rely on. It is stated here independently of
-// the constant the registration reads, so a loosened deadline fails the assertion instead of
-// travelling with it.
-const v2CreateBodyReadDeadlineCeiling = 30 * time.Second
+// v2CreateBodyCeilingFloor and v2CreateBodyCeilingCap bound the VALUE of v2CreateMaxBodyBytes.
+// Both the op declaration and the Fiber guard read that one constant, so comparing them against it
+// holds for any value it takes — a ceiling loosened to a gigabyte would travel green through the
+// whole suite.
+const (
+	// Clear of the largest body the per-side leg cap admits — 500 legs per side at ~200 bytes
+	// each is ~210 KB across both sides — so no request the field tags accept is refused on
+	// length alone.
+	v2CreateBodyCeilingFloor int64 = 512 << 10
+
+	// The app-wide Fiber body limit, which the app leaves at its default. fasthttp refuses a
+	// request body past it before this guard runs, so a ceiling above it would be unreachable
+	// for an uncompressed body and the answer would come from a layer that carries no `code`.
+	v2CreateBodyCeilingCap int64 = int64(fiber.DefaultBodyLimit)
+)
 
 // TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads asserts the four body-carrying create
-// ops state BOTH bounds on their request-body read: the byte ceiling and the read deadline.
-// Huma applies its defaults for either one only to ops that declare a typed `Body` field, and the
-// v2 create ops carry `RawBody`, so an unstated ceiling means an unbounded read.
+// ops declare a request-body byte ceiling. Huma defaults MaxBodyBytes only for ops that declare a
+// typed `Body` field, and the v2 create ops carry `RawBody`, so an unstated ceiling means an
+// unbounded read. The bodiless lifecycle ops advertise no body, so they declare none.
 //
-// The deadline is asserted as declared metadata, not as enforcement. Under this binary's Fiber
-// configuration it does not bound a stalled client (see v2CreateBodyReadTimeout); what the
-// assertion protects is that the op still publishes it. The bodiless lifecycle ops advertise no
-// body, so they carry neither bound.
-//
-// The two bounds are asserted differently on purpose. The byte ceiling is compared against
-// v2CreateMaxBodyBytes because the Fiber guard v2CreateBodyLimit enforces that same constant, so
-// the comparison pins the DECLARED ceiling to the ENFORCED one and fails the moment the op
-// declares a figure the guard does not police. The deadline has no second consumer, so comparing
-// it against the constant the registration itself reads would hold for any value of that constant;
-// it is bounded on both ends instead.
+// The declared figure is pinned twice over. Comparing it against v2CreateMaxBodyBytes ties the
+// DECLARED ceiling to the ENFORCED one, since the Fiber guard v2CreateBodyLimit reads that same
+// constant — the assertion fails the moment an op declares a figure the guard does not police.
+// Bounding that constant between a floor and a cap stated independently of it is what stops the
+// pair from being loosened together.
 func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 	t.Parallel()
+
+	assert.GreaterOrEqual(t, v2CreateMaxBodyBytes, v2CreateBodyCeilingFloor,
+		"the request-body ceiling must stay clear of the largest body the per-side leg cap admits")
+	assert.LessOrEqual(t, v2CreateMaxBodyBytes, v2CreateBodyCeilingCap,
+		"the request-body ceiling must not pass the app-wide Fiber body limit, which refuses a body first")
 
 	paths := registerV2TransactionContractForTest().Paths
 
@@ -367,19 +373,12 @@ func TestRegisterTransactionV2Routes_CreateOpsBoundBodyReads(t *testing.T) {
 			if !rt.hasBody {
 				assert.Zerof(t, pathItem.Post.MaxBodyBytes,
 					"bodiless lifecycle op %s needs no body ceiling", rt.action)
-				assert.Zerof(t, pathItem.Post.BodyReadTimeout,
-					"bodiless lifecycle op %s needs no body read deadline", rt.action)
 
 				return
 			}
 
 			assert.EqualValuesf(t, v2CreateMaxBodyBytes, pathItem.Post.MaxBodyBytes,
 				"%s op must declare the same request-body ceiling the Fiber guard enforces", rt.action)
-			assert.Positivef(t, pathItem.Post.BodyReadTimeout,
-				"%s op body read deadline must be a real deadline, not disabled", rt.action)
-			assert.LessOrEqualf(t, pathItem.Post.BodyReadTimeout, v2CreateBodyReadDeadlineCeiling,
-				"%s op body read deadline must stay within %s, not be loosened into effectively no deadline",
-				rt.action, v2CreateBodyReadDeadlineCeiling)
 		})
 	}
 }
@@ -520,50 +519,75 @@ func TestV2CreateBodyLimit_Boundary(t *testing.T) {
 }
 
 // TestV2CreateBodyLimit_MeasuresDecodedBody pins WHICH length the guard compares against the
-// ceiling. A gzipped body declares a Content-Length of its compressed wire size, while Fiber's
-// Body() — the same call humafiber's reader is handed — returns the decoded bytes. Huma therefore
-// enforces the ceiling against the decoded length, so a guard measuring the declared length would
-// pass an over-ceiling compressed body straight to the layer that answers without a `code`.
+// ceiling, over both regions a compressed body can decode into.
+//
+// A gzipped body declares a Content-Length of its compressed wire size, while Fiber's Body() —
+// the same call humafiber's reader is handed — returns the DECODED bytes. A guard measuring the
+// declared length would pass an over-ceiling compressed body straight to the layer that answers
+// without a `code`.
+//
+// The second row sits above fiber.DefaultBodyLimit, where Fiber does not produce decoded bytes at
+// all and Body() reports the failure in the return value instead. That value is far shorter than
+// the ceiling, so a guard that measures it and nothing else reads the failure as a small body.
+// Both rows must land on the canonical 413.
 func TestV2CreateBodyLimit_MeasuresDecodedBody(t *testing.T) {
 	t.Parallel()
 
-	plain := oversizedV2CreateBody(v2CreateMaxBodyBytes + 1)
+	tests := []struct {
+		name        string
+		decodedSize int64
+	}{
+		{
+			name:        "decoded length over the ceiling",
+			decodedSize: v2CreateMaxBodyBytes + 1,
+		},
+		{
+			name:        "decoded length over Fiber's decode limit",
+			decodedSize: int64(fiber.DefaultBodyLimit) + 1,
+		},
+	}
 
-	var compressed bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	zw := gzip.NewWriter(&compressed)
-	_, err := zw.Write([]byte(plain))
-	require.NoError(t, err)
-	require.NoError(t, zw.Close())
+			var compressed bytes.Buffer
 
-	require.Less(t, int64(compressed.Len()), v2CreateMaxBodyBytes,
-		"the compressed wire size must sit UNDER the ceiling for this case to mean anything")
+			zw := gzip.NewWriter(&compressed)
+			_, err := zw.Write([]byte(oversizedV2CreateBody(tt.decodedSize)))
+			require.NoError(t, err)
+			require.NoError(t, zw.Close())
 
-	app := fiber.New()
-	app.Post("/probe", v2CreateBodyLimit, func(c fiber.Ctx) error {
-		return c.SendStatus(http.StatusTeapot)
-	})
+			require.Less(t, int64(compressed.Len()), v2CreateMaxBodyBytes,
+				"the compressed wire size must sit UNDER the ceiling for this case to mean anything")
 
-	req := httptest.NewRequest(http.MethodPost, "/probe", bytes.NewReader(compressed.Bytes()))
-	req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	req.Header.Set(fiber.HeaderContentEncoding, "gzip")
+			app := fiber.New()
+			app.Post("/probe", v2CreateBodyLimit, func(c fiber.Ctx) error {
+				return c.SendStatus(http.StatusTeapot)
+			})
 
-	resp, err := app.Test(req)
-	require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/probe", bytes.NewReader(compressed.Bytes()))
+			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set(fiber.HeaderContentEncoding, "gzip")
 
-	defer func() { _ = resp.Body.Close() }()
+			resp, err := app.Test(req)
+			require.NoError(t, err)
 
-	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
 
-	assert.Equalf(t, fiber.StatusRequestEntityTooLarge, resp.StatusCode,
-		"a compressed body whose DECODED length passes the ceiling must be rejected by the guard, got: %s", raw)
+			raw, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
 
-	var problem map[string]any
-	require.NoErrorf(t, json.Unmarshal(raw, &problem), "response must be JSON, got: %s", raw)
+			assert.Equalf(t, fiber.StatusRequestEntityTooLarge, resp.StatusCode,
+				"a compressed body whose DECODED length passes the ceiling must be rejected by the guard, got: %s", raw)
 
-	assert.Equal(t, constant.ErrPayloadTooLarge.Error(), problem["code"],
-		"the rejection must carry the canonical payload-too-large code, not Huma's uncoded 413")
+			var problem map[string]any
+			require.NoErrorf(t, json.Unmarshal(raw, &problem), "response must be JSON, got: %s", raw)
+
+			assert.Equal(t, constant.ErrPayloadTooLarge.Error(), problem["code"],
+				"the rejection must carry the canonical payload-too-large code, not Huma's uncoded 413")
+		})
+	}
 }
 
 // oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size
@@ -575,6 +599,53 @@ func oversizedV2CreateBody(size int64) string {
 	padding := size - int64(len(prefix)) - int64(len(suffix))
 
 	return prefix + strings.Repeat("x", int(padding)) + suffix
+}
+
+// v2ShareBounds is the bound pair each share factor must publish. The figures are stated as
+// literals rather than read back from the struct tags, because the tags are what generate the
+// schema — comparing the two would hold for any value, including none. A bound dropped from a tag
+// has to surface here as a contract change.
+var v2ShareBounds = map[string]struct{ min, max float64 }{
+	"percentage":             {min: 1, max: 100},
+	"percentageOfPercentage": {min: 0, max: 100},
+}
+
+// TestRegisterTransactionV2Routes_ShareComponentPublishesBounds locks the numeric bounds of the two
+// share factors in the published contract. The create ops decode the body imperatively, so the
+// `minimum`/`maximum` tags enforce nothing — the schema is the only place a client can read a bound
+// instead of discovering it by rejection, which makes its disappearance invisible to every other
+// test in this suite.
+//
+// The upper bounds are asserted EQUAL to each other as well as to their figures: the two factors
+// multiply into one product, so a cap on only one of them decides acceptance by which factor the
+// client happened to put the larger number in.
+func TestRegisterTransactionV2Routes_ShareComponentPublishesBounds(t *testing.T) {
+	t.Parallel()
+
+	schema, ok := registerV2TransactionContractForTest().Components.Schemas.Map()[v2ShareSchemaName]
+	require.Truef(t, ok, "v2 contract should publish the share component %s", v2ShareSchemaName)
+	require.NotNilf(t, schema, "published %s component should not be nil", v2ShareSchemaName)
+
+	assert.Equal(t, v2ShareBounds["percentage"].max, v2ShareBounds["percentageOfPercentage"].max,
+		"both share factors must carry the SAME upper bound")
+
+	for field, want := range v2ShareBounds {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+
+			property, ok := schema.Properties[field]
+			require.Truef(t, ok, "%s should document the %s factor", v2ShareSchemaName, field)
+			require.NotNilf(t, property, "the %s property should not be nil", field)
+
+			require.NotNilf(t, property.Minimum,
+				"%s must publish its lower bound, or a client meets it only as a rejection", field)
+			assert.Equalf(t, want.min, *property.Minimum, "%s lower bound", field)
+
+			require.NotNilf(t, property.Maximum,
+				"%s must publish its upper bound, or a client meets it only as a rejection", field)
+			assert.Equalf(t, want.max, *property.Maximum, "%s upper bound", field)
+		})
+	}
 }
 
 // TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions asserts the published

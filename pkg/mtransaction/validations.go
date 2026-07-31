@@ -162,7 +162,9 @@ func SplitAlias(alias string) string {
 	return alias
 }
 
-// ConcatAlias function to concat alias with index
+// ConcatAlias prefixes the entry index onto an alias that already carries its balance key,
+// producing the "index#alias#balanceKey" entry key. The FromTo.ConcatAlias method builds the same
+// form from an entry's own fields instead.
 func ConcatAlias(i int, alias string) string {
 	return strconv.Itoa(i) + AliasSeparatorString + alias
 }

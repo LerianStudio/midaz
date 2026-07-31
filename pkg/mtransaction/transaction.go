@@ -149,12 +149,12 @@ type FromTo struct {
 }
 
 // AliasSeparator is the character that separates the segments of the composite alias forms this
-// package builds and parses. There are three:
+// package builds and parses. There are two:
 //
 //   - "alias#balanceKey" — a balance lookup key (AliasKey).
-//   - "index#alias" — an entry key over an alias carrying no balance key (ConcatAlias).
-//   - "index#alias#balanceKey" — an entry key over a balance lookup key (ConcatAlias applied to
-//     an AliasKey result).
+//   - "index#alias#balanceKey" — an entry key, built either by the FromTo.ConcatAlias method from
+//     an entry's own fields, or by the ConcatAlias function from an alias that already carries its
+//     balance key.
 //
 // Within this package every producer, parser, and guard derives from this one value, so the
 // format and the guard that rejects a client-forged composite alias cannot drift apart. That
