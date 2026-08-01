@@ -131,17 +131,16 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 }
 
 // FindByID finds a package by ID.
-func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizationID uuid.UUID) (*Package, error) {
+func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*Package, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.find_by_entity")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		packageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -162,7 +161,7 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 	spanFindOne.SetAttributes(attributes...)
 
 	if err = coll.
-		FindOne(ctx, bson.M{"_id": id, "organization_id": organizationID, "deleted_at": bson.D{{Key: "$eq", Value: nil}}}).
+		FindOne(ctx, packageScopeFilter(id, organizationID, ledgerID)).
 		Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Package not found", err)

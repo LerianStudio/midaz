@@ -837,6 +837,12 @@ type stubPackageService struct {
 	createCalled    bool
 	updateCalled    bool
 	deleteCalled    bool
+
+	// Ledger argument each by-ID call received, so tests can pin the scope the
+	// handler asks for.
+	gotGetByIDLedger uuid.UUID
+	gotUpdateLedger  uuid.UUID
+	gotDeleteLedger  uuid.UUID
 }
 
 func (s *stubPackageService) CreatePackage(_ context.Context, cpi *model.CreatePackageInput, organizationID, ledgerID, segmentID uuid.UUID) (*pack.Package, error) {
@@ -855,22 +861,25 @@ func (s *stubPackageService) GetAllPackages(_ context.Context, filters feehttp.Q
 	return s.getAllResult, s.getAllErr
 }
 
-func (s *stubPackageService) GetPackageByID(_ context.Context, id, organizationID uuid.UUID) (*pack.Package, error) {
+func (s *stubPackageService) GetPackageByID(_ context.Context, id, organizationID, ledgerID uuid.UUID) (*pack.Package, error) {
 	s.gotGetByIDID = id
+	s.gotGetByIDLedger = ledgerID
 
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *stubPackageService) UpdatePackageByID(_ context.Context, id, organizationID uuid.UUID, up *model.UpdatePackageInput) error {
+func (s *stubPackageService) UpdatePackageByID(_ context.Context, id, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) error {
 	s.updateCalled = true
 	s.gotUpdate = up
+	s.gotUpdateLedger = ledgerID
 
 	return s.updateErr
 }
 
-func (s *stubPackageService) DeletePackageByID(_ context.Context, id, organizationID uuid.UUID) error {
+func (s *stubPackageService) DeletePackageByID(_ context.Context, id, organizationID, ledgerID uuid.UUID) error {
 	s.deleteCalled = true
 	s.gotDeleteID = id
+	s.gotDeleteLedger = ledgerID
 
 	return s.deleteErr
 }
@@ -1137,6 +1146,8 @@ func TestPackageHandler_GetPackageByID(t *testing.T) {
 			validate: func(t *testing.T, body map[string]any, stub *stubPackageService) {
 				assert.Equal(t, id, stub.gotGetByIDID)
 				assert.Equal(t, "Found", body["feeGroupLabel"])
+				assert.Equal(t, uuid.Nil, stub.gotGetByIDLedger,
+					"the organization-scoped route names no ledger and must ask for organization scope")
 			},
 		},
 		{
@@ -1196,6 +1207,10 @@ func TestPackageHandler_UpdatePackageByID(t *testing.T) {
 				require.True(t, stub.updateCalled, "update must be called")
 				assert.Equal(t, "Renamed", body["feeGroupLabel"],
 					"response must reflect the re-read package after update")
+				assert.Equal(t, uuid.Nil, stub.gotUpdateLedger,
+					"the organization-scoped route names no ledger and must ask for organization scope")
+				assert.Equal(t, uuid.Nil, stub.gotGetByIDLedger,
+					"the post-update re-read must stay on the same scope as the write")
 			},
 		},
 		{
@@ -1306,6 +1321,8 @@ func TestPackageHandler_DeletePackageByID(t *testing.T) {
 			validate: func(t *testing.T, stub *stubPackageService, body []byte) {
 				require.True(t, stub.deleteCalled)
 				assert.Equal(t, id, stub.gotDeleteID)
+				assert.Equal(t, uuid.Nil, stub.gotDeleteLedger,
+					"the organization-scoped route names no ledger and must ask for organization scope")
 				assert.Empty(t, body)
 			},
 		},

@@ -57,8 +57,11 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		attribute.String("app.request.ledger_id", cf.LedgerID.String()),
 	)
 
-	// Validate the existence of a package
-	packModel, err := uc.packageRepo.FindByID(ctx, cf.PackageID, organizationID)
+	// Validate the existence of a package. The estimate addresses the package by id
+	// alone: cf.LedgerID is the ledger the fees are computed FOR — it resolves the
+	// accounts and segment the calculation reads — and has never scoped which
+	// package answers, so the lookup stays organization-wide.
+	packModel, err := uc.packageRepo.FindByID(ctx, cf.PackageID, organizationID, uuid.Nil)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)

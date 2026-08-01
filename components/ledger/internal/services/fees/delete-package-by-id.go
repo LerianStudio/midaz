@@ -21,8 +21,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// DeletePackageByID delete a package from the repository
-func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uuid.UUID) (err error) {
+// DeletePackageByID delete a package from the repository within the given ledger.
+// A ledgerID of uuid.Nil deletes the package on whichever ledger of the
+// organization owns it.
+func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.delete_package_by_id")
@@ -38,32 +40,33 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID uui
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
 	// Resolve the package's ledger BEFORE deleting so the cache can be
-	// invalidated by its (org,ledger) key. SoftDelete is keyed only by
-	// (id,org), so the ledger is not otherwise available. A miss here is
-	// best-effort: the cache only needs invalidation when caching is enabled,
-	// and a stale entry self-heals at the sentinel TTL.
-	ledgerID, ledgerKnown := uc.resolvePackageLedger(ctx, logger, id, organizationID)
+	// invalidated by its (org,ledger) key. Under organization scope the caller
+	// has no ledger to name, so the stored document is the only source. A miss
+	// here is best-effort: the cache only needs invalidation when caching is
+	// enabled, and a stale entry self-heals at the sentinel TTL.
+	cacheLedgerID, cacheLedgerKnown := uc.resolvePackageLedger(ctx, logger, id, organizationID)
 
 	// Resolve the package independently of the cache so the deleted event can
 	// carry its ledger. A miss here skips only the emit; the delete proceeds.
-	deletedPackage, errFind := uc.packageRepo.FindByID(ctx, id, organizationID)
+	deletedPackage, errFind := uc.packageRepo.FindByID(ctx, id, organizationID, ledgerID)
 	if errFind != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve package for deleted event", libLog.Err(errFind))
 	}
 
 	deletedAt := time.Now()
 
-	if err := uc.packageRepo.SoftDelete(ctx, id, organizationID); err != nil {
+	if err := uc.packageRepo.SoftDelete(ctx, id, organizationID, ledgerID); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to delete package on repo by id", err)
 
 		return err
 	}
 
-	if ledgerKnown {
-		uc.invalidatePackageCache(ctx, logger, organizationID, ledgerID)
+	if cacheLedgerKnown {
+		uc.invalidatePackageCache(ctx, logger, organizationID, cacheLedgerID)
 	}
 
 	if deletedPackage != nil {

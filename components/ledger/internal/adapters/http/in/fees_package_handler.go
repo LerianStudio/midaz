@@ -28,12 +28,17 @@ import (
 // PackageService defines the package-related business operations consumed by the
 // package handler. The interface is defined where it is consumed so the handler
 // depends on behavior, not on the concrete fee use case.
+//
+// The by-ID operations take the ledger the request is scoped to. The
+// organization-scoped surface carries no ledger in its path, so it passes uuid.Nil
+// and keeps addressing a package on any ledger of the organization; a request that
+// does name a ledger only reaches a package that ledger owns.
 type PackageService interface {
 	CreatePackage(ctx context.Context, cpi *model.CreatePackageInput, organizationID, ledgerID, segmentID uuid.UUID) (*pack.Package, error)
 	GetAllPackages(ctx context.Context, filters feehttp.QueryHeader, organizationID uuid.UUID) ([]*pack.Package, error)
-	GetPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*pack.Package, error)
-	UpdatePackageByID(ctx context.Context, id, organizationID uuid.UUID, up *model.UpdatePackageInput) error
-	DeletePackageByID(ctx context.Context, id, organizationID uuid.UUID) error
+	GetPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*pack.Package, error)
+	UpdatePackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) error
+	DeletePackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 }
 
 // PackageHandler exposes the fee-package CRUD surface over HTTP.
@@ -234,7 +239,7 @@ func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationI
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	packModel, err := handler.Service.GetPackageByID(ctx, id, organizationID)
+	packModel, err := handler.Service.GetPackageByID(ctx, id, organizationID, uuid.Nil)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
@@ -314,13 +319,13 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 		return nil, errValidateAmount
 	}
 
-	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, payload); errUpdate != nil {
+	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, uuid.Nil, payload); errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update package", errUpdate)
 
 		return nil, errUpdate
 	}
 
-	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID)
+	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID, uuid.Nil)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
@@ -366,7 +371,7 @@ func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizati
 		attribute.String("app.request.package_id", id.String()),
 	)
 
-	if err := handler.Service.DeletePackageByID(ctx, id, organizationID); err != nil {
+	if err := handler.Service.DeletePackageByID(ctx, id, organizationID, uuid.Nil); err != nil {
 		handleSpanByErrorClass(span, "Failed to remove package on database", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove Package", libLog.String("package_id", id.String()))

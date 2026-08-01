@@ -114,10 +114,10 @@ func TestFeesEmit_NilAndNoopEmitter_NoPanic(t *testing.T) {
 			found := &pack.Package{ID: packID, LedgerID: ledgerID}
 
 			mockPackRepo.EXPECT().
-				FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+				FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 				Return(found, nil)
 			mockPackRepo.EXPECT().
-				SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+				SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 				Return(nil)
 
 			svc := &UseCase{
@@ -127,7 +127,7 @@ func TestFeesEmit_NilAndNoopEmitter_NoPanic(t *testing.T) {
 
 			var err error
 			assert.NotPanics(t, func() {
-				err = svc.DeletePackageByID(context.Background(), packID, orgID)
+				err = svc.DeletePackageByID(context.Background(), packID, orgID, uuid.Nil)
 			})
 			require.NoError(t, err, "disabled streaming must not break the delete mutation")
 		})
@@ -147,12 +147,12 @@ func TestPackageRepositoryUpdate_ReturnsPersistedEntity(t *testing.T) {
 	want := &pack.Package{ID: uuid.New(), FeeGroupLabel: "persisted"}
 
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
 		Return(want, nil)
 
 	updateFields := bson.M{}
 
-	got, err := mockPackRepo.Update(context.Background(), uuid.New(), uuid.New(), &updateFields)
+	got, err := mockPackRepo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, &updateFields)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }

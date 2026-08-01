@@ -24,17 +24,16 @@ import (
 )
 
 // Update updates a package in the database and returns the persisted document.
-func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organizationID uuid.UUID, updateFields *bson.M) (*Package, error) {
+func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updateFields *bson.M) (*Package, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.update")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		packageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -46,7 +45,7 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
-	filter := bson.M{"_id": id, "organization_id": organizationID, "deleted_at": bson.D{{Key: "$eq", Value: nil}}}
+	filter := packageScopeFilter(id, organizationID, ledgerID)
 	pipeline := buildUpdatePipeline(updateFields)
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 

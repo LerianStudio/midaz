@@ -22,17 +22,16 @@ import (
 )
 
 // SoftDelete a package entity into mongodb.
-func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organizationID uuid.UUID) error {
+func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.package.delete")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		packageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -50,14 +49,9 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 
 	spanDelete.SetAttributes(attributes...)
 
-	filter := bson.D{
-		{Key: "_id", Value: id},
-		{Key: "organization_id", Value: organizationID},
-		{Key: "deleted_at", Value: bson.M{"$eq": nil}},
-	}
 	deletedAt := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: time.Now()}}}}
 
-	deleted, err := coll.UpdateOne(ctx, filter, deletedAt)
+	deleted, err := coll.UpdateOne(ctx, packageScopeFilter(id, organizationID, ledgerID), deletedAt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete package", err)
 

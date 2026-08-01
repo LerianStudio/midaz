@@ -22,8 +22,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// GetPackageByID recover a package by ID
-func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.UUID) (_ *pack.Package, err error) {
+// GetPackageByID recover a package by ID within the given ledger. A ledgerID of
+// uuid.Nil reads the package on whichever ledger of the organization owns it.
+func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (_ *pack.Package, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.get_package_by_id")
@@ -39,9 +40,10 @@ func (uc *UseCase) GetPackageByID(ctx context.Context, id, organizationID uuid.U
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
-	packModel, err := uc.packageRepo.FindByID(ctx, id, organizationID)
+	packModel, err := uc.packageRepo.FindByID(ctx, id, organizationID, ledgerID)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)

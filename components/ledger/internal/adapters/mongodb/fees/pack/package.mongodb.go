@@ -22,13 +22,18 @@ import (
 
 // Repository provides an interface for operations related to mongo metadata entities.
 //
+// FindByID, Update and SoftDelete take the ledger the caller is acting within.
+// uuid.Nil means organization scope and matches the package on whichever ledger
+// owns it; any other value matches only a package owned by that ledger, and a
+// package owned by another ledger of the same organization is reported as absent.
+//
 //go:generate mockgen --destination=./package_mongodb_mock.go --package=pack . Repository
 type Repository interface {
 	Create(ctx context.Context, pack *Package, organizationID uuid.UUID) (*Package, error)
 	FindList(ctx context.Context, filters http.QueryHeader) ([]*Package, error)
-	FindByID(ctx context.Context, id, organizationID uuid.UUID) (*Package, error)
-	Update(ctx context.Context, id, organizationID uuid.UUID, updateFields *bson.M) (*Package, error)
-	SoftDelete(ctx context.Context, id, organizationID uuid.UUID) error
+	FindByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*Package, error)
+	Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updateFields *bson.M) (*Package, error)
+	SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 	FindByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error)
 	FindFeesAndAmountDataByPackageID(ctx context.Context, organizationID, packageID uuid.UUID) (*model.AmountData, error)
 }
