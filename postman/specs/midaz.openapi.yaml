@@ -51,8 +51,16 @@ tags:
     x-displayName: Protection
   - name: Midaz_Ledger_API_Metadata Indexes
     x-displayName: Metadata Indexes
+  - name: Midaz_Ledger_API_v2_Encryption
+    x-displayName: Encryption
+  - name: Midaz_Ledger_API_v2_Holders
+    x-displayName: Holders
+  - name: Midaz_Ledger_API_v2_Instruments
+    x-displayName: Instruments
   - name: Midaz_Ledger_API_v2_Transactions
     x-displayName: Transactions
+  - name: Midaz_Ledger_API_v2_Protection
+    x-displayName: Protection
   - name: Midaz_Tracer_API_Audit
     x-displayName: Audit
   - name: Midaz_Tracer_API_Limits
@@ -6009,6 +6017,774 @@ paths:
       summary: Delete Metadata Index
       tags:
         - Midaz_Ledger_API_Metadata Indexes
+  /v2/organizations/{organization_id}/encryption/provision:
+    servers:
+      - url: /
+    post:
+      operationId: provisionEncryptionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisionEncryptionResponse'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Provision an Organization for Envelope Encryption
+      tags:
+        - Midaz_Ledger_API_v2_Encryption
+  /v2/organizations/{organization_id}/encryption/status:
+    servers:
+      - url: /
+    get:
+      operationId: getProvisioningStatusV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatusResponse'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get Provisioning Status
+      tags:
+        - Midaz_Ledger_API_v2_Encryption
+  /v2/organizations/{organization_id}/holders:
+    servers:
+      - url: /
+    get:
+      operationId: listHoldersV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: JSON string to filter holders by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter holders by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Return includes logically deleted holders (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Return includes logically deleted holders (true,false)
+            type: string
+        - description: Filter holders by externalID
+          explode: false
+          in: query
+          name: external_id
+          schema:
+            description: Filter holders by externalID
+            type: string
+        - description: Filter holders by document
+          explode: false
+          in: query
+          name: document
+          schema:
+            description: Filter holders by document
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Holders
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+    post:
+      operationId: createHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original holder
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original holder
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holder'
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Holder
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments:
+    servers:
+      - url: /
+    post:
+      operationId: createInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original instrument
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original instrument
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instrument'
+          description: OK
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an Instrument Account
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}:
+    servers:
+      - url: /
+    delete:
+      operationId: deleteInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: >-
+            Use only to perform a physical deletion of the data. This action is
+            irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: >-
+              Use only to perform a physical deletion of the data. This action
+              is irreversible. (true,false)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an Instrument
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
+    get:
+      operationId: getInstrumentByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: Returns the instrument even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: >-
+              Returns the instrument even if it was logically deleted
+              (true,false)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instrument'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Instrument details
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
+    patch:
+      operationId: updateInstrumentV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instrument'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an Instrument
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
+  /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id}/related-parties/{related_party_id}:
+    servers:
+      - url: /
+    delete:
+      operationId: deleteRelatedPartyV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: holder_id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Instrument ID (UUID)
+          in: path
+          name: instrument_id
+          required: true
+          schema:
+            description: Instrument ID (UUID)
+            type: string
+        - description: Related Party ID (UUID)
+          in: path
+          name: related_party_id
+          required: true
+          schema:
+            description: Related Party ID (UUID)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Related Party
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
+  /v2/organizations/{organization_id}/holders/{id}:
+    servers:
+      - url: /
+    delete:
+      operationId: deleteHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: >-
+            Use only to perform a physical deletion of the data. This action is
+            irreversible. (true,false)
+          explode: false
+          in: query
+          name: hard_delete
+          schema:
+            description: >-
+              Use only to perform a physical deletion of the data. This action
+              is irreversible. (true,false)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete a Holder
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+    get:
+      operationId: getHolderByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Returns the holder even if it was logically deleted (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Returns the holder even if it was logically deleted (true,false)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holder'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve Holder details
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+    patch:
+      operationId: updateHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              contentMediaType: application/octet-stream
+              format: binary
+              type: string
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holder'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update a Holder
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+  /v2/organizations/{organization_id}/holders/{id}/accounts:
+    servers:
+      - url: /
+    get:
+      operationId: listAccountsByHolderV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Holder ID (UUID)
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Holder ID (UUID)
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Accounts by Holder
+      tags:
+        - Midaz_Ledger_API_v2_Holders
+  /v2/organizations/{organization_id}/instruments:
+    servers:
+      - url: /
+    get:
+      operationId: listInstrumentsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Filter instruments by holder ID (UUID)
+          explode: false
+          in: query
+          name: holder_id
+          schema:
+            description: Filter instruments by holder ID (UUID)
+            type: string
+        - description: JSON string to filter instruments by metadata fields
+          explode: false
+          in: query
+          name: metadata
+          schema:
+            description: JSON string to filter instruments by metadata fields
+            type: string
+        - description: Max items per page (1-100, default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (1-100, default 10)
+            type: string
+        - description: Page number (default 1)
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number (default 1)
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Return includes logically deleted instruments (true,false)
+          explode: false
+          in: query
+          name: include_deleted
+          schema:
+            description: Return includes logically deleted instruments (true,false)
+            type: string
+        - description: Filter instrument by accountID
+          explode: false
+          in: query
+          name: account_id
+          schema:
+            description: Filter instrument by accountID
+            type: string
+        - description: Filter instrument by ledgerID
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: Filter instrument by ledgerID
+            type: string
+        - description: Filter instrument by document
+          explode: false
+          in: query
+          name: document
+          schema:
+            description: Filter instrument by document
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagination'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Instruments
+      tags:
+        - Midaz_Ledger_API_v2_Instruments
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
     servers:
       - url: /
@@ -6404,6 +7180,99 @@ paths:
       summary: Revert a Transaction (v2)
       tags:
         - Midaz_Ledger_API_v2_Transactions
+  /v2/organizations/{organization_id}/protection/audit:
+    servers:
+      - url: /
+    get:
+      operationId: getAuditEventsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Bearer token; only required when the auth plugin is enabled
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token; only required when the auth plugin is enabled
+            type: string
+        - description: Maximum number of events to return (default 20)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Maximum number of events to return (default 20)
+            type: string
+        - description: Opaque pagination cursor
+          explode: false
+          in: query
+          name: cursor
+          schema:
+            description: Opaque pagination cursor
+            type: string
+        - description: 'Sort order: asc or desc (default desc)'
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: 'Sort order: asc or desc (default desc)'
+            type: string
+        - description: Filter by action
+          explode: false
+          in: query
+          name: action
+          schema:
+            description: Filter by action
+            type: string
+        - description: Filter by actor
+          explode: false
+          in: query
+          name: actor
+          schema:
+            description: Filter by actor
+            type: string
+        - description: 'Filter by outcome: success, failure, or already_exists'
+          explode: false
+          in: query
+          name: outcome
+          schema:
+            description: 'Filter by outcome: success, failure, or already_exists'
+            type: string
+        - description: Inclusive lower time bound (yyyy-mm-dd or RFC3339)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Inclusive lower time bound (yyyy-mm-dd or RFC3339)
+            type: string
+        - description: Inclusive upper time bound (yyyy-mm-dd or RFC3339)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Inclusive upper time bound (yyyy-mm-dd or RFC3339)
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventsEnvelope'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List Protection Audit Events
+      tags:
+        - Midaz_Ledger_API_v2_Protection
   /audit-events:
     get:
       operationId: listAuditEvents
@@ -11221,7 +12090,11 @@ x-tagGroups:
       - Midaz_Ledger_API_Metadata Indexes
   - name: Midaz Ledger API v2
     tags:
+      - Midaz_Ledger_API_v2_Encryption
+      - Midaz_Ledger_API_v2_Holders
+      - Midaz_Ledger_API_v2_Instruments
       - Midaz_Ledger_API_v2_Transactions
+      - Midaz_Ledger_API_v2_Protection
   - name: Midaz Tracer API
     tags:
       - Midaz_Tracer_API_Audit
