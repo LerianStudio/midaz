@@ -237,20 +237,22 @@ func (handler *PackageHandler) DeletePackageByIDHuma(ctx context.Context, in *Ge
 }
 
 // RegisterPackageRoutes registers the five migrated fee-package operations on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
+// given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","packages",verb) + tenant + ParseUUIDPathParameters("packages")
-// middleware chain is attached on the /v1 group (Fiber-level) BEFORE the Huma
+// middleware chain is attached on the versioned Fiber group BEFORE the Huma
 // terminal, not here. Paths are GROUP-RELATIVE (see asset_handler_huma.go's
-// RegisterAssetRoutes header for the /v1 rationale).
-func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
-	const (
-		listPath = "/organizations/{organization_id}/packages"
-		idPath   = listPath + "/{id}"
-		tag      = "Packages"
-	)
+// RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off basePath, and opSuffix is appended to every operation ID —
+// see feeBasePathV1 and feeOpSuffixV1.
+func RegisterPackageRoutes(api huma.API, h *PackageHandler, basePath, opSuffix string) {
+	const tag = "Packages"
+
+	listPath := basePath + "/packages"
+	idPath := listPath + "/{id}"
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createPackage",
+		OperationID: "createPackage" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create a Package",
@@ -261,7 +263,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 	}, h.CreatePackageHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllPackages",
+		OperationID: "getAllPackages" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all packages",
@@ -270,7 +272,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 	}, h.GetAllPackagesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getPackageByID",
+		OperationID: "getPackageByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get package",
@@ -279,7 +281,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 	}, h.GetPackageByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updatePackage",
+		OperationID:      "updatePackage" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a package",
@@ -289,7 +291,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 	}, h.UpdatePackageByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deletePackage",
+		OperationID: "deletePackage" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "SoftDelete a Package by ID",

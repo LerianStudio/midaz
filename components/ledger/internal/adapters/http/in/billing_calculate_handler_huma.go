@@ -81,16 +81,19 @@ func (handler *BillingCalculateHandler) CalculateBillingHuma(ctx context.Context
 }
 
 // RegisterBillingCalculateRoutes registers the migrated billing-calculate operation on
-// the shared Huma API. It is the per-file seam the unified server calls; the auth
+// the given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","billing-calculate","post") + tenant +
-// ParseUUIDPathParameters("billing-calculate") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterBillingCalculateRoutes(api huma.API, h *BillingCalculateHandler) {
+// ParseUUIDPathParameters("billing-calculate") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off basePath, and opSuffix is appended to the operation ID —
+// see feeBasePathV1 and feeOpSuffixV1.
+func RegisterBillingCalculateRoutes(api huma.API, h *BillingCalculateHandler, basePath, opSuffix string) {
 	huma.Register(api, huma.Operation{
-		OperationID: "calculateBilling",
+		OperationID: "calculateBilling" + opSuffix,
 		Method:      http.MethodPost,
-		Path:        "/organizations/{organization_id}/billing/calculate",
+		Path:        basePath + "/billing/calculate",
 		Summary:     "Calculate billing",
 		Tags:        []string{"Billing Calculate"},
 		Security:    secBillingBearer,

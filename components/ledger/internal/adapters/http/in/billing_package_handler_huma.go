@@ -241,20 +241,22 @@ func (handler *BillingPackageHandler) DeleteBillingPackageHuma(ctx context.Conte
 }
 
 // RegisterBillingPackageRoutes registers the five migrated billing-package operations
-// on the shared Huma API. It is the per-file seam the unified server calls; the auth
+// on the given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","billing-packages",verb) + tenant +
-// ParseUUIDPathParameters("billing-packages") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
-	const (
-		listPath = "/organizations/{organization_id}/billing-packages"
-		idPath   = listPath + "/{id}"
-		tag      = "Billing Packages"
-	)
+// ParseUUIDPathParameters("billing-packages") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off basePath, and opSuffix is appended to every operation ID —
+// see feeBasePathV1 and feeOpSuffixV1.
+func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler, basePath, opSuffix string) {
+	const tag = "Billing Packages"
+
+	listPath := basePath + "/billing-packages"
+	idPath := listPath + "/{id}"
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createBillingPackage",
+		OperationID: "createBillingPackage" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        listPath,
 		Summary:     "Create a BillingPackage",
@@ -265,7 +267,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 	}, h.CreateBillingPackageHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getAllBillingPackages",
+		OperationID: "getAllBillingPackages" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "Get all billing packages",
@@ -274,7 +276,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 	}, h.GetAllBillingPackagesHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getBillingPackageByID",
+		OperationID: "getBillingPackageByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Get billing package",
@@ -283,7 +285,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 	}, h.GetBillingPackageByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateBillingPackage",
+		OperationID:      "updateBillingPackage" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a billing package",
@@ -293,7 +295,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 	}, h.UpdateBillingPackageHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteBillingPackage",
+		OperationID: "deleteBillingPackage" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "SoftDelete a BillingPackage by ID",
