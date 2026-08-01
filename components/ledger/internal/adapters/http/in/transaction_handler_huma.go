@@ -54,9 +54,6 @@ import (
 //     (auth.Authorize("midaz","transactions",verb) + tenant + ParseUUIDPathParameters
 //     ("transaction")) attached BEFORE the Huma terminal — the per-op Security metadata
 //     is SPEC-ONLY.
-//
-// POST /transactions/dsl is DELIBERATELY NOT migrated: it is a multipart .casl upload,
-// SUNSET 2026-08-01, and stays a pure Fiber route (out of the Huma spec).
 
 // secTransactionBearer advertises a JWT bearer token per operation (Bearer-only,
 // matching the Fiber guard chain on every transaction wrapper). SPEC
@@ -495,8 +492,7 @@ func (handler *TransactionHandler) GetAllTransactionsHuma(ctx context.Context, i
 // shared Huma API. It is the per-file seam the unified server calls; the auth
 // (auth.Authorize("midaz","transactions",verb)) + tenant + ParseUUIDPathParameters
 // ("transaction") chain for these routes is attached in the unified server (Fiber level)
-// BEFORE the Huma terminal, not here. POST /transactions/dsl is NOT registered (SUNSET
-// 2026-08-01, stays pure Fiber). Paths are GROUP-RELATIVE (the /v1 prefix rides the
+// BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE (the /v1 prefix rides the
 // OpenAPI servers entry).
 func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 	const (

@@ -29,7 +29,6 @@ import (
 // the Huma API is built with openapi.New over a /v1 group, an auth-shim middleware stands
 // in for auth.Authorize("midaz","transactions",verb) + tenant PostAuthMiddlewares, and
 // http.ParseUUIDPathParameters("transaction") + RegisterTransactionRoutes attach the chain.
-// POST /transactions/dsl is deliberately NOT mounted (SUNSET 2026-08-01, stays pure Fiber).
 //
 // MUST-NOT-PARALLELIZE (same rationale as buildHumaCountApp/buildHumaHolderApp):
 // libProblem.Install() swaps the process-global huma.NewError hook and Huma validation

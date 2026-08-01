@@ -65,25 +65,17 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	// Wave-2 Huma-migrated resources (balance, operation-read, transaction-count,
 	// operation-route, transaction-route) are mounted via the same /v1 group + shared
 	// Huma API the unified server's humaMount uses. The operation PATCH (UpdateOperation,
-	// Wave-4 money-write leg) is now ALSO mounted by RegisterOperationRoutesToApp.
-	// RegisterTransactionRoutesToApp below mounts only the non-migrated transaction
-	// write/DSL routes.
+	// Wave-4 money-write leg) is ALSO mounted by RegisterOperationRoutesToApp.
 	RegisterBalanceRoutesToApp(apiV1, humaAPI, auth, &BalanceHandler{}, nil)
 	RegisterOperationRoutesToApp(apiV1, humaAPI, auth, &OperationHandler{}, nil)
 	RegisterCountTransactionRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, nil)
 	RegisterOperationRouteRoutesToApp(apiV1, humaAPI, auth, &OperationRouteHandler{}, nil)
 	RegisterTransactionRouteRoutesToApp(apiV1, humaAPI, auth, &TransactionRouteHandler{}, nil)
 
-	// Wave-4 (MONEY-WRITE) Huma-migrated transaction ops (json/inflow/outflow/annotation
-	// CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list) are mounted via
-	// the same /v1 group + shared Huma API the unified server's humaMount uses.
-	// RegisterTransactionRoutesToApp below mounts only the non-migrated POST
-	// /transactions/dsl route.
+	// Wave-4 (MONEY-WRITE) Huma-migrated transaction ops (json/inflow/outflow/annotation/
+	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list) are
+	// mounted via the same /v1 group + shared Huma API the unified server's humaMount uses.
 	RegisterTransactionHumaRoutesToApp(apiV1, humaAPI, auth, &TransactionHandler{}, nil)
-
-	RegisterTransactionRoutesToApp(app, auth,
-		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
-		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)
 
 	// Wave-3 (additive) Huma-migrated resources (CRM holders/instruments/holder-
 	// accounts/encryption/audit, fees/billing, composition) are mounted via the same
@@ -156,9 +148,6 @@ var excludedPaths = map[string]bool{
 	canonicalizePath("/health"):  true,
 	canonicalizePath("/version"): true,
 	canonicalizePath("/readyz"):  true,
-	// Legacy multipart DSL transaction endpoint: an intentional Fiber-only route
-	// (no Huma operation) kept for backward compat, sunset 2026-08-01, not migrated.
-	canonicalizePath("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl"): true,
 }
 
 // pathParam matches a single path-parameter segment in EITHER syntax: Fiber
