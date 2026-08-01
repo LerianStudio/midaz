@@ -116,20 +116,38 @@ func TestIntegration_FeesEnsureIndexes_PackAndBillingPackage(t *testing.T) {
 }
 
 // TestIntegration_FeesEnsureIndexes_Idempotent asserts EnsureIndexes can run
-// twice without error — startup re-runs it on every boot, so a second call
-// (same index specs) must be a no-op, not a conflict.
+// twice without error — startup re-runs it on every boot, and the fees Mongo is
+// per-tenant, so it re-runs per tenant database at first connection rather than
+// once globally.
+//
+// Erroring is not the only failure worth catching: a second run must leave the
+// index set byte-for-byte unchanged. Comparing the snapshots is what makes this
+// a no-op proof instead of merely a no-error proof, and it is what would catch
+// a future spec edit that reuses an existing index NAME with different keys —
+// MongoDB rejects that rather than converging, so it would break every already
+// provisioned tenant while a fresh database stayed green.
 func TestIntegration_FeesEnsureIndexes_Idempotent(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	ctx := context.Background()
 
 	conn := newFeesConnection(t, container)
 
-	for i := 0; i < 2; i++ {
+	snapshots := make([]map[string]struct{}, 0, 4)
+
+	for i := range 2 {
 		require.NoErrorf(t, pack.EnsureIndexes(ctx, conn), "pack.EnsureIndexes must be idempotent (run %d)", i+1)
 		require.NoErrorf(t, billing_package.EnsureIndexes(ctx, conn), "billing_package.EnsureIndexes must be idempotent (run %d)", i+1)
+
+		snapshots = append(
+			snapshots,
+			listIndexNames(t, ctx, container, feeconstant.PackageCollection),
+			listIndexNames(t, ctx, container, feeconstant.BillingPackageCollection),
+		)
 	}
 
-	// Sanity: the collections exist and at least the named indexes are present.
-	require.NotEmpty(t, listIndexNames(t, ctx, container, feeconstant.PackageCollection))
-	require.NotEmpty(t, listIndexNames(t, ctx, container, feeconstant.BillingPackageCollection))
+	require.NotEmpty(t, snapshots[0], "package collection must carry indexes after the first run")
+	require.NotEmpty(t, snapshots[1], "billing_package collection must carry indexes after the first run")
+
+	assert.Equal(t, snapshots[0], snapshots[2], "second pack.EnsureIndexes run must not change the package index set")
+	assert.Equal(t, snapshots[1], snapshots[3], "second billing_package.EnsureIndexes run must not change the billing_package index set")
 }
