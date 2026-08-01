@@ -504,12 +504,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Segment Name Error",
 			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
-		constant.ErrInvalidScriptFormat: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrInvalidScriptFormat.Error(),
-			Title:      "Invalid Script Format Error",
-			Message:    "The script provided in your request is invalid or in an unsupported format. Please verify the script format and try again.",
-		},
 		constant.ErrInsufficientFunds: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientFunds.Error(),
@@ -749,18 +743,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrJWKFetch.Error(),
 			Title:      "JWK Fetch Error",
 			Message:    "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
-		},
-		constant.ErrInvalidDSLFileFormat: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrInvalidDSLFileFormat.Error(),
-			Title:      "Invalid DSL File Format",
-			Message:    fmt.Sprintf("The submitted DSL file %v is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", args...),
-		},
-		constant.ErrEmptyDSLFile: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrEmptyDSLFile.Error(),
-			Title:      "Empty DSL File",
-			Message:    fmt.Sprintf("The submitted DSL file %v is empty. Please provide a valid file with content.", args...),
 		},
 		constant.ErrMetadataKeyLengthExceeded: ValidationError{
 			EntityType: entityType,

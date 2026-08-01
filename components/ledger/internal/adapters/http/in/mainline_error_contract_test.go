@@ -30,8 +30,7 @@ import (
 //
 // Coverage:
 //   - 23 codes 400 -> 422 (ValidationError -> UnprocessableOperationError)
-//   - 1 code 400 -> 409  (ValidationError -> EntityConflictError): 0156
-//   - 2 reverse fixes -> 400 (ValidationError): 0017 (was 409), 0096 (was 500)
+//   - 1 reverse fix -> 400 (ValidationError): 0096 (was 500)
 func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -202,14 +201,7 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 			expectedCode:   "0170",
 			expectedTitle:  "Reserved Balance Key Error",
 		},
-		// --- 2 reverse fixes -> 400 (ValidationError) ---
-		{
-			name:           "0017 invalid script format is 400 (reverse fix from 409)",
-			err:            pkg.ValidateBusinessError(constant.ErrInvalidScriptFormat, constant.EntityTransaction),
-			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0017",
-			expectedTitle:  "Invalid Script Format Error",
-		},
+		// --- 1 reverse fix -> 400 (ValidationError) ---
 		{
 			name:           "0096 account alias invalid is 400 (reverse fix from 500)",
 			err:            pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityAccount),
@@ -219,7 +211,7 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 		},
 	}
 
-	require.Len(t, tests, 25, "the reclassification table is 25 codes (23 move-422 + 2 reverse fixes)")
+	require.Len(t, tests, 24, "the reclassification table is 24 codes (23 move-422 + 1 reverse fix)")
 
 	runErrorContractCases(t, tests)
 }
