@@ -621,7 +621,7 @@ func buildCompanionCreditOp(organizationID, ledgerID uuid.UUID, r overdraftRefun
 // BuildOperations to emit an Operation record for the companion balance.
 // Without this entry, the `balances × fromTo` loop in BuildOperations never
 // matches the companion (its alias is not in the user-submitted transaction
-// DSL) and the persisted audit trail is missing the overdraft leg — the
+// body) and the persisted audit trail is missing the overdraft leg — the
 // failure mode observed in the feature before this fix: DB balances correct,
 // response.operations incomplete, Postgres `operation` table missing rows.
 //
@@ -669,7 +669,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 
 	if primary.Balance != nil {
 		// There is no Route/ChartOfAccounts on the Balance type directly —
-		// those live on the user's DSL entry. For companion entries we
+		// those live on the user's FromTo entry. For companion entries we
 		// currently leave them empty so they do not leak user-facing
 		// accounting rubrics onto the system-managed companion op. Future
 		// work (T-008 AccountingEntries Extension) may fill these in from

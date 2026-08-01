@@ -70,7 +70,6 @@ CRM routes register under the `midaz` authorization namespace; the coordinated t
 - **Double-entry engine** — every credit has a matching debit.
 - **Multi-asset support** — transactions across currencies with automatic rate conversion.
 - **Complex transactions** — n:n operations (multiple sources to multiple destinations).
-- **Gold transaction DSL** — a purpose-built grammar for modeling complex transactions.
 - **Immutable records** — every transaction is permanently recorded for audit.
 - **Async processing** — event-driven transaction handling via RabbitMQ.
 - **Optimistic-concurrency balances** — version-based concurrency control for balance updates.

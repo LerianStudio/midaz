@@ -983,7 +983,7 @@ function addParameters(requestItem, operation, path) {
   
   // Add X-Idempotency header for transaction creation endpoints
   const isTransactionEndpoint = (
-    (path.includes('/transactions/json') || path.includes('/transactions/dsl')) && 
+    path.includes('/transactions/json') &&
     requestItem.request.method === 'POST'
   );
   
@@ -1048,37 +1048,6 @@ function addParameters(requestItem, operation, path) {
  * @param {Object} spec - The full OpenAPI spec
  */
 function addRequestBody(requestItem, operation, spec) {
-  // Check if this is a DSL transaction endpoint
-  const url = requestItem.request.url.raw || '';
-  const isDslEndpoint = url.includes('/transactions/dsl');
-  
-  if (isDslEndpoint) {
-    // DSL endpoints require form-data for file upload
-    requestItem.request.body = {
-      mode: 'formdata',
-      formdata: [
-        {
-          key: 'dsl',
-          type: 'file',
-          description: 'DSL transaction file',
-          src: []
-        }
-      ]
-    };
-    
-    // Add content-type header for form-data
-    if (!requestItem.request.header) {
-      requestItem.request.header = [];
-    }
-    
-    // Remove any existing content-type headers and let Postman handle multipart
-    requestItem.request.header = requestItem.request.header.filter(h => 
-      h.key.toLowerCase() !== 'content-type'
-    );
-    
-    return; // Skip the normal JSON body processing
-  }
-  
   // Add request body if present in OpenAPI 3.0 format
   if (operation.requestBody) {
     const content = operation.requestBody.content || {};
@@ -2583,13 +2552,6 @@ function ensureExamplesFollowStandards(collection) {
           }
         }
         
-        // Fix 4: Handle DSL Transaction endpoint - skip or provide proper DSL payload
-        if (method === 'POST' && requestPath.includes('/transactions/dsl')) {
-          // Remove the body for DSL endpoint as it requires special DSL syntax
-          delete item.request.body;
-          console.log(`Removed body from DSL transaction request: ${item.name} (requires DSL file format)`);
-        }
-        
         // Fix test assertions to match actual backend behavior
         if (item.event && Array.isArray(item.event)) {
           item.event.forEach(event => {
@@ -2633,23 +2595,6 @@ function ensureExamplesFollowStandards(collection) {
                   'if (pm.response.code === 200) { pm.response.to.be.json; } // Only validate JSON for successful responses'
                 );
                 console.log(`Fixed account lookup assertions for: ${item.name}`);
-              }
-              
-              // Fix 8: DSL Transaction assertions - handle 400 error and no variable extraction
-              if (requestPath.includes('/transactions/dsl')) {
-                scriptContent = scriptContent.replace(
-                  /pm\.expect\(pm\.response\.code\)\.to\.be\.oneOf\(\[200, 201\]\);/g,
-                  'pm.expect(pm.response.code).to.be.oneOf([400, 422]); // DSL endpoint requires proper DSL format'
-                );
-                scriptContent = scriptContent.replace(
-                  /pm\.expect\(extractedCount\)\.to\.be\.at\.least\(1, "At least one variable should be extracted"\);/g,
-                  '// Skip variable extraction for DSL endpoint due to format requirements'
-                );
-                scriptContent = scriptContent.replace(
-                  /if \(!pm\.environment\.get\("dslTransactionId"\)\) \{[\s\S]*?\}/g,
-                  '// DSL Transaction ID not available due to endpoint format requirements'
-                );
-                console.log(`Fixed DSL transaction assertions for: ${item.name}`);
               }
               
               // Update the script

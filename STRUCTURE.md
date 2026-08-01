@@ -145,7 +145,6 @@ Cross-component Go libraries (root module; non-exhaustive — additional package
 |---------|---------|
 | `pkg/mmodel` | Domain models (Organization, Ledger, Account, Asset, Transaction, Balance, Holder, Instrument, etc.) |
 | `pkg/constant` | Error codes (`errors.go`, ledger numeric sentinels (`0001`+) + 16 `CRM-00xx`), entity/action/module constants |
-| `pkg/gold` | ANTLR4 Gold DSL grammar + parser for transactions |
 | `pkg/mtransaction` | Transaction processing utilities (formerly `pkg/transaction`) |
 | `pkg/net` | HTTP middleware, pagination, protected-route helpers |
 | `pkg/streaming` | lib-streaming event modeling (`pkg/streaming/events`) |

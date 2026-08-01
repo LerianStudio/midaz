@@ -62,7 +62,7 @@ route registration lives in [`internal/adapters/http/in/routes.go`](internal/ada
 | **CRM** | Holders + instruments, PII field encryption, search tokens | `internal/crm` (package tree) |
 | **Fees** | Fee calculation applied at the transaction-create seam | `pkg/fee`, `pkg/feeshared`, `internal/services/fees` |
 
-Transaction creation modes: JSON, DSL, inflow, outflow, annotation. Pending transactions can be
+Transaction creation modes: JSON, inflow, outflow, annotation. Pending transactions can be
 committed or cancelled; revert creates a reverse transaction. Async processing is controlled by
 `RABBITMQ_TRANSACTION_ASYNC`. The fee seam sits in `transaction_create.go` after default balance-key
 application and the idempotency claim, before post-fee re-validation.

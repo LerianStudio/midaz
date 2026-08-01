@@ -225,7 +225,7 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 
 		// KEY: Use ParseDSL field (old name) - this is what old producers send
 		transactionInput := &mtransaction.Transaction{
-			Description: "DSL from old producer",
+			Description: "Legacy input from old producer",
 			Send: mtransaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(100),

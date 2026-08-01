@@ -1541,7 +1541,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 
 // remainingLegV1Body spells a 100 USD transaction in the v1 detailed form: one source leg
 // taking an explicit 60, a second taking the remainder, and a single destination taking the
-// full 100. `remaining` is a v1/DSL expression only — the v2 surface publishes no such field,
+// full 100. `remaining` is a v1-only field — the v2 surface publishes no such field,
 // so a v2 body cannot spell this shape.
 const remainingLegV1Body = `{
 	"description":"remaining leg",

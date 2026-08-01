@@ -40,7 +40,7 @@ func TestGetWriteBehindTransaction_Hit(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 		AssetCode:      "BRL",
 		Body: mtransaction.Transaction{
-			Description: "DSL body content",
+			Description: "write-behind body content",
 			Send: mtransaction.Send{
 				Asset: "BRL",
 			},
@@ -63,7 +63,7 @@ func TestGetWriteBehindTransaction_Hit(t *testing.T) {
 	assert.NotNil(t, tran)
 	assert.Equal(t, transactionID.String(), tran.ID)
 	assert.Equal(t, "BRL", tran.AssetCode)
-	assert.Equal(t, "DSL body content", tran.Body.Description)
+	assert.Equal(t, "write-behind body content", tran.Body.Description)
 	assert.Equal(t, "BRL", tran.Body.Send.Asset)
 }
 

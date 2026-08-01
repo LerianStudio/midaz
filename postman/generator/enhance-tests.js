@@ -373,8 +373,6 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    \n' +
         '    if (currentUrl.includes("/transactions/json")) {\n' +
         '        varPrefix = ""; // Standard transaction - use original variable names\n' +
-        '    } else if (currentUrl.includes("/transactions/dsl")) {\n' +
-        '        varPrefix = "dsl"; // DSL transaction\n' +
         '    } else if (currentUrl.includes("/transactions/inflow")) {\n' +
         '        varPrefix = "inflow"; // Inflow transaction\n' +
         '    } else if (currentUrl.includes("/transactions/outflow")) {\n' +
