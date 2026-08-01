@@ -20,18 +20,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// SoftDelete performs a soft delete on a billing package entity in MongoDB.
-func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id string, organizationID string) error {
+// SoftDelete performs a soft delete on a billing package entity in MongoDB
+// within the given ledger.
+func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id, organizationID, ledgerID string) error {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.billing_package.delete")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		billingPackageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -49,16 +49,10 @@ func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id str
 
 	spanDelete.SetAttributes(attributes...)
 
-	filter := bson.D{
-		{Key: "_id", Value: id},
-		{Key: "organization_id", Value: organizationID},
-		{Key: "deleted_at", Value: bson.M{"$eq": nil}},
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339)
 	deletedAt := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: now}}}}
 
-	deleted, err := coll.UpdateOne(ctx, filter, deletedAt)
+	deleted, err := coll.UpdateOne(ctx, billingPackageScopeFilter(id, organizationID, ledgerID), deletedAt)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete billing package", err)
 

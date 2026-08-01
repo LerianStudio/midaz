@@ -25,12 +25,17 @@ import (
 
 // BillingPackageUseCase defines the billing-package business operations consumed
 // by the billing-package handler.
+//
+// The by-ID operations take the ledger the request is scoped to. The
+// organization-scoped surface carries no ledger in its path, so it passes uuid.Nil
+// and keeps addressing a billing package on any ledger of the organization; a
+// request that does name a ledger only reaches a package that ledger owns.
 type BillingPackageUseCase interface {
 	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
-	GetBillingPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error)
+	GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error)
 	GetAllBillingPackages(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
-	UpdateBillingPackage(ctx context.Context, id, organizationID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
-	DeleteBillingPackage(ctx context.Context, id, organizationID uuid.UUID) error
+	UpdateBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
+	DeleteBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error
 }
 
 // BillingPackageHandler exposes the billing-package CRUD surface over HTTP.
@@ -241,7 +246,7 @@ func (handler *BillingPackageHandler) getBillingPackageByID(ctx context.Context,
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	result, errGet := handler.Service.GetBillingPackageByID(ctx, id, organizationID)
+	result, errGet := handler.Service.GetBillingPackageByID(ctx, id, organizationID, uuid.Nil)
 	if errGet != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve billing package", errGet)
 
@@ -319,7 +324,7 @@ func (handler *BillingPackageHandler) updateBillingPackage(ctx context.Context, 
 		return nil, validationErr
 	}
 
-	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, updates)
+	result, errUpdate := handler.Service.UpdateBillingPackage(ctx, id, organizationID, uuid.Nil, updates)
 	if errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update billing package", errUpdate)
 
@@ -366,7 +371,7 @@ func (handler *BillingPackageHandler) deleteBillingPackage(ctx context.Context, 
 		attribute.String("app.request.billing_package_id", id.String()),
 	)
 
-	if errDelete := handler.Service.DeleteBillingPackage(ctx, id, organizationID); errDelete != nil {
+	if errDelete := handler.Service.DeleteBillingPackage(ctx, id, organizationID, uuid.Nil); errDelete != nil {
 		handleSpanByErrorClass(span, "Failed to delete billing package", errDelete)
 
 		logLevel := libLog.LevelError

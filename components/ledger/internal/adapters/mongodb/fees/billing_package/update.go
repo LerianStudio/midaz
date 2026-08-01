@@ -23,18 +23,18 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// Update applies the fields and returns the persisted billing package.
-func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string, organizationID string, updateFields *bson.M) (*model.BillingPackage, error) {
+// Update applies the fields within the given ledger and returns the persisted
+// billing package.
+func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id, organizationID, ledgerID string, updateFields *bson.M) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.billing_package.update")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.String("app.request.billing_package_id", id),
-	}
+	attributes := append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		billingPackageScopeAttributes(id, organizationID, ledgerID)...,
+	)
 
 	span.SetAttributes(attributes...)
 
@@ -47,11 +47,7 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id string,
 
 	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
-	filter := bson.M{
-		"_id":             id,
-		"organization_id": organizationID,
-		"deleted_at":      bson.M{"$eq": nil},
-	}
+	filter := billingPackageScopeFilter(id, organizationID, ledgerID)
 	pipeline := buildUpdatePipeline(updateFields)
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 

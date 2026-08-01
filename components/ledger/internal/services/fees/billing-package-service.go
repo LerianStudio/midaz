@@ -276,8 +276,23 @@ func (s *BillingPackageService) validateAccountTargetExists(ctx context.Context,
 	return nil
 }
 
-// GetBillingPackageByID retrieves a billing package by ID and organization ID.
-func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, organizationID uuid.UUID) (*model.BillingPackage, error) {
+// billingPackageLedgerScope converts the ledger the caller is acting within into
+// the repository's ledger argument. uuid.Nil is organization scope and maps to
+// billing_package.AnyLedger — never to the all-zero UUID string, which is a ledger
+// no package is owned by and would answer every organization-scoped request as
+// absent.
+func billingPackageLedgerScope(ledgerID uuid.UUID) string {
+	if ledgerID == uuid.Nil {
+		return billing_package.AnyLedger
+	}
+
+	return ledgerID.String()
+}
+
+// GetBillingPackageByID retrieves a billing package by ID within the given ledger.
+// A ledgerID of uuid.Nil reads the package on whichever ledger of the organization
+// owns it.
+func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.get_by_id")
@@ -287,9 +302,10 @@ func (s *BillingPackageService) GetBillingPackageByID(ctx context.Context, id, o
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.billing_package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
-	result, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
+	result, err := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String(), billingPackageLedgerScope(ledgerID))
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrBillingPackageNotFound, "BillingPackage", id.String())
@@ -339,8 +355,10 @@ func (s *BillingPackageService) GetAllBillingPackages(ctx context.Context, organ
 	return results, total, nil
 }
 
-// UpdateBillingPackage updates a billing package by ID with the provided fields.
-func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID uuid.UUID, updates map[string]any) (_ *model.BillingPackage, err error) {
+// UpdateBillingPackage updates a billing package by ID within the given ledger
+// with the provided fields. A ledgerID of uuid.Nil updates the package on
+// whichever ledger of the organization owns it.
+func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updates map[string]any) (_ *model.BillingPackage, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.update")
@@ -356,6 +374,7 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.billing_package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
 	// Build bson.M from updates and add updated_at timestamp.
@@ -370,7 +389,7 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 		"$set": setFields,
 	}
 
-	result, err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), &updateFields)
+	result, err := s.billingPackageRepo.Update(ctx, id.String(), organizationID.String(), billingPackageLedgerScope(ledgerID), &updateFields)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update billing package", err)
 
@@ -384,8 +403,10 @@ func (s *BillingPackageService) UpdateBillingPackage(ctx context.Context, id, or
 	return result, nil
 }
 
-// DeleteBillingPackage soft-deletes a billing package by ID and organization ID.
-func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID uuid.UUID) (err error) {
+// DeleteBillingPackage soft-deletes a billing package by ID within the given
+// ledger. A ledgerID of uuid.Nil deletes the package on whichever ledger of the
+// organization owns it.
+func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.delete")
@@ -401,18 +422,23 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.billing_package_id", id.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != uuid.Nil),
 	)
 
-	// Resolve the package BEFORE soft-delete so the deleted event can carry its
-	// ledger. A miss here skips only the emit; the delete proceeds.
-	deleted, errFind := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String())
+	ledgerScope := billingPackageLedgerScope(ledgerID)
+
+	// Resolve the package BEFORE soft-delete so the deleted event can carry the
+	// ledger the STORED DOCUMENT names — under organization scope the caller names
+	// none, so this read is the only source. A miss here skips only the emit; the
+	// delete proceeds.
+	deleted, errFind := s.billingPackageRepo.FindByID(ctx, id.String(), organizationID.String(), ledgerScope)
 	if errFind != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve billing package for deleted event", libLog.Err(errFind))
 	}
 
 	deletedAt := time.Now().UTC()
 
-	if err := s.billingPackageRepo.SoftDelete(ctx, id.String(), organizationID.String()); err != nil {
+	if err := s.billingPackageRepo.SoftDelete(ctx, id.String(), organizationID.String(), ledgerScope); err != nil {
 		// Remap a repo-layer entity-not-found to the billing-package-not-found business error.
 		var notFoundErr pkg.EntityNotFoundError
 		if errors.As(err, &notFoundErr) {
