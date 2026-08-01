@@ -134,12 +134,27 @@ const specPath = "../../../../api/openapi.huma.yaml"
 // surfaces compare on the same fully-qualified path.
 const specServerPrefix = "/v1"
 
-// excludedPaths is the LOCKED set of routes the unified server mounts but that are
-// intentionally absent from the Huma contract, so the diff gate drops them from the
-// mounted side before comparison. The list is a const so it cannot grow silently:
-// adding a route here is a reviewed, deliberate carve-out, never a convenient way
-// to hide a genuine served-vs-mounted divergence. Each entry is the CANONICALIZED
-// path (positional "{}" params — see pathParam) and must be justified inline.
+// specPathV2 is the committed, generated Huma OAS 3.1 dump for the SECOND,
+// independent /v2 contract — the source of truth the /v2 mounted route surface must
+// match, exactly as specPath is for /v1.
+const specPathV2 = "../../../../api/openapi.v2.huma.yaml"
+
+// specServerPrefixV2 is the /v2 counterpart of specServerPrefix: the v2 dump also
+// carries its base path in `servers` and keeps its `.paths` server-relative, so the
+// prefix is prepended the same way.
+const specServerPrefixV2 = "/v2"
+
+// excludedPaths is the LOCKED set of routes the unified server mounts under /v1 but
+// that are intentionally absent from the v1 Huma contract, so the diff gate drops
+// them from the mounted side before comparison. The list is a const so it cannot
+// grow silently: adding a route here is a reviewed, deliberate carve-out, never a
+// convenient way to hide a genuine served-vs-mounted divergence. Each entry is the
+// CANONICALIZED path (positional "{}" params — see pathParam) and must be justified
+// inline.
+//
+// It is passed explicitly to collectMountedRoutes rather than read globally, so each
+// contract carries its own carve-outs and a /v1 exclusion can never suppress a /v2
+// finding.
 //
 // No /swagger* entries: the swaggo UI + spec routes were retired with the migration.
 var excludedPaths = map[string]bool{
@@ -149,6 +164,13 @@ var excludedPaths = map[string]bool{
 	canonicalizePath("/version"): true,
 	canonicalizePath("/readyz"):  true,
 }
+
+// excludedPathsV2 is the /v2 counterpart of excludedPaths, and is EMPTY: the /v2
+// contract mounts no route that the v2 Huma dump omits. The public probes carved out
+// of /v1 are mounted on the unified server outside any versioned group, so they are
+// not part of the /v2 surface and must not be carved out here — an unjustified entry
+// would blind the gate.
+var excludedPathsV2 = map[string]bool{}
 
 // pathParam matches a single path-parameter segment in EITHER syntax: Fiber
 // ":name" or OpenAPI "{name}". Both are collapsed to a positional "{}" token by
@@ -174,13 +196,15 @@ func canonicalizePath(p string) string {
 	return pathParam.ReplaceAllString(p, "{}")
 }
 
-// collectMountedRoutes returns the normalized "METHOD {path}" set the unified app
-// mounts, minus the locked exclusions and Fiber's auto-registered HEAD twins. Fiber
-// registers a HEAD route for every GET; those have no OpenAPI counterpart, so a HEAD
-// whose path also has a GET is dropped. Explicit HEAD routes (the metrics/count
-// endpoints) have NO sibling GET on the same path, so they survive and are compared
-// against the dump's `head` operations.
-func collectMountedRoutes(app *fiber.App) map[string]bool {
+// collectMountedRoutes returns the normalized "METHOD {path}" set the given app
+// mounts, minus the caller's locked exclusions and Fiber's auto-registered HEAD
+// twins. Fiber registers a HEAD route for every GET; those have no OpenAPI
+// counterpart, so a HEAD whose path also has a GET is dropped. Explicit HEAD routes
+// (the v1 metrics/count endpoints) have NO sibling GET on the same path, so they
+// survive and are compared against the dump's `head` operations.
+//
+// excluded is per-contract: passing one contract's carve-outs never affects another.
+func collectMountedRoutes(app *fiber.App, excluded map[string]bool) map[string]bool {
 	getPaths := make(map[string]bool)
 
 	for _, r := range app.GetRoutes() {
@@ -194,7 +218,7 @@ func collectMountedRoutes(app *fiber.App) map[string]bool {
 	for _, r := range app.GetRoutes() {
 		path := canonicalizePath(r.Path)
 
-		if excludedPaths[path] {
+		if excluded[path] {
 			continue
 		}
 
@@ -209,46 +233,39 @@ func collectMountedRoutes(app *fiber.App) map[string]bool {
 	return mounted
 }
 
-// collectSpecRoutes parses the committed Huma OAS 3.1 dump into the same
-// "METHOD {path}" set, prepending specServerPrefix to each server-relative path
-// (see its doc) and upper-casing the OpenAPI operation verbs to match Fiber's
+// collectSpecRoutes parses the committed Huma OAS 3.1 dump at path into the same
+// "METHOD {path}" set, prepending serverPrefix to each server-relative path key (see
+// specServerPrefix) and upper-casing the OpenAPI operation verbs to match Fiber's
 // method constants.
-func collectSpecRoutes(t *testing.T) map[string]bool {
+func collectSpecRoutes(t *testing.T, path, serverPrefix string) map[string]bool {
 	t.Helper()
 
-	raw, err := os.ReadFile(specPath)
-	require.NoError(t, err, "Huma dump must be readable at %s", specPath)
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err, "Huma dump must be readable at %s", path)
 
 	var spec struct {
 		Paths map[string]map[string]yaml.Node `yaml:"paths"`
 	}
 
-	require.NoError(t, yaml.Unmarshal(raw, &spec), "Huma dump must parse as YAML")
-	require.NotEmpty(t, spec.Paths, "Huma dump must declare paths")
+	require.NoErrorf(t, yaml.Unmarshal(raw, &spec), "Huma dump %s must parse as YAML", path)
+	require.NotEmptyf(t, spec.Paths, "Huma dump %s must declare paths", path)
 
 	specSet := make(map[string]bool)
 
-	for path, ops := range spec.Paths {
+	for pathKey, ops := range spec.Paths {
 		for verb := range ops {
-			specSet[strings.ToUpper(verb)+" "+canonicalizePath(specServerPrefix+path)] = true
+			specSet[strings.ToUpper(verb)+" "+canonicalizePath(serverPrefix+pathKey)] = true
 		}
 	}
 
 	return specSet
 }
 
-// TestContractSpecMatchesRoutes is the DC-3 spec-vs-routes diff gate: the routes the
-// unified ledger binary mounts (normalized, minus the locked exclusions) must be
-// exactly the set of paths+methods the generated Huma dump enumerates — in BOTH
-// directions. A failure means served and mounted have diverged: either a route was
-// added/removed without regenerating the dump, or the dump drifted from the mount.
-// Do not weaken this assertion; reconcile the source of the mismatch.
-func TestContractSpecMatchesRoutes(t *testing.T) {
-	t.Parallel()
-
-	app, _ := buildUnifiedHumaAPI()
-	mounted := collectMountedRoutes(app)
-	spec := collectSpecRoutes(t)
+// assertContractMatchesRoutes fails when mounted and spec are not the same set, in
+// BOTH directions, naming every route on either side of the difference. contract
+// labels which dump is under test.
+func assertContractMatchesRoutes(t *testing.T, contract string, mounted, spec map[string]bool) {
+	t.Helper()
 
 	var mountedNotInSpec, specNotMounted []string
 
@@ -268,12 +285,50 @@ func TestContractSpecMatchesRoutes(t *testing.T) {
 	sort.Strings(specNotMounted)
 
 	if len(mountedNotInSpec) > 0 || len(specNotMounted) > 0 {
-		t.Errorf("Huma dump and mounted routes diverged\n\n"+
+		t.Errorf("Huma dump %s and mounted routes diverged\n\n"+
 			"MOUNTED but NOT in spec (%d):\n  %s\n\n"+
 			"in SPEC but NOT mounted (%d):\n  %s\n\n"+
 			"mounted total=%d  spec total=%d",
+			contract,
 			len(mountedNotInSpec), strings.Join(mountedNotInSpec, "\n  "),
 			len(specNotMounted), strings.Join(specNotMounted, "\n  "),
 			len(mounted), len(spec))
 	}
+}
+
+// TestContractSpecMatchesRoutes is the DC-3 spec-vs-routes diff gate: the routes the
+// unified ledger binary mounts (normalized, minus the locked exclusions) must be
+// exactly the set of paths+methods the generated Huma dump enumerates — in BOTH
+// directions. A failure means served and mounted have diverged: either a route was
+// added/removed without regenerating the dump, or the dump drifted from the mount.
+// Do not weaken this assertion; reconcile the source of the mismatch.
+func TestContractSpecMatchesRoutes(t *testing.T) {
+	t.Parallel()
+
+	app, _ := buildUnifiedHumaAPI()
+
+	assertContractMatchesRoutes(t, specPath,
+		collectMountedRoutes(app, excludedPaths),
+		collectSpecRoutes(t, specPath, specServerPrefix))
+}
+
+// TestContractSpecMatchesRoutesV2 is the same bidirectional diff gate over the /v2
+// contract: the routes the unified ledger binary mounts under /v2 must be exactly the
+// paths+methods the generated v2 Huma dump enumerates. A failure means served and
+// mounted have diverged: either a route was added/removed without regenerating the
+// dump, or the dump drifted from the mount. This is a distinct guarantee from the v2
+// golden dump (TestOpenAPISpecDumpV2), which compares the serialized document against
+// the Huma registrations and never reads the Fiber router.
+//
+// The comparison is over paths and methods only. It does not inspect the middleware
+// chain on a mounted route, so it cannot by itself prove a route is authenticated.
+// Do not weaken this assertion; reconcile the source of the mismatch.
+func TestContractSpecMatchesRoutesV2(t *testing.T) {
+	t.Parallel()
+
+	app, _ := buildUnifiedHumaAPIV2()
+
+	assertContractMatchesRoutes(t, specPathV2,
+		collectMountedRoutes(app, excludedPathsV2),
+		collectSpecRoutes(t, specPathV2, specServerPrefixV2))
 }
