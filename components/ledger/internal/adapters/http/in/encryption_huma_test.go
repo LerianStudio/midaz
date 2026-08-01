@@ -61,7 +61,7 @@ func buildHumaEncryptionApp(t *testing.T, handler *EncryptionHandler, authOK boo
 	apiV1.Post("/organizations/:organization_id/encryption/provision", parse)
 	apiV1.Get("/organizations/:organization_id/encryption/status", parse)
 
-	RegisterEncryptionRoutes(hAPI, handler)
+	RegisterEncryptionRoutes(hAPI, handler, crmOpSuffixV1)
 
 	return f
 }

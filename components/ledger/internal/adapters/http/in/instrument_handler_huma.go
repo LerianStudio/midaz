@@ -336,13 +336,15 @@ func (handler *InstrumentHandler) GetAllInstrumentsHuma(ctx context.Context, in 
 }
 
 // RegisterInstrumentRoutes registers the six migrated instrument operations on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
+// given Huma API. It is the per-file seam the unified server calls; the auth
 // ("midaz","instruments",verb) + tenant + ParseUUIDPathParameters middleware chain is
-// attached on the /v1 group (Fiber-level) BEFORE the Huma terminal, not here. The
+// attached on the versioned Fiber group BEFORE the Huma terminal, not here. The
 // related-party delete uses ParseUUIDPathParameters("related-parties"); all others use
 // "instruments" (see crm_routes.go). Paths are GROUP-RELATIVE (see
-// asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
+// asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix string) {
 	const (
 		listPath     = "/organizations/{organization_id}/instruments"
 		holderScoped = "/organizations/{organization_id}/holders/{holder_id}/instruments"
@@ -352,7 +354,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "listInstruments",
+		OperationID: "listInstruments" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        listPath,
 		Summary:     "List Instruments",
@@ -361,7 +363,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	}, h.GetAllInstrumentsHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "createInstrument",
+		OperationID: "createInstrument" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        holderScoped,
 		Summary:     "Create an Instrument Account",
@@ -372,7 +374,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	}, h.CreateInstrumentHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getInstrumentByID",
+		OperationID: "getInstrumentByID" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        idPath,
 		Summary:     "Retrieve Instrument details",
@@ -381,7 +383,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	}, h.GetInstrumentByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:      "updateInstrument",
+		OperationID:      "updateInstrument" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an Instrument",
@@ -391,7 +393,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	}, h.UpdateInstrumentHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "deleteInstrument",
+		OperationID: "deleteInstrument" + opSuffix,
 		Method:      http.MethodDelete,
 		Path:        idPath,
 		Summary:     "Delete an Instrument",
@@ -402,7 +404,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler) {
 	}, h.DeleteInstrumentByIDHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "deleteRelatedParty",
+		OperationID:   "deleteRelatedParty" + opSuffix,
 		Method:        http.MethodDelete,
 		Path:          rpPath,
 		Summary:       "Delete a Related Party",

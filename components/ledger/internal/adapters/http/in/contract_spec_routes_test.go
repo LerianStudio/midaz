@@ -98,8 +98,10 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 // openapi_spec_dump_test.go). It mirrors the production humaMountV2 closure in
 // config.go and the mountHumaContract scaffolding in unified-server.go: its own Fiber
 // group, its own Huma document (own component registry, Servers ["/v2"]), and the v2
-// transaction registrar. Registration never invokes the handlers, so a nil-backed
-// handler struct is safe.
+// registrars. Registration never invokes the handlers, so nil-backed handler structs
+// are safe. As in buildUnifiedHumaAPI, the conditional CRM handlers (holder-accounts,
+// encryption, audit) get non-nil zero-value handlers so the FULL surface matches the
+// served contract.
 func buildUnifiedHumaAPIV2() (*fiber.App, huma.API) {
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
@@ -115,6 +117,9 @@ func buildUnifiedHumaAPIV2() (*fiber.App, huma.API) {
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPIV2)
 
 	RegisterTransactionV2RoutesToApp(apiV2, humaAPIV2, auth, &TransactionHandler{}, nil)
+	RegisterCRMV2RoutesToApp(apiV2, humaAPIV2, auth,
+		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
+		&EncryptionHandler{}, &AuditHandler{}, nil)
 
 	return app, humaAPIV2
 }

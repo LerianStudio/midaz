@@ -58,7 +58,7 @@ func buildHumaAuditApp(t *testing.T, handler *AuditHandler, authOK bool) *fiber.
 
 	apiV1.Get("/organizations/:organization_id/protection/audit", pkgHTTP.ParseUUIDPathParameters("organization"))
 
-	RegisterAuditRoutes(hAPI, handler)
+	RegisterAuditRoutes(hAPI, handler, crmOpSuffixV1)
 
 	return f
 }

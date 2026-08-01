@@ -1121,13 +1121,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// humaMountV2 wires the /v2 Huma terminals + Fiber auth/tenant chain on the
 	// SECOND, independent contract instance (one OpenAPI document per API
 	// version, each with its OWN Huma component registry so v1 and v2 schema names
-	// never collide). It registers the `direct` transaction op: it carries
-	// transactionRouteOptions ([authAssertion, WithTenantDB]) and authorizes against
-	// the "midaz" appName (protectedMidaz, transactions:post) — the SAME auth + tenant
-	// chain the v1 transaction CREATE ops use, no new policy. Later phases add
-	// hold/block/commit/cancel/revert here.
+	// never collide).
+	//
+	// The transaction ops carry transactionRouteOptions ([authAssertion, WithTenantDB])
+	// and authorize against the "midaz" appName (protectedMidaz, transactions:post) —
+	// the SAME auth + tenant chain the v1 transaction CREATE ops use, no new policy.
+	//
+	// CRM (holders/instruments/holder-accounts/encryption/audit) carries its OWN
+	// crmRouteOptions so the CRM tenant Mongo never overwrites the transaction tenant
+	// DB, and authorizes against the same "midaz" (resource, verb) tuples the /v1 CRM
+	// routes use. The nil-guards (holder-accounts, encryption, audit) hold on this
+	// contract exactly as they do on /v1: a nil handler mounts neither the Fiber auth
+	// chain nor the Huma terminal. /v1 keeps serving CRM in parallel.
 	humaMountV2 := func(group fiber.Router, api huma.API) {
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
+		httpin.RegisterCRMV2RoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
 	}
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
