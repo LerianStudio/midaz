@@ -1291,12 +1291,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Limit"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -1533,12 +1533,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReserveResponse"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -1796,12 +1796,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Rule"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:

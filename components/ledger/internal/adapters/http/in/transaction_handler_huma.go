@@ -509,6 +509,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate) — see file header.
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionJSONHuma)
 
 	huma.Register(api, huma.Operation{
@@ -519,6 +520,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionInflowHuma)
 
 	huma.Register(api, huma.Operation{
@@ -529,6 +531,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionOutflowHuma)
 
 	huma.Register(api, huma.Operation{
@@ -539,6 +542,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionAnnotationHuma)
 
 	huma.Register(api, huma.Operation{
@@ -549,6 +553,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlockHuma)
 
 	huma.Register(api, huma.Operation{
@@ -559,6 +564,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockHuma)
 
 	huma.Register(api, huma.Operation{

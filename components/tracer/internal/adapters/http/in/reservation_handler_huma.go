@@ -148,12 +148,13 @@ func (h *ReservationHandler) ReleaseByTransactionHuma(ctx context.Context, in *T
 // here. Paths are GROUP-RELATIVE to the /v1 Fiber group.
 func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 	huma.Register(api, huma.Operation{
-		OperationID: "createReservation",
-		Method:      http.MethodPost,
-		Path:        "/reservations",
-		Summary:     "Reserve transaction capacity (phase one)",
-		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
+		OperationID:   "createReservation",
+		Method:        http.MethodPost,
+		Path:          "/reservations",
+		DefaultStatus: http.StatusCreated,
+		Summary:       "Reserve transaction capacity (phase one)",
+		Tags:          []string{"Reservations"},
+		Security:      secBearerOrAPIKey,
 		// SkipValidateBody: the body is taken as RawBody and validated imperatively
 		// by NormalizeAndReserveValidate inside the core, which produces the
 		// canonical Midaz error codes. Without this, Huma validates the JSON body

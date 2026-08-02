@@ -1563,12 +1563,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProvisionEncryptionResponse"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -1724,12 +1724,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Holder"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -1784,12 +1784,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Instrument"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -2352,12 +2352,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeeBillingPackage"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -2686,12 +2686,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeePackage"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:

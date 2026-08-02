@@ -186,6 +186,7 @@ func RegisterMetadataIndexRoutes(api huma.API, h *MetadataIndexHandler) {
 		Security:    secMetadataBearerOrAPIKey,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateMetadataIndexHuma)
 
 	huma.Register(api, huma.Operation{

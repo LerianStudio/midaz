@@ -262,6 +262,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 		Security:    secPackageBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePackageHuma)
 
 	huma.Register(api, huma.Operation{

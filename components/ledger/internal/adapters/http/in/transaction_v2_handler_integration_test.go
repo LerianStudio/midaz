@@ -187,10 +187,11 @@ func requireDecimalEqual(t *testing.T, want, got decimal.Decimal, msgAndArgs ...
 	require.Truef(t, want.Equal(got), "expected decimal %s, got %s (%s)", want.String(), got.String(), decimalContext(msgAndArgs))
 }
 
-// decimalContext renders a caller's trailing message. Callers pass a format string followed by
-// its arguments, so the arguments have to be substituted into it rather than printed alongside
-// it — printing the slice yields the format verbs verbatim and drops the values into a bracketed
-// tail, which is unreadable in exactly the failure it is meant to explain.
+// decimalContext renders a caller's trailing message. A leading string followed by arguments is
+// treated as a format and substituted, so the values land inline rather than in a bracketed tail.
+// A leading string on its own is returned verbatim: formatting it against an empty argument list
+// would turn any literal percent sign into a bogus verb and corrupt the very message meant to
+// explain the failure.
 func decimalContext(msgAndArgs []any) string {
 	if len(msgAndArgs) == 0 {
 		return "no context"
@@ -199,6 +200,10 @@ func decimalContext(msgAndArgs []any) string {
 	format, ok := msgAndArgs[0].(string)
 	if !ok {
 		return fmt.Sprintf("%v", msgAndArgs)
+	}
+
+	if len(msgAndArgs) == 1 {
+		return format
 	}
 
 	return fmt.Sprintf(format, msgAndArgs[1:]...)

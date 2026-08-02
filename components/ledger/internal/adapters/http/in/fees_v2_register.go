@@ -74,6 +74,7 @@ func registerPackageV2Routes(api huma.API, h *PackageHandler) {
 		Security:    secPackageBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePackageV2Huma)
 
 	huma.Register(api, huma.Operation{
@@ -147,6 +148,7 @@ func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
 		Security:    secBillingBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageV2Huma)
 
 	huma.Register(api, huma.Operation{

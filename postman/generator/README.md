@@ -38,9 +38,15 @@ postman/generator/
 `sync-postman.sh` converts one Postman collection per published spec and merges
 them. Its `SPEC_SOURCES` list names the specs, so a component can contribute more
 than one: ledger publishes `openapi.huma.yaml` (`/v1`) and `openapi.v2.huma.yaml`
-(`/v2`). The ledger `/v1` spec is primary and its conversion must succeed; the rest
-are optional and a missing spec is skipped. `reporter` is declared as a source but
-`generate-docs.sh` does not generate a reporter spec, so it is always skipped.
+(`/v2`), and tracer publishes `openapi.huma.yaml`.
+
+Each source is declared `required` or `optional`. A required source is fatal both
+when its spec fails to convert and when the spec file is absent, because either way
+that surface's folders vanish from the merged collection and the run would otherwise
+report success. An optional source tolerates an absent spec and contributes nothing.
+All three current sources are `required`: `generate-docs.sh` produces every one of
+them and the results are committed under `postman/specs`, so a missing file means the
+pipeline is broken rather than trimmed.
 
 Specs from a non-primary contract get a version tag appended to their folder names,
 because OpenAPI tags are shared across versions and would otherwise merge into

@@ -326,7 +326,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -334,7 +334,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -673,7 +673,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -681,7 +681,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -977,7 +977,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -985,7 +985,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -1289,7 +1289,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1297,7 +1297,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -1384,7 +1384,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1392,7 +1392,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -2297,7 +2297,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2305,7 +2305,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -2749,7 +2749,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2757,7 +2757,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -3264,7 +3264,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3272,7 +3272,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -3816,7 +3816,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3824,7 +3824,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -4451,7 +4451,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4459,7 +4459,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -4860,7 +4860,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4868,7 +4868,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -5638,7 +5638,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -5646,7 +5646,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -5814,7 +5814,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -5822,7 +5822,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -6228,7 +6228,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6236,7 +6236,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -6700,7 +6700,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6708,7 +6708,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -7291,7 +7291,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7299,7 +7299,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -7702,7 +7702,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7710,7 +7710,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7797,7 +7797,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7805,7 +7805,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7892,7 +7892,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7900,7 +7900,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -7987,7 +7987,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7995,7 +7995,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8188,7 +8188,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8196,7 +8196,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8283,7 +8283,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8291,7 +8291,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -8910,7 +8910,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8918,7 +8918,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -9339,7 +9339,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9347,7 +9347,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -9470,7 +9470,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9478,7 +9478,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -9731,7 +9731,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9739,7 +9739,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -9831,7 +9831,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9839,7 +9839,7 @@
                 }
               }
             },
-            "description": "OK",
+            "description": "Created",
             "headers": {
               "X-Idempotency-Replayed": {
                 "schema": {
@@ -10741,7 +10741,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -10749,7 +10749,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -11283,7 +11283,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -11291,7 +11291,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -12793,7 +12793,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -12801,7 +12801,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -13202,7 +13202,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -13210,7 +13210,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {
@@ -13626,7 +13626,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -13634,7 +13634,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Created"
           },
           "default": {
             "content": {

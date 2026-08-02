@@ -289,6 +289,7 @@ func RegisterPortfolioRoutes(api huma.API, h *PortfolioHandler) {
 		Tags:             []string{tag},
 		Security:         secPortfolioBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (DecodeAndValidate).
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePortfolioHuma)
 
 	huma.Register(api, huma.Operation{

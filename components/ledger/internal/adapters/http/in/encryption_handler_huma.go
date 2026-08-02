@@ -133,6 +133,7 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix strin
 		Security:    secEncryptionBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.ProvisionHuma)
 
 	huma.Register(api, huma.Operation{

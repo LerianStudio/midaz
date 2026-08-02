@@ -576,7 +576,7 @@ Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/c
 | UnauthorizedError | 401 | Missing/invalid auth |
 | ForbiddenError | 403 | Insufficient privileges |
 | UnprocessableOperationError | 422 | Business rule violations |
-| FailedPreconditionError | 412 | Configuration errors |
+| FailedPreconditionError | 500 | Configuration errors. Despite the name, this maps to 500, not 412: a failed precondition here is a server misconfiguration, not a client-supplied condition |
 | ServiceUnavailableError | 503 | Infrastructure failures |
 | InternalServerError | 500 | Unexpected errors |
 | ValidationKnownFieldsError | 400 | Field-level validation |

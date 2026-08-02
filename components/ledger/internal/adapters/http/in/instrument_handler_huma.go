@@ -371,6 +371,7 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 		Security:    secInstrumentBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateInstrumentHuma)
 
 	huma.Register(api, huma.Operation{

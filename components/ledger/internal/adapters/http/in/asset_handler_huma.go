@@ -358,6 +358,7 @@ func RegisterAssetRoutes(api huma.API, h *AssetHandler) {
 		Security:    secAssetBearerOrAPIKey,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAssetHuma)
 
 	huma.Register(api, huma.Operation{

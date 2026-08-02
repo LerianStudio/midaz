@@ -359,6 +359,7 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 		Security:    secHolderBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateHolderHuma)
 
 	huma.Register(api, huma.Operation{

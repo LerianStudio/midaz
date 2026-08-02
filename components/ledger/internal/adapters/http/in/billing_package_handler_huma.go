@@ -265,6 +265,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler) {
 		Security:    secBillingBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageHuma)
 
 	huma.Register(api, huma.Operation{
