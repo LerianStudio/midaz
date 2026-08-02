@@ -1727,18 +1727,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid ledgerID",
 			Message:    "The specified ledgerID is not a valid UUID. Please check the value passed.",
 		},
-		constant.ErrLedgerIDMismatch: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrLedgerIDMismatch.Error(),
-			Title:      "Ledger Mismatch",
-			Message:    "The 'ledgerId' in the request body names a different ledger than the request path. The path is authoritative; send the same ledger in both, or remove the conflict, and try again.",
-		},
-		constant.ErrLedgerScopedQueryParameter: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrLedgerScopedQueryParameter.Error(),
-			Title:      "Query Parameter Not Accepted",
-			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
-		},
 		constant.ErrConvertToDecimal: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrConvertToDecimal.Error(),
@@ -1774,6 +1762,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrDeductibleFeeExceedsAmount.Error(),
 			Title:      "Deductible fee exceeds the amount it deducts from",
 			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
+		},
+		constant.ErrLedgerIDMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLedgerIDMismatch.Error(),
+			Title:      "Ledger Mismatch",
+			Message:    "The 'ledgerId' in the request body names a different ledger than the request path. The path is authoritative; send the same ledger in both, or remove the conflict, and try again.",
+		},
+		constant.ErrLedgerScopedQueryParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLedgerScopedQueryParameter.Error(),
+			Title:      "Query Parameter Not Accepted",
+			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
 		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,

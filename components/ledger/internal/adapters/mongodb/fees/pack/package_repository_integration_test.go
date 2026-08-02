@@ -433,6 +433,50 @@ func TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier
 	assert.Equal(t, leadingZeroLedger, results[0].LedgerID)
 }
 
+// TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifier is the
+// ledger test above for the OTHER filter the same listing carries. Both are guarded by
+// the same shape of predicate, so a fix applied to one and a regression test written
+// for one leaves the other free to be reverted unnoticed. A dropped segment clause
+// widens the listing to every segment of the ledger, and the package it then returns
+// is the one that prices a transaction.
+func TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	leadingZeroSegment := uuid.MustParse("00000000-2222-4222-8222-222222222222")
+	otherSegment := uuid.New()
+
+	require.Zero(t, leadingZeroSegment.ID(), "the fixture must be the identifier shape the old predicate misread")
+	require.NotEqual(t, uuid.Nil, leadingZeroSegment, "and it must still be a real segment")
+
+	inSegment := newTestPackage(ledgerID)
+	inSegment.SegmentID = &leadingZeroSegment
+
+	_, err := repo.Create(ctx, inSegment, orgID)
+	require.NoError(t, err)
+
+	elsewhere := newTestPackage(ledgerID)
+	elsewhere.SegmentID = &otherSegment
+
+	_, err = repo.Create(ctx, elsewhere, orgID)
+	require.NoError(t, err)
+
+	results, err := repo.FindList(ctx, feehttp.QueryHeader{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		SegmentID:      leadingZeroSegment,
+		Limit:          10,
+		Page:           1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1, "the segment filter must still apply")
+	require.NotNil(t, results[0].SegmentID)
+	assert.Equal(t, leadingZeroSegment, *results[0].SegmentID)
+}
+
 func TestIntegration_PackRepo_FindList_FilterByEnable(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)

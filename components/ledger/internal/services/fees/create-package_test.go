@@ -373,3 +373,74 @@ func TestCreatePackage_EmitsFeesPackageCreated(t *testing.T) {
 	assert.Equal(t, orgID.String(), payload["organizationId"])
 	assert.Equal(t, ledgerID.String(), payload["ledgerId"])
 }
+
+// TestCreatePackage_KeepsSegmentWithLeadingZeroIdentifier pins the create path
+// against a real segment identifier whose leading four bytes are zero.
+//
+// A predicate written as UUID.ID() == 0 reads exactly those four bytes, so such a
+// segment is indistinguishable from "no segment". The package is then persisted
+// unsegmented AND the overlap check runs unsegmented — so it compares the new
+// package against packages of other segments, and the segment a transaction is
+// priced under is not the one the caller asked for.
+func TestCreatePackage_KeepsSegmentWithLeadingZeroIdentifier(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackRepo := pack.NewMockRepository(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	leadingZeroSegment := uuid.MustParse("00000000-2222-4222-8222-222222222222")
+
+	require.Zero(t, leadingZeroSegment.ID(), "the fixture must be the identifier shape the old predicate misread")
+	require.NotEqual(t, uuid.Nil, leadingZeroSegment, "and it must still be a real segment")
+
+	var (
+		overlapFilter http.QueryHeader
+		created       *pack.Package
+	)
+
+	mockResolver.EXPECT().
+		AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).AnyTimes()
+
+	mockPackRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, filters http.QueryHeader) ([]*pack.Package, error) {
+			overlapFilter = filters
+
+			return []*pack.Package{}, nil
+		})
+
+	mockPackRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p *pack.Package, _ uuid.UUID) (*pack.Package, error) {
+			created = p
+
+			return p, nil
+		})
+
+	svc := &UseCase{packageRepo: mockPackRepo, resolver: mockResolver}
+
+	segmentIDString := leadingZeroSegment.String()
+
+	_, err := svc.CreatePackage(context.Background(), &model.CreatePackageInput{
+		FeeGroupLabel: "group",
+		SegmentID:     &segmentIDString,
+		LedgerID:      ledgerID.String(),
+		MinAmount:     "100",
+		MaxAmount:     "200",
+		Fee:           map[string]model.Fee{},
+	}, orgID, ledgerID, leadingZeroSegment)
+	require.NoError(t, err)
+
+	assert.Equal(t, leadingZeroSegment, overlapFilter.SegmentID,
+		"MONEY-PATH: the overlap check must run within the requested segment, not across every segment of the ledger")
+
+	require.NotNil(t, created)
+	require.NotNil(t, created.SegmentID, "MONEY-PATH: the package must be persisted with the segment it was created for")
+	assert.Equal(t, leadingZeroSegment, *created.SegmentID)
+}

@@ -126,8 +126,11 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 		return nil, nil, uuid.Nil, errFindFees
 	}
 
+	// The envelope is the one the lookup above produces for an id that exists
+	// nowhere, down to the entity type: two 404s that differ in any rendered field
+	// let a caller tell "exists on a ledger you cannot reach" from "does not exist".
 	if ledgerID != uuid.Nil && feesAmountData.LedgerID != ledgerID {
-		return nil, nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityPackage)
+		return nil, nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
 	}
 
 	ownerLedgerID := feesAmountData.LedgerID

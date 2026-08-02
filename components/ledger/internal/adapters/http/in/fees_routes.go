@@ -19,17 +19,10 @@ import (
 // RBAC policies key on this string, so it MUST NOT be renamed (R9).
 const feesApplicationName = "plugin-fees"
 
-// feeBasePathV1 is the scope every v1 fee and billing resource hangs off, in OpenAPI
-// template syntax. Each resource registrar appends its own segments to it, and
-// feeChainPath restates it in Fiber syntax for the guard chain.
+// feeBasePathV1 is the scope every organization-scoped fee and billing resource hangs
+// off, in OpenAPI template syntax. Each resource registrar appends its own segments to
+// it, and feeChainPath restates it in Fiber syntax for the guard chain.
 const feeBasePathV1 = "/organizations/{organization_id}"
-
-// feeOpSuffixV1 is the operation-ID suffix the v1 fee contract carries. The ledger
-// publishes each versioned contract as a separate OpenAPI document and the published
-// hub spec joins them; the join makes path keys unique by the version prefix but leaves
-// operation IDs alone, so a contract that repeats another's IDs collides there. v1's
-// suffix is empty because its IDs are what published SDKs already bind to.
-const feeOpSuffixV1 = ""
 
 // feeSpecPathParam matches a single OpenAPI path-parameter segment, "{name}".
 var feeSpecPathParam = regexp.MustCompile(`\{([^{}/]+)\}`)
@@ -49,8 +42,69 @@ func feeChainPath(specPath string) string {
 	return feeSpecPathParam.ReplaceAllString(specPath, ":$1")
 }
 
-// RegisterFeesRoutesToApp wires the Huma-migrated fee/billing surface onto the /v1
-// contract. See registerFeesRoutesToApp for what it attaches.
+// feeGuardRoute is one operation of the fee and billing authorization surface: the
+// verb and the sub-path it is served at — relative to whatever scope mounts it — and
+// the (resource, action) tuple its guard authorizes under.
+type feeGuardRoute struct {
+	method   string
+	suffix   string
+	resource string
+	action   string
+}
+
+// feeGuardRoutes is the fee and billing authorization surface, written down once.
+// Both scopes attach it: the organization-scoped surface through
+// RegisterFeesRoutesToApp and the ledger-scoped one through
+// RegisterFeesV2RoutesToApp. Re-tupling a grant here therefore reaches both, which
+// is what keeps them from drifting — the two surfaces describe their CONTRACTS
+// separately (see fees_v2_register.go), and only this table is shared.
+//
+// The resource doubles as the ParseUUIDPathParameters label: it is the span-attribute
+// name the pre-Huma inline routes used, and the middleware validates every UUID path
+// parameter regardless of the label.
+//
+// The fee calculate endpoint (POST /fees) is absent on purpose: in the unified binary
+// fees run in-process via the transaction seam, so only the dry-run estimate is
+// exposed over HTTP.
+var feeGuardRoutes = []feeGuardRoute{
+	{fiber.MethodPost, "/packages", "packages", "post"},
+	{fiber.MethodGet, "/packages", "packages", "get"},
+	{fiber.MethodGet, "/packages/:id", "packages", "get"},
+	{fiber.MethodPatch, "/packages/:id", "packages", "patch"},
+	{fiber.MethodDelete, "/packages/:id", "packages", "delete"},
+
+	{fiber.MethodPost, "/estimates", "estimates", "post"},
+
+	{fiber.MethodPost, "/billing-packages", "billing-packages", "post"},
+	{fiber.MethodGet, "/billing-packages", "billing-packages", "get"},
+	{fiber.MethodGet, "/billing-packages/:id", "billing-packages", "get"},
+	{fiber.MethodPatch, "/billing-packages/:id", "billing-packages", "patch"},
+	{fiber.MethodDelete, "/billing-packages/:id", "billing-packages", "delete"},
+
+	{fiber.MethodPost, "/billing/calculate", "billing-calculate", "post"},
+}
+
+// attachFeeGuards mounts the guard chain of every fee and billing operation under
+// chainBase, in Fiber path syntax: auth.Authorize("plugin-fees",resource,verb) + the
+// fees-scoped tenant PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters, as
+// MIDDLEWARE ONLY — no terminal handler, and no body binder, because the Huma terminal
+// decodes and validates the body imperatively.
+func attachFeeGuards(group fiber.Router, auth *middleware.AuthClient, routeOptions *http.ProtectedRouteOptions, chainBase string) {
+	for _, route := range feeGuardRoutes {
+		chain := protectedFees(auth, route.resource, route.action, routeOptions, http.ParseUUIDPathParameters(route.resource))
+		registerRoute(group, route.method, chainBase+route.suffix, chain)
+	}
+}
+
+// RegisterFeesRoutesToApp wires the ORGANIZATION-SCOPED fee and billing surface
+// end-to-end on the /v1 contract: the Fiber guard chain on the versioned group with
+// group-relative paths, then the Huma terminals on that group's Huma API.
+//
+// This describes one of the two scopes the surface is served at. The ledger-scoped
+// twin is described independently in fees_v2_register.go, with its own registrations
+// and its own chain wiring, so a change to the shape of this surface does NOT reach
+// it — the two must be mirrored by hand. The one exception is the authorization
+// surface: both attach feeGuardRoutes, so the (resource, verb) tuples cannot drift.
 func RegisterFeesRoutesToApp(
 	group fiber.Router,
 	api huma.API,
@@ -61,78 +115,12 @@ func RegisterFeesRoutesToApp(
 	bch *BillingCalculateHandler,
 	routeOptions *http.ProtectedRouteOptions,
 ) {
-	registerFeesRoutesToApp(group, api, auth, ph, fh, bph, bch, routeOptions, feeBasePathV1, feeOpSuffixV1)
-}
+	attachFeeGuards(group, auth, routeOptions, feeChainPath(feeBasePathV1))
 
-// registerFeesRoutesToApp is the single description of the fee/billing route surface,
-// shared by every versioned contract that serves it. For each op it attaches the Fiber
-// auth chain — auth.Authorize("plugin-fees",resource,verb) + the fees-scoped tenant
-// PostAuthMiddlewares (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no
-// terminal handler, and NO body binder: the Fiber WithBodyTracing decorator the inline
-// routes used is replaced by the Huma terminal's imperative DecodeAndValidate) on the
-// VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma terminals on the
-// SAME group's Huma API. The plugin-fees authz namespace and the (resource, verb) tuples
-// are preserved BYTE-FOR-BYTE.
-//
-// basePath is the scope the resources hang off, in OpenAPI template syntax — see
-// feeBasePathV1. opSuffix distinguishes the operation IDs one contract publishes from
-// another's — see feeOpSuffixV1. Nothing else varies between contracts, so a change to
-// the surface reaches every version it is mounted on.
-//
-// The fee calculate endpoint (POST /v1/fees) is intentionally NOT mounted: in the
-// unified binary fees run in-process via the transaction seam, so only the dry-run
-// estimate (POST /v1/.../estimates) is exposed over HTTP.
-func registerFeesRoutesToApp(
-	group fiber.Router,
-	api huma.API,
-	auth *middleware.AuthClient,
-	ph *PackageHandler,
-	fh *FeeHandler,
-	bph *BillingPackageHandler,
-	bch *BillingCalculateHandler,
-	routeOptions *http.ProtectedRouteOptions,
-	basePath string,
-	opSuffix string,
-) {
-	chainBase := feeChainPath(basePath)
-
-	packagesPath := chainBase + "/packages"
-	packageIDPath := packagesPath + "/:id"
-	estimatesPath := chainBase + "/estimates"
-	billingPkgPath := chainBase + "/billing-packages"
-	billingPkgID := billingPkgPath + "/:id"
-	billingCalc := chainBase + "/billing/calculate"
-
-	pkgParse := http.ParseUUIDPathParameters("packages")
-
-	// Packages
-	routePost(group, packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse))
-	routeGet(group, packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
-	routeGet(group, packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
-	routePatch(group, packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse))
-	routeDelete(group, packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse))
-
-	RegisterPackageRoutes(api, ph, basePath, opSuffix)
-
-	// Fee estimate (dry-run). POST /v1/fees is NOT mounted — fees run in-process via the seam.
-	routePost(group, estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, http.ParseUUIDPathParameters("estimates")))
-
-	RegisterFeeEstimateRoutes(api, fh, basePath, opSuffix)
-
-	// Billing packages
-	billingParse := http.ParseUUIDPathParameters("billing-packages")
-	routePost(group, billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse))
-	routeGet(group, billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
-	routeGet(group, billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
-	routePatch(group, billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse))
-	routeDelete(group, billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse))
-
-	RegisterBillingPackageRoutes(api, bph, basePath, opSuffix)
-
-	// Billing calculate
-	routePost(group, billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, http.ParseUUIDPathParameters("billing-calculate")))
-
-	RegisterBillingCalculateRoutes(api, bch, basePath, opSuffix)
+	RegisterPackageRoutes(api, ph)
+	RegisterFeeEstimateRoutes(api, fh)
+	RegisterBillingPackageRoutes(api, bph)
+	RegisterBillingCalculateRoutes(api, bch)
 }
 
 // protectedFees is the plugin-fees analogue of protectedMidaz/protectedRouting: it

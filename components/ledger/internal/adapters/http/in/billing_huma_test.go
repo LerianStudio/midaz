@@ -65,7 +65,7 @@ func buildHumaBillingPackageApp(t *testing.T, handler *BillingPackageHandler, au
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterBillingPackageRoutes(hAPI, handler, feeBasePathV1, feeOpSuffixV1)
+	RegisterBillingPackageRoutes(hAPI, handler)
 
 	return f
 }
@@ -87,7 +87,7 @@ func buildHumaBillingCalculateApp(t *testing.T, handler *BillingCalculateHandler
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterBillingCalculateRoutes(hAPI, handler, feeBasePathV1, feeOpSuffixV1)
+	RegisterBillingCalculateRoutes(hAPI, handler)
 
 	return f
 }

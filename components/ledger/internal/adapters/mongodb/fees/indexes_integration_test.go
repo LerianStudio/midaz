@@ -121,11 +121,16 @@ func TestIntegration_FeesEnsureIndexes_PackAndBillingPackage(t *testing.T) {
 // once globally.
 //
 // Erroring is not the only failure worth catching: a second run must leave the
-// index set byte-for-byte unchanged. Comparing the snapshots is what makes this
-// a no-op proof instead of merely a no-error proof, and it is what would catch
-// a future spec edit that reuses an existing index NAME with different keys —
-// MongoDB rejects that rather than converging, so it would break every already
-// provisioned tenant while a fresh database stayed green.
+// index set unchanged. Comparing the name sets is what makes this a no-op proof
+// instead of merely a no-error proof — an EnsureIndexes that added or renamed an
+// index on the second pass would show up here.
+//
+// It does NOT catch a spec edit that reuses an existing index name with different
+// keys. Both runs read the same edited spec against the same fresh container, so
+// the second run finds exactly what the first created and converges; the case that
+// breaks — an already provisioned tenant whose stored keys differ — has no
+// counterpart here. Catching it needs the keys pinned against a committed
+// expectation, not a self-comparison.
 func TestIntegration_FeesEnsureIndexes_Idempotent(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	ctx := context.Background()

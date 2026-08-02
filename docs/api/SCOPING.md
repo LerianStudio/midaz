@@ -77,7 +77,8 @@ the value moved (path UUID → `.String()`), so the Mongo partition is unchanged
   the canonical midaz `ErrInvalidPathParameter` envelope instead of the FEE-shim codes. `FEE-0020`
   ("missing header") had no remaining semantics and was deleted. The rest of the `FEE-` prefixed
   family has since been retired too: fee **business** errors now use the canonical numeric registry
-  in `pkg/constant/errors.go`, and no `FEE-` literal remains in the tree.
+  in `pkg/constant/errors.go`, and no `FEE-` code is emitted on the wire. The literal still appears
+  in test fixtures and comments that document the old-to-new mapping.
 - **`ledger_id` is not a scope on this surface.** It is a create-body field
   (`CreatePackageInput.LedgerID`, `FeeEstimate.LedgerID`, `BillingCalculateRequest.LedgerID`) and
   an optional list filter (`?ledgerId=`) on the package/billing-package lists. The ledger-scoped
@@ -113,10 +114,11 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
   which would widen a ledger-scoped read back to the whole organization.
 - **A body that names a different ledger is refused.** The ledger stays a required body field
   (the models are shared with `/v1` and with the in-process fee seam, so it cannot be dropped for
-  one caller), but a disagreement with the path is a `400` (`0499`), not a silent path-wins.
-- **`?ledgerId=` is refused outright on these paths** (`400`, `0500`). It can only restate the path
-  or contradict it, and its empty value means "every ledger of the organization" — the one scope a
-  ledger-scoped listing must not be able to express.
+  one caller), but a disagreement with the path is a `400` (`0234`), not a silent path-wins.
+- **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
+  operations that read a query at all. It can only restate the path or contradict it, and its empty
+  value means "every ledger of the organization" — the one scope a ledger-scoped listing must not
+  be able to express.
 
 Authz is unchanged again: the `plugin-fees` namespace and the same `(resource, verb)` tuples, so
 no new policy surface accompanies the second contract.

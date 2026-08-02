@@ -24,7 +24,8 @@ namespace string.
 >
 > The same holds for the **ledger-scoped fee/billing surface on `/v2`** (2026-08-01). The twelve
 > operations are served at two scopes — organization-scoped on `/v1`, ledger-scoped on `/v2` — and
-> both attach the identical guard chain: `plugin-fees` with the same `(resource, action)` tuples.
+> both attach the identical guard chain from one shared table (`feeGuardRoutes` in
+> `fees_routes.go`): `plugin-fees` with the same `(resource, action)` tuples.
 > A grant that authorizes a `/v1` fee call authorizes its `/v2` twin, and vice versa. No second
 > policy surface exists to migrate.
 
@@ -37,7 +38,7 @@ namespace literals:
 |-----------|--------------|-----------|--------|
 | `midaz` | ledger — `midazName` const; CRM (collapsed package) — `ApplicationName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`); `components/ledger/internal/adapters/http/in/crm_routes.go` (`const ApplicationName = "midaz"`) for the `holders`/`instruments` resources |
 | `routing` | ledger — `routingName` const | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName = "routing"`, helper `protectedRouting`) |
-| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go`. The ledger-scoped `/v2` twins reuse the same `protectedFees` helper from `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) — same namespace, same tuples |
+| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go`. The ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same `feeGuardRoutes` table through the same helper — same namespace, same tuples |
 
 The `(<action>)` dimension is the HTTP verb mapped to `get` / `post` / `patch` / `delete`. The CRM
 `related-parties` DELETE authorizes under the `instruments` resource (sub-resource maintenance,
@@ -112,7 +113,7 @@ next edit to the file, and four of the eight that used to sit in this table had 
 |-----------|-------------|----------------------|------------------------|
 | `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments` |
 | `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName`, helper `protectedRouting`) |
-| `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName`, helper `protectedFees`); the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) call the same helper |
+| `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName`, table `feeGuardRoutes`, helpers `attachFeeGuards`/`protectedFees`); the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) attach the same table |
 | `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
 
 > **Audit-ref check:** every symbol above resolves in the tree as written, and the namespace-to-

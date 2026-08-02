@@ -76,7 +76,7 @@ func buildHumaPackageApp(t *testing.T, handler *PackageHandler, authOK bool) *fi
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterPackageRoutes(hAPI, handler, feeBasePathV1, feeOpSuffixV1)
+	RegisterPackageRoutes(hAPI, handler)
 
 	return f
 }
@@ -98,7 +98,7 @@ func buildHumaFeeEstimateApp(t *testing.T, handler *FeeHandler, authOK bool) *fi
 
 	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
 
-	RegisterFeeEstimateRoutes(hAPI, handler, feeBasePathV1, feeOpSuffixV1)
+	RegisterFeeEstimateRoutes(hAPI, handler)
 
 	return f
 }

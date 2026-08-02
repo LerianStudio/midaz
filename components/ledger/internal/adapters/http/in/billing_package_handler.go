@@ -82,6 +82,17 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 
 	payload.OrganizationID = organizationID.String()
 
+	// The ledger is stored as the string the body carried, and every scoped read,
+	// listing and billing calculation matches it against the canonical
+	// lowercase-hyphenated form a path ledger resolves to. Any other spelling
+	// uuid.Parse accepts would persist a value none of them can match, so the
+	// package would be created and then be unreachable. Only a value that already
+	// parses is rewritten: this surface accepts free-form ledger strings and
+	// rejecting them here would turn a create that works today into a 400.
+	if parsedLedgerID, errParse := uuid.Parse(payload.LedgerID); errParse == nil {
+		payload.LedgerID = parsedLedgerID.String()
+	}
+
 	span.SetAttributes(
 		attribute.String("app.request.payload.type", payload.Type),
 		attribute.String("app.request.payload.label", payload.Label),

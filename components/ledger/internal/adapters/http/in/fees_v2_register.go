@@ -43,7 +43,8 @@ const feeBasePathV2 = "/organizations/{organization_id}/ledgers/{ledger_id}"
 // publishes each versioned contract as a separate OpenAPI document and the published
 // hub spec joins them; the join makes path keys unique by the version prefix but
 // leaves operation IDs alone, so a contract that repeats another's IDs collides there.
-// See feeOpSuffixV1, whose suffix is empty for the same reason this one is not.
+// The organization-scoped contract publishes its IDs unsuffixed: they are what already
+// published SDKs bind to, so they are frozen rather than versioned.
 const feeOpSuffixV2 = "V2"
 
 // RegisterFeesV2Routes registers the twelve ledger-scoped fee and billing operations
@@ -204,21 +205,19 @@ func registerBillingCalculateV2Routes(api huma.API, h *BillingCalculateHandler) 
 }
 
 // RegisterFeesV2RoutesToApp wires the ledger-scoped fee/billing surface end-to-end on
-// the /v2 contract: for each op it attaches the Fiber guard chain — auth.Authorize
-// ("plugin-fees",resource,verb) + the fees-scoped tenant PostAuthMiddlewares
-// (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no terminal handler,
-// no body binder) on the /v2 GROUP with GROUP-RELATIVE paths, then registers the Huma
-// terminals on the SAME group's Huma API.
+// the /v2 contract: the Fiber guard chain on the /v2 group with group-relative paths,
+// then the Huma terminals on that group's Huma API.
 //
-// The chain paths are derived from feeBasePathV2 by feeChainPath rather than restated
-// by hand, because the two spellings drifting apart is not caught by the contract
-// diff: a path parameter whose name falls outside the identifier allowlist is carried
-// through as an unvalidated string. TestFeesV2RoutesParameterNamesAgree pins that
-// every route agrees on its parameter names and that every name is one the UUID
-// validator recognizes.
+// The guard chain comes from feeGuardRoutes, the table the organization-scoped surface
+// attaches too, so the (resource, verb) tuples of the two scopes cannot drift. Only the
+// scope they hang off differs, and it is derived from feeBasePathV2 by feeChainPath
+// rather than restated by hand: a Fiber spelling that drifts from the contract's is not
+// caught by the contract diff, and a path parameter whose name falls outside the
+// identifier allowlist is carried through as an unvalidated string.
+// TestFeesV2RoutesParameterNamesAgree pins that every route agrees on its parameter
+// names and that every name is one the UUID validator recognizes.
 //
-// It is additive — /v1 keeps serving the organization-scoped surface in parallel — and
-// the authz tuples are byte-for-byte the ones the /v1 routes carry.
+// It is additive — /v1 keeps serving the organization-scoped surface in parallel.
 func RegisterFeesV2RoutesToApp(
 	group fiber.Router,
 	api huma.API,
@@ -229,33 +228,7 @@ func RegisterFeesV2RoutesToApp(
 	bch *BillingCalculateHandler,
 	routeOptions *pkgHTTP.ProtectedRouteOptions,
 ) {
-	chainBase := feeChainPath(feeBasePathV2)
-
-	packagesPath := chainBase + "/packages"
-	packageIDPath := packagesPath + "/:id"
-	estimatesPath := chainBase + "/estimates"
-	billingPkgPath := chainBase + "/billing-packages"
-	billingPkgID := billingPkgPath + "/:id"
-	billingCalc := chainBase + "/billing/calculate"
-
-	pkgParse := pkgHTTP.ParseUUIDPathParameters("packages")
-
-	routePost(group, packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse))
-	routeGet(group, packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
-	routeGet(group, packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
-	routePatch(group, packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse))
-	routeDelete(group, packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse))
-
-	routePost(group, estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("estimates")))
-
-	billingParse := pkgHTTP.ParseUUIDPathParameters("billing-packages")
-	routePost(group, billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse))
-	routeGet(group, billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
-	routeGet(group, billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
-	routePatch(group, billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse))
-	routeDelete(group, billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse))
-
-	routePost(group, billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("billing-calculate")))
+	attachFeeGuards(group, auth, routeOptions, feeChainPath(feeBasePathV2))
 
 	RegisterFeesV2Routes(api, ph, fh, bph, bch)
 }

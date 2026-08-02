@@ -409,9 +409,9 @@ Ledger-scoped twins on the independent `/v2` contract (`{base}` =
 | POST | {base}/billing/calculate | Calculate billing |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
-`ledger_id` path value, a request body naming a different ledger is refused (`0499`), and
-`?ledgerId=` is refused outright (`0500`) — its empty value would mean "every ledger", the one
-scope a ledger-scoped listing must not express. Authz is identical to `/v1`: `plugin-fees` with the
+`ledger_id` path value, a request body naming a different ledger is refused (`0234`), and
+`?ledgerId=` is refused on the two listings (`0235`) — its empty value would mean "every ledger",
+the one scope a ledger-scoped listing must not express. Authz is identical to `/v1`: `plugin-fees` with the
 same `(resource, verb)` tuples, so no separate grant is needed for the second surface.
 
 `POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via

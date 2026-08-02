@@ -139,13 +139,13 @@ func (handler *FeeHandler) EstimateFeeCalculationHuma(ctx context.Context, in *E
 // terminal, not here. Paths are GROUP-RELATIVE (see asset_handler_huma.go's
 // RegisterAssetRoutes header for the rationale).
 //
-// The resource hangs off basePath, and opSuffix is appended to the operation ID —
-// see feeBasePathV1 and feeOpSuffixV1.
-func RegisterFeeEstimateRoutes(api huma.API, h *FeeHandler, basePath, opSuffix string) {
+// The resource hangs off feeBasePathV1. The operation ID is literal — see
+// RegisterPackageRoutes.
+func RegisterFeeEstimateRoutes(api huma.API, h *FeeHandler) {
 	huma.Register(api, huma.Operation{
-		OperationID: "estimateFeeCalculation" + opSuffix,
+		OperationID: "estimateFeeCalculation",
 		Method:      http.MethodPost,
-		Path:        basePath + "/estimates",
+		Path:        feeBasePathV1 + "/estimates",
 		Summary:     "Create a fee estimate calculation",
 		Tags:        []string{"Fees"},
 		Security:    secFeeBearer,

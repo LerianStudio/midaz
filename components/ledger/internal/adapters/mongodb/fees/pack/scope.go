@@ -13,10 +13,12 @@ import (
 // packageScopeFilter builds the by-ID lookup filter every single-package read and
 // write shares, so the scope the money path depends on is spelled once.
 //
-// A ledgerID of uuid.Nil means organization scope: ledger_id is left out and the
-// package matches on whichever ledger owns it. Any other ledgerID restricts the
-// match to that ledger, so a package owned by a different ledger of the same
-// organization does not match at all — the caller sees the same no-match a
+// uuid.Nil is the organization-scope sentinel here: ledger_id is left out and the
+// package matches on whichever ledger owns it. It is the same sentinel the billing
+// aggregate names AnyLedger — that one needs a name because its ledger is a string,
+// whose zero value reads as an accident rather than as a request. Any other ledgerID
+// restricts the match to that ledger, so a package owned by a different ledger of the
+// same organization does not match at all — the caller sees the same no-match a
 // nonexistent id produces, and learns nothing about the other ledger.
 //
 // Soft-deleted documents are excluded under both scopes.
@@ -24,7 +26,7 @@ func packageScopeFilter(id, organizationID, ledgerID uuid.UUID) bson.M {
 	filter := bson.M{
 		"_id":             id,
 		"organization_id": organizationID,
-		"deleted_at":      bson.D{{Key: "$eq", Value: nil}},
+		"deleted_at":      bson.M{"$eq": nil},
 	}
 
 	if ledgerID != uuid.Nil {

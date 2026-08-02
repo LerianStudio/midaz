@@ -267,8 +267,6 @@ var (
 	ErrAppRuleMaxBetweenTypes               = errors.New("0201")
 	ErrInvalidSegmentID                     = errors.New("0202")
 	ErrInvalidLedgerID                      = errors.New("0203")
-	ErrLedgerIDMismatch                     = errors.New("0499")
-	ErrLedgerScopedQueryParameter           = errors.New("0500")
 	ErrConvertToDecimal                     = errors.New("0204")
 	ErrIsDeductibleFrom                     = errors.New("0205")
 	ErrApplicationRule                      = errors.New("0206")
@@ -299,11 +297,15 @@ var (
 	ErrMissingSegmentContext                = errors.New("0231")
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
+	ErrLedgerIDMismatch                     = errors.New("0234")
+	ErrLedgerScopedQueryParameter           = errors.New("0235")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
-// Block 0328-0499 (highest allocated 0483). ErrRuleCalculationFieldType carries a
-// domain prefix to avoid colliding with the fee code of the same fork identifier.
+// Block 0328-0499, of which 0328-0496 are allocated here. 0492, 0497 and 0498 fall
+// inside the range but were taken by the core block above, so they are NOT free.
+// ErrRuleCalculationFieldType carries a domain prefix to avoid colliding with the fee
+// code of the same fork identifier.
 var (
 	ErrRuleCalculationFieldType               = errors.New("0328")
 	ErrParentIDNotFound                       = errors.New("0329")

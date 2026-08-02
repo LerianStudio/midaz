@@ -12,6 +12,8 @@ import (
 // AnyLedger is the ledger argument that puts a query under organization scope: no
 // ledger clause is added, so it matches a billing package on whichever ledger of
 // the organization owns it. FindAll reads it the same way and lists every ledger.
+// It is the string-typed counterpart of uuid.Nil in the fee-package aggregate, and
+// it carries a name because an empty string otherwise reads as an omission.
 //
 // A surface whose path names a ledger must never pass it. It widens the query to
 // the whole organization, which on such a path would answer with packages that

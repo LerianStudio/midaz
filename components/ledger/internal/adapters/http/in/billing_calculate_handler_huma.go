@@ -87,13 +87,13 @@ func (handler *BillingCalculateHandler) CalculateBillingHuma(ctx context.Context
 // versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
 // (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
 //
-// The resource hangs off basePath, and opSuffix is appended to the operation ID —
-// see feeBasePathV1 and feeOpSuffixV1.
-func RegisterBillingCalculateRoutes(api huma.API, h *BillingCalculateHandler, basePath, opSuffix string) {
+// The resource hangs off feeBasePathV1. The operation ID is literal — see
+// RegisterPackageRoutes.
+func RegisterBillingCalculateRoutes(api huma.API, h *BillingCalculateHandler) {
 	huma.Register(api, huma.Operation{
-		OperationID: "calculateBilling" + opSuffix,
+		OperationID: "calculateBilling",
 		Method:      http.MethodPost,
-		Path:        basePath + "/billing/calculate",
+		Path:        feeBasePathV1 + "/billing/calculate",
 		Summary:     "Calculate billing",
 		Tags:        []string{"Billing Calculate"},
 		Security:    secBillingBearer,
