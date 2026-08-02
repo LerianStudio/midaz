@@ -31,8 +31,8 @@ The three deploy units form one core banking platform in one monorepo:
 
 ## API
 
-- [Ledger OpenAPI Spec](components/ledger/api/): Huma-generated OpenAPI 3.1 spec (`openapi.huma.yaml`) covering ledger, transaction, CRM holder/instrument, and fee endpoints (single unified spec)
-- [Per-Component OpenAPI Specs](postman/specs/): published `openapi.huma.yaml` per REST deploy unit (ledger, tracer) plus the merged `midaz.openapi.{json,yaml}`
+- [Ledger OpenAPI Spec](components/ledger/api/): two Huma-generated OpenAPI 3.1 dumps from one binary — `openapi.huma.yaml` (`/v1`: ledger, transaction, CRM holder/instrument, organization-scoped fee endpoints) and `openapi.v2.huma.yaml` (`/v2`: the independent contract, including the ledger-scoped fee endpoints)
+- [Per-Component OpenAPI Specs](postman/specs/): the published dumps per REST deploy unit (ledger `openapi.huma.yaml` + `openapi.v2.huma.yaml`, tracer `openapi.huma.yaml`) plus the merged `midaz.openapi.{json,yaml}`
 - [RBAC Namespaces](docs/auth/RBAC-NAMESPACES.md): The three authz namespaces (`midaz`, `routing`, `plugin-fees`) in the unified binary (R9)
 - [API Scoping](docs/api/SCOPING.md): Path-based organization scoping, exception-free — the `X-Organization-Id`/`X-Ledger-Id` headers were removed (R22 reversed)
 
@@ -40,7 +40,7 @@ The three deploy units form one core banking platform in one monorepo:
 
 - [Ledger Component](components/ledger/): Unified deploy unit — onboarding + transaction + CRM + fees in one process (:3002)
   - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, `initCRM`, fee wiring, multi-tenant middleware
-  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go`, CRM handlers (`crm_routes.go`, `composition_routes.go`, `holder.go`, `holder_accounts.go`, `instrument.go`)
+  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware, `fees_routes.go` + `fees_v2_register.go`, CRM handlers (`crm_routes.go`, `composition_routes.go`, `holder.go`, `holder_accounts.go`, `instrument.go`)
   - [PostgreSQL Repos](components/ledger/internal/adapters/postgres/): Onboarding + transaction repositories
   - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata + fees storage
   - [Services](components/ledger/internal/services/): CQRS command/query use cases + embedded `fees/`

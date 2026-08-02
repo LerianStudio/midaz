@@ -60,7 +60,7 @@ There is no standalone "microservices" deployment of onboarding, transaction, CR
 │  /v1/settings/metadata-indexes/* → Metadata Index Routes    │
 │  /v1/holders/*, /v1/instruments/* → CRM Routes (midaz ns)   │
 │  .../encryption + .../protection/audit → CRM KMS (midaz ns) │
-│  /v1/packages/*, /v1/estimates → Fee Routes (plugin-fees ns)│
+│  /v1 (org) + /v2 (ledger) fees → Fee Routes (plugin-fees ns)│
 └─────────────────────────────────────────────────────────────┘
 ```
 

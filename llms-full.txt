@@ -359,15 +359,21 @@ are still emitted on their own paths.
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
 standalone service. Routes are registered in `components/ledger/internal/adapters/http/in/fees_routes.go`
-under the `plugin-fees` authz namespace and served on `:3002`.
+(organization-scoped, `/v1`) and `fees_v2_register.go` (ledger-scoped, `/v2`), both under the
+`plugin-fees` authz namespace and served on `:3002`.
 
 Scoping is **path-based**: fee endpoints read the organization from the `:organization_id` path
 segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
 convention as every other surface in the binary. The former `X-Organization-Id` header was
 removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
 (fee business errors use the canonical numeric error-code registry in `pkg/constant/errors.go` —
-the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body field and an optional
-`?ledgerId=` list filter — never a path scope. See `docs/api/SCOPING.md`.
+the `FEE-` prefixed code family is retired). See `docs/api/SCOPING.md`.
+
+**Two live surfaces.** The same twelve operations are served at two scopes, and neither replaces
+the other. On `/v1` the path names only the organization and a read reaches a resource on whichever
+ledger of the organization owns it; `ledger_id` there is a create-body field and an optional
+`?ledgerId=` list filter, never a scope. On `/v2` the path names the ledger and a read reaches only
+what that ledger owns.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -384,8 +390,32 @@ the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body f
 | DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
 | POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
 
+Ledger-scoped twins on the independent `/v2` contract (`{base}` =
+`/v2/organizations/{organization_id}/ledgers/{ledger_id}`):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | {base}/packages | Create fee package |
+| GET | {base}/packages | List the ledger's fee packages |
+| GET | {base}/packages/:id | Get fee package |
+| PATCH | {base}/packages/:id | Update fee package |
+| DELETE | {base}/packages/:id | Delete fee package |
+| POST | {base}/estimates | Estimate fee calculation (dry run) |
+| POST | {base}/billing-packages | Create billing package |
+| GET | {base}/billing-packages | List the ledger's billing packages |
+| GET | {base}/billing-packages/:id | Get billing package |
+| PATCH | {base}/billing-packages/:id | Update billing package |
+| DELETE | {base}/billing-packages/:id | Delete billing package |
+| POST | {base}/billing/calculate | Calculate billing |
+
+On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
+`ledger_id` path value, a request body naming a different ledger is refused (`0499`), and
+`?ledgerId=` is refused outright (`0500`) — its empty value would mean "every ledger", the one
+scope a ledger-scoped listing must not express. Authz is identical to `/v1`: `plugin-fees` with the
+same `(resource, verb)` tuples, so no separate grant is needed for the second surface.
+
 `POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via
-the transaction-create seam, not over HTTP.
+the transaction-create seam, not over HTTP. The `/v2` surface omits it for the same reason.
 
 ### 4.4 Tracer API (port 4020)
 

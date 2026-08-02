@@ -21,6 +21,12 @@ namespace string.
 > `namespace:resource:action` keys below are byte-identical to before, so the X1 grant migration
 > is unaffected and no `plugin-fees` policy migration exists. See `docs/api/SCOPING.md`
 > (R22 reversed, now exception-free).
+>
+> The same holds for the **ledger-scoped fee/billing surface on `/v2`** (2026-08-01). The twelve
+> operations are served at two scopes — organization-scoped on `/v1`, ledger-scoped on `/v2` — and
+> both attach the identical guard chain: `plugin-fees` with the same `(resource, action)` tuples.
+> A grant that authorizes a `/v1` fee call authorizes its `/v2` twin, and vice versa. No second
+> policy surface exists to migrate.
 
 ## The three namespaces
 
@@ -31,7 +37,7 @@ namespace literals:
 |-----------|--------------|-----------|--------|
 | `midaz` | ledger — `midazName` const; CRM (collapsed package) — `ApplicationName` const | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName = "midaz"`, helper `protectedMidaz`); `components/ledger/internal/adapters/http/in/crm_routes.go` (`const ApplicationName = "midaz"`) for the `holders`/`instruments` resources |
 | `routing` | ledger — `routingName` const | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName = "routing"`, helper `protectedRouting`) |
-| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go` |
+| `plugin-fees` | fees (embedded in ledger) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName = "plugin-fees"`, helper `protectedFees`); also `pkg/constant.ModuleFees = "plugin-fees"` and `components/ledger/pkg/feeshared/constant/app.go`. The ledger-scoped `/v2` twins reuse the same `protectedFees` helper from `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) — same namespace, same tuples |
 
 The `(<action>)` dimension is the HTTP verb mapped to `get` / `post` / `patch` / `delete`. The CRM
 `related-parties` DELETE authorizes under the `instruments` resource (sub-resource maintenance,
@@ -99,18 +105,22 @@ owner and **defers all execution to the X1 gate**. No namespace literal is chang
 `auth.Authorize(<namespace>, <resource>, <action>)` (lib-auth v3.0.0, global RBAC check) is called
 under four distinct namespace literals across the monorepo:
 
-| Namespace | Deploy unit | Resources (verified) | Source (file:line) |
-|-----------|-------------|----------------------|--------------------|
-| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go:19` (`midazName = "midaz"`); `crm_routes.go:20` (`const ApplicationName = "midaz"`) for `holders`/`instruments` |
-| `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go:20` (`routingName = "routing"`, helper `protectedRouting` at `:187`) |
-| `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go:19` (`feesApplicationName = "plugin-fees"`) |
-| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go:7` (`const ApplicationName = "tracer"`); wired via `bootstrap/config.go:1154` → `AppName`, consumed at `middleware/auth_guard.go:87` |
+Refs below are anchored on **symbol names**, not line numbers: line numbers rot silently on the
+next edit to the file, and four of the eight that used to sit in this table had already drifted.
 
-> **Audit-ref check:** every ref above is accurate as written — `tracer` at
-> `components/tracer/pkg/constant/app.go:7`, and `routing` splitting
+| Namespace | Deploy unit | Resources (verified) | Source (file + symbol) |
+|-----------|-------------|----------------------|------------------------|
+| `midaz` | ledger (`:3002`) | `organizations`, `ledgers`, `assets`, `asset-rates`, `portfolios`, `segments`, `accounts`, `balances`, `transactions`, `operations`, `settings`, `holders`, `instruments` | `components/ledger/internal/adapters/http/in/routes.go` (`midazName`, helper `protectedMidaz`); `crm_routes.go` (`ApplicationName`) for `holders`/`instruments` |
+| `routing` | ledger (`:3002`, same binary) | `account-types`, `operation-routes`, `transaction-routes` | `components/ledger/internal/adapters/http/in/routes.go` (`routingName`, helper `protectedRouting`) |
+| `plugin-fees` | ledger (`:3002`, same binary) | `packages`, `estimates`, `billing-packages`, `billing-calculate` | `components/ledger/internal/adapters/http/in/fees_routes.go` (`feesApplicationName`, helper `protectedFees`); the ledger-scoped `/v2` twins in `fees_v2_register.go` (`RegisterFeesV2RoutesToApp`) call the same helper |
+| `tracer` | tracer (`:4020`) | `reservations`, `audit-events` | `components/tracer/pkg/constant/app.go` (`ApplicationName`); wired via `components/tracer/internal/bootstrap/config.go` (`AppName:`), consumed at `middleware/auth_guard.go` (`(*AuthGuard).Protect`) |
+
+> **Audit-ref check:** every symbol above resolves in the tree as written, and the namespace-to-
+> resource split is as listed — `routing` separating
 > `account-types`/`operation-routes`/`transaction-routes` from their `midaz` siblings inside the
 > **same ledger binary**. Three of the four namespaces (`midaz`/`routing`/`plugin-fees`) ship from
-> the one ledger binary; only `tracer` is a separate deploy unit.
+> the one ledger binary; only `tracer` is a separate deploy unit. Serving fees at a second scope
+> (`/v2`) added no namespace: the count stays four.
 
 ## 2. Consequence — silent 403 across the platform
 
