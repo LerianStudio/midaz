@@ -395,6 +395,44 @@ func TestIntegration_PackRepo_FindList_FiltersAndPaginates(t *testing.T) {
 	assert.Len(t, seen, 3)
 }
 
+// TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier pins the
+// ledger filter against a real identifier whose leading four bytes are zero.
+//
+// A predicate written as UUID.ID() != 0 reads exactly those four bytes, so such a
+// ledger is indistinguishable from "no ledger requested" and the clause is dropped —
+// the listing then answers with every ledger of the organization. On the
+// organization-scoped surface that silently ignores a caller's filter; on a
+// ledger-scoped path it hands back packages the named ledger does not own. The
+// identifier is fixed rather than generated so the case is exercised every run.
+func TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	leadingZeroLedger := uuid.MustParse("00000000-1111-4111-8111-111111111111")
+	otherLedger := uuid.New()
+
+	require.Zero(t, leadingZeroLedger.ID(), "the fixture must be the identifier shape the old predicate misread")
+	require.NotEqual(t, uuid.Nil, leadingZeroLedger, "and it must still be a real ledger")
+
+	_, err := repo.Create(ctx, newTestPackage(leadingZeroLedger), orgID)
+	require.NoError(t, err)
+
+	_, err = repo.Create(ctx, newTestPackage(otherLedger), orgID)
+	require.NoError(t, err)
+
+	results, err := repo.FindList(ctx, feehttp.QueryHeader{
+		OrganizationID: orgID,
+		LedgerID:       leadingZeroLedger,
+		Limit:          10,
+		Page:           1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1, "the ledger filter must still apply")
+	assert.Equal(t, leadingZeroLedger, results[0].LedgerID)
+}
+
 func TestIntegration_PackRepo_FindList_FilterByEnable(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)

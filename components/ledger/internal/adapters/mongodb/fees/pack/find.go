@@ -69,11 +69,16 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 		queryFilter["enable"] = filters.Enable
 	}
 
-	if filters.SegmentID.ID() != 0 {
+	// uuid.Nil is the "no scope requested" value for both filters. The comparison is
+	// against uuid.Nil rather than against UUID.ID(), which reads only the first four
+	// bytes: a real identifier whose leading four bytes happen to be zero reads as
+	// unset there, and the clause it should have added is dropped — widening a
+	// ledger-scoped listing to every ledger of the organization.
+	if filters.SegmentID != uuid.Nil {
 		queryFilter["segment_id"] = filters.SegmentID
 	}
 
-	if filters.LedgerID.ID() != 0 {
+	if filters.LedgerID != uuid.Nil {
 		queryFilter["ledger_id"] = filters.LedgerID
 	}
 
