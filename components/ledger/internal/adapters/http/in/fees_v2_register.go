@@ -1,0 +1,261 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package in
+
+import (
+	"net/http"
+
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/gofiber/fiber/v3"
+
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+)
+
+// This file is the v2 fee/billing contract seam (filename-suffix versioning — the v1
+// files are left untouched). It mounts the twelve fee and billing operations at
+// ledger scope on the SECOND, independent Huma contract, and attaches the SAME Fiber
+// guard chain the organization-scoped routes carry: auth.Authorize("plugin-fees",
+// resource, verb) with the same (resource, verb) tuples, the same fees-scoped tenant
+// PostAuthMiddlewares, and the same ParseUUIDPathParameters labels. No new policy
+// surface: the fees namespace stays "plugin-fees".
+//
+// The registrations are written out here rather than routed through the four
+// organization-scoped registrars, even though those take a base path. A ledger-scoped
+// path carries a parameter the organization-scoped input structs do not declare, and
+// Huma does not object: it registers the operation, publishes only the parameters the
+// struct declares, and the terminal never sees the ledger. Reusing them would
+// therefore produce a contract whose path template names a parameter the operation
+// does not document, served by a handler acting at the wrong scope.
+//
+// POST /fees is absent here for the reason it is absent from /v1: in the unified
+// binary fees run in-process via the transaction seam, so only the dry-run estimate is
+// exposed over HTTP.
+
+// feeBasePathV2 is the scope every v2 fee and billing resource hangs off, in OpenAPI
+// template syntax. Each registration appends its own segments to it, and feeChainPath
+// restates it in Fiber syntax for the guard chain.
+const feeBasePathV2 = "/organizations/{organization_id}/ledgers/{ledger_id}"
+
+// feeOpSuffixV2 is the operation-ID suffix the v2 fee contract carries. The ledger
+// publishes each versioned contract as a separate OpenAPI document and the published
+// hub spec joins them; the join makes path keys unique by the version prefix but
+// leaves operation IDs alone, so a contract that repeats another's IDs collides there.
+// See feeOpSuffixV1, whose suffix is empty for the same reason this one is not.
+const feeOpSuffixV2 = "V2"
+
+// RegisterFeesV2Routes registers the twelve ledger-scoped fee and billing operations
+// on the INDEPENDENT v2 Huma API. Auth is the Fiber guard chain attached in
+// RegisterFeesV2RoutesToApp BEFORE these terminals — the per-op Security metadata is
+// SPEC-ONLY. Paths are GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry).
+func RegisterFeesV2Routes(api huma.API, ph *PackageHandler, fh *FeeHandler, bph *BillingPackageHandler, bch *BillingCalculateHandler) {
+	registerPackageV2Routes(api, ph)
+	registerFeeEstimateV2Routes(api, fh)
+	registerBillingPackageV2Routes(api, bph)
+	registerBillingCalculateV2Routes(api, bch)
+}
+
+// registerPackageV2Routes registers the five ledger-scoped fee-package operations.
+func registerPackageV2Routes(api huma.API, h *PackageHandler) {
+	const tag = "Packages"
+
+	listPath := feeBasePathV2 + "/packages"
+	idPath := listPath + "/{id}"
+
+	huma.Register(api, huma.Operation{
+		OperationID: "createPackage" + feeOpSuffixV2,
+		Method:      http.MethodPost,
+		Path:        listPath,
+		Summary:     "Create a Package",
+		Tags:        []string{tag},
+		Security:    secPackageBearer,
+		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
+		SkipValidateBody: true,
+	}, h.CreatePackageV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getAllPackages" + feeOpSuffixV2,
+		Method:      http.MethodGet,
+		Path:        listPath,
+		Summary:     "Get all packages of a ledger",
+		Tags:        []string{tag},
+		Security:    secPackageBearer,
+	}, h.GetAllPackagesV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getPackageByID" + feeOpSuffixV2,
+		Method:      http.MethodGet,
+		Path:        idPath,
+		Summary:     "Get package",
+		Tags:        []string{tag},
+		Security:    secPackageBearer,
+	}, h.GetPackageByIDV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "updatePackage" + feeOpSuffixV2,
+		Method:           http.MethodPatch,
+		Path:             idPath,
+		Summary:          "Update a package",
+		Tags:             []string{tag},
+		Security:         secPackageBearer,
+		SkipValidateBody: true, // body validated imperatively — see createPackage.
+	}, h.UpdatePackageByIDV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "deletePackage" + feeOpSuffixV2,
+		Method:      http.MethodDelete,
+		Path:        idPath,
+		Summary:     "SoftDelete a Package by ID",
+		Tags:        []string{tag},
+		Security:    secPackageBearer,
+		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeletePackageByIDV2Huma)
+}
+
+// registerFeeEstimateV2Routes registers the ledger-scoped fee-estimate operation.
+func registerFeeEstimateV2Routes(api huma.API, h *FeeHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "estimateFeeCalculation" + feeOpSuffixV2,
+		Method:      http.MethodPost,
+		Path:        feeBasePathV2 + "/estimates",
+		Summary:     "Create a fee estimate calculation",
+		Tags:        []string{"Fees"},
+		Security:    secFeeBearer,
+		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
+		SkipValidateBody: true,
+	}, h.EstimateFeeCalculationV2Huma)
+}
+
+// registerBillingPackageV2Routes registers the five ledger-scoped billing-package
+// operations.
+func registerBillingPackageV2Routes(api huma.API, h *BillingPackageHandler) {
+	const tag = "Billing Packages"
+
+	listPath := feeBasePathV2 + "/billing-packages"
+	idPath := listPath + "/{id}"
+
+	huma.Register(api, huma.Operation{
+		OperationID: "createBillingPackage" + feeOpSuffixV2,
+		Method:      http.MethodPost,
+		Path:        listPath,
+		Summary:     "Create a BillingPackage",
+		Tags:        []string{tag},
+		Security:    secBillingBearer,
+		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
+		SkipValidateBody: true,
+	}, h.CreateBillingPackageV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getAllBillingPackages" + feeOpSuffixV2,
+		Method:      http.MethodGet,
+		Path:        listPath,
+		Summary:     "Get all billing packages of a ledger",
+		Tags:        []string{tag},
+		Security:    secBillingBearer,
+	}, h.GetAllBillingPackagesV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getBillingPackageByID" + feeOpSuffixV2,
+		Method:      http.MethodGet,
+		Path:        idPath,
+		Summary:     "Get billing package",
+		Tags:        []string{tag},
+		Security:    secBillingBearer,
+	}, h.GetBillingPackageByIDV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID:      "updateBillingPackage" + feeOpSuffixV2,
+		Method:           http.MethodPatch,
+		Path:             idPath,
+		Summary:          "Update a billing package",
+		Tags:             []string{tag},
+		Security:         secBillingBearer,
+		SkipValidateBody: true, // body validated imperatively — see createBillingPackage.
+	}, h.UpdateBillingPackageV2Huma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteBillingPackage" + feeOpSuffixV2,
+		Method:      http.MethodDelete,
+		Path:        idPath,
+		Summary:     "SoftDelete a BillingPackage by ID",
+		Tags:        []string{tag},
+		Security:    secBillingBearer,
+		// DefaultStatus 204 + an Out struct with no Body field => bodiless 204.
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteBillingPackageV2Huma)
+}
+
+// registerBillingCalculateV2Routes registers the ledger-scoped billing-calculate
+// operation.
+func registerBillingCalculateV2Routes(api huma.API, h *BillingCalculateHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "calculateBilling" + feeOpSuffixV2,
+		Method:      http.MethodPost,
+		Path:        feeBasePathV2 + "/billing/calculate",
+		Summary:     "Calculate billing",
+		Tags:        []string{"Billing Calculate"},
+		Security:    secBillingBearer,
+		// Body validated imperatively (feehttp.DecodeValidateBody) — see fees_v2_handler.go.
+		SkipValidateBody: true,
+	}, h.CalculateBillingV2Huma)
+}
+
+// RegisterFeesV2RoutesToApp wires the ledger-scoped fee/billing surface end-to-end on
+// the /v2 contract: for each op it attaches the Fiber guard chain — auth.Authorize
+// ("plugin-fees",resource,verb) + the fees-scoped tenant PostAuthMiddlewares
+// (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no terminal handler,
+// no body binder) on the /v2 GROUP with GROUP-RELATIVE paths, then registers the Huma
+// terminals on the SAME group's Huma API.
+//
+// The chain paths are derived from feeBasePathV2 by feeChainPath rather than restated
+// by hand, because the two spellings drifting apart is not caught by the contract
+// diff: a path parameter whose name falls outside the identifier allowlist is carried
+// through as an unvalidated string. TestFeesV2RoutesParameterNamesAgree pins that
+// every route agrees on its parameter names and that every name is one the UUID
+// validator recognizes.
+//
+// It is additive — /v1 keeps serving the organization-scoped surface in parallel — and
+// the authz tuples are byte-for-byte the ones the /v1 routes carry.
+func RegisterFeesV2RoutesToApp(
+	group fiber.Router,
+	api huma.API,
+	auth *middleware.AuthClient,
+	ph *PackageHandler,
+	fh *FeeHandler,
+	bph *BillingPackageHandler,
+	bch *BillingCalculateHandler,
+	routeOptions *pkgHTTP.ProtectedRouteOptions,
+) {
+	chainBase := feeChainPath(feeBasePathV2)
+
+	packagesPath := chainBase + "/packages"
+	packageIDPath := packagesPath + "/:id"
+	estimatesPath := chainBase + "/estimates"
+	billingPkgPath := chainBase + "/billing-packages"
+	billingPkgID := billingPkgPath + "/:id"
+	billingCalc := chainBase + "/billing/calculate"
+
+	pkgParse := pkgHTTP.ParseUUIDPathParameters("packages")
+
+	routePost(group, packagesPath, protectedFees(auth, "packages", "post", routeOptions, pkgParse))
+	routeGet(group, packagesPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
+	routeGet(group, packageIDPath, protectedFees(auth, "packages", "get", routeOptions, pkgParse))
+	routePatch(group, packageIDPath, protectedFees(auth, "packages", "patch", routeOptions, pkgParse))
+	routeDelete(group, packageIDPath, protectedFees(auth, "packages", "delete", routeOptions, pkgParse))
+
+	routePost(group, estimatesPath, protectedFees(auth, "estimates", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("estimates")))
+
+	billingParse := pkgHTTP.ParseUUIDPathParameters("billing-packages")
+	routePost(group, billingPkgPath, protectedFees(auth, "billing-packages", "post", routeOptions, billingParse))
+	routeGet(group, billingPkgPath, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
+	routeGet(group, billingPkgID, protectedFees(auth, "billing-packages", "get", routeOptions, billingParse))
+	routePatch(group, billingPkgID, protectedFees(auth, "billing-packages", "patch", routeOptions, billingParse))
+	routeDelete(group, billingPkgID, protectedFees(auth, "billing-packages", "delete", routeOptions, billingParse))
+
+	routePost(group, billingCalc, protectedFees(auth, "billing-calculate", "post", routeOptions, pkgHTTP.ParseUUIDPathParameters("billing-calculate")))
+
+	RegisterFeesV2Routes(api, ph, fh, bph, bch)
+}

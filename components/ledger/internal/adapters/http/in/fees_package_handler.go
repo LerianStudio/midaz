@@ -148,14 +148,38 @@ func (handler *PackageHandler) GetAllPackages(c fiber.Ctx) error {
 	return commonsHttp.Respond(c, fiber.StatusOK, pagination)
 }
 
-// getAllPackages is the transport-agnostic core of the list-packages op, shared by
-// the Fiber wrapper (GetAllPackages) and the Huma shell. It owns the span, the
+// getAllPackages lists the packages of an organization across every ledger it owns,
+// narrowed by whatever the caller's query asks for — the organization-scoped surface.
+func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	return handler.listPackages(ctx, organizationID, uuid.Nil, queries)
+}
+
+// getAllPackagesInLedger lists the packages one ledger owns — the ledger-scoped
+// surface. The ledger comes from the path and the query cannot restate it: a
+// ledgerId key is refused rather than merged, because the only two readings of it
+// here are a redundant repetition and a request for a different ledger, and the
+// second must not be silently answered as the first. Refusing also keeps the
+// listing away from the empty filter, which means every ledger of the organization.
+func (handler *PackageHandler) getAllPackagesInLedger(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+	if err := rejectLedgerQueryParameter(queries); err != nil {
+		return model.Pagination{}, err
+	}
+
+	return handler.listPackages(ctx, organizationID, ledgerID, queries)
+}
+
+// listPackages is the transport-agnostic core of the list-packages op, shared by
+// the Fiber wrapper (GetAllPackages) and the Huma shells. It owns the span, the
 // fee-package query validation (feehttp.ValidateParameters — NOT pkg/net/http's),
 // the service call, and the pagination envelope assembly. The caller resolves the
 // org id (Fiber: locals; Huma: path param) and passes the raw query map
 // (c.Queries() on Fiber, queriesFromValues(rawQuery) on Huma) so the binder is
 // byte-identical, then renders the envelope/error.
-func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationID uuid.UUID, queries map[string]string) (model.Pagination, error) {
+//
+// A ledgerID of uuid.Nil leaves the ledger to the query filter. Any other value
+// pins the listing to that ledger AFTER the query has been validated, so no query
+// the caller sends can widen or redirect it.
+func (handler *PackageHandler) listPackages(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (model.Pagination, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_package")
@@ -166,6 +190,10 @@ func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationI
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
+	if ledgerID != uuid.Nil {
+		span.SetAttributes(attribute.String("app.request.ledger_id", ledgerID.String()))
+	}
+
 	headerParams, err := feehttp.ValidateParameters(queries)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
@@ -173,6 +201,10 @@ func (handler *PackageHandler) getAllPackages(ctx context.Context, organizationI
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate query parameters")
 
 		return model.Pagination{}, err
+	}
+
+	if ledgerID != uuid.Nil {
+		headerParams.LedgerID = ledgerID
 	}
 
 	span.SetAttributes(
@@ -216,7 +248,7 @@ func (handler *PackageHandler) GetPackageByID(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	packModel, err := handler.getPackageByID(ctx, organizationID, id)
+	packModel, err := handler.getPackageByID(ctx, organizationID, uuid.Nil, id)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -225,21 +257,21 @@ func (handler *PackageHandler) GetPackageByID(c fiber.Ctx) error {
 }
 
 // getPackageByID is the transport-agnostic core of the get-package op, shared by the
-// Fiber wrapper (GetPackageByID) and the Huma shell. It owns the span and the service
-// call; the caller resolves the org+package ids and renders the returned package/error.
-func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationID, id uuid.UUID) (*pack.Package, error) {
+// Fiber wrapper (GetPackageByID) and the Huma shells. It owns the span and the service
+// call; the caller resolves the org+ledger+package ids and renders the returned
+// package/error. A ledgerID of uuid.Nil reads at organization scope.
+func (handler *PackageHandler) getPackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*pack.Package, error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_package_by_id")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	)
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.package_id", id)...,
+	)...)
 
-	packModel, err := handler.Service.GetPackageByID(ctx, id, organizationID, uuid.Nil)
+	packModel, err := handler.Service.GetPackageByID(ctx, id, organizationID, ledgerID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
@@ -267,7 +299,7 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c fiber.Ctx) error {
 
 	payload := p.(*model.UpdatePackageInput)
 
-	packUpdated, err := handler.updatePackageByID(ctx, organizationID, id, payload)
+	packUpdated, err := handler.updatePackageByID(ctx, organizationID, uuid.Nil, id, payload)
 	if err != nil {
 		return http.WithError(c, err)
 	}
@@ -276,21 +308,20 @@ func (handler *PackageHandler) UpdatePackageByID(p any, c fiber.Ctx) error {
 }
 
 // updatePackageByID is the transport-agnostic core of the update-package op, shared
-// by the Fiber wrapper (UpdatePackageByID) and the Huma shell. It owns the span, the
+// by the Fiber wrapper (UpdatePackageByID) and the Huma shells. It owns the span, the
 // fee + duplicate-priority + min/max validation, the update, and the re-read; the
-// caller resolves the org+package ids, decodes the payload, and renders the returned
-// package/error.
-func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizationID, id uuid.UUID, payload *model.UpdatePackageInput) (*pack.Package, error) {
+// caller resolves the org+ledger+package ids, decodes the payload, and renders the
+// returned package/error. A ledgerID of uuid.Nil writes at organization scope.
+func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *model.UpdatePackageInput) (*pack.Package, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_package")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	)
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.package_id", id)...,
+	)...)
 
 	if payload.Fee != nil {
 		errValidateInput := payload.ValidateFees()
@@ -319,13 +350,13 @@ func (handler *PackageHandler) updatePackageByID(ctx context.Context, organizati
 		return nil, errValidateAmount
 	}
 
-	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, uuid.Nil, payload); errUpdate != nil {
+	if errUpdate := handler.Service.UpdatePackageByID(ctx, id, organizationID, ledgerID, payload); errUpdate != nil {
 		handleSpanByErrorClass(span, "Failed to update package", errUpdate)
 
 		return nil, errUpdate
 	}
 
-	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID, uuid.Nil)
+	packUpdated, err := handler.Service.GetPackageByID(ctx, id, organizationID, ledgerID)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve package on query", err)
 
@@ -349,7 +380,7 @@ func (handler *PackageHandler) DeletePackageByID(c fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	if err := handler.deletePackageByID(ctx, organizationID, id); err != nil {
+	if err := handler.deletePackageByID(ctx, organizationID, uuid.Nil, id); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -357,21 +388,21 @@ func (handler *PackageHandler) DeletePackageByID(c fiber.Ctx) error {
 }
 
 // deletePackageByID is the transport-agnostic core of the delete-package op, shared
-// by the Fiber wrapper (DeletePackageByID) and the Huma shell. It owns the span and
-// the service call; the caller resolves the org+package ids and renders the 204/error.
-func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizationID, id uuid.UUID) error {
+// by the Fiber wrapper (DeletePackageByID) and the Huma shells. It owns the span and
+// the service call; the caller resolves the org+ledger+package ids and renders the
+// 204/error. A ledgerID of uuid.Nil deletes at organization scope.
+func (handler *PackageHandler) deletePackageByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_package_by_id")
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.package_id", id.String()),
-	)
+	span.SetAttributes(append(
+		[]attribute.KeyValue{attribute.String("app.request.request_id", reqId)},
+		feeLedgerScopeAttributes(organizationID, ledgerID, "app.request.package_id", id)...,
+	)...)
 
-	if err := handler.Service.DeletePackageByID(ctx, id, organizationID, uuid.Nil); err != nil {
+	if err := handler.Service.DeletePackageByID(ctx, id, organizationID, ledgerID); err != nil {
 		handleSpanByErrorClass(span, "Failed to remove package on database", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove Package", libLog.String("package_id", id.String()))

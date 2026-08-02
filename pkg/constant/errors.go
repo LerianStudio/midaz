@@ -267,6 +267,8 @@ var (
 	ErrAppRuleMaxBetweenTypes               = errors.New("0201")
 	ErrInvalidSegmentID                     = errors.New("0202")
 	ErrInvalidLedgerID                      = errors.New("0203")
+	ErrLedgerIDMismatch                     = errors.New("0499")
+	ErrLedgerScopedQueryParameter           = errors.New("0500")
 	ErrConvertToDecimal                     = errors.New("0204")
 	ErrIsDeductibleFrom                     = errors.New("0205")
 	ErrApplicationRule                      = errors.New("0206")

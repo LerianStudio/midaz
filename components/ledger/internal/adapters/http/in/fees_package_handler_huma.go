@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -160,7 +161,7 @@ func (handler *PackageHandler) GetPackageByIDHuma(ctx context.Context, in *GetPa
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	packModel, err := handler.getPackageByID(ctx, orgID, id)
+	packModel, err := handler.getPackageByID(ctx, orgID, uuid.Nil, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -203,7 +204,7 @@ func (handler *PackageHandler) UpdatePackageByIDHuma(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	packUpdated, err := handler.updatePackageByID(ctx, orgID, id, payload)
+	packUpdated, err := handler.updatePackageByID(ctx, orgID, uuid.Nil, id, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -229,7 +230,7 @@ func (handler *PackageHandler) DeletePackageByIDHuma(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deletePackageByID(ctx, orgID, id); err != nil {
+	if err := handler.deletePackageByID(ctx, orgID, uuid.Nil, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

@@ -354,6 +354,8 @@ func allSentinels() map[string]error {
 		"ErrAppRuleMaxBetweenTypes":                   constant.ErrAppRuleMaxBetweenTypes,
 		"ErrInvalidSegmentID":                         constant.ErrInvalidSegmentID,
 		"ErrInvalidLedgerID":                          constant.ErrInvalidLedgerID,
+		"ErrLedgerIDMismatch":                         constant.ErrLedgerIDMismatch,
+		"ErrLedgerScopedQueryParameter":               constant.ErrLedgerScopedQueryParameter,
 		"ErrConvertToDecimal":                         constant.ErrConvertToDecimal,
 		"ErrIsDeductibleFrom":                         constant.ErrIsDeductibleFrom,
 		"ErrApplicationRule":                          constant.ErrApplicationRule,

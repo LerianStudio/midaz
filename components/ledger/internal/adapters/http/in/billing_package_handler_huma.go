@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -163,7 +164,7 @@ func (handler *BillingPackageHandler) GetBillingPackageByIDHuma(ctx context.Cont
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	result, err := handler.getBillingPackageByID(ctx, orgID, id)
+	result, err := handler.getBillingPackageByID(ctx, orgID, uuid.Nil, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -206,7 +207,7 @@ func (handler *BillingPackageHandler) UpdateBillingPackageHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	result, err := handler.updateBillingPackage(ctx, orgID, id, payload)
+	result, err := handler.updateBillingPackage(ctx, orgID, uuid.Nil, id, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -233,7 +234,7 @@ func (handler *BillingPackageHandler) DeleteBillingPackageHuma(ctx context.Conte
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deleteBillingPackage(ctx, orgID, id); err != nil {
+	if err := handler.deleteBillingPackage(ctx, orgID, uuid.Nil, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

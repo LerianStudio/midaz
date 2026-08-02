@@ -1133,9 +1133,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// routes use. The nil-guards (holder-accounts, encryption, audit) hold on this
 	// contract exactly as they do on /v1: a nil handler mounts neither the Fiber auth
 	// chain nor the Huma terminal. /v1 keeps serving CRM in parallel.
+	//
+	// The fee and billing ops carry their OWN feesRouteOptions, the same tenant chain
+	// the /v1 fee routes use, and authorize against the same "plugin-fees" (resource,
+	// verb) tuples — no new policy surface. They differ from /v1 in scope only: the
+	// path names the ledger, so a package another ledger owns is out of reach. /v1
+	// keeps serving the organization-scoped surface in parallel.
 	humaMountV2 := func(group fiber.Router, api huma.API) {
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, transactionHandler, routeSetup.transactionRouteOptions)
 		httpin.RegisterCRMV2RoutesToApp(group, api, auth, crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler, routeSetup.crmRouteOptions)
+		httpin.RegisterFeesV2RoutesToApp(group, api, auth, feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler, routeSetup.feesRouteOptions)
 	}
 
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)

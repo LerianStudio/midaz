@@ -120,6 +120,8 @@ func buildUnifiedHumaAPIV2() (*fiber.App, huma.API) {
 	RegisterCRMV2RoutesToApp(apiV2, humaAPIV2, auth,
 		&HolderHandler{}, &InstrumentHandler{}, &HolderAccountsHandler{},
 		&EncryptionHandler{}, &AuditHandler{}, nil)
+	RegisterFeesV2RoutesToApp(apiV2, humaAPIV2, auth,
+		&PackageHandler{}, &FeeHandler{}, &BillingPackageHandler{}, &BillingCalculateHandler{}, nil)
 
 	return app, humaAPIV2
 }
