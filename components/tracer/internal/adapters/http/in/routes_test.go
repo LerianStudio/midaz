@@ -52,7 +52,7 @@ type testRouterDeps struct {
 	TransactionValidationService *mocks.MockTransactionValidationService
 	AuditEventService            *MockAuditEventService
 	guardCfg                     middleware.AuthGuardConfig
-	swaggerEnabled               bool
+	openAPIDocsEnabled           bool
 	t                            *testing.T
 }
 
@@ -90,7 +90,7 @@ func (d *testRouterDeps) build() *fiber.App {
 	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, &authLogger)
 	guard := middleware.NewAuthGuard(d.guardCfg, authClient)
 
-	routeCfg := &RouteConfig{SwaggerEnabled: d.swaggerEnabled}
+	routeCfg := &RouteConfig{OpenAPIDocsEnabled: d.openAPIDocsEnabled}
 
 	clk := clock.New()
 

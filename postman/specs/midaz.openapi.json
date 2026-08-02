@@ -15439,6 +15439,10 @@
             ],
             "format": "uri",
             "type": "string"
+          },
+          "upstream": {
+            "$ref": "#/components/schemas/Upstream",
+            "description": "RFC 9457 extension member: the error a proxied third-party provider reported. Absent unless the emitting service explicitly surfaced one."
           }
         },
         "type": "object"
@@ -17847,6 +17851,26 @@
           "code",
           "description"
         ],
+        "type": "object"
+      },
+      "Upstream": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "The upstream provider's own error code, verbatim.",
+            "examples": [
+              "E4001"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "description": "The upstream provider's own error message, verbatim (bounded, never its raw response body).",
+            "examples": [
+              "account not found at provider"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "CreateTransactionV2Input": {

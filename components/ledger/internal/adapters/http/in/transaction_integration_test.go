@@ -102,7 +102,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	// operation_route belongs to the transaction migration set loaded above, so the revert
 	// bidirectional-route gate (which resolves an operation's route_id) can run against a real
@@ -672,7 +672,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)

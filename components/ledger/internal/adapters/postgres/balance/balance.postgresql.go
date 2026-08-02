@@ -28,11 +28,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
 var balanceColumnList = []string{
@@ -84,16 +87,20 @@ type Repository interface {
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
 type BalancePostgreSQLRepository struct {
-	connection    *libPostgres.Client
-	tableName     string
-	requireTenant bool
+	connection            *libPostgres.Client
+	tableName             string
+	requireTenant         bool
+	routeTxReadsToPrimary bool
 }
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
-func NewBalancePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *BalancePostgreSQLRepository {
+// routeTxReadsToPrimary enables routing transactional-flow reads to the primary
+// (via a read-only transaction) when the request carries the primary-read intent.
+func NewBalancePostgreSQLRepository(pc *libPostgres.Client, routeTxReadsToPrimary bool, requireTenant ...bool) *BalancePostgreSQLRepository {
 	c := &BalancePostgreSQLRepository{
-		connection: pc,
-		tableName:  "balance",
+		connection:            pc,
+		tableName:             "balance",
+		routeTxReadsToPrimary: routeTxReadsToPrimary,
 	}
 	if len(requireTenant) > 0 {
 		c.requireTenant = requireTenant[0]
@@ -125,6 +132,35 @@ func (r *BalancePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 	}
 
 	return r.connection.Resolver(ctx)
+}
+
+// acquireRead resolves the read handle for the current request and a release
+// func that MUST be deferred by the caller. The routing decision (direct replica
+// read vs. read-only transaction pinned to the primary) lives in the readseam
+// package; this method only supplies the resolved connection and the flag.
+func (r *BalancePostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// The read-source signal is emitted inside the seam; balance keeps its
+	// 3-return so the read call sites stay untouched.
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, r.routeTxReadsToPrimary)
+
+	return reader, release, err
+}
+
+// releaseRead runs the acquire-seam release func and records any finalize error
+// on the span. Read methods defer this so a read-only tx is always finalized.
+func releaseRead(span trace.Span, release func() error) {
+	if release == nil {
+		return
+	}
+
+	if err := release(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release read", err)
+	}
 }
 
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) (*mmodel.Balance, error) {
@@ -246,12 +282,13 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_ids")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	var balances []*mmodel.Balance
 
@@ -334,11 +371,12 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 		return []*mmodel.Balance{}, nil
 	}
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	var balances []*mmodel.Balance
 
@@ -416,12 +454,13 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
+	defer releaseRead(span, release)
 
 	balances := make([]*mmodel.Balance, 0)
 
@@ -538,12 +577,13 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.list_all_balances_by_account_id")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
+	defer releaseRead(span, release)
 
 	balances := make([]*mmodel.Balance, 0)
 
@@ -661,12 +701,13 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	var balances []*mmodel.Balance
 
@@ -749,11 +790,12 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 		return []*mmodel.Balance{}, nil
 	}
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	orConditions := make(squirrel.Or, 0, len(aliasesWithKeys))
 
@@ -946,12 +988,13 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.find_balance")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	balance := &BalancePostgreSQLModel{}
 
@@ -1020,12 +1063,13 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "postgres.find_balance_by_account_id_and_key")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	balance := &BalancePostgreSQLModel{}
 
@@ -1087,12 +1131,13 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 	ctx, span := tracer.Start(ctx, "postgres.exists_balance_by_account_id_and_key")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return false, err
 	}
+	defer releaseRead(span, release)
 
 	_, spanQuery := tracer.Start(ctx, "postgres.exists.query")
 
@@ -1571,11 +1616,12 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	var balances []*mmodel.Balance
 
@@ -1652,11 +1698,12 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id_at_timestamp")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	balances := make([]*mmodel.Balance, 0)
 

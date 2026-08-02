@@ -70,14 +70,14 @@ func fetchTracerSpec(t *testing.T) openAPISpec {
 		AppName:       "tracer",
 	}
 	deps := newTestRouterDeps(t, guardCfg)
-	deps.swaggerEnabled = true // gate ServeSpec on
+	deps.openAPIDocsEnabled = true // gate ServeSpec on
 	app := deps.build()
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/openapi.json", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, resp.Body.Close()) }()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "spec must be served when SwaggerEnabled=true")
+	require.Equal(t, http.StatusOK, resp.StatusCode, "spec must be served when OpenAPIDocsEnabled=true")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
