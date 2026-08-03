@@ -323,7 +323,7 @@ func seedFundedTransfer(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, sou
 // bodies for the two surfaces, using the same aliases so the resulting transactions differ
 // only by IDs/timestamps.
 const (
-	equivalentV2Body = `{"description":"v1 v2 parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	equivalentV2Body = `{"description":"v1 v2 parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
 
 	equivalentV1Body = `{
 		"description":"v1 v2 parity transfer",
@@ -513,7 +513,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// DecodeAndValidate's struct validation. Translate owns the rule instead and
 			// rejects it with ErrMissingFieldsInRequest (0009) -> ValidationError -> 400.
 			name:             "missing from field",
-			body:             `{"asset":"USD","amount":"100","to":"@dst"}`,
+			body:             `{"asset":"USD","amount":"100","to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "from or sources",
@@ -523,7 +523,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// side rule uses, so only the per-field entry in the errors array tells the two
 			// apart — which is why this row pins that text and the row above pins the pair.
 			name:             "missing required asset field",
-			body:             `{"amount":"100","from":"@src","to":"@dst"}`,
+			body:             `{"amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "asset is a required field",
@@ -544,7 +544,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// that full phrasing is what pins the answering layer. The offending leg is the
 			// SECOND one, so a rendering that hardcoded index 0 fails this row too.
 			name:             "leg without an account",
-			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"amount":"100"}],"to":"@dst"}`,
+			body:             `{"asset":"USD","amount":"100","sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"},{"amount":"100"}],"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "sources[1].account is a required field",
@@ -555,7 +555,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// (scalar source + array destinations) legal, so only a side spelled twice is
 			// a violation.
 			name:       "destination side spelled both scalar and as a leg array",
-			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@dst","destinations":[{"account":"@dst","amount":"100"}]}`,
+			body:       `{"asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `},"destinations":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"100"}]}`,
 			wantStatus: nethttp.StatusBadRequest,
 			wantCode:   "0498",
 		},
@@ -564,7 +564,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// the offending leg's index. The leg here is the SECOND one, so a message that
 			// hardcoded index 0 fails this row.
 			name:             "leg with no value expression",
-			body:             `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"100"},{"account":"@srcB"}],"to":"@dst"}`,
+			body:             `{"asset":"USD","amount":"100","sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"},{"alias":"@srcB",` + v2ScopeJSON + `}],"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0072",
 			wantBodyContains: "'sources[1]'",
@@ -574,7 +574,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// VALUE rule, not a shape rule, so it is a 422 rather than a 400 — the status
 			// and the code move together and both are pinned.
 			name:       "leg with a zero amount",
-			body:       `{"asset":"USD","amount":"100","sources":[{"account":"@srcA","amount":"0"}],"to":"@dst"}`,
+			body:       `{"asset":"USD","amount":"100","sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"0"}],"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   "0125",
 		},
@@ -621,7 +621,7 @@ func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), `{"asset":"USD","amount":"100","from":"@same","to":"@same"}`, "")
+	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), `{"asset":"USD","amount":"100","from":{"alias":"@same",`+v2ScopeJSON+`},"to":{"alias":"@same",`+v2ScopeJSON+`}}`, "")
 	body := drainBody(t, resp)
 
 	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -693,7 +693,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@xsrc", "@xdst", 1000)
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@ysrc", "@ydst", 1000)
 
-	v2CrossBody := `{"description":"cross dedup","asset":"USD","amount":"100","from":"@xsrc","to":"@xdst"}`
+	v2CrossBody := `{"description":"cross dedup","asset":"USD","amount":"100","from":{"alias":"@xsrc",` + v2ScopeJSON + `},"to":{"alias":"@xdst",` + v2ScopeJSON + `}}`
 	v1CrossBody := `{
 		"description":"cross dedup",
 		"send":{
@@ -745,7 +745,7 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
-		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","from":"@src","to":"@dst"}`, "")
+		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","from":{"alias":"@src",`+v2ScopeJSON+`},"to":{"alias":"@dst",`+v2ScopeJSON+`}}`, "")
 	body := drainBody(t, resp)
 
 	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -781,7 +781,7 @@ func v1CommitURL(orgID, ledgerID, txID uuid.UUID) string {
 // PENDING transactions differ only by IDs/timestamps. The v2 flat `hold` action carries
 // its pending intent in the endpoint; the v1 `/json` action carries it in `pending:true`.
 const (
-	holdParityV2Body = `{"description":"v1 v2 hold parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	holdParityV2Body = `{"description":"v1 v2 hold parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
 
 	holdParityV1PendingBody = `{
 		"description":"v1 v2 hold parity transfer",
@@ -998,7 +998,7 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 	// Byte-identical flat body; the ONLY difference between the two POSTs is the endpoint.
 	// No X-Idempotency header, so each surface derives its key from the (discriminated) body
 	// hash — the exact collision path that cross-dedup would exploit.
-	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","from":"@src","to":"@dst"}`
+	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
 
 	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
 	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
@@ -1150,7 +1150,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			reason:       "regulatory-hold",
 			v2URL:        v2BlockURL,
 			v1URL:        v1BlockURL,
-			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			v1Body: `{
 				"description":"v1 v2 block parity transfer",
 				"metadata":{"reason":"regulatory-hold"},
@@ -1168,7 +1168,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			reason:       "regulatory-release",
 			v2URL:        v2UnblockURL,
 			v1URL:        v1UnblockURL,
-			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","from":"@src","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-release"}}`,
 			v1Body: `{
 				"description":"v1 v2 unblock parity transfer",
 				"metadata":{"reason":"regulatory-release"},
@@ -1303,7 +1303,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			// Identical to the direct-action validation contract; block/unblock share the seam.
 			name:             "block missing required from field",
 			url:              v2BlockURL(infra.orgID, infra.ledgerID),
-			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-hold"}}`,
+			body:             `{"asset":"USD","amount":"100","to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "from or sources",
@@ -1311,7 +1311,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 		{
 			name:             "unblock missing required from field",
 			url:              v2UnblockURL(infra.orgID, infra.ledgerID),
-			body:             `{"asset":"USD","amount":"100","to":"@dst","metadata":{"reason":"regulatory-release"}}`,
+			body:             `{"asset":"USD","amount":"100","to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-release"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
 			wantBodyContains: "from or sources",
@@ -1321,7 +1321,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			// fired before the create funnel touches any balance.
 			name:       "block from equals to business error",
 			url:        v2BlockURL(infra.orgID, infra.ledgerID),
-			body:       `{"asset":"USD","amount":"100","from":"@src","to":"@src","metadata":{"reason":"regulatory-hold"}}`,
+			body:       `{"asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@src",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   "0090",
 		},
@@ -1353,8 +1353,8 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 // Four legs is what makes it the right probe for a per-leg claim — with a single leg,
 // "stamped on every leg" and "stamped once" are indistinguishable.
 const advancedLegV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
-	`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+	`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40"}],` +
+	`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50}}]}`
 
 // advancedLegBalances are the seeded balance IDs of the four accounts advancedLegV2Body names.
 type advancedLegBalances struct {
@@ -1682,8 +1682,8 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
-		`"sources":[{"account":"` + externalUSDAlias + `","amount":"100"}],` +
-		`"destinations":[{"account":"@alice","amount":"100"}]}`
+		`"sources":[{"alias":"` + externalUSDAlias + `",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"destinations":[{"alias":"@alice",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
@@ -1714,7 +1714,7 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 }
 
 // =============================================================================
-// 14b. THE SAME DEPOSIT SPELLED ON THE SCALAR POSITION: `{"from":"@external/USD","to":"@alice"}`
+// 14b. THE SAME DEPOSIT SPELLED ON THE SCALAR POSITION: `{"from":{"alias":"@external/USD",`+v2ScopeJSON+`},"to":{"alias":"@alice",`+v2ScopeJSON+`}}`
 //      is what a client actually sends, and it is a DIFFERENT code path from the leg-array
 //      spelling above — the scalar alias arrives straight off the request with no per-leg tag
 //      behind it, and it is the only spelling a caller who never reads the leg schema will find.
@@ -1736,7 +1736,7 @@ func TestIntegration_TransactionV2Direct_ExternalAccountScalarFundsAccount(t *te
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
-		`"from":"` + externalUSDAlias + `","to":"@alice"}`
+		`"from":{"alias":"` + externalUSDAlias + `",` + v2ScopeJSON + `},"to":{"alias":"@alice",` + v2ScopeJSON + `}}`
 
 	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
@@ -1785,15 +1785,15 @@ func TestIntegration_TransactionV2Advanced_UnbalancedLegsRejected(t *testing.T) 
 			// Explicit amounts: 60 + 30 = 90 against a declared total of 100.
 			name: "explicit amount legs that do not sum to the declared total",
 			body: `{"description":"unbalanced explicit legs","asset":"USD","amount":"100",` +
-				`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"30"}],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+				`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"30"}],` +
+				`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 		{
 			// Shares: 60% + 30% = 90% of the total, so the resolved legs sum to 90.
 			name: "share legs whose percentages do not sum to the whole total",
 			body: `{"description":"unbalanced share legs","asset":"USD","amount":"100",` +
-				`"sources":[{"account":"@srcA","share":{"percentage":60}},{"account":"@srcB","share":{"percentage":30}}],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
+				`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"share":{"percentage":60}},{"alias":"@srcB",` + v2ScopeJSON + `,"share":{"percentage":30}}],` +
+				`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"100"}]}`,
 		},
 	}
 
@@ -1863,9 +1863,9 @@ func TestIntegration_TransactionV2Advanced_PercentageOfPercentageResolvesNarrowe
 	// remaining 70 as a plain share, so the two resolved legs sum to the declared total and
 	// the funnel's balance rule cannot be what makes the request pass or fail.
 	body := `{"description":"narrowed share","asset":"USD","amount":"100",` +
-		`"sources":[{"account":"@srcA","amount":"100"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":60,"percentageOfPercentage":50}},` +
-		`{"account":"@dstB","share":{"percentage":70}}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":60,"percentageOfPercentage":50}},` +
+		`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":70}}]}`
 
 	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
@@ -1939,8 +1939,8 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
 
-		body := `{"description":"self transfer","asset":"USD","amount":"100","from":"@self",` +
-			`"destinations":[{"account":"@self","amount":"100"}]}`
+		body := `{"description":"self transfer","asset":"USD","amount":"100","from":{"alias":"@self",` + v2ScopeJSON + `},` +
+			`"destinations":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}]}`
 
 		resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
 		respBody := drainBody(t, resp)
@@ -1970,8 +1970,8 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 
 		// @self is the whole source side and ALSO the second destination leg. The guard misses
 		// it because it does not sit at index 0 of the destination array.
-		body := `{"description":"self at index one","asset":"USD","amount":"100","from":"@self",` +
-			`"destinations":[{"account":"@other","amount":"60"},{"account":"@self","amount":"40"}]}`
+		body := `{"description":"self at index one","asset":"USD","amount":"100","from":{"alias":"@self",` + v2ScopeJSON + `},` +
+			`"destinations":[{"alias":"@other",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@self",` + v2ScopeJSON + `,"amount":"40"}]}`
 
 		resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
 		txID := uuid.MustParse(resp["id"].(string))
@@ -2083,8 +2083,8 @@ func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.
 // same intent in two ledgers and the resulting rows differ only by IDs and timestamps.
 const (
 	splitV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","amount":"600"},{"account":"@dstB","amount":"400"}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@dstB",` + v2ScopeJSON + `,"amount":"400"}]}`
 
 	splitV1Body = `{
 		"description":"multi-leg parity",
@@ -2099,8 +2099,8 @@ const (
 	}`
 
 	multiSourceV2Body = `{"description":"multi-leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"400"}],` +
-		`"destinations":[{"account":"@dstA","amount":"1000"}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"400"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"1000"}]}`
 
 	multiSourceV1Body = `{
 		"description":"multi-leg parity",
@@ -2311,8 +2311,8 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 // commit were not atomic across legs, @srcA would be short 600 after the rejection.
 const (
 	underfundedSourceLegV2Body = `{"description":"underfunded source leg","asset":"USD","amount":"5600",` +
-		`"sources":[{"account":"@srcA","amount":"600"},{"account":"@srcB","amount":"5000"}],` +
-		`"destinations":[{"account":"@dstA","amount":"5600"}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"600"},{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"5000"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"5600"}]}`
 
 	underfundedSourceLegV1Body = `{
 		"description":"underfunded source leg",
@@ -2418,8 +2418,8 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 // the decimal divide rounds.
 const (
 	shareSplitV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":30}}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":70}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":30}}]}`
 
 	shareSplitV1Body = `{
 		"description":"share leg parity",
@@ -2434,9 +2434,9 @@ const (
 	}`
 
 	sharePopV2Body = `{"description":"share leg parity","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":80,"percentageOfPercentage":25}},` +
-		`{"account":"@dstB","share":{"percentage":80}}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":80,"percentageOfPercentage":25}},` +
+		`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":80}}]}`
 
 	sharePopV1Body = `{
 		"description":"share leg parity",
@@ -2587,8 +2587,8 @@ func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testi
 // a whole-body property, and the funnel's own comparison is the only thing that owns it.
 const (
 	shareShortV2Body = `{"description":"share legs short of the total","asset":"USD","amount":"1000",` +
-		`"sources":[{"account":"@srcA","amount":"1000"}],` +
-		`"destinations":[{"account":"@dstA","share":{"percentage":70}},{"account":"@dstB","share":{"percentage":20}}]}`
+		`"sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"1000"}],` +
+		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":70}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":20}}]}`
 
 	shareShortV1Body = `{
 		"description":"share legs short of the total",
@@ -2671,8 +2671,8 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 // advancedLegPermutedV2Body is advancedLegV2Body with its two source legs written in the
 // opposite order. Economically it is the same transaction; as bytes it is a different request.
 const advancedLegPermutedV2Body = `{"description":"v2 advanced multi-leg","asset":"USD","amount":"100",` +
-	`"sources":[{"account":"@srcB","amount":"40"},{"account":"@srcA","amount":"60"}],` +
-	`"destinations":[{"account":"@dstA","share":{"percentage":50}},{"account":"@dstB","share":{"percentage":50}}]}`
+	`"sources":[{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40"},{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60"}],` +
+	`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50}},{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50}}]}`
 
 // responseOperationsByAliasAndType projects a transaction RESPONSE's operations array into a map
 // keyed by "<accountAlias>/<type>", each value the operation object with its identity, timestamp

@@ -46,7 +46,7 @@ const (
 	// v2DirectBody is a minimal valid flat v2 `direct` body: amount 100 > 0 clears the
 	// funnel's non-positive guard and reaches the idempotency claim; from != to clears
 	// the Translate ambiguity guard.
-	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100","from":"@src","to":"@dst"}`
+	v2DirectBody = `{"description":"v2 direct","asset":"BRL","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
 
 	// v1JSONBody is the v1 /json analogue whose CANONICAL built form differs from its raw
 	// bytes — so a hash over the canonical transaction can never collide with a hash over
@@ -142,7 +142,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	_, derr := pkgHTTP.DecodeAndValidate([]byte(v2DirectBody), payload)
 	require.NoError(t, derr)
 
-	canonical, terr := payload.Translate(false)
+	canonical, _, terr := payload.Translate(false)
 	require.NoError(t, terr)
 
 	mtransaction.ApplyDefaultBalanceKeys(canonical.Send.Source.From)

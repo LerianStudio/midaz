@@ -73,7 +73,9 @@ func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOver
 		return mtransaction.Transaction{}, err
 	}
 
-	transactionInput, err := payload.Translate(pending)
+	// The scope Translate resolves from the body is discarded here: this path scopes the
+	// transaction by the organization and ledger path parameters.
+	transactionInput, _, err := payload.Translate(pending)
 	if err != nil {
 		return mtransaction.Transaction{}, err
 	}

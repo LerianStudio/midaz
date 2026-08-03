@@ -888,6 +888,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Mutually Exclusive Transaction Fields",
 			Message:    "Each side of the transaction must be spelled either with the scalar fields ('from' and 'to') or with the leg arrays ('sources' and 'destinations'), never both. Please review your input and send only one of the two spellings.",
 		},
+		constant.ErrTransactionScopeMismatch: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionScopeMismatch.Error(),
+			Title:      "Transaction Scope Mismatch",
+			Message:    "Every leg of the transaction must name the same organization and ledger. Please review your input so that all legs share one scope and try again.",
+		},
 		constant.ErrTransactionValueMismatch: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionValueMismatch.Error(),

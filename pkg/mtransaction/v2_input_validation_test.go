@@ -39,12 +39,12 @@ func legArrayBody(count int) string {
 	legs := make([]string, 0, count)
 
 	for i := range count {
-		legs = append(legs, `{"account":"@src`+strconv.Itoa(i)+`","amount":"1"}`)
+		legs = append(legs, `{"alias":"@src`+strconv.Itoa(i)+`",`+scopeJSON+`,"amount":"1"}`)
 	}
 
 	return `{"asset":"BRL","amount":"` + strconv.Itoa(count) + `",` +
 		`"sources":[` + strings.Join(legs, ",") + `],` +
-		`"destinations":[{"account":"@dstA","amount":"` + strconv.Itoa(count) + `"}]}`
+		`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"` + strconv.Itoa(count) + `"}]}`
 }
 
 // shareLegsAt spells a source array whose leg at index carries the given share expression and
@@ -53,10 +53,10 @@ func shareLegsAt(index int, share string) string {
 	legs := make([]string, 0, index+1)
 
 	for i := range index {
-		legs = append(legs, `{"account":"@filler`+strconv.Itoa(i)+`","share":{"percentage":1}}`)
+		legs = append(legs, `{"alias":"@filler`+strconv.Itoa(i)+`",`+scopeJSON+`,"share":{"percentage":1}}`)
 	}
 
-	return strings.Join(append(legs, `{"account":"@srcA","share":`+share+`}`), ",")
+	return strings.Join(append(legs, `{"alias":"@srcA",`+scopeJSON+`,"share":`+share+`}`), ",")
 }
 
 // TestV2LegInput_NoRemainingExpression locks the v2 leg down to the two value expressions
@@ -73,8 +73,8 @@ func TestV2LegInput_NoRemainingExpression(t *testing.T) {
 	t.Parallel()
 
 	body := `{"asset":"BRL","amount":"100",` +
-		`"sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","remaining":true}],` +
-		`"destinations":[{"account":"@dstA","amount":"100"}]}`
+		`"sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"60"},{"alias":"@srcB",` + scopeJSON + `,"remaining":true}],` +
+		`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
 	var in mtransaction.CreateTransactionV2Input
 
@@ -103,36 +103,36 @@ func TestCreateTransactionV2Input_PerSideSpelling(t *testing.T) {
 	}{
 		{
 			name:       "scalar source with array destinations",
-			body:       `{"asset":"BRL","amount":"100","from":"@srcA","destinations":[{"account":"@dstA","amount":"60"},{"account":"@dstB","amount":"40"}]}`,
+			body:       `{"asset":"BRL","amount":"100","from":{"alias":"@srcA",` + scopeJSON + `},"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"60"},{"alias":"@dstB",` + scopeJSON + `,"amount":"40"}]}`,
 			wantFromNo: 1,
 			wantToNo:   2,
 		},
 		{
 			name:       "array sources with scalar destination",
-			body:       `{"asset":"BRL","amount":"100","sources":[{"account":"@srcA","amount":"60"},{"account":"@srcB","amount":"40"}],"to":"@dstA"}`,
+			body:       `{"asset":"BRL","amount":"100","sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"60"},{"alias":"@srcB",` + scopeJSON + `,"amount":"40"}],"to":{"alias":"@dstA",` + scopeJSON + `}}`,
 			wantFromNo: 2,
 			wantToNo:   1,
 		},
 		{
 			name:       "both sides scalar",
-			body:       `{"asset":"BRL","amount":"100","from":"@srcA","to":"@dstA"}`,
+			body:       `{"asset":"BRL","amount":"100","from":{"alias":"@srcA",` + scopeJSON + `},"to":{"alias":"@dstA",` + scopeJSON + `}}`,
 			wantFromNo: 1,
 			wantToNo:   1,
 		},
 		{
 			name:       "both sides arrays",
-			body:       `{"asset":"BRL","amount":"100","sources":[{"account":"@srcA","amount":"100"}],"destinations":[{"account":"@dstA","amount":"100"}]}`,
+			body:       `{"asset":"BRL","amount":"100","sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100"}],"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`,
 			wantFromNo: 1,
 			wantToNo:   1,
 		},
 		{
 			name:    "source side spelled both ways",
-			body:    `{"asset":"BRL","amount":"100","from":"@srcA","sources":[{"account":"@srcB","amount":"100"}],"to":"@dstA"}`,
+			body:    `{"asset":"BRL","amount":"100","from":{"alias":"@srcA",` + scopeJSON + `},"sources":[{"alias":"@srcB",` + scopeJSON + `,"amount":"100"}],"to":{"alias":"@dstA",` + scopeJSON + `}}`,
 			wantErr: true,
 		},
 		{
 			name:    "destination side spelled both ways",
-			body:    `{"asset":"BRL","amount":"100","from":"@srcA","to":"@dstA","destinations":[{"account":"@dstB","amount":"100"}]}`,
+			body:    `{"asset":"BRL","amount":"100","from":{"alias":"@srcA",` + scopeJSON + `},"to":{"alias":"@dstA",` + scopeJSON + `},"destinations":[{"alias":"@dstB",` + scopeJSON + `,"amount":"100"}]}`,
 			wantErr: true,
 		},
 	}
@@ -146,7 +146,7 @@ func TestCreateTransactionV2Input_PerSideSpelling(t *testing.T) {
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
 			require.NoError(t, err, "the body must clear decode and struct validation")
 
-			got, err := in.Translate(false)
+			got, _, err := in.Translate(false)
 			if tt.wantErr {
 				require.Error(t, err)
 
@@ -277,7 +277,7 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 
 			body := `{"asset":"BRL","amount":"100",` +
 				`"sources":[` + shareLegsAt(tt.atIndex, tt.share) + `],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`
+				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
 			var in mtransaction.CreateTransactionV2Input
 
@@ -322,8 +322,8 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 			// 100 x 1.00 x 0.75 = 75 and 100 x 0.50 x 0.50 = 25. Percentage alone would sum
 			// 150, PercentageOfPercentage alone 125 — neither reaches the total.
 			name: "narrowed shares within both bounds",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":100,"percentageOfPercentage":75}},` +
-				`{"account":"@srcB","share":{"percentage":50,"percentageOfPercentage":50}}`,
+			sourceLegs: `{"alias":"@srcA",` + scopeJSON + `,"share":{"percentage":100,"percentageOfPercentage":75}},` +
+				`{"alias":"@srcB",` + scopeJSON + `,"share":{"percentage":50,"percentageOfPercentage":50}}`,
 			wantPerLeg: map[string]string{"@srcA": "75", "@srcB": "25"},
 		},
 		{
@@ -331,8 +331,8 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 			// Percentage: 100 x 0.50 x 1.00 = 50. Were zero read as a zero share the leg would
 			// resolve to 0 and the side would sum to 50 against a 100 total.
 			name: "a zero narrowing factor takes the whole percentage",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":50,"percentageOfPercentage":0}},` +
-				`{"account":"@srcB","share":{"percentage":50}}`,
+			sourceLegs: `{"alias":"@srcA",` + scopeJSON + `,"share":{"percentage":50,"percentageOfPercentage":0}},` +
+				`{"alias":"@srcB",` + scopeJSON + `,"share":{"percentage":50}}`,
 			wantPerLeg: map[string]string{"@srcA": "50", "@srcB": "50"},
 		},
 		{
@@ -340,8 +340,8 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 			// factors asymmetric the other way round, so neither leg's pair can be swapped for
 			// the other's without changing what it resolves to.
 			name: "asymmetric factors on both legs",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":80,"percentageOfPercentage":25}},` +
-				`{"account":"@srcB","share":{"percentage":100,"percentageOfPercentage":80}}`,
+			sourceLegs: `{"alias":"@srcA",` + scopeJSON + `,"share":{"percentage":80,"percentageOfPercentage":25}},` +
+				`{"alias":"@srcB",` + scopeJSON + `,"share":{"percentage":100,"percentageOfPercentage":80}}`,
 			wantPerLeg: map[string]string{"@srcA": "20", "@srcB": "80"},
 		},
 		{
@@ -349,8 +349,8 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 			// within their bounds, so nothing at decode can see the overshoot and the funnel's
 			// whole-body total check is what rejects it.
 			name: "in-range shares that overshoot the total",
-			sourceLegs: `{"account":"@srcA","share":{"percentage":100}},` +
-				`{"account":"@srcB","share":{"percentage":100}}`,
+			sourceLegs: `{"alias":"@srcA",` + scopeJSON + `,"share":{"percentage":100}},` +
+				`{"alias":"@srcB",` + scopeJSON + `,"share":{"percentage":100}}`,
 		},
 	}
 
@@ -360,14 +360,14 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 
 			body := `{"asset":"BRL","amount":"100",` +
 				`"sources":[` + tt.sourceLegs + `],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`
+				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
 			var in mtransaction.CreateTransactionV2Input
 
 			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 			require.NoError(t, err, "a share expression is a whole-body property, not a request-shape violation")
 
-			transaction, err := in.Translate(false)
+			transaction, _, err := in.Translate(false)
 			require.NoError(t, err, "Translate carries share expressions forward without resolving them")
 
 			responses, err := mtransaction.ValidateSendSourceAndDistribute(
@@ -401,17 +401,17 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_AccountRequired proves the leg account obligation is enforced twice, and that
+// TestV2LegInput_AliasRequired proves the leg alias obligation is enforced twice, and that
 // the two guards are complementary rather than redundant. This case exercises the struct tag,
 // which is the guard every HTTP caller meets: it fires at the decode boundary, before Translate
 // runs. The imperative sibling in buildLeg is what covers a caller that builds the input in Go
 // and never runs it through the decoder (TestCreateTransactionV2Input_Translate's
-// "leg without an account is rejected").
+// "leg without an alias is rejected").
 //
 // Both name the offending entry by index. The tag does so inside the rendered message, which
 // the shared decoder builds from the validator's full field namespace; the map KEY stays the
 // bare leaf name.
-func TestV2LegInput_AccountRequired(t *testing.T) {
+func TestV2LegInput_AliasRequired(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -420,18 +420,18 @@ func TestV2LegInput_AccountRequired(t *testing.T) {
 		wantPath string
 	}{
 		{
-			name: "second source leg without an account",
+			name: "second source leg without an alias",
 			body: `{"asset":"BRL","amount":"100",` +
-				`"sources":[{"account":"@srcA","amount":"60"},{"amount":"40"}],` +
-				`"destinations":[{"account":"@dstA","amount":"100"}]}`,
-			wantPath: "sources[1].account is a required field",
+				`"sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"60"},{"amount":"40"}],` +
+				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`,
+			wantPath: "sources[1].alias is a required field",
 		},
 		{
-			name: "second destination leg without an account",
+			name: "second destination leg without an alias",
 			body: `{"asset":"BRL","amount":"100",` +
-				`"sources":[{"account":"@srcA","amount":"100"}],` +
-				`"destinations":[{"account":"@dstA","amount":"60"},{"amount":"40"}]}`,
-			wantPath: "destinations[1].account is a required field",
+				`"sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100"}],` +
+				`"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"60"},{"amount":"40"}]}`,
+			wantPath: "destinations[1].alias is a required field",
 		},
 	}
 
@@ -442,10 +442,10 @@ func TestV2LegInput_AccountRequired(t *testing.T) {
 			var in mtransaction.CreateTransactionV2Input
 
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
-			require.Error(t, err, "a leg without an account must be rejected at decode")
+			require.Error(t, err, "a leg without an alias must be rejected at decode")
 
 			fields := requireKnownFieldsError(t, err, constant.ErrMissingFieldsInRequest)
-			assert.Equal(t, tt.wantPath, fields["account"],
+			assert.Equal(t, tt.wantPath, fields["alias"],
 				"the rejection must name the offending leg by index")
 		})
 	}
@@ -458,7 +458,7 @@ func TestV2LegInput_AccountRequired(t *testing.T) {
 // leg to no operation row at all while the transaction still commits, or inverts the leg's
 // accounting direction when the percentage is negative.
 //
-// This mirrors the account obligation, which is enforced by tag and imperatively for the same
+// This mirrors the alias obligation, which is enforced by tag and imperatively for the same
 // reason. The tag stays because only it names the offending leg's field in the decode rejection.
 func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 	t.Parallel()
@@ -480,11 +480,11 @@ func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 			t.Parallel()
 
 			input := arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "@srcA", Share: tt.share}},
-				[]mtransaction.V2LegInput{{Account: "@dstA", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@srcA", Share: tt.share}},
+				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
 			)
 
-			got, err := input.Translate(false)
+			got, _, err := input.Translate(false)
 			require.Error(t, err, "a share leg with a non-positive percentage must not reach the funnel")
 
 			// Same sentinel the explicit-amount arm raises for a non-positive value, so both
@@ -498,7 +498,7 @@ func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 }
 
 // TestCreateTransactionV2Input_EmptyScalarSideIsAKnownField pins the reason `from` and `to`
-// carry no json `omitempty`: with it, an explicitly empty `"from": ""` vanishes from the
+// carry no json `omitempty`: with it, an explicitly empty `"from": {}` vanishes from the
 // re-marshal the decoder diffs against the submitted body and comes back as an UNKNOWN
 // field, telling the client to remove a field the contract accepts.
 func TestCreateTransactionV2Input_EmptyScalarSideIsAKnownField(t *testing.T) {
@@ -510,11 +510,11 @@ func TestCreateTransactionV2Input_EmptyScalarSideIsAKnownField(t *testing.T) {
 	}{
 		{
 			name: "explicit empty from",
-			body: `{"asset":"BRL","amount":"100","from":"","destinations":[{"account":"@dstA","amount":"100"}]}`,
+			body: `{"asset":"BRL","amount":"100","from":{},"destinations":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`,
 		},
 		{
 			name: "explicit empty to",
-			body: `{"asset":"BRL","amount":"100","sources":[{"account":"@srcA","amount":"100"}],"to":""}`,
+			body: `{"asset":"BRL","amount":"100","sources":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100"}],"to":{}}`,
 		},
 	}
 
@@ -544,8 +544,8 @@ var v2AliasPositions = []struct {
 		name: "source leg",
 		build: func(alias string) mtransaction.CreateTransactionV2Input {
 			return arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: alias, Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: alias, Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
 			)
 		},
 		read: func(tr mtransaction.Transaction) string { return tr.Send.Source.From[0].AccountAlias },
@@ -554,8 +554,8 @@ var v2AliasPositions = []struct {
 		name: "destination leg",
 		build: func(alias string) mtransaction.CreateTransactionV2Input {
 			return arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Account: alias, Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: alias, Amount: "1000"}},
 			)
 		},
 		read: func(tr mtransaction.Transaction) string { return tr.Send.Distribute.To[0].AccountAlias },
@@ -580,8 +580,8 @@ var v2AliasPositions = []struct {
 // aliases and no leg arrays, so a test can aim the alias rules at the scalar spelling.
 func scalarV2Input(from, to string) mtransaction.CreateTransactionV2Input {
 	in := validV2Input()
-	in.From = from
-	in.To = to
+	in.From = v2Account(from)
+	in.To = v2Account(to)
 
 	return in
 }
@@ -614,7 +614,7 @@ func TestV2Alias_RejectsConcatMarkerOnEveryPosition(t *testing.T) {
 			t.Run(position.name+" "+alias, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := position.build(alias).Translate(false)
+				got, _, err := position.build(alias).Translate(false)
 				require.Errorf(t, err, "alias %q must be rejected on the %s position", alias, position.name)
 
 				var vErr pkg.ValidationError
@@ -642,7 +642,7 @@ func TestV2Alias_AcceptedAliasReachesTheLegUnchanged(t *testing.T) {
 			t.Run(position.name+" "+alias, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := position.build(alias).Translate(false)
+				got, _, err := position.build(alias).Translate(false)
 				require.NoErrorf(t, err, "alias %q must be accepted on the %s position", alias, position.name)
 
 				require.Len(t, got.Send.Source.From, 1)
@@ -654,13 +654,13 @@ func TestV2Alias_AcceptedAliasReachesTheLegUnchanged(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_EmptyAccountRejectedByTranslate proves Translate rejects a leg with no
+// TestV2LegInput_EmptyAliasRejectedByTranslate proves Translate rejects a leg with no
 // account on its own, rather than relying on the decoder's `required` tag. Translate is
 // exported from a shared package, so a caller that assembles the input in Go and never runs
 // DecodeAndValidate gets no tag evaluation — and an empty alias reaching the funnel names no
 // account at all. The tag stays because only it can name the offending leg by index in the
 // missing-field rejection; the two guards are complementary, not redundant.
-func TestV2LegInput_EmptyAccountRejectedByTranslate(t *testing.T) {
+func TestV2LegInput_EmptyAliasRejectedByTranslate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -670,15 +670,15 @@ func TestV2LegInput_EmptyAccountRejectedByTranslate(t *testing.T) {
 		{
 			name: "source leg",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Account: "@person2", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
 			),
 		},
 		{
 			name: "destination leg",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Account: "", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "", Amount: "1000"}},
 			),
 		},
 	}
@@ -687,8 +687,8 @@ func TestV2LegInput_EmptyAccountRejectedByTranslate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := tt.input.Translate(false)
-			require.Error(t, err, "a leg with no account must not reach the canonical transaction")
+			got, _, err := tt.input.Translate(false)
+			require.Error(t, err, "a leg with no alias must not reach the canonical transaction")
 
 			var vErr pkg.ValidationError
 			require.ErrorAs(t, err, &vErr)
@@ -719,8 +719,8 @@ func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 		{
 			name: "second source leg carries neither expression",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "@srcA", Amount: "60"}, {Account: "@srcB"}},
-				[]mtransaction.V2LegInput{{Account: "@dstA", Amount: "100"}},
+				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "60"}, {Alias: "@srcB"}},
+				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "100"}},
 			),
 			wantRef:  "sources[1]",
 			wantCode: constant.ErrInvalidTransactionType,
@@ -728,10 +728,10 @@ func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 		{
 			name: "second destination leg carries both expressions",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Account: "@srcA", Amount: "100"}},
+				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "100"}},
 				[]mtransaction.V2LegInput{
-					{Account: "@dstA", Amount: "60"},
-					{Account: "@dstB", Amount: "40", Share: &mtransaction.V2ShareInput{Percentage: 40}},
+					{Alias: "@dstA", Amount: "60"},
+					{Alias: "@dstB", Amount: "40", Share: &mtransaction.V2ShareInput{Percentage: 40}},
 				},
 			),
 			wantRef:  "destinations[1]",
@@ -743,7 +743,7 @@ func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := tt.input.Translate(false)
+			_, _, err := tt.input.Translate(false)
 			require.Error(t, err)
 
 			var vErr pkg.ValidationError
@@ -762,8 +762,8 @@ func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 
 // TestCreateTransactionV2Input_NullScalarSideIsRejected pins the answer a client gets for an
 // explicit `"from": null`. Dropping json `omitempty` from the side fields is what keeps an
-// explicit `""` a KNOWN field, and it also makes the re-marshal the decoder diffs against the
-// submitted body always emit the key — so a submitted `null` never matches the emitted `""`
+// explicit `{}` a KNOWN field, and it also makes the re-marshal the decoder diffs against the
+// submitted body always emit the key — so a submitted `null` never matches the emitted object
 // and comes back as an unexpected field.
 //
 // The behaviour is pinned rather than smoothed over: the alternative is teaching the shared
@@ -780,12 +780,12 @@ func TestCreateTransactionV2Input_NullScalarSideIsRejected(t *testing.T) {
 	}{
 		{
 			name:  "null from",
-			body:  `{"asset":"BRL","amount":"100","from":null,"to":"@dstA"}`,
+			body:  `{"asset":"BRL","amount":"100","from":null,"to":{"alias":"@dstA",` + scopeJSON + `}}`,
 			field: "from",
 		},
 		{
 			name:  "null to",
-			body:  `{"asset":"BRL","amount":"100","from":"@srcA","to":null}`,
+			body:  `{"asset":"BRL","amount":"100","from":{"alias":"@srcA",` + scopeJSON + `},"to":null}`,
 			field: "to",
 		},
 	}

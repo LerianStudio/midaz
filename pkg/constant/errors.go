@@ -81,6 +81,7 @@ var (
 	ErrNoTransactionsFound                      = errors.New("0071")
 	ErrInvalidTransactionType                   = errors.New("0072")
 	ErrMutuallyExclusiveTransactionFields       = errors.New("0498")
+	ErrTransactionScopeMismatch                 = errors.New("0499")
 	ErrTransactionValueMismatch                 = errors.New("0073")
 	ErrForbiddenExternalAccountManipulation     = errors.New("0074")
 	ErrAuditRecordNotRetrieved                  = errors.New("0075")
@@ -302,8 +303,8 @@ var (
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
-// Block 0328-0499, of which 0328-0496 are allocated here. 0492, 0497 and 0498 fall
-// inside the range but were taken by the core block above, so they are NOT free.
+// Block 0328-0499, of which 0328-0496 are allocated here. 0492, 0497, 0498 and 0499
+// fall inside the range but were taken by the core block above, so they are NOT free.
 // ErrRuleCalculationFieldType carries a domain prefix to avoid colliding with the fee
 // code of the same fork identifier.
 var (

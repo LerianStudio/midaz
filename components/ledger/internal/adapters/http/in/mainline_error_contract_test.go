@@ -319,7 +319,7 @@ func TestMainlineErrorContract_TransactionLifecycleCodes(t *testing.T) {
 func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
 	t.Helper()
 
-	_, err := in.Translate(false)
+	_, _, err := in.Translate(false)
 	require.Error(t, err, "the input must be rejected by Translate")
 
 	return err
@@ -334,7 +334,7 @@ func v2SideSpellingError(t *testing.T, in mtransaction.CreateTransactionV2Input)
 // 0498 carries no per-side or per-index argument, so its message is constant and locked whole by
 // the title column plus the golden sweep's (code, status) tuple in pkg/net/http.
 func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
-	legs := []mtransaction.V2LegInput{{Account: "@a", Amount: "100"}}
+	legs := []mtransaction.V2LegInput{v2ValueLeg("@a", "100")}
 
 	tests := []struct {
 		name           string
@@ -346,7 +346,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		{
 			name: "0009 an unspelled source side is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", To: "@b",
+				Asset: "USD", Amount: "100", To: v2ScopedAccount("@b"),
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0009",
@@ -355,7 +355,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		{
 			name: "0009 an unspelled destination side is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: "@a",
+				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"),
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0009",
@@ -364,7 +364,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		{
 			name: "0498 a source side spelled both ways is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: "@a", Sources: legs, To: "@b",
+				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"), Sources: legs, To: v2ScopedAccount("@b"),
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0498",
@@ -373,7 +373,7 @@ func TestMainlineErrorContract_V2SideSpellingCodes(t *testing.T) {
 		{
 			name: "0498 a destination side spelled both ways is 400",
 			err: v2SideSpellingError(t, mtransaction.CreateTransactionV2Input{
-				Asset: "USD", Amount: "100", From: "@a", To: "@b", Destinations: legs,
+				Asset: "USD", Amount: "100", From: v2ScopedAccount("@a"), To: v2ScopedAccount("@b"), Destinations: legs,
 			}),
 			expectedStatus: fiber.StatusBadRequest,
 			expectedCode:   "0498",
@@ -420,7 +420,7 @@ func v1SingleTransactionTypeError(t *testing.T) error {
 func v2LegValueExpressionError(t *testing.T, in mtransaction.CreateTransactionV2Input) error {
 	t.Helper()
 
-	_, err := in.Translate(false)
+	_, _, err := in.Translate(false)
 	require.Error(t, err, "a leg with no value expression must be rejected by Translate")
 
 	return err
@@ -429,7 +429,13 @@ func v2LegValueExpressionError(t *testing.T, in mtransaction.CreateTransactionV2
 // v2ValueLeg is a leg carrying a valid explicit amount, used to pad an array so the
 // offending leg can be placed at a chosen index.
 func v2ValueLeg(alias, amount string) mtransaction.V2LegInput {
-	return mtransaction.V2LegInput{Account: alias, Amount: amount}
+	return mtransaction.V2LegInput{Alias: alias, Amount: amount, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
+}
+
+// v2NoValueLeg is a fully scoped leg that fills NEITHER value expression, so the rejection it
+// draws is attributable to the value-expression rule and to nothing else the leg leaves out.
+func v2NoValueLeg(alias string) mtransaction.V2LegInput {
+	return mtransaction.V2LegInput{Alias: alias, OrganizationID: v2ScopeOrgID, LedgerID: v2ScopeLedgerID}
 }
 
 // TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface locks the MESSAGE of
@@ -469,7 +475,7 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			name: "v2 sources leg names the two v2 expressions and the offending index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{{Account: "@a"}},
+				Sources:      []mtransaction.V2LegInput{v2NoValueLeg("@a")},
 				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "100")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'sources[0]'"},
@@ -480,7 +486,7 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
 				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Destinations: []mtransaction.V2LegInput{{Account: "@b"}},
+				Destinations: []mtransaction.V2LegInput{v2NoValueLeg("@b")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'destinations[0]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining},
@@ -491,7 +497,7 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			name: "v2 sources leg at index one names its own index",
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
-				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), {Account: "@b"}},
+				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "60"), v2NoValueLeg("@b")},
 				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@c", "100")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'sources[1]'"},
@@ -502,7 +508,7 @@ func TestMainlineErrorContract_InvalidTransactionTypeMessagePerSurface(t *testin
 			err: v2LegValueExpressionError(t, mtransaction.CreateTransactionV2Input{
 				Asset: "USD", Amount: "100",
 				Sources:      []mtransaction.V2LegInput{v2ValueLeg("@a", "100")},
-				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), {Account: "@c"}},
+				Destinations: []mtransaction.V2LegInput{v2ValueLeg("@b", "60"), v2NoValueLeg("@c")},
 			}),
 			wantDetailContains: []string{v2Expressions, "'destinations[1]'"},
 			wantDetailOmits:    []string{v1OnlyRemaining, "destinations[0]"},

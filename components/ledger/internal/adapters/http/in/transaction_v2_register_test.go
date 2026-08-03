@@ -593,7 +593,7 @@ func TestV2CreateBodyLimit_MeasuresDecodedBody(t *testing.T) {
 // oversizedV2CreateBody spells a syntactically valid v2 create body padded to exactly size
 // bytes with a single description field, so the only thing a rejection can be about is length.
 func oversizedV2CreateBody(size int64) string {
-	const prefix = `{"asset":"BRL","amount":"100","from":"@a","to":"@b","description":"`
+	const prefix = `{"asset":"BRL","amount":"100","from":{"alias":"@a",` + v2ScopeJSON + `},"to":{"alias":"@b",` + v2ScopeJSON + `},"description":"`
 	const suffix = `"}`
 
 	padding := size - int64(len(prefix)) - int64(len(suffix))
@@ -685,7 +685,7 @@ func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {
 		want      []string
 	}{
 		{component: v2CreateBodySchemaName, want: []string{"asset", "amount"}},
-		{component: v2LegSchemaName, want: []string{"account"}},
+		{component: v2LegSchemaName, want: []string{"alias", "organizationId", "ledgerId"}},
 		{component: v2ShareSchemaName, want: []string{"percentage"}},
 	}
 
