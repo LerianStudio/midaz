@@ -198,6 +198,7 @@ func mountHumaContract(
 	mount HumaRouteRegistrar,
 ) {
 	problem.Install()
+	midazhttp.InstallHumaFrameworkErrors()
 
 	group := app.Group(prefix)
 

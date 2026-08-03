@@ -5,6 +5,7 @@
 package in
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -44,6 +46,7 @@ func buildHumaTransactionApp(t *testing.T, handler *TransactionHandler, authOK b
 	f.Use(pkgHTTP.WithRecover(pkgHTTP.WithRecoverLogger(&libLog.GoLogger{})))
 
 	libProblem.Install()
+	pkgHTTP.InstallHumaFrameworkErrors()
 
 	apiV1 := f.Group("/v1")
 
@@ -173,9 +176,81 @@ func TestHuma_CreateTransaction_AuthPreserved(t *testing.T) {
 	}
 }
 
+func TestHuma_CreateTransaction_EmptyBody_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	for _, op := range createOpPaths {
+		t.Run(op, func(t *testing.T) {
+			handler := bareTransactionHandler()
+			app := buildHumaTransactionApp(t, handler, true)
+
+			// A zero-length body trips Huma's request-body precondition before
+			// SkipValidateBody, so DecodeAndValidate never runs.
+			// InstallHumaFrameworkErrors maps it onto the canonical 0094 the
+			// malformed-body case above gets. Proves the mapping is transport-wide,
+			// not organization-specific. Service never reached.
+			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + op
+			req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(""))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "empty body stays 400 — no 500, no native 422")
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+			assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "empty-body code is 0094, not absent")
+			assert.Equal(t, "Unmarshalling error", got["title"])
+		})
+	}
+}
+
 // stateOps enumerates the three id-only state ops (commit/cancel/revert) + patch for the
 // shared bad-UUID / auth assertions.
 var stateOpPaths = []string{"commit", "cancel", "revert"}
+
+func TestHuma_StateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	for _, op := range stateOpPaths {
+		t.Run(op, func(t *testing.T) {
+			handler := bareTransactionHandler()
+			app := buildHumaTransactionApp(t, handler, true)
+
+			// commit/cancel/revert carry no RawBody, so op.RequestBody stays nil and
+			// Huma's empty-body precondition never fires. They must NOT be dragged into
+			// the 0094 mapping — a bodiless mutation sending no body is legitimate.
+			// The bare handler fails deeper (no repos), which is precisely the proof the
+			// request got PAST the transport boundary.
+			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/" + op
+			req := httptest.NewRequest(http.MethodPost, url, nil)
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+
+			var got map[string]any
+			if json.Unmarshal(respBody, &got) == nil {
+				assert.NotEqual(t, constant.ErrInvalidRequestBody.Error(), got["code"],
+					"bodiless state op must never be rejected as a malformed body: %s", string(respBody))
+			}
+
+			assert.NotEqual(t, http.StatusBadRequest, resp.StatusCode,
+				"no body is valid for %s — the empty-body precondition must not fire", op)
+		})
+	}
+}
 
 func TestHuma_StateTransaction_BadUUID_Canonical400(t *testing.T) {
 	// NOT parallel: process-global huma state.
