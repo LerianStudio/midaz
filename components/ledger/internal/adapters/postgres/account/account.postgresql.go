@@ -1261,6 +1261,7 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 			&acc.Name,
 			&acc.ParentAccountID,
 			&acc.EntityID,
+			&acc.HolderID,
 			&acc.AssetCode,
 			&acc.OrganizationID,
 			&acc.LedgerID,
@@ -1274,6 +1275,7 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 			&acc.Blocked,
+			&acc.HolderCheckSkipped,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
