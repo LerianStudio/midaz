@@ -65,6 +65,25 @@ func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {
 		require.NotNil(t, entity)
 		assert.Nil(t, entity.DeletedAt, "DeletedAt should be nil when Valid is false, even with non-zero Time")
 	})
+
+	t.Run("maps_default_direction", func(t *testing.T) {
+		model := &AccountTypePostgreSQLModel{
+			ID:               uuid.New(),
+			OrganizationID:   uuid.New(),
+			LedgerID:         uuid.New(),
+			Name:             "Debit Type",
+			Description:      "Testing default_direction mapping",
+			KeyValue:         "debit-type",
+			DefaultDirection: "debit",
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Equal(t, "debit", entity.DefaultDirection, "DefaultDirection should be copied to the entity")
+	})
 }
 
 func TestAccountTypePostgreSQLModel_FromEntity(t *testing.T) {
@@ -116,6 +135,25 @@ func TestAccountTypePostgreSQLModel_FromEntity(t *testing.T) {
 
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt.Valid should be false when entity.DeletedAt is nil")
 		assert.True(t, model.DeletedAt.Time.IsZero(), "DeletedAt.Time should be zero when entity.DeletedAt is nil")
+	})
+
+	t.Run("maps_default_direction", func(t *testing.T) {
+		entity := &mmodel.AccountType{
+			ID:               uuid.New(),
+			OrganizationID:   uuid.New(),
+			LedgerID:         uuid.New(),
+			Name:             "Debit Type",
+			Description:      "Testing default_direction mapping",
+			KeyValue:         "debit-type",
+			DefaultDirection: "debit",
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		var model AccountTypePostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Equal(t, "debit", model.DefaultDirection, "DefaultDirection should be copied from the entity")
 	})
 
 	t.Run("converts_keyvalue_to_lowercase", func(t *testing.T) {

@@ -232,6 +232,8 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "")
 			case "invalidaccounttype":
 				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+			case "accounttypedirection":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeDirection, "", fieldError.Translate(trans))
 			}
 		}
 
@@ -303,6 +305,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
+	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
 
@@ -383,6 +386,14 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return ut.Add("invalidaccounttype", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaccounttype", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("accounttypedirection", trans, func(ut ut.Translator) error {
+		return ut.Add("accounttypedirection", "{0} must be one of the allowed values: credit or debit", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("accounttypedirection", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -507,6 +518,16 @@ func validateAccountType(fl validator.FieldLevel) bool {
 	match, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, f)
 
 	return match
+}
+
+// validateAccountTypeDirection checks the value is one of the allowed operation directions (credit or debit), matched case-sensitively.
+func validateAccountTypeDirection(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	return f == cn.DirectionCredit || f == cn.DirectionDebit
 }
 
 // validateNoWhitespaces ensures the provided string does not contain any whitespace characters. Return false if input is invalid.

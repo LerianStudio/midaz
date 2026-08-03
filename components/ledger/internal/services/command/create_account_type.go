@@ -39,15 +39,21 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	now := time.Now()
 
+	defaultDirection := constant.DirectionCredit
+	if payload.DefaultDirection != nil {
+		defaultDirection = *payload.DefaultDirection
+	}
+
 	accountType := &mmodel.AccountType{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Name:           payload.Name,
-		Description:    payload.Description,
-		KeyValue:       payload.KeyValue,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:               uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:   organizationID,
+		LedgerID:         ledgerID,
+		Name:             payload.Name,
+		Description:      payload.Description,
+		KeyValue:         payload.KeyValue,
+		DefaultDirection: defaultDirection,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)

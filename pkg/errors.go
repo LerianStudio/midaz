@@ -1158,6 +1158,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Characters",
 			Message:    "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens.",
 		},
+		constant.ErrInvalidAccountTypeDirection: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountTypeDirection.Error(),
+			Title:      "Invalid Account Type Direction",
+			Message:    "The field 'defaultDirection' has an invalid value. Use one of the allowed values: credit or debit.",
+		},
 		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),

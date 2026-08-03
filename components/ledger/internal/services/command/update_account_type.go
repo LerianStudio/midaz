@@ -43,6 +43,10 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 		Description: input.Description,
 	}
 
+	if input.DefaultDirection != nil {
+		accountType.DefaultDirection = *input.DefaultDirection
+	}
+
 	accountTypeUpdated, err := uc.AccountTypeRepo.Update(ctx, organizationID, ledgerID, id, accountType)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {

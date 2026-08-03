@@ -362,6 +362,73 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 	}
 }
 
+// TestUpdateAccountTypeThreadsDefaultDirection tests that a non-nil DefaultDirection
+// pointer is propagated onto the AccountType passed to the repository, while a nil
+// pointer leaves it empty so the repository skips the column.
+func TestUpdateAccountTypeThreadsDefaultDirection(t *testing.T) {
+	debit := constant.DirectionDebit
+
+	tests := []struct {
+		name      string
+		direction *string
+		expected  string
+	}{
+		{name: "non-nil pointer propagates", direction: &debit, expected: constant.DirectionDebit},
+		{name: "nil pointer leaves direction empty", direction: nil, expected: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			payload := &mmodel.UpdateAccountTypeInput{
+				Name:             "Updated Name",
+				DefaultDirection: tc.direction,
+			}
+
+			expectedAccountType := &mmodel.AccountType{
+				ID:             accountTypeID,
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				Name:           payload.Name,
+				KeyValue:       "test_key",
+			}
+
+			mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+			uc := UseCase{
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+			}
+
+			mockAccountTypeRepo.EXPECT().
+				Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
+				DoAndReturn(func(ctx context.Context, orgID, ledID, id any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+					assert.Equal(t, tc.expected, accountType.DefaultDirection)
+
+					return expectedAccountType, nil
+				}).
+				Times(1)
+
+			mockMetadataRepo.EXPECT().
+				Update(gomock.Any(), constant.EntityAccountType, accountTypeID.String(), map[string]any{}).
+				Return(nil).
+				Times(1)
+
+			result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+		})
+	}
+}
+
 // TestUpdateAccountTypeEmptyInput tests updating account type with empty input
 func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
