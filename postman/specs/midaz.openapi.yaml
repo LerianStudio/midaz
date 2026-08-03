@@ -7370,262 +7370,6 @@ paths:
       summary: Update a package
       tags:
         - Midaz_Ledger_API_v2_Packages
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/block:
-    servers:
-      - url: /
-    post:
-      operationId: createTransactionBlockV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionV2Input'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction using the v2 block model
-      tags:
-        - Midaz_Ledger_API_v2_Transactions
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct:
-    servers:
-      - url: /
-    post:
-      operationId: createTransactionDirectV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionV2Input'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction using the v2 direct model
-      tags:
-        - Midaz_Ledger_API_v2_Transactions
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/hold:
-    servers:
-      - url: /
-    post:
-      operationId: createTransactionHoldV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionV2Input'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction using the v2 hold model
-      tags:
-        - Midaz_Ledger_API_v2_Transactions
-  /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/unblock:
-    servers:
-      - url: /
-    post:
-      operationId: createTransactionUnblockV2
-      parameters:
-        - description: Organization ID (UUID)
-          in: path
-          name: organization_id
-          required: true
-          schema:
-            description: Organization ID (UUID)
-            type: string
-        - description: Ledger ID (UUID)
-          in: path
-          name: ledger_id
-          required: true
-          schema:
-            description: Ledger ID (UUID)
-            type: string
-        - description: >-
-            Idempotency key to safely retry the create; an identical retry
-            returns the original transaction
-          in: header
-          name: X-Idempotency
-          schema:
-            description: >-
-              Idempotency key to safely retry the create; an identical retry
-              returns the original transaction
-            type: string
-        - description: Idempotency slot TTL in seconds (default 300)
-          in: header
-          name: X-TTL
-          schema:
-            description: Idempotency slot TTL in seconds (default 300)
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransactionV2Input'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-          headers:
-            X-Idempotency-Replayed:
-              schema:
-                type: string
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Error
-      security:
-        - BearerAuth: []
-      summary: Create a Transaction using the v2 unblock model
-      tags:
-        - Midaz_Ledger_API_v2_Transactions
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     servers:
       - url: /
@@ -7858,6 +7602,206 @@ paths:
       summary: List Protection Audit Events
       tags:
         - Midaz_Ledger_API_v2_Protection
+  /v2/transactions/block:
+    servers:
+      - url: /
+    post:
+      operationId: createTransactionBlockV2
+      parameters:
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionV2Input'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 block model
+      tags:
+        - Midaz_Ledger_API_v2_Transactions
+  /v2/transactions/direct:
+    servers:
+      - url: /
+    post:
+      operationId: createTransactionDirectV2
+      parameters:
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionV2Input'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 direct model
+      tags:
+        - Midaz_Ledger_API_v2_Transactions
+  /v2/transactions/hold:
+    servers:
+      - url: /
+    post:
+      operationId: createTransactionHoldV2
+      parameters:
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionV2Input'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 hold model
+      tags:
+        - Midaz_Ledger_API_v2_Transactions
+  /v2/transactions/unblock:
+    servers:
+      - url: /
+    post:
+      operationId: createTransactionUnblockV2
+      parameters:
+        - description: >-
+            Idempotency key to safely retry the create; an identical retry
+            returns the original transaction
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the create; an identical retry
+              returns the original transaction
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionV2Input'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create a Transaction using the v2 unblock model
+      tags:
+        - Midaz_Ledger_API_v2_Transactions
   /audit-events:
     get:
       operationId: listAuditEvents
@@ -11699,11 +11643,15 @@ components:
         with its scalar field (`from`, `to`) OR with its leg array (`sources`,
         `destinations`) — never both on the same side, though the two sides may
         choose differently. Leave the spelling you are not using OUT of the
-        body: on `from` and `to` an explicit `null` is rejected. `asset`,
-        `amount`, `description`, `code`, `routeId`, `operationRouteId` and
-        `metadata` are common to both forms, and `amount` is always the
-        transaction total that the legs' `share` expressions divide. Each leg
-        array holds at most 500 legs.
+        body: on `from` and `to` an explicit `null` is rejected. Every account,
+        in either spelling, names the `organizationId` and `ledgerId` it belongs
+        to; all of them must name the SAME pair, and that pair is the
+        organization and ledger the transaction is created in. A request whose
+        accounts name different pairs is rejected. `asset`, `amount`,
+        `description`, `code`, `routeId`, `operationRouteId` and `metadata` are
+        common to both forms, and `amount` is always the transaction total that
+        the legs' `share` expressions divide. Each leg array holds at most 500
+        legs.
       properties:
         amount:
           type: string
