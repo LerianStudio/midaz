@@ -20,13 +20,19 @@ import (
 
 // Repository provides an interface for operations related to billing package MongoDB entities.
 //
+// FindByID, Update and SoftDelete take the ledger the caller is acting within.
+// AnyLedger means organization scope and matches the package on whichever ledger
+// owns it; any other value matches only a package owned by that ledger, and a
+// package owned by another ledger of the same organization is reported as absent.
+// FindAll reads AnyLedger the same way, listing every ledger of the organization.
+//
 //go:generate mockgen --destination=./billing_package_mock.go --package=billing_package . Repository
 type Repository interface {
 	Create(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
-	FindByID(ctx context.Context, id string, organizationID string) (*model.BillingPackage, error)
+	FindByID(ctx context.Context, id, organizationID, ledgerID string) (*model.BillingPackage, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
-	Update(ctx context.Context, id string, organizationID string, updateFields *bson.M) (*model.BillingPackage, error)
-	SoftDelete(ctx context.Context, id string, organizationID string) error
+	Update(ctx context.Context, id, organizationID, ledgerID string, updateFields *bson.M) (*model.BillingPackage, error)
+	SoftDelete(ctx context.Context, id, organizationID, ledgerID string) error
 	FindMatchingPackages(ctx context.Context, orgID, ledgerID, transactionRouteID string) ([]*model.BillingPackage, error)
 	FindActiveByType(ctx context.Context, orgID, ledgerID string, billingType string) ([]*model.BillingPackage, error)
 }

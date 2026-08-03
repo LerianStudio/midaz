@@ -294,6 +294,7 @@ func RegisterSegmentRoutes(api huma.API, h *SegmentHandler) {
 		Tags:             []string{tag},
 		Security:         secAssetBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see file header.
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateSegmentHuma)
 
 	huma.Register(api, huma.Operation{

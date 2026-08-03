@@ -3,7 +3,8 @@
 The unified ledger binary (`:3002`) scopes the organization a request applies to through the
 **URL path hierarchy** — on every surface. Ledger, routing, CRM (holders / instruments), the
 holder-account composition route, and fees/billing are all path-scoped on the organization.
-`X-Organization-Id` is no longer part of any API contract in this binary.
+`X-Organization-Id` is no longer part of any API contract in this binary. Fees and billing are
+additionally served **ledger-scoped** on the independent `/v2` contract; both surfaces are live.
 
 > **R22 is reversed.** This document previously locked CRM to header-based organization scoping
 > (`X-Organization-Id`) as an intentional, documented inconsistency. That convention is gone. CRM
@@ -29,6 +30,10 @@ POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accoun
 POST /v1/organizations/{organization_id}/packages
 POST /v1/organizations/{organization_id}/estimates
 POST /v1/organizations/{organization_id}/billing/calculate
+
+POST /v2/organizations/{organization_id}/ledgers/{ledger_id}/packages
+POST /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates
+POST /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate
 ```
 
 The `:organization_id` (and `:ledger_id`) path parameters are parsed and UUID-validated by the
@@ -70,16 +75,53 @@ the value moved (path UUID → `.String()`), so the Mongo partition is unchanged
   resource `id` in one pass, like every other route in the binary.
 - **Path-validation errors normalized to canonical codes.** A malformed UUID segment now returns
   the canonical midaz `ErrInvalidPathParameter` envelope instead of the FEE-shim codes. `FEE-0020`
-  ("missing header") had no remaining semantics and was deleted; fee **business** errors keep their
-  `FEE-xxxx` codes.
-- **`ledger_id` was never a fee scope and did not move.** It remains a create-body field
+  ("missing header") had no remaining semantics and was deleted. The rest of the `FEE-` prefixed
+  family has since been retired too: fee **business** errors now use the canonical numeric registry
+  in `pkg/constant/errors.go`, and no `FEE-` code is emitted on the wire. The literal still appears
+  in test fixtures and comments that document the old-to-new mapping.
+- **`ledger_id` is not a scope on this surface.** It is a create-body field
   (`CreatePackageInput.LedgerID`, `FeeEstimate.LedgerID`, `BillingCalculateRequest.LedgerID`) and
-  an optional list filter (`?ledgerId=`) on the package/billing-package lists.
+  an optional list filter (`?ledgerId=`) on the package/billing-package lists. The ledger-scoped
+  surface below is a second contract, not a replacement of this one.
 - **Authz keys unchanged.** The `plugin-fees` namespace and every `Authorize(...)` triple are
   byte-identical (R9) — route shape moved, policy keys did not. See `docs/auth/RBAC-NAMESPACES.md`.
 
 Fees Mongo storage is org-filtered (`organization_id` field), not org-partitioned, so no storage
 change accompanied the route reshape.
+
+## The ledger-scoped fee / billing surface (v2, 2026-08-01)
+
+The same twelve fee and billing operations are **also** served ledger-scoped on the independent
+`/v2` contract. Both surfaces are live and neither supersedes the other: `/v1` reaches a resource
+on whichever ledger of the organization owns it, `/v2` reaches only what the named ledger owns.
+
+```
+/v1/organizations/{organization_id}/packages[/{id}]           organization-scoped
+/v1/organizations/{organization_id}/estimates
+/v1/organizations/{organization_id}/billing-packages[/{id}]
+/v1/organizations/{organization_id}/billing/calculate
+
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{id}]          ledger-scoped
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{id}]
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate
+```
+
+On the ledger-scoped surface the path is the sole authority on which ledger a request acts within:
+
+- **The nil ledger is refused as a path value.** It is a syntactically valid UUID, so
+  `ParseUUIDPathParameters` admits it, and both fee repositories read it as "no ledger requested" —
+  which would widen a ledger-scoped read back to the whole organization.
+- **A body that names a different ledger is refused.** The ledger stays a required body field
+  (the models are shared with `/v1` and with the in-process fee seam, so it cannot be dropped for
+  one caller), but a disagreement with the path is a `400` (`0234`), not a silent path-wins.
+- **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
+  operations that read a query at all. It can only restate the path or contradict it, and its empty
+  value means "every ledger of the organization" — the one scope a ledger-scoped listing must not
+  be able to express.
+
+Authz is unchanged again: the `plugin-fees` namespace and the same `(resource, verb)` tuples, so
+no new policy surface accompanies the second contract.
 
 ## Summary
 
@@ -87,3 +129,7 @@ One rule, no exceptions: **every organization-scoped surface in the unified bina
 routing, CRM, composition, fees/billing — scopes through the URL path hierarchy**, UUID-validated
 by the protected-route chain. `X-Organization-Id` and `X-Ledger-Id` no longer exist in any API
 contract. Clients integrate one convention.
+
+Where a surface is served at two scopes — fees and billing, organization-scoped on `/v1` and
+ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not by a header or a
+query parameter. The convention does not change; only how much of the hierarchy the path names.

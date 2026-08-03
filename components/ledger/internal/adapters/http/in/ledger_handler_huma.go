@@ -412,6 +412,7 @@ func RegisterLedgerRoutes(api huma.API, h *LedgerHandler) {
 		Tags:             []string{tag},
 		Security:         secLedgerBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateLedgerHuma)
 
 	huma.Register(api, huma.Operation{

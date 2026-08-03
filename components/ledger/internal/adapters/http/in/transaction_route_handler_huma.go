@@ -274,6 +274,7 @@ func RegisterTransactionRouteRoutes(api huma.API, h *TransactionRouteHandler) {
 		Security:    secTransactionRouteBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionRouteHuma)
 
 	huma.Register(api, huma.Operation{

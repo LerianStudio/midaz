@@ -277,6 +277,7 @@ func RegisterOperationRouteRoutes(api huma.API, h *OperationRouteHandler) {
 		Security:    secOperationRouteBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOperationRouteHuma)
 
 	huma.Register(api, huma.Operation{

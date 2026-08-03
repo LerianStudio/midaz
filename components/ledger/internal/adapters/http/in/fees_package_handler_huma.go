@@ -10,6 +10,7 @@ import (
 	"net/url"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -160,7 +161,7 @@ func (handler *PackageHandler) GetPackageByIDHuma(ctx context.Context, in *GetPa
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	packModel, err := handler.getPackageByID(ctx, orgID, id)
+	packModel, err := handler.getPackageByID(ctx, orgID, uuid.Nil, id)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -203,7 +204,7 @@ func (handler *PackageHandler) UpdatePackageByIDHuma(ctx context.Context, in *Up
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	packUpdated, err := handler.updatePackageByID(ctx, orgID, id, payload)
+	packUpdated, err := handler.updatePackageByID(ctx, orgID, uuid.Nil, id, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -229,7 +230,7 @@ func (handler *PackageHandler) DeletePackageByIDHuma(ctx context.Context, in *Ge
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := handler.deletePackageByID(ctx, orgID, id); err != nil {
+	if err := handler.deletePackageByID(ctx, orgID, uuid.Nil, id); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
@@ -237,17 +238,20 @@ func (handler *PackageHandler) DeletePackageByIDHuma(ctx context.Context, in *Ge
 }
 
 // RegisterPackageRoutes registers the five migrated fee-package operations on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
+// given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","packages",verb) + tenant + ParseUUIDPathParameters("packages")
-// middleware chain is attached on the /v1 group (Fiber-level) BEFORE the Huma
+// middleware chain is attached on the versioned Fiber group BEFORE the Huma
 // terminal, not here. Paths are GROUP-RELATIVE (see asset_handler_huma.go's
-// RegisterAssetRoutes header for the /v1 rationale).
+// RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off feeBasePathV1. The operation IDs are literal: they are what
+// published SDKs bind to, and the ledger-scoped contract publishes its own suffixed
+// set (see fees_v2_register.go) rather than reusing these.
 func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
-	const (
-		listPath = "/organizations/{organization_id}/packages"
-		idPath   = listPath + "/{id}"
-		tag      = "Packages"
-	)
+	const tag = "Packages"
+
+	listPath := feeBasePathV1 + "/packages"
+	idPath := listPath + "/{id}"
 
 	huma.Register(api, huma.Operation{
 		OperationID: "createPackage",
@@ -258,6 +262,7 @@ func RegisterPackageRoutes(api huma.API, h *PackageHandler) {
 		Security:    secPackageBearer,
 		// Body validated imperatively (feehttp.DecodeValidateBody) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreatePackageHuma)
 
 	huma.Register(api, huma.Operation{

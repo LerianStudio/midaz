@@ -280,6 +280,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler) {
 		Security:    secOrgBearerOrAPIKey,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateOrganizationHuma)
 
 	huma.Register(api, huma.Operation{

@@ -66,7 +66,6 @@ pkg/
   mmodel/             → Domain models (Organization, Account, Transaction, etc.)
   constant/errors.go  → Error codes (ledger numeric sentinels (0001+), 28 CRM-00xx (CRM-0006..CRM-0041))
   errors.go           → Typed error structs
-  gold/               → Transaction DSL parser (ANTLR4)
   mtransaction/       → Transaction processing utilities (formerly pkg/transaction)
   net/http/           → Middleware, pagination, route helpers
 ```
@@ -92,7 +91,7 @@ unauthorized skip returns **HTTP 422** (`ErrSkipNotPermitted`, `0490`). Resolver
 account create. Honored skips persist to audit columns (`transaction.fees_skipped`,
 `transaction.tracer_skipped`, `account.holder_check_skipped`). Invariant: an honored skip
 adds **zero** downstream work (short-circuits before the control's lookup); reverts always
-re-run the tracer; DSL carries no skip; idempotency replay returns the first outcome.
+re-run the tracer; idempotency replay returns the first outcome.
 
 ## CRM Field Encryption (KMS)
 

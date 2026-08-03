@@ -7,7 +7,7 @@ toolchain go1.26.5
 require (
 	github.com/LerianStudio/lib-auth/v3 v3.3.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/antlr4-go/antlr/v4 v4.13.1
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v3 v3.4.0

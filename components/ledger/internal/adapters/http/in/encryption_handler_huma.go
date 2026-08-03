@@ -109,13 +109,15 @@ func (handler *EncryptionHandler) GetProvisioningStatusHuma(ctx context.Context,
 }
 
 // RegisterEncryptionRoutes registers the two migrated encryption operations on the
-// shared Huma API. It is the per-file seam the unified server calls (conditionally,
+// given Huma API. It is the per-file seam the unified server calls (conditionally,
 // only in envelope encryption mode — mirroring the Fiber `if eh != nil` guard in
 // crm_routes.go); the auth ("midaz","encryption",verb) + tenant +
-// ParseUUIDPathParameters("organization") middleware chain is attached on the /v1
-// group (Fiber-level) BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
-// (see asset_handler_huma.go's RegisterAssetRoutes header for the /v1 rationale).
-func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler) {
+// ParseUUIDPathParameters("organization") middleware chain is attached on the
+// versioned Fiber group BEFORE the Huma terminal, not here. Paths are GROUP-RELATIVE
+// (see asset_handler_huma.go's RegisterAssetRoutes header for the rationale).
+//
+// opSuffix is appended to every operation ID — see crmOpSuffixV1.
+func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler, opSuffix string) {
 	const (
 		provisionPath = "/organizations/{organization_id}/encryption/provision"
 		statusPath    = "/organizations/{organization_id}/encryption/status"
@@ -123,7 +125,7 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler) {
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "provisionEncryption",
+		OperationID: "provisionEncryption" + opSuffix,
 		Method:      http.MethodPost,
 		Path:        provisionPath,
 		Summary:     "Provision an Organization for Envelope Encryption",
@@ -131,10 +133,11 @@ func RegisterEncryptionRoutes(api huma.API, h *EncryptionHandler) {
 		Security:    secEncryptionBearer,
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.ProvisionHuma)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getProvisioningStatus",
+		OperationID: "getProvisioningStatus" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        statusPath,
 		Summary:     "Get Provisioning Status",

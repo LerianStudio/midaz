@@ -276,6 +276,7 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler) {
 		Security:    secAccountTypeBearerOrAPIKey,
 		// Body validated imperatively (http.DecodeAndValidate) — see asset header.
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAccountTypeHuma)
 
 	huma.Register(api, huma.Operation{

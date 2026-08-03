@@ -172,7 +172,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 
 - Hierarchy: Organization -> Ledger -> Assets/Portfolios/Segments -> Accounts -> Transactions -> Operations -> Balances.
 - Status common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`.
-- Transaction creation modes: JSON, DSL, inflow, outflow, annotation.
+- Transaction creation modes: JSON, inflow, outflow, annotation.
 - Pending transactions can be committed/cancelled; revert creates a reverse transaction.
 - Async transaction processing is controlled by `RABBITMQ_TRANSACTION_ASYNC`.
 - Balance fields: `Available`, `OnHold`, `Scale`, `Version`.

@@ -248,7 +248,7 @@ func TestCreateFeeEstimate(t *testing.T) {
 			orgID:            orgID,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(packEntity, nil)
 			},
 			expectErr:   true,
@@ -261,7 +261,7 @@ func TestCreateFeeEstimate(t *testing.T) {
 			orgID:            orgID,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(nil, constant.ErrEntityNotFound)
 			},
 			expectErr:   true,
@@ -360,7 +360,7 @@ func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(nil, mongo.ErrNoDocuments)
 
 	ctx := context.Background()
@@ -414,7 +414,7 @@ func TestEstimateFeeCalculation_PackageNotFound_OtherError(t *testing.T) {
 
 	otherError := errors.New("database connection error")
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(nil, otherError)
 
 	ctx := context.Background()
@@ -465,7 +465,7 @@ func TestEstimateFeeCalculation_ValidationError(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -520,7 +520,7 @@ func TestEstimateFeeCalculation_ValueBelowMinimum(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -576,7 +576,7 @@ func TestEstimateFeeCalculation_ValueAboveMaximum(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -658,7 +658,7 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -725,7 +725,7 @@ func TestEstimateFeeCalculation_NoFeeApplied(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -809,7 +809,7 @@ func TestEstimateFeeCalculation_Success_WithMetadata(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -895,7 +895,7 @@ func TestEstimateFeeCalculation_Success_WithExistingMetadata(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -979,7 +979,7 @@ func TestEstimateFeeCalculation_ValueAtMinimum(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()
@@ -1062,7 +1062,7 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 	}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), packID, orgID).
+		FindByID(gomock.Any(), packID, orgID, gomock.Eq(uuid.Nil)).
 		Return(packEntity, nil)
 
 	ctx := context.Background()

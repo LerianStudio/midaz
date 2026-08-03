@@ -459,7 +459,8 @@ func TestReadSource_EmitError_SwallowsAndSucceeds(t *testing.T) {
 	t.Parallel()
 
 	factory, err := metrics.NewMetricsFactory(
-		failingCounterMeter{Meter: noop.NewMeterProvider().Meter("readseam-fail-test")}, nil)
+		failingCounterMeter{Meter: noop.NewMeterProvider().Meter("readseam-fail-test")}, nil,
+	)
 	require.NoError(t, err)
 
 	ctx := libObservability.ContextWithMetricFactory(context.Background(), factory)

@@ -46,11 +46,11 @@ func TestDeletePackageById(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
 
 				mockPackRepo.EXPECT().
-					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(nil)
 			},
 			expectErr:      false,
@@ -62,11 +62,11 @@ func TestDeletePackageById(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
 
 				mockPackRepo.EXPECT().
-					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(constant.ErrBadRequest)
 			},
 			expectErr:      true,
@@ -78,11 +78,11 @@ func TestDeletePackageById(t *testing.T) {
 			orgId:     orgId,
 			mockSetup: func() {
 				mockPackRepo.EXPECT().
-					FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(&pack.Package{ID: packID, LedgerID: uuid.New()}, nil)
 
 				mockPackRepo.EXPECT().
-					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+					SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 					Return(mongo.ErrNoDocuments)
 			},
 			expectErr:      true,
@@ -96,7 +96,7 @@ func TestDeletePackageById(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			err := packSvc.DeletePackageByID(ctx, tt.packageID, tt.orgId)
+			err := packSvc.DeletePackageByID(ctx, tt.packageID, tt.orgId, uuid.Nil)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -125,10 +125,10 @@ func TestDeletePackageByID_EmitsFeesPackageDeleted(t *testing.T) {
 	found := &pack.Package{ID: packID, LedgerID: ledgerID}
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(found, nil)
 	mockPackRepo.EXPECT().
-		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(nil)
 
 	svc := &UseCase{
@@ -136,7 +136,7 @@ func TestDeletePackageByID_EmitsFeesPackageDeleted(t *testing.T) {
 		Streaming:   mockEmitter,
 	}
 
-	err := svc.DeletePackageByID(context.Background(), packID, orgID)
+	err := svc.DeletePackageByID(context.Background(), packID, orgID, uuid.Nil)
 	require.NoError(t, err)
 
 	pkgStreaming.AssertEventEmitted(t, mockEmitter, "fee-packages", "deleted")
@@ -166,10 +166,10 @@ func TestDeletePackageByID_FindByIDFailure_SkipsEmitButDeletes(t *testing.T) {
 	packID := uuid.New()
 
 	mockPackRepo.EXPECT().
-		FindByID(gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(nil, assert.AnError)
 	mockPackRepo.EXPECT().
-		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any()).
+		SoftDelete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil)).
 		Return(nil)
 
 	svc := &UseCase{
@@ -177,7 +177,7 @@ func TestDeletePackageByID_FindByIDFailure_SkipsEmitButDeletes(t *testing.T) {
 		Streaming:   mockEmitter,
 	}
 
-	err := svc.DeletePackageByID(context.Background(), packID, orgID)
+	err := svc.DeletePackageByID(context.Background(), packID, orgID, uuid.Nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, mockEmitter.Events(), "no event must be emitted when the package cannot be resolved")

@@ -37,7 +37,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "command.create_write_behind_transaction")
 	defer span.End()
 
-	// Attach the original DSL input to the transaction so that
+	// Attach the original transaction input to the transaction so that
 	// GetWriteBehindTransaction callers (and later the commit/cancel flow
 	// via tran.Body) can access the full input without a DB round-trip.
 	tran.Body = transactionInput

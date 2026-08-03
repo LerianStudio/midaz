@@ -156,7 +156,7 @@ func TestIntegration_PackRepo_FindByID(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	result, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
+	result, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, pkgEntity.ID, result.ID)
@@ -168,7 +168,7 @@ func TestIntegration_PackRepo_FindByID_NotFound(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)
 
-	result, err := repo.FindByID(context.Background(), uuid.New(), uuid.New())
+	result, err := repo.FindByID(context.Background(), uuid.New(), uuid.New(), uuid.Nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
@@ -183,7 +183,7 @@ func TestIntegration_PackRepo_FindByID_WrongOrgIsolation(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, uuid.New())
 	require.NoError(t, err)
 
-	result, err := repo.FindByID(ctx, pkgEntity.ID, uuid.New())
+	result, err := repo.FindByID(ctx, pkgEntity.ID, uuid.New(), uuid.Nil)
 	require.Error(t, err, "different org must not see the package")
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
@@ -199,11 +199,144 @@ func TestIntegration_PackRepo_FindByID_ExcludesSoftDeleted(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID, uuid.Nil))
 
-	result, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
+	result, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.Error(t, err, "soft-deleted package must not be returned")
 	assert.Nil(t, result)
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
+}
+
+func TestIntegration_PackRepo_FindByID_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+
+	pkgEntity := newTestPackage(ledgerA)
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	result, err := repo.FindByID(ctx, pkgEntity.ID, orgID, ledgerB)
+	require.Error(t, err, "a package on ledger A must not be readable through ledger B")
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, mongo.ErrNoDocuments,
+		"the cross-ledger read must report the same absence a nonexistent id produces")
+
+	// Positive controls: without them the assertion above would also hold for a
+	// filter that matches nothing at all.
+	owned, err := repo.FindByID(ctx, pkgEntity.ID, orgID, ledgerA)
+	require.NoError(t, err, "the owning ledger must still read its own package")
+	require.NotNil(t, owned)
+	assert.Equal(t, pkgEntity.ID, owned.ID)
+
+	orgScoped, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
+	require.NoError(t, err, "organization scope must keep reaching the package on any ledger")
+	require.NotNil(t, orgScoped)
+	assert.Equal(t, pkgEntity.ID, orgScoped.ID)
+}
+
+func TestIntegration_PackRepo_Update_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+
+	pkgEntity := newTestPackage(ledgerA)
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	update := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger B"}}
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, ledgerB, update)
+	require.Error(t, errUpdate, "a package on ledger A must not be writable through ledger B")
+	assert.Nil(t, returned)
+
+	var notFound pkg.EntityNotFoundError
+	require.ErrorAs(t, errUpdate, &notFound)
+	assert.Equal(t, "0007", notFound.Code)
+
+	var raw bson.M
+	require.NoError(t, packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&raw))
+	assert.Equal(t, pkgEntity.FeeGroupLabel, raw["fee_group_label"],
+		"the cross-ledger update must not have touched the stored document")
+
+	// Positive control: the same update through the owning ledger lands.
+	ownedUpdate := &bson.M{"$set": bson.M{"fee_group_label": "Written Through Ledger A"}}
+	owned, errOwned := repo.Update(ctx, pkgEntity.ID, orgID, ledgerA, ownedUpdate)
+	require.NoError(t, errOwned, "the owning ledger must still write its own package")
+	require.NotNil(t, owned)
+	assert.Equal(t, "Written Through Ledger A", owned.FeeGroupLabel)
+}
+
+func TestIntegration_PackRepo_SoftDelete_WrongLedgerIsolation(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+
+	pkgEntity := newTestPackage(ledgerA)
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	errDelete := repo.SoftDelete(ctx, pkgEntity.ID, orgID, ledgerB)
+	require.Error(t, errDelete, "a package on ledger A must not be deletable through ledger B")
+
+	var notFound pkg.EntityNotFoundError
+	require.ErrorAs(t, errDelete, &notFound)
+	assert.Equal(t, "0007", notFound.Code)
+
+	var raw bson.M
+	require.NoError(t, packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&raw))
+	assert.Nil(t, raw["deleted_at"], "the cross-ledger delete must not have soft-deleted the document")
+
+	// Positive control: the owning ledger still deletes.
+	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID, ledgerA),
+		"the owning ledger must still delete its own package")
+
+	require.NoError(t, packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&raw))
+	assert.NotNil(t, raw["deleted_at"], "the owning ledger's delete must have soft-deleted the document")
+}
+
+// TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged pins the pre-migration
+// contract the organization-scoped callers depend on: passing uuid.Nil as the
+// ledger reaches a package regardless of which ledger owns it, on all three
+// by-ID operations, and still excludes soft-deleted documents.
+func TestIntegration_PackRepo_ByID_OrganizationScopeUnchanged(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+
+	pkgEntity := newTestPackage(uuid.New())
+	_, err := repo.Create(ctx, pkgEntity, orgID)
+	require.NoError(t, err)
+
+	found, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, pkgEntity.ID, found.ID)
+
+	updated, err := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil,
+		&bson.M{"$set": bson.M{"fee_group_label": "Org Scoped Write"}})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, "Org Scoped Write", updated.FeeGroupLabel)
+
+	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID, uuid.Nil))
+
+	gone, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
+	require.Error(t, err, "organization scope must keep excluding soft-deleted documents")
+	assert.Nil(t, gone)
 	assert.ErrorIs(t, err, mongo.ErrNoDocuments)
 }
 
@@ -262,6 +395,88 @@ func TestIntegration_PackRepo_FindList_FiltersAndPaginates(t *testing.T) {
 	assert.Len(t, seen, 3)
 }
 
+// TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier pins the
+// ledger filter against a real identifier whose leading four bytes are zero.
+//
+// A predicate written as UUID.ID() != 0 reads exactly those four bytes, so such a
+// ledger is indistinguishable from "no ledger requested" and the clause is dropped —
+// the listing then answers with every ledger of the organization. On the
+// organization-scoped surface that silently ignores a caller's filter; on a
+// ledger-scoped path it hands back packages the named ledger does not own. The
+// identifier is fixed rather than generated so the case is exercised every run.
+func TestIntegration_PackRepo_FindList_LedgerFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	leadingZeroLedger := uuid.MustParse("00000000-1111-4111-8111-111111111111")
+	otherLedger := uuid.New()
+
+	require.Zero(t, leadingZeroLedger.ID(), "the fixture must be the identifier shape the old predicate misread")
+	require.NotEqual(t, uuid.Nil, leadingZeroLedger, "and it must still be a real ledger")
+
+	_, err := repo.Create(ctx, newTestPackage(leadingZeroLedger), orgID)
+	require.NoError(t, err)
+
+	_, err = repo.Create(ctx, newTestPackage(otherLedger), orgID)
+	require.NoError(t, err)
+
+	results, err := repo.FindList(ctx, feehttp.QueryHeader{
+		OrganizationID: orgID,
+		LedgerID:       leadingZeroLedger,
+		Limit:          10,
+		Page:           1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1, "the ledger filter must still apply")
+	assert.Equal(t, leadingZeroLedger, results[0].LedgerID)
+}
+
+// TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifier is the
+// ledger test above for the OTHER filter the same listing carries. Both are guarded by
+// the same shape of predicate, so a fix applied to one and a regression test written
+// for one leaves the other free to be reverted unnoticed. A dropped segment clause
+// widens the listing to every segment of the ledger, and the package it then returns
+// is the one that prices a transaction.
+func TestIntegration_PackRepo_FindList_SegmentFilterHoldsForLeadingZeroIdentifier(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newPackRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	leadingZeroSegment := uuid.MustParse("00000000-2222-4222-8222-222222222222")
+	otherSegment := uuid.New()
+
+	require.Zero(t, leadingZeroSegment.ID(), "the fixture must be the identifier shape the old predicate misread")
+	require.NotEqual(t, uuid.Nil, leadingZeroSegment, "and it must still be a real segment")
+
+	inSegment := newTestPackage(ledgerID)
+	inSegment.SegmentID = &leadingZeroSegment
+
+	_, err := repo.Create(ctx, inSegment, orgID)
+	require.NoError(t, err)
+
+	elsewhere := newTestPackage(ledgerID)
+	elsewhere.SegmentID = &otherSegment
+
+	_, err = repo.Create(ctx, elsewhere, orgID)
+	require.NoError(t, err)
+
+	results, err := repo.FindList(ctx, feehttp.QueryHeader{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		SegmentID:      leadingZeroSegment,
+		Limit:          10,
+		Page:           1,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1, "the segment filter must still apply")
+	require.NotNil(t, results[0].SegmentID)
+	assert.Equal(t, leadingZeroSegment, *results[0].SegmentID)
+}
+
 func TestIntegration_PackRepo_FindList_FilterByEnable(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)
@@ -306,7 +521,7 @@ func TestIntegration_PackRepo_FindList_ExcludesSoftDeleted(t *testing.T) {
 	_, err = repo.Create(ctx, deleted, orgID)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID, uuid.Nil))
 
 	results, err := repo.FindList(ctx, feehttp.QueryHeader{
 		OrganizationID: orgID, LedgerID: ledgerID, Limit: 10, Page: 1,
@@ -402,12 +617,12 @@ func TestIntegration_PackRepo_Update_PersistsChange(t *testing.T) {
 	require.NoError(t, err)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "Updated Package Label"}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, update)
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
 	assert.Equal(t, "Updated Package Label", returned.FeeGroupLabel, "returned entity must reflect the change")
 
-	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
+	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Package Label", got.FeeGroupLabel, "label change must be persisted")
 }
@@ -424,13 +639,13 @@ func TestIntegration_PackRepo_Update_DisablesWhenFeesEmptied(t *testing.T) {
 
 	// Emptying the fees map must trigger the auto-disable side effect in Update.
 	update := &bson.M{"$set": bson.M{"fees": bson.M{}}}
-	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, update)
+	returned, errUpdate := repo.Update(ctx, pkgEntity.ID, orgID, uuid.Nil, update)
 	require.NoError(t, errUpdate)
 	require.NotNil(t, returned, "Update must return the persisted entity")
 	require.NotNil(t, returned.Enable)
 	assert.False(t, *returned.Enable, "returned entity must reflect the auto-disable side effect")
 
-	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID)
+	got, err := repo.FindByID(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.NoError(t, err)
 	require.NotNil(t, got.Enable)
 	assert.False(t, *got.Enable, "package with no fees must be auto-disabled by Update")
@@ -441,7 +656,7 @@ func TestIntegration_PackRepo_Update_NotFound(t *testing.T) {
 	repo := newPackRepository(t, container)
 
 	update := &bson.M{"$set": bson.M{"fee_group_label": "x"}}
-	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), update)
+	_, err := repo.Update(context.Background(), uuid.New(), uuid.New(), uuid.Nil, update)
 
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError
@@ -463,7 +678,7 @@ func TestIntegration_PackRepo_SoftDelete_SetsDeletedAt(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID, uuid.Nil))
 
 	var raw bson.M
 	err = packCollection(container).FindOne(ctx, bson.M{"_id": pkgEntity.ID}).Decode(&raw)
@@ -475,7 +690,7 @@ func TestIntegration_PackRepo_SoftDelete_NotFound(t *testing.T) {
 	container := mongotestutil.SetupContainer(t)
 	repo := newPackRepository(t, container)
 
-	err := repo.SoftDelete(context.Background(), uuid.New(), uuid.New())
+	err := repo.SoftDelete(context.Background(), uuid.New(), uuid.New(), uuid.Nil)
 	require.Error(t, err)
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound)
@@ -492,9 +707,9 @@ func TestIntegration_PackRepo_SoftDelete_Idempotency(t *testing.T) {
 	_, err := repo.Create(ctx, pkgEntity, orgID)
 	require.NoError(t, err)
 
-	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID))
+	require.NoError(t, repo.SoftDelete(ctx, pkgEntity.ID, orgID, uuid.Nil))
 
-	err = repo.SoftDelete(ctx, pkgEntity.ID, orgID)
+	err = repo.SoftDelete(ctx, pkgEntity.ID, orgID, uuid.Nil)
 	require.Error(t, err, "deleting an already-deleted package must report not found")
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound)

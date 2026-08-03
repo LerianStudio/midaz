@@ -18,15 +18,12 @@ import (
 )
 
 // mountWave4Routes wires the Wave-4 MONEY-WRITE surface exactly as the production
-// humaMount seam in config.go does: the ten Huma-migrated transaction ops + the
-// operation PATCH (UpdateOperation, a double-entry leg) on the shared /v1 Huma API,
-// PLUS RegisterTransactionRoutesToApp on the app ROOT, which still mounts the one
-// non-migrated op — POST /transactions/dsl — as a pure inline Fiber terminal
-// (multipart .casl upload, SUNSET 2026-08-01, out of the Huma spec).
+// humaMount seam in config.go does: the twelve Huma-migrated transaction ops + the
+// operation PATCH (UpdateOperation, a double-entry leg) on the shared /v1 Huma API.
 //
 // Registration never invokes the handlers, so nil-backed zero-value handler structs
 // are safe. This mirrors config.go: RegisterTransactionHumaRoutesToApp +
-// RegisterOperationRoutesToApp on the group, RegisterTransactionRoutesToApp on root.
+// RegisterOperationRoutesToApp on the group.
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools.
@@ -39,11 +36,6 @@ func mountWave4Routes(app *fiber.App, auth *middleware.AuthClient) huma.API {
 	// Money-write ops on the Huma group.
 	RegisterTransactionHumaRoutesToApp(apiV1, hAPI, auth, &TransactionHandler{}, nil)
 	RegisterOperationRoutesToApp(apiV1, hAPI, auth, &OperationHandler{}, nil)
-
-	// Non-migrated DSL terminal on the app root (pure Fiber).
-	RegisterTransactionRoutesToApp(app, auth,
-		&TransactionHandler{}, &OperationHandler{}, &AssetRateHandler{},
-		&BalanceHandler{}, &OperationRouteHandler{}, &TransactionRouteHandler{}, nil)
 
 	return hAPI
 }
@@ -92,31 +84,4 @@ func TestWave4RoutesMountedOnGroup(t *testing.T) {
 	for _, w := range wave4MigratedRoutes {
 		assert.Truef(t, routeSet[w], "expected mounted money-write route %q", w)
 	}
-}
-
-// TestWave4DSLStaysPureFiber pins the load-bearing money-path invariant: the
-// non-migrated POST /transactions/dsl op stays a pure inline Fiber terminal on the
-// app root and never leaks onto the /v1 Huma group. It is DEPRECATED (SUNSET
-// 2026-08-01) and deliberately absent from the Huma spec; mounting it on the group
-// would pull it into the served contract. The migrated json-CREATE op — its Huma
-// replacement — MUST still be present, proving the DSL exclusion is surgical.
-func TestWave4DSLStaysPureFiber(t *testing.T) {
-	// NOT parallel: mutates process-global huma state.
-	app := fiber.New()
-	auth := &middleware.AuthClient{Enabled: false}
-
-	mountWave4Routes(app, auth)
-
-	routeSet := make(map[string]bool)
-	for _, r := range app.GetRoutes() {
-		routeSet[r.Method+":"+r.Path] = true
-	}
-
-	// DSL stays on the app root as a pure Fiber terminal.
-	assert.True(t, routeSet["POST:"+wave4OrgLedger+"/transactions/dsl"],
-		"POST /transactions/dsl must stay mounted as a pure inline Fiber terminal")
-
-	// Its Huma replacement (json CREATE) coexists — the DSL is not a substitute for it.
-	assert.True(t, routeSet["POST:"+wave4OrgLedger+"/transactions/json"],
-		"POST /transactions/json (Huma replacement) must be mounted alongside DSL")
 }

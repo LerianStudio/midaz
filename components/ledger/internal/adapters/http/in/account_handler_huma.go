@@ -383,6 +383,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler) {
 		Tags:             []string{tag},
 		Security:         secAccountBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
+		DefaultStatus:    http.StatusCreated,
 	}, h.CreateAccountHuma)
 
 	huma.Register(api, huma.Operation{

@@ -5,10 +5,8 @@
 package http
 
 import (
-	"bytes"
 	"encoding/base64"
 	"io"
-	"mime/multipart"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -603,106 +601,6 @@ func TestGetIdempotencyKeyAndTTL_WithEmptyHeaders(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestGetFileFromHeader_NoFile(t *testing.T) {
-	app := fiber.New()
-
-	app.Post("/upload", func(c fiber.Ctx) error {
-		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
-		return c.SendStatus(fiber.StatusBadRequest)
-	})
-
-	req := httptest.NewRequest("POST", "/upload", nil)
-	req.Header.Set("Content-Type", "multipart/form-data")
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-}
-
-func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
-	app := fiber.New()
-
-	app.Post("/upload", func(c fiber.Ctx) error {
-		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
-		return c.SendStatus(fiber.StatusBadRequest)
-	})
-
-	// Create multipart form with invalid file extension
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(libConstants.DSL, "test.txt")
-	require.NoError(t, err)
-	_, err = io.WriteString(part, "file content")
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	req := httptest.NewRequest("POST", "/upload", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-}
-
-func TestGetFileFromHeader_EmptyFile(t *testing.T) {
-	app := fiber.New()
-
-	app.Post("/upload", func(c fiber.Ctx) error {
-		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
-		return c.SendStatus(fiber.StatusBadRequest)
-	})
-
-	// Create multipart form with empty file
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
-	require.NoError(t, err)
-	_, err = io.WriteString(part, "")
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	req := httptest.NewRequest("POST", "/upload", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
-}
-
-func TestGetFileFromHeader_ValidFile(t *testing.T) {
-	app := fiber.New()
-
-	expectedContent := "valid file content"
-
-	app.Post("/upload", func(c fiber.Ctx) error {
-		content, err := GetFileFromHeader(c)
-		if err != nil {
-			return c.SendStatus(fiber.StatusBadRequest)
-		}
-		assert.Equal(t, expectedContent, content)
-		return c.SendStatus(fiber.StatusOK)
-	})
-
-	// Create multipart form with valid file
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
-	require.NoError(t, err)
-	_, err = io.WriteString(part, expectedContent)
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	req := httptest.NewRequest("POST", "/upload", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)

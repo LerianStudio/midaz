@@ -27,7 +27,6 @@ var (
 	ErrResourceAlreadyDeleted                   = errors.New("0013")
 	ErrSegmentIDInactive                        = errors.New("0014")
 	ErrDuplicateSegmentName                     = errors.New("0015")
-	ErrInvalidScriptFormat                      = errors.New("0017")
 	ErrInsufficientFunds                        = errors.New("0018")
 	ErrAccountIneligibility                     = errors.New("0019")
 	ErrAliasUnavailability                      = errors.New("0020")
@@ -58,8 +57,6 @@ var (
 	ErrJWKFetch                                 = errors.New("0045")
 	ErrInternalServer                           = errors.New("0046")
 	ErrBadRequest                               = errors.New("0047")
-	ErrInvalidDSLFileFormat                     = errors.New("0048")
-	ErrEmptyDSLFile                             = errors.New("0049")
 	ErrMetadataKeyLengthExceeded                = errors.New("0050")
 	ErrMetadataValueLengthExceeded              = errors.New("0051")
 	ErrAccountIDNotFound                        = errors.New("0052")
@@ -83,6 +80,7 @@ var (
 	ErrTransactionIDNotFound                    = errors.New("0070")
 	ErrNoTransactionsFound                      = errors.New("0071")
 	ErrInvalidTransactionType                   = errors.New("0072")
+	ErrMutuallyExclusiveTransactionFields       = errors.New("0498")
 	ErrTransactionValueMismatch                 = errors.New("0073")
 	ErrForbiddenExternalAccountManipulation     = errors.New("0074")
 	ErrAuditRecordNotRetrieved                  = errors.New("0075")
@@ -299,11 +297,15 @@ var (
 	ErrMissingSegmentContext                = errors.New("0231")
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
+	ErrLedgerIDMismatch                     = errors.New("0234")
+	ErrLedgerScopedQueryParameter           = errors.New("0235")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
-// Block 0328-0499 (highest allocated 0483). ErrRuleCalculationFieldType carries a
-// domain prefix to avoid colliding with the fee code of the same fork identifier.
+// Block 0328-0499, of which 0328-0496 are allocated here. 0492, 0497 and 0498 fall
+// inside the range but were taken by the core block above, so they are NOT free.
+// ErrRuleCalculationFieldType carries a domain prefix to avoid colliding with the fee
+// code of the same fork identifier.
 var (
 	ErrRuleCalculationFieldType               = errors.New("0328")
 	ErrParentIDNotFound                       = errors.New("0329")

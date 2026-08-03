@@ -1368,7 +1368,7 @@ components:
             - "null"
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         externalId:
@@ -1463,7 +1463,7 @@ components:
             - "null"
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         holderId:
@@ -2261,7 +2261,7 @@ components:
       properties:
         document:
           examples:
-            - "91315026015"
+            - "12345678900"
           maxLength: 100
           type: string
         email:
@@ -2711,12 +2711,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -2922,12 +2922,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeeBillingPackage"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -3112,12 +3112,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProvisionEncryptionResponse"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -3311,12 +3311,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Holder"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -3371,12 +3371,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Instrument"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -3961,12 +3961,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ledger"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -4244,12 +4244,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccountType"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -4577,12 +4577,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Account"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -4923,12 +4923,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Balance"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -5328,12 +5328,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssetRate"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -5591,12 +5591,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Asset"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -6080,12 +6080,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HolderAccountResponse"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -6194,12 +6194,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OperationRoute"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -6461,12 +6461,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Portfolio"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -6758,12 +6758,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Segment"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -7128,12 +7128,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TransactionRoute"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -7393,12 +7393,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -7453,12 +7453,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -7513,12 +7513,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -7573,12 +7573,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -7701,12 +7701,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -7761,12 +7761,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
-          description: OK
+          description: Created
           headers:
             X-Idempotency-Replayed:
               schema:
@@ -8160,12 +8160,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeePackage"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:
@@ -8432,12 +8432,12 @@ paths:
               type: string
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetadataIndex"
-          description: OK
+          description: Created
         default:
           content:
             application/problem+json:

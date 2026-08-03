@@ -58,10 +58,10 @@ type ReadConn interface {
 // that dbresolver.Tx is a finalizable read tx, and that dbresolver.DB satisfies
 // the acquire seam's handle interface.
 var (
-	_ repository.DBReader = (dbresolver.DB)(nil)
-	_ repository.DBReader = (dbresolver.Tx)(nil)
-	_ repository.DBReadTx = (dbresolver.Tx)(nil)
-	_ ReadConn            = (dbresolver.DB)(nil)
+	_ repository.DBReader = dbresolver.DB(nil)
+	_ repository.DBReader = dbresolver.Tx(nil)
+	_ repository.DBReadTx = dbresolver.Tx(nil)
+	_ ReadConn            = dbresolver.DB(nil)
 )
 
 // AcquireReadFrom decides the read source and returns a release func the caller

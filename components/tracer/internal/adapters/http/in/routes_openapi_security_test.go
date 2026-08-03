@@ -143,9 +143,8 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 
 // TestSpecLock_AllOpsSecurity asserts EVERY one of the 28 Huma operations
 // advertises its expected per-op Security requirement in the served spec. This
-// is the CI backstop the tracer lacks otherwise: postman/generator/check-docs.sh
-// security-coverage gate is ledger-only (SECURITY_COVERAGE_COMPONENT="ledger"),
-// so it never inspects the tracer spec. Without this table, a future edit could
+// is the CI backstop the tracer lacks otherwise: the docs security-coverage gate
+// is ledger-only, so it never inspects the tracer spec. Without this table, a future edit could
 // drop or wrong-map Security on any limits/reservations/audit op — silently
 // downgrading the advertised auth — with no test failing. SPEC metadata only:
 // runtime auth is unchanged (Fiber guard.With).

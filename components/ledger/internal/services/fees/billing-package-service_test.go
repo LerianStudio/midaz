@@ -425,7 +425,7 @@ func TestGetBillingPackageByID_Success(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID.String(), orgID.String()).
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(&model.BillingPackage{
 						ID:             bpID.String(),
 						OrganizationID: orgID.String(),
@@ -442,7 +442,7 @@ func TestGetBillingPackageByID_Success(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.GetBillingPackageByID(ctx, tt.id, tt.orgID)
+			result, err := svc.GetBillingPackageByID(ctx, tt.id, tt.orgID, uuid.Nil)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -472,7 +472,7 @@ func TestGetBillingPackageByID_NotFound(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID.String(), orgID.String()).
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(nil, mongo.ErrNoDocuments)
 			},
 			errContains: "No billing package was found",
@@ -485,7 +485,7 @@ func TestGetBillingPackageByID_NotFound(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.GetBillingPackageByID(ctx, tt.id, tt.orgID)
+			result, err := svc.GetBillingPackageByID(ctx, tt.id, tt.orgID, uuid.Nil)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -577,7 +577,7 @@ func TestUpdateBillingPackage_Success(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
+					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger), gomock.Any()).
 					Return(&model.BillingPackage{
 						ID:             bpID.String(),
 						OrganizationID: orgID.String(),
@@ -595,7 +595,7 @@ func TestUpdateBillingPackage_Success(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.UpdateBillingPackage(ctx, tt.id, tt.orgID, tt.updates)
+			result, err := svc.UpdateBillingPackage(ctx, tt.id, tt.orgID, uuid.Nil, tt.updates)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -624,7 +624,7 @@ func TestDeleteBillingPackage_Success(t *testing.T) {
 			orgID: orgID,
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID.String(), orgID.String()).
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(&model.BillingPackage{
 						ID:             bpID.String(),
 						OrganizationID: orgID.String(),
@@ -632,7 +632,7 @@ func TestDeleteBillingPackage_Success(t *testing.T) {
 					}, nil)
 
 				mockRepo.EXPECT().
-					SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
+					SoftDelete(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(nil)
 			},
 		},
@@ -644,7 +644,7 @@ func TestDeleteBillingPackage_Success(t *testing.T) {
 
 			ctx := context.Background()
 
-			err := svc.DeleteBillingPackage(ctx, tt.id, tt.orgID)
+			err := svc.DeleteBillingPackage(ctx, tt.id, tt.orgID, uuid.Nil)
 
 			assert.NoError(t, err)
 		})
@@ -674,7 +674,7 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 				// The repo layer returns an EntityNotFoundError (FEE-0012) when matched_count is 0.
 				// The service should remap this to FEE-0052 (BillingPackageNotFound).
 				mockRepo.EXPECT().
-					FindByID(gomock.Any(), bpID.String(), orgID.String()).
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(&model.BillingPackage{
 						ID:             bpID.String(),
 						OrganizationID: orgID.String(),
@@ -682,7 +682,7 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 					}, nil)
 
 				mockRepo.EXPECT().
-					SoftDelete(gomock.Any(), bpID.String(), orgID.String()).
+					SoftDelete(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger)).
 					Return(pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.BillingPackageCollection))
 			},
 			errContains: "No billing package was found",
@@ -695,7 +695,7 @@ func TestDeleteBillingPackage_NotFound(t *testing.T) {
 
 			ctx := context.Background()
 
-			err := svc.DeleteBillingPackage(ctx, tt.id, tt.orgID)
+			err := svc.DeleteBillingPackage(ctx, tt.id, tt.orgID, uuid.Nil)
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errContains)
@@ -827,7 +827,7 @@ func TestUpdateBillingPackage_RepoUpdateError(t *testing.T) {
 			name: "Error - Update repo failure",
 			mockSetup: func() {
 				mockRepo.EXPECT().
-					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Any()).
+					Update(gomock.Any(), bpID.String(), orgID.String(), gomock.Eq(billing_package.AnyLedger), gomock.Any()).
 					Return(nil, errors.New("write concern error"))
 			},
 			errContains: "write concern error",
@@ -840,7 +840,7 @@ func TestUpdateBillingPackage_RepoUpdateError(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.UpdateBillingPackage(ctx, bpID, orgID, map[string]any{"label": "new"})
+			result, err := svc.UpdateBillingPackage(ctx, bpID, orgID, uuid.Nil, map[string]any{"label": "new"})
 
 			assert.Error(t, err)
 			assert.Nil(t, result)

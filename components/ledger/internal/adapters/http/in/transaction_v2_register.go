@@ -6,11 +6,19 @@ package in
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -42,7 +50,8 @@ import (
 // v2-specific handler, and no idempotency HEADERS, since they carry no body or headers.
 // Auth is the Fiber guard chain attached in RegisterTransactionV2RoutesToApp BEFORE
 // this terminal, not here — the per-op Security metadata is SPEC-ONLY. Paths are
-// GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry).
+// GROUP-RELATIVE (the /v2 prefix rides the OpenAPI servers entry). Once every op is
+// registered, publishV2CreateBodySchema gives the create ops a typed request-body schema.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions"
 
@@ -60,6 +69,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionDirectV2Huma)
 
@@ -71,6 +81,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionHoldV2Huma)
 
@@ -82,6 +93,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlockV2Huma)
 
@@ -93,6 +105,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true, // body decoded imperatively (http.DecodeAndValidate), mirroring the v1 create ops.
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblockV2Huma)
 
@@ -125,6 +138,178 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
 	}, h.RevertTransactionHuma)
+
+	publishV2CreateBodySchema(api, transactionsBasePath)
+}
+
+// v2CreateBodyContentType is the media type the v2 create ops accept, matching the
+// `contentType` tag on CreateTransactionV2InputHuma.RawBody — the key Huma files the
+// request body under.
+const v2CreateBodyContentType = "application/json"
+
+// v2CreateActionPaths are the action suffixes of the v2 create ops, the ones that carry a
+// body. The lifecycle ops (commit/cancel/revert) are absent because they are bodiless and
+// have no request body to describe.
+var v2CreateActionPaths = []string{"/direct", "/hold", "/block", "/unblock"}
+
+// v2CreateMaxBodyBytes is the request-body ceiling of the v2 create ops. It is stated here
+// because Huma defaults MaxBodyBytes only for ops that declare a typed Body field; the v2 ops
+// carry RawBody, which leaves the read unbounded.
+//
+// 1 MiB leaves generous headroom over the largest body the per-side leg cap admits: 500 legs per
+// side at ~200 bytes each is ~210 KB across both sides. Metadata is not part of that figure —
+// `keymax=100` and `valuemax=2000` bound the LENGTH of a key and a value, and nothing bounds how
+// many keys a metadata object carries, so metadata alone can fill whatever the byte ceiling
+// leaves. That is precisely what this ceiling is for: it is the only bound on the parts of the
+// body the field-level tags leave open, metadata key count and the unbounded individual fields
+// such as an account alias among them.
+//
+// v2CreateBodyLimit enforces it on the Fiber chain; the ops declare the same value so Huma bounds
+// its own read too.
+const v2CreateMaxBodyBytes int64 = 1 << 20
+
+// v2CreateBodyDescription is the prose the published create-body component carries. The
+// component stays ONE flat object listing both spellings of the transaction sides, so the
+// mutual exclusivity between them has no structural expression in the schema and has to be
+// stated here.
+const v2CreateBodyDescription = "Transaction request body. Each side of the transaction is " +
+	"spelled EITHER with its scalar field (`from`, `to`) OR with its leg array (`sources`, " +
+	"`destinations`) — never both on the same side, though the two sides may choose " +
+	"differently. Leave the spelling you are not using OUT of the body: on `from` and `to` an " +
+	"explicit `null` is rejected. `asset`, `amount`, `description`, `code`, `routeId`, " +
+	"`operationRouteId` and `metadata` are common to both forms, and `amount` is always the " +
+	"transaction total that the legs' `share` expressions divide. Each leg array holds at most " +
+	"500 legs."
+
+// v2LegDescription is the prose the published leg component carries. Like the parent
+// component, the leg stays one flat object, so the "exactly one value expression" rule has no
+// structural expression in the schema and has to be stated here.
+const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value expression " +
+	"per leg: `amount` for an explicit value, or `share` for a percentage of the transaction " +
+	"total. A leg carrying both, or neither, is rejected."
+
+// publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
+// with a $ref to the typed v2 input component, so the contract documents the accepted
+// fields instead of an unstructured byte stream. It then stamps the request and leg
+// components with the prose rules the flat schemas cannot express structurally.
+//
+// It must run AFTER every huma.Register in this function, because registration is what
+// creates op.RequestBody.
+//
+// Nil-guards the document and every op it touches so a spec-disabled build, or a create
+// action that stops registering, degrades to a no-op instead of panicking.
+func publishV2CreateBodySchema(api huma.API, basePath string) {
+	if api == nil {
+		return
+	}
+
+	oapi := api.OpenAPI()
+	if oapi == nil || oapi.Components == nil || oapi.Components.Schemas == nil {
+		return
+	}
+
+	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+
+	var bodyRef string
+
+	for _, action := range v2CreateActionPaths {
+		pathItem, ok := oapi.Paths[basePath+action]
+		if !ok || pathItem.Post == nil || pathItem.Post.RequestBody == nil {
+			continue
+		}
+
+		media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
+		if !ok || media == nil {
+			continue
+		}
+
+		// Registering is idempotent for a given type; each call hands back a fresh $ref
+		// so the ops never share one schema value.
+		media.Schema = oapi.Components.Schemas.Schema(inputType, true, "")
+		bodyRef = media.Schema.Ref
+	}
+
+	// Empty when no create op referenced the type, in which case nothing was registered
+	// and there is no component to describe.
+	if bodyRef == "" {
+		return
+	}
+
+	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
+
+	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
+	describeV2Component(oapi, legRef, v2LegDescription)
+}
+
+// describeV2Component stamps description onto the component that ref names, if the document
+// carries one. Refs are resolved rather than assumed so a namer change surfaces as a missing
+// description in the contract tests instead of a nil dereference here.
+func describeV2Component(oapi *huma.OpenAPI, ref, description string) {
+	if component := oapi.Components.Schemas.SchemaFromRef(ref); component != nil {
+		component.Description = description
+	}
+}
+
+// v2CreateBodyLimit rejects a v2 create request whose body reaches v2CreateMaxBodyBytes, so the
+// oversized-body answer carries the canonical payload-too-large code like every other v2
+// rejection. It sits ahead of the Huma terminal because Huma enforces the same ceiling itself but
+// answers without a `code` and with the configured byte figure spelled out in the detail.
+//
+// The comparison is `>=` to match Huma's own boundary, where a read that fills the limit exactly
+// is already rejected.
+//
+// The value measured is the DECODED body length, which is what Huma measures too. A declared
+// Content-Length is the compressed wire size instead, so measuring that would let a compressed
+// body over the ceiling reach the layer that renders without a `code`.
+//
+// A decoded length is only available while Fiber can decode. Fiber bounds decompression by the
+// app-wide fiber.Config BodyLimit — 4 MiB here, since the app leaves it unset — and reports a body
+// past it by setting the response status itself and returning the failure text in place of the
+// body. That text is far shorter than this ceiling, so the status has to be consulted as well as
+// the length; measuring the length alone reads an undecodable body as a small one and forwards it.
+// TestV2CreateBodyLimit_MeasuresDecodedBody pins both regions.
+//
+// The 413 is rendered from PayloadTooLargeError rather than the shared registry entry for the
+// code, whose message names a byte figure belonging to a different endpoint.
+func v2CreateBodyLimit(c fiber.Ctx) error {
+	size := len(c.Body())
+
+	switch status := c.Response().StatusCode(); {
+	case status == http.StatusRequestEntityTooLarge:
+		return rejectOversizedV2Body(c)
+	case status >= http.StatusBadRequest:
+		// An encoding Fiber refuses outright. It has already chosen the answer, and what
+		// c.Body() returned is failure text, so the terminal must not be handed it as a body.
+		return nil
+	case int64(size) < v2CreateMaxBodyBytes:
+		return c.Next()
+	}
+
+	ctx := c.Context()
+
+	libObservability.NewLoggerFromContext(ctx).Log(
+		ctx, libLog.LevelWarn,
+		"Rejected an oversized transaction body",
+		libLog.Int("http.request.body.size", size),
+	)
+
+	return rejectOversizedV2Body(c)
+}
+
+// rejectOversizedV2Body renders the canonical payload-too-large answer for a v2 create request.
+func rejectOversizedV2Body(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(
+		trace.SpanFromContext(ctx), "request body exceeds the accepted size", constant.ErrPayloadTooLarge,
+	)
+
+	return pkgHTTP.WithError(c, pkg.PayloadTooLargeError{
+		EntityType: constant.EntityTransaction,
+		Code:       constant.ErrPayloadTooLarge.Error(),
+		Title:      "Payload Too Large",
+		Message:    "The request payload exceeds the maximum accepted size for this operation. Please reduce the payload and try again.",
+	})
 }
 
 // RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,
@@ -142,10 +327,14 @@ func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 
-	routePost(group, transactionsChainPath+"/direct", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, transactionsChainPath+"/hold", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, transactionsChainPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, transactionsChainPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	// The body-limit guard rides only the create routes: the lifecycle ops carry no body.
+	// It sits after auth so an unauthenticated caller is answered 401 rather than being told
+	// how large a body this endpoint accepts.
+	for _, action := range v2CreateActionPaths {
+		routePost(group, transactionsChainPath+action,
+			protectedMidaz(auth, "transactions", "post", routeOptions, parse, v2CreateBodyLimit))
+	}
+
 	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))

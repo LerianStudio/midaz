@@ -8,19 +8,20 @@ set -euo pipefail
 
 # OpenAPI documentation guardrail.
 #
-# (a) PARITY CHECK (always): asserts the two HTTP components' native Huma OAS 3.1
-#     dumps (openapi.huma.yaml) agree on .info.version and carry the ^4.0.0$
-#     release, so the published specs do not drift on the metadata the Huma dump
-#     actually emits. (Huma emits only .info.title + .info.version; it does not
-#     populate contact/license/termsOfService, and OAS 3.1 has no .schemes —
-#     those swaggo-era parity fields are dropped honestly. See parity_check for
-#     why .info.title is no longer asserted.)
+# (a) PARITY CHECK (always): asserts the native Huma OAS 3.1 dumps listed in
+#     PARITY_DUMPS agree on .info.version and carry the ^4.0.0$ release, so the
+#     published specs do not drift on the metadata the Huma dump actually emits.
+#     A new dump must be added to that list to be covered. (Huma emits only
+#     .info.title + .info.version; it does not populate
+#     contact/license/termsOfService, and OAS 3.1 has no .schemes — those
+#     swaggo-era parity fields are dropped honestly. See parity_check for why
+#     .info.title is not asserted for byte parity.)
 # (b) DRIFT CHECK (CHECK_DOCS_REGEN=1 only): regenerates the docs and asserts the
 #     committed artifacts still reproduce, so the source annotations and the
 #     committed specs cannot silently diverge.
-# (c) SECURITY COVERAGE (always, ledger only): asserts every ledger operation
-#     carries a .security requirement, so the secure-by-default contract cannot
-#     regress to a dangling securityDefinition (audit finding C1). Scoped to
+# (c) SECURITY COVERAGE (always, ledger dumps only): asserts every ledger
+#     operation carries a .security requirement, so the secure-by-default
+#     contract cannot regress to a scheme declared but never required. Scoped to
 #     ledger: tracer's /health, /readyz and /version are intentionally public.
 
 # Root directory of the repo (this script lives in postman/generator/)
@@ -28,8 +29,28 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 GENERATOR_DIR="${ROOT_DIR}/postman/generator"
 
-# Components whose Huma OAS 3.1 dumps must agree on shared metadata.
-PARITY_COMPONENTS=("ledger" "tracer")
+# Huma OAS 3.1 dumps that must agree on shared metadata, as
+# "<label>|<repo-relative path>". A component may publish more than one dump:
+# ledger serves an independent /v2 contract alongside its /v1 dump, and both are
+# published to postman/specs and converted into the collection. The label is what
+# failure messages name; the first entry is the parity reference.
+PARITY_DUMPS=(
+    "ledger|components/ledger/api/openapi.huma.yaml"
+    "ledger-v2|components/ledger/api/openapi.v2.huma.yaml"
+    "tracer|components/tracer/api/openapi.huma.yaml"
+)
+
+# Space-joined labels of the dump entries passed as arguments, for reporting which
+# dumps a check covered.
+dump_labels() {
+    local entry labels=()
+
+    for entry in "$@"; do
+        labels+=("${entry%%|*}")
+    done
+
+    printf '%s' "${labels[*]}"
+}
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -45,13 +66,16 @@ print_header() {
     echo ""
 }
 
+# Diagnostics go to stderr: several checks read dump fields through command
+# substitution, which would otherwise capture the message into a variable instead
+# of showing it.
 fail() {
-    echo -e "    ${RED}❌ $1${NC}"
+    echo -e "    ${RED}❌ $1${NC}" >&2
     exit 1
 }
 
 ok() {
-    echo -e "    ${GREEN}✅ $1${NC}"
+    echo -e "    ${GREEN}✅ $1${NC}" >&2
 }
 
 require_jq() {
@@ -60,14 +84,16 @@ require_jq() {
     fi
 }
 
-# Emit a component's Huma OAS 3.1 dump as JSON on stdout. jq cannot read YAML,
-# so we convert via the same bundled js-yaml the generator uses for its JSON twin.
+# Emit a Huma OAS 3.1 dump as JSON on stdout, given a "<label>|<path>" entry. jq
+# cannot read YAML, so we convert via the same bundled js-yaml the generator uses
+# for its JSON twin.
 huma_dump_json() {
-    local component="$1"
-    local file="${ROOT_DIR}/components/${component}/api/openapi.huma.yaml"
+    local entry="$1"
+    local label="${entry%%|*}"
+    local file="${ROOT_DIR}/${entry#*|}"
 
     if [ ! -f "${file}" ]; then
-        fail "Missing openapi.huma.yaml for component '${component}' at ${file}. Run 'make generate-docs' first."
+        fail "Missing Huma dump for '${label}' at ${file}. Run 'make generate-docs' first."
     fi
 
     NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
@@ -79,89 +105,126 @@ huma_dump_json() {
 
 # Read a Huma dump field as canonical JSON (sorted keys) for byte comparison.
 read_field() {
-    local component="$1"
+    local entry="$1"
     local jq_filter="$2"
 
-    huma_dump_json "${component}" | jq -cS "${jq_filter}"
+    huma_dump_json "${entry}" | jq -cS "${jq_filter}"
 }
 
 # Read a Huma dump scalar field as a raw (unquoted) string for regex matching.
 read_field_raw() {
-    local component="$1"
+    local entry="$1"
     local jq_filter="$2"
 
-    huma_dump_json "${component}" | jq -r "${jq_filter}"
+    huma_dump_json "${entry}" | jq -r "${jq_filter}"
 }
 
-# Assert a field is byte-identical across all parity components.
+# Assert a field is byte-identical across all parity dumps.
 assert_field_parity() {
     local field_label="$1"
     local jq_filter="$2"
 
-    local reference_component="${PARITY_COMPONENTS[0]}"
+    local reference_entry="${PARITY_DUMPS[0]}"
+    local reference_label="${reference_entry%%|*}"
     local reference_value
-    reference_value="$(read_field "${reference_component}" "${jq_filter}")"
+    reference_value="$(read_field "${reference_entry}" "${jq_filter}")"
 
-    local component value
-    for component in "${PARITY_COMPONENTS[@]:1}"; do
-        value="$(read_field "${component}" "${jq_filter}")"
+    local entry label value
+    for entry in "${PARITY_DUMPS[@]:1}"; do
+        label="${entry%%|*}"
+        value="$(read_field "${entry}" "${jq_filter}")"
         if [ "${value}" != "${reference_value}" ]; then
-            echo -e "    ${RED}❌ Field '${field_label}' diverged between '${reference_component}' and '${component}':${NC}"
-            echo -e "       ${reference_component}: ${reference_value}"
-            echo -e "       ${component}: ${value}"
+            echo -e "    ${RED}❌ Field '${field_label}' diverged between '${reference_label}' and '${label}':${NC}"
+            echo -e "       ${reference_label}: ${reference_value}"
+            echo -e "       ${label}: ${value}"
             exit 1
         fi
     done
 
-    ok "Field '${field_label}' is identical across: ${PARITY_COMPONENTS[*]}"
+    ok "Field '${field_label}' is identical across: $(dump_labels "${PARITY_DUMPS[@]}")"
 }
 
-# Assert a field matches a regex in every parity component.
+# Assert a field matches a regex in every parity dump.
 assert_field_matches() {
     local field_label="$1"
     local jq_filter="$2"
     local regex="$3"
 
-    local component value
-    for component in "${PARITY_COMPONENTS[@]}"; do
-        value="$(read_field_raw "${component}" "${jq_filter}")"
+    local entry label value
+    for entry in "${PARITY_DUMPS[@]}"; do
+        label="${entry%%|*}"
+        value="$(read_field_raw "${entry}" "${jq_filter}")"
         if ! [[ "${value}" =~ ${regex} ]]; then
-            fail "Field '${field_label}' in component '${component}' is '${value}', expected to match /${regex}/."
+            fail "Field '${field_label}' in dump '${label}' is '${value}', expected to match /${regex}/."
         fi
     done
 
-    ok "Field '${field_label}' matches /${regex}/ across: ${PARITY_COMPONENTS[*]}"
+    ok "Field '${field_label}' matches /${regex}/ across: $(dump_labels "${PARITY_DUMPS[@]}")"
 }
 
 parity_check() {
     print_header "Parity check (Huma dump shared metadata)"
 
-    # .info.version is the one metadata field both planes emit AND must agree on
+    # .info.version is the one metadata field every dump emits AND must agree on
     # (a joined spec with mismatched versions is nonsense). Byte-identical parity
     # plus the ^4.0.0$ shape covers both "they agree" and "they are the release".
     assert_field_parity "info.version" '.info.version'
     assert_field_matches "info.version" '.info.version' '^4\.0\.0$'
 
-    # Title is NOT byte-parity metadata — each plane names itself ("Midaz Ledger
-    # API" vs "Midaz Tracer API") — but both MUST carry the runtime "Midaz" brand,
-    # never a golden-test placeholder. ^Midaz catches a fixture title (e.g.
-    # "contract-spec") leaking into the published dump via the ledger-first join.
+    # Title is NOT byte-parity metadata — each dump names itself ("Midaz Ledger
+    # API", "Midaz Ledger API v2", "Midaz Tracer API") — but all MUST carry the
+    # runtime "Midaz" brand, never a golden-test placeholder. ^Midaz catches a
+    # fixture title (e.g. "contract-spec") leaking into a published dump.
     assert_field_matches "info.title" '.info.title' '^Midaz'
 
-    # ponytail: contact/license/termsOfService/schemes (swaggo-era) are honestly
-    # dropped — Huma emits only .info.{title,version}, and OAS 3.1 has no .schemes.
+    # contact/license/termsOfService/schemes (swaggo-era) are honestly dropped —
+    # Huma emits only .info.{title,version}, and OAS 3.1 has no .schemes.
 }
 
-# Component whose every operation must declare a .security requirement.
-SECURITY_COVERAGE_COMPONENT="ledger"
+# Dumps whose every operation must declare a .security requirement, in the same
+# "<label>|<repo-relative path>" form as PARITY_DUMPS. Every ledger contract
+# belongs here: the /v2 surface is served by the same binary behind the same auth
+# chain, so an unsecured v2 operation is the same defect as an unsecured v1 one.
+# assert_security_coverage_complete enforces that this list stays exhaustive.
+SECURITY_COVERAGE_DUMPS=(
+    "ledger|components/ledger/api/openapi.huma.yaml"
+    "ledger-v2|components/ledger/api/openapi.v2.huma.yaml"
+)
 
-# Assert every operation in the ledger spec carries a non-empty .security block.
+# Glob of every published ledger contract. A dump matching this that is not on
+# SECURITY_COVERAGE_DUMPS would be converted into the collection and shipped
+# without ever being security-checked.
+LEDGER_DUMP_GLOB="components/ledger/api/openapi*.huma.yaml"
+
+# Assert SECURITY_COVERAGE_DUMPS names every published ledger contract. The
+# reverse direction (a listed dump that does not exist) already hard-fails in
+# huma_dump_json.
+assert_security_coverage_complete() {
+    local dump rel entry covered
+
+    for dump in "${ROOT_DIR}"/${LEDGER_DUMP_GLOB}; do
+        [ -f "${dump}" ] || continue
+
+        rel="${dump#"${ROOT_DIR}/"}"
+        covered=0
+        for entry in "${SECURITY_COVERAGE_DUMPS[@]}"; do
+            if [ "${entry#*|}" = "${rel}" ]; then
+                covered=1
+                break
+            fi
+        done
+
+        if [ "${covered}" -eq 0 ]; then
+            fail "Published ledger contract '${rel}' is not covered by the security check. Add it to SECURITY_COVERAGE_DUMPS."
+        fi
+    done
+}
+
+# Assert every operation in the ledger dumps carries a non-empty .security block.
 security_coverage_check() {
-    print_header "Security coverage check (${SECURITY_COVERAGE_COMPONENT}: every operation secured)"
+    print_header "Security coverage check (every operation secured: $(dump_labels "${SECURITY_COVERAGE_DUMPS[@]}"))"
 
-    # jq cannot read YAML; work off the JSON projection of the Huma dump.
-    local json
-    json="$(huma_dump_json "${SECURITY_COVERAGE_COMPONENT}")"
+    assert_security_coverage_complete
 
     # Operations are the HTTP-verb keys under each path; an operation is unsecured
     # when its .security array is absent or empty.
@@ -169,18 +232,35 @@ security_coverage_check() {
         | select(.key | test("^(get|post|put|patch|delete|head|options)$"))
         | { path: $path, method: .key, security: (.value.security // []) }'
 
-    local total secured
-    total="$(jq "[ ${op_filter} ] | length" <<<"${json}")"
-    secured="$(jq "[ ${op_filter} | select(.security | length > 0) ] | length" <<<"${json}")"
+    local entry label json total secured grand_total=0
+    for entry in "${SECURITY_COVERAGE_DUMPS[@]}"; do
+        label="${entry%%|*}"
 
-    if [ "${secured}" != "${total}" ]; then
-        echo -e "    ${RED}❌ ${SECURITY_COVERAGE_COMPONENT} has unsecured operations (${secured}/${total} secured):${NC}"
-        jq -r "${op_filter} | select(.security | length == 0) | \"       \(.method | ascii_upcase) \(.path)\"" <<<"${json}"
-        echo -e "    ${RED}Every ledger operation must declare a .security requirement (audit finding C1).${NC}"
-        exit 1
-    fi
+        # jq cannot read YAML; work off the JSON projection of the Huma dump.
+        json="$(huma_dump_json "${entry}")"
 
-    ok "All ${total} ${SECURITY_COVERAGE_COMPONENT} operations declare a .security requirement."
+        total="$(jq "[ ${op_filter} ] | length" <<<"${json}")"
+        secured="$(jq "[ ${op_filter} | select(.security | length > 0) ] | length" <<<"${json}")"
+
+        if [ "${secured}" != "${total}" ]; then
+            echo -e "    ${RED}❌ ${label} has unsecured operations (${secured}/${total} secured):${NC}" >&2
+            jq -r "${op_filter} | select(.security | length == 0) | \"       \(.method | ascii_upcase) \(.path)\"" <<<"${json}" >&2
+            echo -e "    ${RED}Every ledger operation must declare a .security requirement.${NC}" >&2
+            exit 1
+        fi
+
+        # A covered dump with no operations means the check silently verified
+        # nothing — the aggregate count alone cannot distinguish that from a pass.
+        if [ "${total}" -eq 0 ]; then
+            fail "${label} yielded 0 operations. A covered dump with no operations is a defect, not a pass."
+        fi
+
+        ok "${label}: ${total} operations, all with a .security requirement."
+
+        grand_total=$((grand_total + total))
+    done
+
+    ok "All ${grand_total} ledger operations declare a .security requirement."
 }
 
 # Lint the consolidated spec with @redocly/cli. The ruleset is `recommended`
@@ -265,6 +345,19 @@ error_schema_singleton_check() {
     ok "Joined spec has exactly one canonical RFC 9457 Error schema (no join-induced duplication)."
 }
 
+# Every committed artifact generate-docs.sh writes, so none of them can fall behind
+# the contracts they are generated from. The Postman collection and environment sit
+# at the postman/ root next to hand-maintained files, so they are named file by file
+# instead of being swept up by a directory prefix.
+DRIFT_PATHSPEC=(
+    # Trailing /** is required: a git pathspec containing a wildcard is matched
+    # against the whole path, so 'components/*/api' matches no FILE at all.
+    'components/*/api/**'
+    postman/specs
+    postman/MIDAZ.postman_collection.json
+    postman/MIDAZ.postman_environment.json
+)
+
 drift_check() {
     print_header "Drift check (regenerate and diff)"
 
@@ -273,10 +366,10 @@ drift_check() {
         fail "generate-docs.sh failed; cannot verify regeneration reproduces committed artifacts."
     fi
 
-    if ! git -C "${ROOT_DIR}" diff --exit-code -- 'components/*/api' postman/specs; then
+    if ! git -C "${ROOT_DIR}" diff --exit-code -- "${DRIFT_PATHSPEC[@]}"; then
         echo ""
         echo -e "    ${RED}❌ Regeneration changed committed docs artifacts. Changed paths:${NC}"
-        git -C "${ROOT_DIR}" diff --name-only -- 'components/*/api' postman/specs | sed 's/^/       /'
+        git -C "${ROOT_DIR}" diff --name-only -- "${DRIFT_PATHSPEC[@]}" | sed 's/^/       /'
         echo -e "    ${RED}Run 'make generate-docs' and commit the result.${NC}"
         exit 1
     fi

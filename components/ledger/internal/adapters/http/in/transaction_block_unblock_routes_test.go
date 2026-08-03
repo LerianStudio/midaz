@@ -43,10 +43,10 @@ func registerTransactionRoutesForTest(auth *middleware.AuthClient, opts *pkgHTTP
 	return app
 }
 
-// TestRegisterTransactionRoutesToApp_RegistersBlockAndUnblock asserts that the
-// block and unblock POST routes are wired into RegisterTransactionRoutesToApp
-// alongside the existing creation routes.
-func TestRegisterTransactionRoutesToApp_RegistersBlockAndUnblock(t *testing.T) {
+// TestRegisterTransactionHumaRoutesToApp_RegistersBlockAndUnblock asserts that the
+// block and unblock POST routes are wired into RegisterTransactionHumaRoutesToApp
+// alongside the other creation routes.
+func TestRegisterTransactionHumaRoutesToApp_RegistersBlockAndUnblock(t *testing.T) {
 	t.Parallel()
 
 	auth := &middleware.AuthClient{Enabled: false}

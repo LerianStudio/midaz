@@ -60,7 +60,7 @@ There is no standalone "microservices" deployment of onboarding, transaction, CR
 │  /v1/settings/metadata-indexes/* → Metadata Index Routes    │
 │  /v1/holders/*, /v1/instruments/* → CRM Routes (midaz ns)   │
 │  .../encryption + .../protection/audit → CRM KMS (midaz ns) │
-│  /v1/packages/*, /v1/estimates → Fee Routes (plugin-fees ns)│
+│  /v1 (org) + /v2 (ledger) fees → Fee Routes (plugin-fees ns)│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -127,7 +127,6 @@ components/{service}/
 | `net/http/` | HTTP utilities, error handling, Fiber middleware | HTTP response helpers |
 | `mtransaction/` | Transaction domain logic (balance validations, operation calculations); formerly `pkg/transaction` | `input.go`, `overdraft.go`, direction/refund/time helpers |
 | `streaming/` | lib-streaming event modeling (`pkgStreaming`) | `emit.go`, `tenant.go`, `events/` |
-| `gold/` | Transaction DSL parser (ANTLR4-based, **deprecated** - use `/dsl` endpoint) | `Transaction.g4`, `parser/`, `transaction/` |
 | `mongo/` | MongoDB connection utilities | `ExtractMongoPortAndParameters` |
 | `shell/` | Shell execution utilities | Script helpers |
 | `utils/` | Common utilities (encryption, pointers, metrics) | General helpers, `metrics.go` |

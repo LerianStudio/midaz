@@ -133,16 +133,19 @@ func (handler *FeeHandler) EstimateFeeCalculationHuma(ctx context.Context, in *E
 }
 
 // RegisterFeeEstimateRoutes registers the migrated fee-estimate operation on the
-// shared Huma API. It is the per-file seam the unified server calls; the auth
+// given Huma API. It is the per-file seam the unified server calls; the auth
 // ("plugin-fees","estimates","post") + tenant + ParseUUIDPathParameters("estimates")
-// middleware chain is attached on the /v1 group (Fiber-level) BEFORE the Huma
+// middleware chain is attached on the versioned Fiber group BEFORE the Huma
 // terminal, not here. Paths are GROUP-RELATIVE (see asset_handler_huma.go's
-// RegisterAssetRoutes header for the /v1 rationale).
+// RegisterAssetRoutes header for the rationale).
+//
+// The resource hangs off feeBasePathV1. The operation ID is literal — see
+// RegisterPackageRoutes.
 func RegisterFeeEstimateRoutes(api huma.API, h *FeeHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "estimateFeeCalculation",
 		Method:      http.MethodPost,
-		Path:        "/organizations/{organization_id}/estimates",
+		Path:        feeBasePathV1 + "/estimates",
 		Summary:     "Create a fee estimate calculation",
 		Tags:        []string{"Fees"},
 		Security:    secFeeBearer,

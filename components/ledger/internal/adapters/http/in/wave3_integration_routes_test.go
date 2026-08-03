@@ -157,15 +157,28 @@ func TestWave3RoutesRespectNilGuards(t *testing.T) {
 // TestRegisterFeesRoutesToApp_DoesNotMountFeeCalculate asserts POST /v1/fees stays
 // unmounted after migration: in the unified binary fees run in-process via the
 // transaction seam, so only the dry-run POST /v1/.../estimates is exposed.
+//
+// Absence is checked on BOTH surfaces the registrar writes to — the Fiber router
+// (nothing is served) and the Huma document (nothing is published) — because a path
+// published without a route, or served without being published, is a divergence in its
+// own right. The ledger-scoped twin of this is
+// TestRegisterFeesV2RoutesToApp_DoesNotMountFeeCalculate.
 func TestRegisterFeesRoutesToApp_DoesNotMountFeeCalculate(t *testing.T) {
 	// NOT parallel: mutates process-global huma state.
 	app := fiber.New()
 	auth := &middleware.AuthClient{Enabled: false}
 
-	mountWave3Routes(app, auth)
+	hAPI := mountWave3Routes(app, auth)
 
 	for _, r := range app.GetRoutes() {
 		assert.NotEqualf(t, fiber.MethodPost+":/v1/fees", r.Method+":"+r.Path,
 			"POST /v1/fees must NOT be mounted — fees run in-process via the seam")
+		assert.NotEqualf(t, fiber.MethodPost+":"+wave3Org+"/fees", r.Method+":"+r.Path,
+			"POST %s/fees must NOT be mounted — fees run in-process via the seam", wave3Org)
+	}
+
+	for path := range hAPI.OpenAPI().Paths {
+		assert.NotContainsf(t, path, "/fees",
+			"the v1 contract must not publish a fee-calculate path, found %q", path)
 	}
 }

@@ -24,7 +24,7 @@ Organization → Ledger → Asset
 Key capabilities:
 - **Double-entry accounting**: Every transaction produces balanced debit/credit operations
 - **N:N transactions**: Multiple sources and destinations in a single transaction
-- **Multiple creation modes**: JSON, Gold DSL, Inflow, Outflow, Annotation
+- **Multiple creation modes**: JSON, Inflow, Outflow, Annotation
 - **Transaction lifecycle**: Create → Commit/Cancel/Revert (pending transactions support)
 - **Async processing**: RabbitMQ-based balance updates with bulk recorder (10x throughput)
 - **Multi-asset**: Currency (ISO-4217), crypto, commodities, custom asset types
@@ -104,7 +104,6 @@ midaz/
 │   ├── mmodel/              # Domain models (incl. Holder, Instrument)
 │   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 28 CRM-00xx: CRM-0006..CRM-0041), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
-│   ├── gold/                # ANTLR4 transaction DSL grammar + parser
 │   ├── net/http/            # Middleware, pagination, protected routes
 │   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
 │   ├── streaming/           # lib-streaming event modeling
@@ -250,7 +249,6 @@ Base path: `/v1`
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | .../transactions/json | Create transaction (JSON) |
-| POST | .../transactions/dsl | Create transaction (Gold DSL) |
 | POST | .../transactions/inflow | Create inflow transaction |
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
@@ -366,15 +364,21 @@ are still emitted on their own paths.
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
 standalone service. Routes are registered in `components/ledger/internal/adapters/http/in/fees_routes.go`
-under the `plugin-fees` authz namespace and served on `:3002`.
+(organization-scoped, `/v1`) and `fees_v2_register.go` (ledger-scoped, `/v2`), both under the
+`plugin-fees` authz namespace and served on `:3002`.
 
 Scoping is **path-based**: fee endpoints read the organization from the `:organization_id` path
 segment, UUID-validated by the protected-route chain (`ParseUUIDPathParameters`) — the same
 convention as every other surface in the binary. The former `X-Organization-Id` header was
 removed; path-validation errors return the canonical midaz `ErrInvalidPathParameter` envelope
 (fee business errors use the canonical numeric error-code registry in `pkg/constant/errors.go` —
-the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body field and an optional
-`?ledgerId=` list filter — never a path scope. See `docs/api/SCOPING.md`.
+the `FEE-` prefixed code family is retired). See `docs/api/SCOPING.md`.
+
+**Two live surfaces.** The same twelve operations are served at two scopes, and neither replaces
+the other. On `/v1` the path names only the organization and a read reaches a resource on whichever
+ledger of the organization owns it; `ledger_id` there is a create-body field and an optional
+`?ledgerId=` list filter, never a scope. On `/v2` the path names the ledger and a read reaches only
+what that ledger owns.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -391,8 +395,32 @@ the `FEE-` prefixed code family is retired). `ledger_id` remains a create-body f
 | DELETE | /v1/organizations/{organization_id}/billing-packages/:id | Delete billing package |
 | POST | /v1/organizations/{organization_id}/billing/calculate | Calculate billing |
 
+Ledger-scoped twins on the independent `/v2` contract (`{base}` =
+`/v2/organizations/{organization_id}/ledgers/{ledger_id}`):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | {base}/packages | Create fee package |
+| GET | {base}/packages | List the ledger's fee packages |
+| GET | {base}/packages/:id | Get fee package |
+| PATCH | {base}/packages/:id | Update fee package |
+| DELETE | {base}/packages/:id | Delete fee package |
+| POST | {base}/estimates | Estimate fee calculation (dry run) |
+| POST | {base}/billing-packages | Create billing package |
+| GET | {base}/billing-packages | List the ledger's billing packages |
+| GET | {base}/billing-packages/:id | Get billing package |
+| PATCH | {base}/billing-packages/:id | Update billing package |
+| DELETE | {base}/billing-packages/:id | Delete billing package |
+| POST | {base}/billing/calculate | Calculate billing |
+
+On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
+`ledger_id` path value, a request body naming a different ledger is refused (`0234`), and
+`?ledgerId=` is refused on the two listings (`0235`) — its empty value would mean "every ledger",
+the one scope a ledger-scoped listing must not express. Authz is identical to `/v1`: `plugin-fees` with the
+same `(resource, verb)` tuples, so no separate grant is needed for the second surface.
+
 `POST /v1/fees` (live fee calculation) is intentionally **not** exposed — fees run in-process via
-the transaction-create seam, not over HTTP.
+the transaction-create seam, not over HTTP. The `/v2` surface omits it for the same reason.
 
 ### 4.4 Tracer API (port 4020)
 
@@ -472,7 +500,6 @@ tuple.
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
 - `0009` ErrMissingFieldsInRequest — required fields missing
-- `0017` ErrInvalidScriptFormat — Gold DSL parse error
 - `0018` ErrInsufficientFunds — insufficient funds
 - `0020` ErrAliasUnavailability — alias already in use
 - `0041` ErrTokenMissing — no auth token
@@ -549,7 +576,7 @@ Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/c
 | UnauthorizedError | 401 | Missing/invalid auth |
 | ForbiddenError | 403 | Insufficient privileges |
 | UnprocessableOperationError | 422 | Business rule violations |
-| FailedPreconditionError | 412 | Configuration errors |
+| FailedPreconditionError | 500 | Configuration errors. Despite the name, this maps to 500, not 412: a failed precondition here is a server misconfiguration, not a client-supplied condition |
 | ServiceUnavailableError | 503 | Infrastructure failures |
 | InternalServerError | 500 | Unexpected errors |
 | ValidationKnownFieldsError | 400 | Field-level validation |
@@ -1014,7 +1041,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 | github.com/rabbitmq/amqp091-go | v1.11.0 | RabbitMQ AMQP client |
 | github.com/redis/go-redis/v9 | v9.20.0 | Redis/Valkey client |
 | github.com/shopspring/decimal | v1.4.0 | Precise decimal arithmetic |
-| github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 for Gold DSL parser |
+| github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 Go runtime — indirect; the tracer's CEL rule engine reaches it through cel-go |
 | github.com/Masterminds/squirrel | v1.5.4 | SQL query builder |
 | github.com/testcontainers/testcontainers-go | v0.42.0 | Integration test containers |
 | github.com/vmihailenco/msgpack/v5 | v5.4.1 | MessagePack serialization |
@@ -1062,27 +1089,11 @@ and surface on the `transaction.*` and `account.created` streaming payloads.
 **Non-goals / invariants:**
 - A **revert always re-runs the tracer**; the reverse transaction does NOT inherit the
   parent's tracer skip.
-- **DSL transactions carry no skip** — the Gold grammar has no skip, so fee and tracer
-  controls always run on that path.
 - **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
 - An **honored skip adds zero downstream work** — it short-circuits before the control's
   package lookup; it never replaces the control with a more expensive code path.
 
-## 11. Gold DSL
-
-The Gold DSL (`pkg/gold/`) is an ANTLR4-based domain-specific language for defining transactions:
-
-```
-send $100.00 USD
-  from @source_account
-  to @destination_account
-```
-
-Grammar: `pkg/gold/Transaction.g4`
-Parser: `pkg/gold/parser/`
-Transaction builder: `pkg/gold/transaction/`
-
-## 12. Testing
+## 11. Testing
 
 ### Test Types
 - **Unit tests**: `*_test.go` files alongside source

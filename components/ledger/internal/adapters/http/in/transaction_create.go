@@ -881,7 +881,7 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 
 	isPendingDoubleEntry := amt.TransactionType == constant.PENDING
 
-	// Dedup key combines alias with fromTo index so that multiple DSL entries
+	// Dedup key combines alias with fromTo index so that multiple entries
 	// for the same account (e.g. transfer + fee) each produce their own
 	// double-entry pair, while the balances×fromTo nested loop is still
 	// protected against generating duplicates for the same entry.
