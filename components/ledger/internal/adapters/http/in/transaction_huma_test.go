@@ -229,8 +229,6 @@ func TestHuma_StateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 			// commit/cancel/revert carry no RawBody, so op.RequestBody stays nil and
 			// Huma's empty-body precondition never fires. They must NOT be dragged into
 			// the 0094 mapping — a bodiless mutation sending no body is legitimate.
-			// The bare handler fails deeper (no repos), which is precisely the proof the
-			// request got PAST the transport boundary.
 			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/" + txID.String() + "/" + op
 			req := httptest.NewRequest(http.MethodPost, url, nil)
 
@@ -241,13 +239,20 @@ func TestHuma_StateTransaction_EmptyBodyStaysBodiless(t *testing.T) {
 			respBody, _ := io.ReadAll(resp.Body)
 
 			var got map[string]any
-			if json.Unmarshal(respBody, &got) == nil {
-				assert.NotEqual(t, constant.ErrInvalidRequestBody.Error(), got["code"],
-					"bodiless state op must never be rejected as a malformed body: %s", string(respBody))
-			}
+			require.NoError(t, json.Unmarshal(respBody, &got), "body must be JSON: %s", string(respBody))
 
-			assert.NotEqual(t, http.StatusBadRequest, resp.StatusCode,
-				"no body is valid for %s — the empty-body precondition must not fire", op)
+			// Pin the exact downstream answer rather than merely "not 400": the bare
+			// handler has no repos, so it unwinds through WithRecover to the canonical
+			// 500/0046. That response is reachable ONLY from inside the handler — every
+			// transport-boundary rejection (precondition 400, auth 401, routing 404)
+			// short-circuits before it. So this is positive proof the request was NOT
+			// intercepted by the empty-body precondition.
+			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+				"no body is valid for %s: the request must reach the handler, not be rejected at the transport", op)
+			assert.Equal(t, constant.ErrInternalServer.Error(), got["code"],
+				"bodiless state op reaches the handler and fails there on the bare wiring")
+			assert.NotEqual(t, constant.ErrInvalidRequestBody.Error(), got["code"],
+				"bodiless state op must never be rejected as a malformed body: %s", string(respBody))
 		})
 	}
 }

@@ -63,9 +63,11 @@ func TestInstallHumaFrameworkErrors_OtherErrorsDelegate(t *testing.T) {
 			_, isMidazDetail := err.(*Detail)
 			assert.False(t, isMidazDetail, "non-empty-body errors must not be remapped to the 0094 envelope")
 
-			if commonsDetail, ok := err.(*libProblem.Detail); ok {
-				assert.Empty(t, commonsDetail.Code, "framework errors carry no business code")
-			}
+			// Must be the lib-commons fallback type, not merely "not ours": that is
+			// what proves delegation to huma.NewError actually happened.
+			commonsDetail, ok := err.(*libProblem.Detail)
+			require.True(t, ok, "must delegate to huma.NewError's *problem.Detail, got %T", err)
+			assert.Empty(t, commonsDetail.Code, "framework errors carry no business code")
 		})
 	}
 }
