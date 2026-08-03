@@ -109,9 +109,6 @@ func canonicalV1IdempotencyHash(t *testing.T, rawBody string) string {
 // raw bytes as the hash source.
 func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -120,8 +117,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	handler := captureSetNXKey(t, ctrl, &gotKey, "{}")
 	app := buildHumaV2DirectApp(t, handler)
 
-	url := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
-	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(v2DirectBody))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(v2DirectBody))
 	req.Header.Set("Content-Type", "application/json")
 	// No X-Idempotency header on purpose: the key falls back to the computed hash, so the
 	// SetNX internalKey embeds the hash SOURCE.
@@ -161,9 +157,6 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 // that canonical result (201 + X-Idempotency-Replayed:true) without creating a new one.
 func TestHuma_CreateTransactionDirectV2_ReplayReturnsCanonicalResult(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -176,8 +169,7 @@ func TestHuma_CreateTransactionDirectV2_ReplayReturnsCanonicalResult(t *testing.
 	handler := captureSetNXKey(t, ctrl, &gotKey, `{"id":"`+canonicalID+`"}`)
 	app := buildHumaV2DirectApp(t, handler)
 
-	url := "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
-	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(v2DirectBody))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(v2DirectBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})

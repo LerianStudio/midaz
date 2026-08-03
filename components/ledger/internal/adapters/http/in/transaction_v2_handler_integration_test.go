@@ -33,7 +33,7 @@ import (
 )
 
 // This file is the integration + v1↔v2 parity proof for the v2
-// `direct` transaction endpoint (POST /v2/.../transactions/direct). It mounts BOTH the
+// `direct` transaction endpoint (POST /v2/transactions/direct). It mounts BOTH the
 // v2 `direct` op and the v1 `/json` op through the SAME production Huma seams
 // (buildHumaV2DirectApp -> RegisterTransactionV2RoutesToApp and buildHumaTransactionApp
 // -> RegisterTransactionRoutes, both defined in the sibling unit-test files) against the
@@ -50,9 +50,29 @@ import (
 
 // --- request helpers ----------------------------------------------------------
 
-// v2DirectURL builds the concrete v2 direct path for the given org/ledger.
-func v2DirectURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/direct"
+// v2CreateURL builds the v2 create path for an action. It names no organization and no
+// ledger: a v2 create is scoped by the organization and ledger its request body names.
+func v2CreateURL(action string) string {
+	return "/v2/transactions/" + action
+}
+
+// v2ScopedBody restates a v2 body's placeholder scope as the organization and ledger the caller
+// seeded. The shared bodies are package-level constants, so they spell one fixed placeholder
+// pair, while the seeded pair is generated per test — and it is the body that decides which
+// ledger a create posts against.
+func v2ScopedBody(body string, orgID, ledgerID uuid.UUID) string {
+	return strings.NewReplacer(
+		v2ScopeOrgID, orgID.String(),
+		v2ScopeLedgerID, ledgerID.String(),
+	).Replace(body)
+}
+
+// postV2Create posts a v2 create body to the scope-free action path under the given scope,
+// restating that scope inside the body.
+func postV2Create(t *testing.T, app *fiber.App, action string, orgID, ledgerID uuid.UUID, body, idempotencyKey string) *nethttp.Response {
+	t.Helper()
+
+	return postTransaction(t, app, v2CreateURL(action), v2ScopedBody(body, orgID, ledgerID), idempotencyKey)
 }
 
 // v1JSONURL builds the concrete v1 /json path for the given org/ledger.
@@ -379,7 +399,7 @@ func TestIntegration_TransactionV2Direct_ParityWithV1JSON(t *testing.T) {
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-	v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), equivalentV2Body, ""), nethttp.StatusCreated)
+	v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, equivalentV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2Resp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -487,7 +507,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 	srcID, dstID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
-	url := v2DirectURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("direct")
 
 	// The table deliberately spans FOUR rejection layers, and the canonical code plus the
 	// layer-specific text in the body is the only thing that identifies which one answered.
@@ -536,18 +556,18 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			wantCode:   "0094",
 		},
 		{
-			// A leg naming no account. The obligation is enforced TWICE — as a `required`
+			// A leg naming no alias. The obligation is enforced TWICE — as a `required`
 			// struct tag and imperatively in Translate — and both renderings mention the
 			// indexed reference, so naming the leg is NOT what tells the two apart. The tag
 			// layer runs first (DecodeAndValidate validates the struct before Translate is
 			// reached) and only IT phrases the rejection as "<ref> is a required field", so
 			// that full phrasing is what pins the answering layer. The offending leg is the
 			// SECOND one, so a rendering that hardcoded index 0 fails this row too.
-			name:             "leg without an account",
+			name:             "leg without an alias",
 			body:             `{"asset":"USD","amount":"100","sources":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"100"},{"amount":"100"}],"to":{"alias":"@dst",` + v2ScopeJSON + `}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
-			wantBodyContains: "sources[1].account is a required field",
+			wantBodyContains: "sources[1].alias is a required field",
 		},
 		{
 			// Both spellings on ONE side is the mutual-exclusivity violation (0498). The
@@ -582,7 +602,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, url, tc.body, "")
+			resp := postTransaction(t, v2App, url, v2ScopedBody(tc.body, infra.orgID, infra.ledgerID), "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
@@ -621,7 +641,7 @@ func TestIntegration_TransactionV2Direct_FromEqualsTo_BusinessError(t *testing.T
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), `{"asset":"USD","amount":"100","from":{"alias":"@same",`+v2ScopeJSON+`},"to":{"alias":"@same",`+v2ScopeJSON+`}}`, "")
+	resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, `{"asset":"USD","amount":"100","from":{"alias":"@same",`+v2ScopeJSON+`},"to":{"alias":"@same",`+v2ScopeJSON+`}}`, "")
 	body := drainBody(t, resp)
 
 	assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -664,9 +684,9 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@src", "@dst", 1000)
 
 	idempotencyKey := uuid.NewString()
-	url := v2DirectURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("direct")
 
-	first := postTransaction(t, v2App, url, equivalentV2Body, idempotencyKey)
+	first := postTransaction(t, v2App, url, v2ScopedBody(equivalentV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 	assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first call must not be a replay")
 
@@ -675,7 +695,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 	// Wait for the async idempotency-value store before replaying (see helper doc).
 	waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-	second := postTransaction(t, v2App, url, equivalentV2Body, idempotencyKey)
+	second := postTransaction(t, v2App, url, v2ScopedBody(equivalentV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 	assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical call must be a replay")
@@ -706,7 +726,7 @@ func TestIntegration_TransactionV2Direct_Idempotency(t *testing.T) {
 
 	countBefore := countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID)
 
-	v2Cross := postTransaction(t, v2App, url, v2CrossBody, "")
+	v2Cross := postTransaction(t, v2App, url, v2ScopedBody(v2CrossBody, infra.orgID, infra.ledgerID), "")
 	v2CrossResult := decodeTxResponse(t, v2Cross, nethttp.StatusCreated)
 
 	v1Cross := postTransaction(t, v1App, v1JSONURL(infra.orgID, infra.ledgerID), v1CrossBody, "")
@@ -744,7 +764,7 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID),
+	resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID,
 		`{"description":"v2 insufficient funds","asset":"USD","amount":"5000","from":{"alias":"@src",`+v2ScopeJSON+`},"to":{"alias":"@dst",`+v2ScopeJSON+`}}`, "")
 	body := drainBody(t, resp)
 
@@ -760,13 +780,6 @@ func TestIntegration_TransactionV2Direct_InsufficientFunds(t *testing.T) {
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, srcID), "source on-hold must be untouched")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, dstID), "destination available must be untouched")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceOnHold(t, infra.pgContainer.DB, dstID), "destination on-hold must be untouched")
-}
-
-// v2HoldURL builds the concrete v2 hold path for the given org/ledger. The hold op is
-// mounted by the SAME RegisterTransactionV2RoutesToApp seam as direct, so the v2 app
-// built by buildHumaV2DirectApp serves both.
-func v2HoldURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/hold"
 }
 
 // v1CommitURL builds the concrete v1 commit path for a pending transaction. It is used
@@ -836,7 +849,7 @@ func TestIntegration_TransactionV2Hold_ParityWithV1PendingJSON(t *testing.T) {
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 pending transaction should be PENDING in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-	v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, ledgerV2), holdParityV2Body, ""), nethttp.StatusCreated)
+	v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, ledgerV2, holdParityV2Body, ""), nethttp.StatusCreated)
 	v2TxID := uuid.MustParse(v2Resp["id"].(string))
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 hold transaction should be PENDING in DB")
 	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -891,7 +904,7 @@ func TestIntegration_TransactionV2Hold_CommitSettles(t *testing.T) {
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
 	// Create the hold on the v2 surface.
-	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), holdParityV2Body, ""), nethttp.StatusCreated)
+	holdResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, holdParityV2Body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(holdResp["id"].(string))
 
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID), "v2 hold should open the transaction as PENDING")
@@ -953,9 +966,9 @@ func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 	idempotencyKey := uuid.NewString()
-	url := v2HoldURL(infra.orgID, infra.ledgerID)
+	url := v2CreateURL("hold")
 
-	first := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	first := postTransaction(t, v2App, url, v2ScopedBody(holdParityV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 	assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first hold call must not be a replay")
 
@@ -964,7 +977,7 @@ func TestIntegration_TransactionV2Hold_Idempotency(t *testing.T) {
 	// Wait for the async idempotency-value store before replaying (see helper doc).
 	waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-	second := postTransaction(t, v2App, url, holdParityV2Body, idempotencyKey)
+	second := postTransaction(t, v2App, url, v2ScopedBody(holdParityV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 	secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 	assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical hold call must be a replay")
@@ -1000,13 +1013,13 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 	// hash — the exact collision path that cross-dedup would exploit.
 	body := `{"description":"direct hold cross dedup","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `}}`
 
-	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+	directResp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, "")
 	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "direct create must not be a replay")
 
 	directTxID := uuid.MustParse(directResult["id"].(string))
 
-	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), body, "")
+	holdResp := postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, body, "")
 	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
 		"the hold create must NOT replay the direct transaction (distinct action identity, distinct idempotency slot)")
@@ -1028,21 +1041,11 @@ func TestIntegration_TransactionV2_DirectHoldNoKeyCrossDedup(t *testing.T) {
 		"direct + hold with an identical no-key body must persist two transactions, not replay one")
 }
 
-// v2BlockURL / v2UnblockURL build the concrete v2 block/unblock paths. Both ops are mounted
-// by the SAME RegisterTransactionV2RoutesToApp seam as direct/hold, so the v2 app built by
-// buildHumaV2DirectApp serves all four.
-func v2BlockURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
-}
-
-func v2UnblockURL(orgID, ledgerID uuid.UUID) string {
-	return "/v2/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/unblock"
-}
-
 // v1BlockURL / v1UnblockURL build the concrete v1 block/unblock paths. The v1 block/unblock
 // Huma ops are registered by RegisterTransactionRoutes (inside buildHumaTransactionApp) and
-// enter the SAME createTransactionShell funnel the v2 actions do — the funnel parses org/ledger
-// from the path string, so these are the parity reference for the v2 block/unblock actions.
+// enter the SAME createTransactionShell funnel the v2 actions do, which is what makes them the
+// parity reference for the v2 block/unblock actions. Only where each surface reads the scope
+// differs: v1 from these path segments, v2 from the request body.
 func v1BlockURL(orgID, ledgerID uuid.UUID) string {
 	return "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/block"
 }
@@ -1139,7 +1142,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 		name         string
 		expectedType string
 		reason       string
-		v2URL        func(orgID, ledgerID uuid.UUID) string
+		v2Action     string
 		v1URL        func(orgID, ledgerID uuid.UUID) string
 		v2Body       string
 		v1Body       string
@@ -1148,7 +1151,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			name:         "block v2 matches v1 block ledger effect",
 			expectedType: cn.BLOCK,
 			reason:       "regulatory-hold",
-			v2URL:        v2BlockURL,
+			v2Action:     "block",
 			v1URL:        v1BlockURL,
 			v2Body:       `{"description":"v1 v2 block parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			v1Body: `{
@@ -1166,7 +1169,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			name:         "unblock v2 matches v1 unblock ledger effect",
 			expectedType: cn.UNBLOCK,
 			reason:       "regulatory-release",
-			v2URL:        v2UnblockURL,
+			v2Action:     "unblock",
 			v1URL:        v1UnblockURL,
 			v2Body:       `{"description":"v1 v2 unblock parity transfer","asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-release"}}`,
 			v1Body: `{
@@ -1219,7 +1222,7 @@ func TestIntegration_TransactionV2BlockUnblock_ParityWithV1(t *testing.T) {
 			// A routeless, default-settings ledger has no Block/Unblock AccountingEntry: reaching
 			// StatusCreated here (no error) is the observable proof the override resolved the
 			// rubric via the Direct fallback rather than demanding a dedicated block rubric.
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, tc.v2URL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, tc.v2Action, infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 block/unblock transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -1302,7 +1305,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			// ErrMissingFieldsInRequest (0009) -> ValidationError -> 400, before the funnel.
 			// Identical to the direct-action validation contract; block/unblock share the seam.
 			name:             "block missing required from field",
-			url:              v2BlockURL(infra.orgID, infra.ledgerID),
+			url:              v2CreateURL("block"),
 			body:             `{"asset":"USD","amount":"100","to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
@@ -1310,7 +1313,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 		},
 		{
 			name:             "unblock missing required from field",
-			url:              v2UnblockURL(infra.orgID, infra.ledgerID),
+			url:              v2CreateURL("unblock"),
 			body:             `{"asset":"USD","amount":"100","to":{"alias":"@dst",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-release"}}`,
 			wantStatus:       nethttp.StatusBadRequest,
 			wantCode:         "0009",
@@ -1320,7 +1323,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 			// from == to is a Translate business error (ErrTransactionAmbiguous / 0090) -> 422,
 			// fired before the create funnel touches any balance.
 			name:       "block from equals to business error",
-			url:        v2BlockURL(infra.orgID, infra.ledgerID),
+			url:        v2CreateURL("block"),
 			body:       `{"asset":"USD","amount":"100","from":{"alias":"@src",` + v2ScopeJSON + `},"to":{"alias":"@src",` + v2ScopeJSON + `},"metadata":{"reason":"regulatory-hold"}}`,
 			wantStatus: nethttp.StatusUnprocessableEntity,
 			wantCode:   "0090",
@@ -1329,7 +1332,7 @@ func TestIntegration_TransactionV2BlockUnblock_ValidationBeforeLedgerEffect(t *t
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp := postTransaction(t, v2App, tc.url, tc.body, "")
+			resp := postTransaction(t, v2App, tc.url, v2ScopedBody(tc.body, infra.orgID, infra.ledgerID), "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, tc.wantStatus, resp.StatusCode, "%s should be rejected before any ledger effect; body: %s", tc.name, string(body))
@@ -1448,13 +1451,13 @@ func directAdvancedLegOps() map[string]advancedLegExpectation {
 func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing.T) {
 	cases := []struct {
 		name       string
-		url        func(orgID, ledgerID uuid.UUID) string
+		action     string
 		wantStatus string
 		wantOps    map[string]advancedLegExpectation
 	}{
 		{
 			name:       "direct settles every leg with plain debit and credit labels",
-			url:        v2DirectURL,
+			action:     "direct",
 			wantStatus: cn.APPROVED,
 			wantOps:    directAdvancedLegOps(),
 		},
@@ -1462,7 +1465,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 			// A hold reserves the sources only; the destination credit lands on commit, so a
 			// pending transaction persists one ON_HOLD operation per SOURCE leg.
 			name:       "hold opens pending and reserves every source leg",
-			url:        v2HoldURL,
+			action:     "hold",
 			wantStatus: cn.PENDING,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.ONHOLD, amount: decimal.NewFromInt(60)},
@@ -1471,7 +1474,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 		},
 		{
 			name:       "block stamps its override on every expanded leg",
-			url:        v2BlockURL,
+			action:     "block",
 			wantStatus: cn.APPROVED,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.BLOCK, amount: decimal.NewFromInt(60)},
@@ -1482,7 +1485,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 		},
 		{
 			name:       "unblock stamps its override on every expanded leg",
-			url:        v2UnblockURL,
+			action:     "unblock",
 			wantStatus: cn.APPROVED,
 			wantOps: map[string]advancedLegExpectation{
 				"@srcA": {opType: cn.UNBLOCK, amount: decimal.NewFromInt(60)},
@@ -1509,7 +1512,7 @@ func TestIntegration_TransactionV2Advanced_FourActionsAcceptLegArrays(t *testing
 
 			v2App := buildHumaV2DirectApp(t, infra.handler)
 
-			resp := decodeTxResponse(t, postTransaction(t, v2App, tc.url(infra.orgID, infra.ledgerID), advancedLegV2Body, ""), nethttp.StatusCreated)
+			resp := decodeTxResponse(t, postV2Create(t, v2App, tc.action, infra.orgID, infra.ledgerID, advancedLegV2Body, ""), nethttp.StatusCreated)
 			txID := uuid.MustParse(resp["id"].(string))
 
 			assert.Equal(t, tc.wantStatus, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1685,7 +1688,7 @@ func TestIntegration_TransactionV2Advanced_ExternalAccountLegFundsAccount(t *tes
 		`"sources":[{"alias":"` + externalUSDAlias + `",` + v2ScopeJSON + `,"amount":"100"}],` +
 		`"destinations":[{"alias":"@alice",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1738,7 +1741,7 @@ func TestIntegration_TransactionV2Direct_ExternalAccountScalarFundsAccount(t *te
 	body := `{"description":"fund alice","asset":"USD","amount":"100",` +
 		`"from":{"alias":"` + externalUSDAlias + `",` + v2ScopeJSON + `},"to":{"alias":"@alice",` + v2ScopeJSON + `}}`
 
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1809,7 +1812,7 @@ func TestIntegration_TransactionV2Advanced_UnbalancedLegsRejected(t *testing.T) 
 
 			v2App := buildHumaV2DirectApp(t, infra.handler)
 
-			resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), tc.body, "")
+			resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, tc.body, "")
 			body := drainBody(t, resp)
 
 			assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -1867,7 +1870,7 @@ func TestIntegration_TransactionV2Advanced_PercentageOfPercentageResolvesNarrowe
 		`"destinations":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":60,"percentageOfPercentage":50}},` +
 		`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":70}}]}`
 
-	resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+	resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(resp["id"].(string))
 
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -1942,7 +1945,7 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 		body := `{"description":"self transfer","asset":"USD","amount":"100","from":{"alias":"@self",` + v2ScopeJSON + `},` +
 			`"destinations":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}]}`
 
-		resp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, "")
+		resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, "")
 		respBody := drainBody(t, resp)
 
 		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
@@ -1973,7 +1976,7 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 		body := `{"description":"self at index one","asset":"USD","amount":"100","from":{"alias":"@self",` + v2ScopeJSON + `},` +
 			`"destinations":[{"alias":"@other",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@self",` + v2ScopeJSON + `,"amount":"40"}]}`
 
-		resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), body, ""), nethttp.StatusCreated)
+		resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
 		txID := uuid.MustParse(resp["id"].(string))
 
 		assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -2025,7 +2028,7 @@ func TestIntegration_TransactionV2Advanced_MultiLegHoldCommitSettles(t *testing.
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	holdResp := decodeTxResponse(t, postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, ""), nethttp.StatusCreated)
+	holdResp := decodeTxResponse(t, postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, advancedLegV2Body, ""), nethttp.StatusCreated)
 	txID := uuid.MustParse(holdResp["id"].(string))
 
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
@@ -2264,7 +2267,7 @@ func TestIntegration_TransactionV2Advanced_MultiLegParityWithV1Detailed(t *testi
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -2378,7 +2381,7 @@ func TestIntegration_TransactionV2Advanced_UnderfundedSourceLegRejectsWholeTrans
 		balances map[string]uuid.UUID
 	}{
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), underfundedSourceLegV1Body, ledgerV1, v1Balances},
-		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), underfundedSourceLegV2Body, ledgerV2, v2Balances},
+		{"v2", v2App, v2CreateURL("direct"), v2ScopedBody(underfundedSourceLegV2Body, infra.orgID, ledgerV2), ledgerV2, v2Balances},
 	} {
 		// A subtest per surface: the helpers below are require-based, so a v1 failure would
 		// otherwise end the test before v2 ran at all.
@@ -2548,7 +2551,7 @@ func TestIntegration_TransactionV2Advanced_ShareLegParityWithV1Detailed(t *testi
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v1TxID), "v1 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV1)
 
-			v2Resp := decodeTxResponse(t, postTransaction(t, v2App, v2DirectURL(infra.orgID, ledgerV2), tc.v2Body, ""), nethttp.StatusCreated)
+			v2Resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, ledgerV2, tc.v2Body, ""), nethttp.StatusCreated)
 			v2TxID := uuid.MustParse(v2Resp["id"].(string))
 			assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, v2TxID), "v2 transaction should be APPROVED in DB")
 			drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, ledgerV2)
@@ -2648,7 +2651,7 @@ func TestIntegration_TransactionV2Advanced_ShareLegsNotClosingTotalRejected(t *t
 		balances map[string]uuid.UUID
 	}{
 		{"v1", v1App, v1JSONURL(infra.orgID, ledgerV1), shareShortV1Body, ledgerV1, v1Balances},
-		{"v2", v2App, v2DirectURL(infra.orgID, ledgerV2), shareShortV2Body, ledgerV2, v2Balances},
+		{"v2", v2App, v2CreateURL("direct"), v2ScopedBody(shareShortV2Body, infra.orgID, ledgerV2), ledgerV2, v2Balances},
 	} {
 		// A subtest per surface: the helpers below are require-based, so a v1 failure would
 		// otherwise end the test before v2 ran at all.
@@ -2741,10 +2744,10 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
-		url := v2DirectURL(infra.orgID, infra.ledgerID)
+		url := v2CreateURL("direct")
 		idempotencyKey := uuid.NewString()
 
-		first := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		first := postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 		firstResult := decodeTxResponse(t, first, nethttp.StatusCreated)
 		assert.Equal(t, "false", first.Header.Get("X-Idempotency-Replayed"), "first advanced call must not be a replay")
 
@@ -2753,7 +2756,7 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		// Wait for the async idempotency-value store before replaying (see helper doc).
 		waitForIdempotencyStored(t, ctx, infra.redisRepo, infra.orgID, infra.ledgerID, idempotencyKey)
 
-		second := postTransaction(t, v2App, url, advancedLegV2Body, idempotencyKey)
+		second := postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), idempotencyKey)
 		secondResult := decodeTxResponse(t, second, nethttp.StatusCreated)
 
 		assert.Equal(t, "true", second.Header.Get("X-Idempotency-Replayed"), "second identical advanced call must be a replay")
@@ -2800,12 +2803,12 @@ func TestIntegration_TransactionV2Advanced_Idempotency(t *testing.T) {
 		balances := seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
-		url := v2DirectURL(infra.orgID, infra.ledgerID)
+		url := v2CreateURL("direct")
 
 		// No X-Idempotency header on either call, so each derives its key from its own body bytes.
-		firstResult := decodeTxResponse(t, postTransaction(t, v2App, url, advancedLegV2Body, ""), nethttp.StatusCreated)
+		firstResult := decodeTxResponse(t, postTransaction(t, v2App, url, v2ScopedBody(advancedLegV2Body, infra.orgID, infra.ledgerID), ""), nethttp.StatusCreated)
 
-		permuted := postTransaction(t, v2App, url, advancedLegPermutedV2Body, "")
+		permuted := postTransaction(t, v2App, url, v2ScopedBody(advancedLegPermutedV2Body, infra.orgID, infra.ledgerID), "")
 		permutedResult := decodeTxResponse(t, permuted, nethttp.StatusCreated)
 
 		assert.Equal(t, "false", permuted.Header.Get("X-Idempotency-Replayed"),
@@ -2850,13 +2853,13 @@ func TestIntegration_TransactionV2Advanced_DirectHoldNoKeyCrossDedup(t *testing.
 
 	v2App := buildHumaV2DirectApp(t, infra.handler)
 
-	directResp := postTransaction(t, v2App, v2DirectURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	directResp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, advancedLegV2Body, "")
 	directResult := decodeTxResponse(t, directResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", directResp.Header.Get("X-Idempotency-Replayed"), "the advanced direct create must not be a replay")
 
 	directTxID := uuid.MustParse(directResult["id"].(string))
 
-	holdResp := postTransaction(t, v2App, v2HoldURL(infra.orgID, infra.ledgerID), advancedLegV2Body, "")
+	holdResp := postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, advancedLegV2Body, "")
 	holdResult := decodeTxResponse(t, holdResp, nethttp.StatusCreated)
 	assert.Equal(t, "false", holdResp.Header.Get("X-Idempotency-Replayed"),
 		"the advanced hold create must NOT replay the advanced direct transaction (distinct action identity, distinct slot)")
@@ -2874,4 +2877,67 @@ func TestIntegration_TransactionV2Advanced_DirectHoldNoKeyCrossDedup(t *testing.
 
 	assert.Equal(t, 2, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
 		"an advanced direct + hold with an identical no-key body must persist two transactions, not replay one")
+}
+
+// =============================================================================
+// 20. BODY SCOPE DECIDES THE LEDGER: the v2 create path names no organization and no
+//     ledger, so the pair the request body states is the only thing that can decide where
+//     the transaction lands. Two ledgers are seeded with the SAME aliases and the SAME
+//     starting balances, so nothing but the scope in the body distinguishes them — and the
+//     transaction must appear in the one the body named and nowhere else.
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_BodyScopeDecidesTheLedger(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	// The postgres client constructor enforces TLS by the ENV_NAME security tier and refuses
+	// plaintext unless ALLOW_INSECURE_TLS=true.
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+
+	// Two ledgers under one organization, seeded identically. The named one receives the
+	// transaction; the other is the control.
+	unnamedLedger := infra.ledgerID
+	namedLedger := uuid.Must(libCommons.GenerateUUIDv7())
+	seedLedgerSettings(t, infra.pgContainer.DB, infra.orgID, namedLedger)
+
+	unnamedSrc, unnamedDst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, unnamedLedger, "@src", "@dst", 1000)
+	namedSrc, namedDst := seedTransfer(t, infra.pgContainer.DB, infra.orgID, namedLedger, "@src", "@dst", 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	resp := decodeTxResponse(t,
+		postV2Create(t, v2App, "direct", infra.orgID, namedLedger, equivalentV2Body, ""),
+		nethttp.StatusCreated)
+
+	txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"the transaction must settle in the ledger the body named")
+
+	assert.Equal(t, namedLedger.String(), resp["ledgerId"],
+		"the response must report the ledger the body named")
+	assert.Equal(t, infra.orgID.String(), resp["organizationId"],
+		"the response must report the organization the body named")
+
+	assert.Equal(t, 1, countTransactionsInLedger(t, infra.pgContainer.DB, namedLedger),
+		"the named ledger must hold the transaction")
+	assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, unnamedLedger),
+		"no other ledger may hold a transaction the body never named")
+
+	// Balances move in the named ledger only. Both ledgers are drained so an effect landing in
+	// the wrong one cannot hide behind an unflushed hot balance.
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, namedLedger)
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, unnamedLedger)
+
+	requireDecimalEqual(t, decimal.NewFromInt(900), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, namedSrc),
+		"the named ledger's source must be debited")
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, namedDst),
+		"the named ledger's destination must be credited")
+	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, unnamedSrc),
+		"a ledger the body never named must be untouched")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, unnamedDst),
+		"a ledger the body never named must be untouched")
 }

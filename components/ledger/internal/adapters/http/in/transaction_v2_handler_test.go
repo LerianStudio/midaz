@@ -21,7 +21,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +33,7 @@ import (
 )
 
 // v2ScopeOrgID and v2ScopeLedgerID are the organization and ledger every leg of a v2 test body
-// names. They are independent of the path parameters the requests carry, which these tests
-// generate per call.
+// names, and therefore the scope the request is posted against: a v2 create URL names neither.
 const (
 	v2ScopeOrgID    = "77777777-7777-7777-7777-777777777777"
 	v2ScopeLedgerID = "88888888-8888-8888-8888-888888888888"
@@ -97,17 +95,15 @@ func buildHumaV2DirectApp(t *testing.T, handler *TransactionHandler, logger ...l
 	return app
 }
 
-// directV2ConcretePath builds the concrete /v2 direct path for a random org+ledger so
-// ParseUUIDPathParameters passes and dispatch reaches the terminal.
-func directV2ConcretePath() string {
-	return "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/direct"
-}
+// directV2ConcretePath is the v2 direct path. It names no organization and no ledger: the
+// scope a create is posted against travels in the request body.
+const directV2ConcretePath = "/v2/transactions/direct"
 
 // postDirectV2 issues an authenticated POST to the v2 direct route with the given JSON body.
 func postDirectV2(t *testing.T, app *fiber.App, body string) *http.Response {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath(), strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, directV2ConcretePath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -286,7 +282,7 @@ func TestCreateTransactionV2_CancelledContext(t *testing.T) {
 
 	handler := &TransactionHandler{}
 
-	out, err := handler.createTransactionV2(ctx, uuid.New().String(), uuid.New().String(), []byte(v2DirectBody), "", "", false, "")
+	out, err := handler.createTransactionV2(ctx, []byte(v2DirectBody), "", "", false, "")
 
 	require.Error(t, err, "a cancelled context must short-circuit before the funnel")
 	assert.Nil(t, out, "no output envelope on the cancelled-context guard")
@@ -304,7 +300,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
 	// block action identity: (pending=false, override="BLOCK").
-	tx, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
+	tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
 	require.NoError(t, err)
 
 	assert.Equal(t, "BLOCK", tx.OperationTypeOverride,
@@ -314,11 +310,10 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 }
 
 // buildHumaV2ActionApp mounts a single named v2 create action on a fresh Fiber app + its own
-// /v2 Huma contract. Wiring one terminal at a time — with the SAME Fiber
-// auth/tenant/ParseUUIDPathParameters chain and SkipValidateBody Huma op the production route
-// carries — keeps a failure attributable to the handler under test rather than to any sibling
-// op. Same MUST-NOT-PARALLELIZE rationale as buildHumaV2DirectApp: libProblem.Install() and
-// Huma validation use process-global state.
+// /v2 Huma contract. Wiring one terminal at a time — with the SAME Fiber auth/tenant chain and
+// SkipValidateBody Huma op the production route carries — keeps a failure attributable to the
+// handler under test rather than to any sibling op. Same MUST-NOT-PARALLELIZE rationale as
+// buildHumaV2DirectApp: libProblem.Install() and Huma validation use process-global state.
 func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error)) *fiber.App {
 	t.Helper()
 
@@ -335,15 +330,14 @@ func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, 
 	humaAPI := openapi.New(app, apiV2, openapi.Config{Title: "ledger-test-v2-" + action, Version: "test", Servers: []string{"/v2"}})
 	pkgHTTP.InstallLedgerSchemaNamer(humaAPI)
 
-	middlewarePath := "/organizations/:organization_id/ledgers/:ledger_id/transactions/" + action
+	actionPath := "/transactions/" + action
 
-	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
-	routePost(apiV2, middlewarePath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil, parse))
+	routePost(apiV2, actionPath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil))
 
 	huma.Register(humaAPI, huma.Operation{
 		OperationID:      "createTransaction" + strings.ToUpper(action[:1]) + action[1:] + "V2",
 		Method:           http.MethodPost,
-		Path:             "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/" + action,
+		Path:             actionPath,
 		Summary:          "Create a Transaction using the v2 " + action + " model",
 		Tags:             []string{"Transactions"},
 		Security:         secTransactionBearer,
@@ -354,19 +348,40 @@ func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, 
 	return app
 }
 
-// postActionV2 issues an authenticated POST to a v2 action route for a random org+ledger so
-// ParseUUIDPathParameters passes and dispatch reaches the terminal.
+// postActionV2 issues an authenticated POST to a v2 create action route. The route names no
+// organization and no ledger; the scope comes from the body the caller passes.
 func postActionV2(t *testing.T, app *fiber.App, action, body string) *http.Response {
 	t.Helper()
 
-	path := "/v2/organizations/" + uuid.New().String() + "/ledgers/" + uuid.New().String() + "/transactions/" + action
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	return postActionV2WithIdempotency(t, app, action, body, "")
+}
+
+// postActionV2WithIdempotency is postActionV2 with an X-Idempotency header, sent only when
+// idempotencyKey is non-empty so the no-key path stays reachable.
+func postActionV2WithIdempotency(t *testing.T, app *fiber.App, action, body, idempotencyKey string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/v2/transactions/"+action, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+
+	if idempotencyKey != "" {
+		req.Header.Set("X-Idempotency", idempotencyKey)
+	}
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	return resp
+}
+
+// readAllForTest reads a response body into a string for assertions that inspect it.
+func readAllForTest(t *testing.T, resp *http.Response) string {
+	t.Helper()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return string(raw)
 }
 
 // TestCreateTransactionBlockV2Huma_MalformedBody_400 proves the block handler decodes the flat
@@ -521,7 +536,7 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
+			tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.override, tx.OperationTypeOverride,
@@ -693,7 +708,7 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
+			tx, _, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
 			require.NoError(t, err, "the %s action must accept the leg-array spelling", tc.name)
 
 			// One canonical leg per array entry, in submission order, each carrying the value

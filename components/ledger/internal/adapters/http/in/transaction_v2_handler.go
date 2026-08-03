@@ -17,74 +17,75 @@ import (
 // Transaction, and delegate to the shared createTransactionShell funnel. The v2 create
 // actions (direct, hold, ...) differ only in the pending flag Translate applies and an
 // optional Operation.Type label override, so they share the createTransactionV2 helper.
+//
+// A v2 create names its organization and ledger on every leg of the body, and Translate
+// resolves the single pair they agree on. That pair is what the funnel is entered with, so
+// the create endpoints carry no organization or ledger segment: one request has one scope,
+// stated once.
+//
 // Idempotency keys off the raw v2 body as submitted (pre-translation), but the v2 action
 // is carried by the ENDPOINT, not the body — so the action identity is folded into the
 // hash source (see v2IdempotencyHashSource) to keep byte-identical bodies posted to
 // different actions in distinct idempotency slots. Conventions mirror the v1 Huma create
-// shells (see transaction_handler_huma.go's header): path params are plain strings
-// validated by the ParseUUIDPathParameters Fiber middleware, the body carries RawBody so
+// shells (see transaction_handler_huma.go's header): the body carries RawBody so
 // http.DecodeAndValidate is the sole body validator, and errors flow through the shared
 // pkgHTTP.HumaProblem RFC 9457 envelope (business errors from Translate map to a 4xx with
-// a green span; a malformed route UUID is caught by the input's uuid validate tag as a
-// clean 400).
+// a green span; a malformed route UUID, organization or ledger is caught by the input's
+// uuid validate tags as a clean 400).
 
 // CreateTransactionV2InputHuma is the request envelope every v2 create action shares: the
 // body shape is identical across them because the action intent is carried by the
-// endpoint, not the body. The org/ledger path params are plain strings (validated by the
-// ParseUUIDPathParameters Fiber middleware attached before this terminal). RawBody keeps the
-// body out of Huma's validator so the flat v2 model is decoded imperatively via
-// http.DecodeAndValidate.
+// endpoint, not the body. It declares no path parameter — the organization and ledger a
+// create posts against are body fields. RawBody keeps the body out of Huma's validator so
+// the flat v2 model is decoded imperatively via http.DecodeAndValidate.
 type CreateTransactionV2InputHuma struct {
-	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
-	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
 	IdempotencyKey string `header:"X-Idempotency" doc:"Idempotency key to safely retry the create; an identical retry returns the original transaction"`
 	IdempotencyTTL string `header:"X-TTL" doc:"Idempotency slot TTL in seconds (default 300)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
-// context, builds the canonical Transaction from the flat v2 body
+// context, builds the canonical Transaction and the request's scope from the flat v2 body
 // (decodeAndBuildV2Transaction), and delegates to the shared createTransactionShell keyed by
 // the action-discriminated raw body (v2IdempotencyHashSource). Translate business errors and
-// the input's route-UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
-func (handler *TransactionHandler) createTransactionV2(ctx context.Context, orgStr, ledgerStr string, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputHuma, error) {
+// the input's UUID validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
+func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputHuma, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionInput, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	transactionInput, scope, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
 	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
 
-	return handler.createTransactionShell(ctx, orgStr, ledgerStr, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
+	return handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, hashSource)
 }
 
 // decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
 // http.DecodeAndValidate the v1 create ops run), translates it to the canonical
 // Transaction with the caller's pending intent, and stamps the optional Operation.Type
-// override. The returned value is exactly the Transaction createTransactionV2 hands to the
-// funnel, so it is the unit seam for asserting the translate+stamp result.
-func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, error) {
+// override. It returns the transaction alongside the scope Translate resolved from the
+// legs, which together are exactly what createTransactionV2 hands to the funnel — so this
+// is the unit seam for asserting both the translate+stamp result and the resolved scope.
+func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, mtransaction.V2Scope, error) {
 	payload := new(mtransaction.CreateTransactionV2Input)
 	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
 	}
 
-	// The scope Translate resolves from the body is discarded here: this path scopes the
-	// transaction by the organization and ledger path parameters.
-	transactionInput, _, err := payload.Translate(pending)
+	transactionInput, scope, err := payload.Translate(pending)
 	if err != nil {
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
 	}
 
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
 
-	return transactionInput, nil
+	return transactionInput, scope, nil
 }
 
 // idempotencyActionDiscriminator returns the action-identity label folded into the v2
@@ -124,7 +125,7 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 // override, reusing the v1 createTransaction funnel and its CreateTransactionOutputHuma
 // success envelope (201 + X-Idempotency-Replayed).
 func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
-	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
+	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
 }
 
 // CreateTransactionHoldV2Huma creates a v2 transaction with the hold action: it delegates
@@ -132,7 +133,7 @@ func (handler *TransactionHandler) CreateTransactionDirectV2Huma(ctx context.Con
 // (held for later commit/cancel). It reuses the same flat input envelope and success
 // envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
-	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, true, "")
+	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, true, "")
 }
 
 // CreateTransactionBlockV2Huma creates a v2 transaction with the block action: it delegates
@@ -143,12 +144,12 @@ func (handler *TransactionHandler) CreateTransactionHoldV2Huma(ctx context.Conte
 // Pending=false. The reason travels as a metadata key copied by Translate. It reuses the same
 // flat input envelope and success envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionBlockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
-	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.BLOCK)
+	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.BLOCK)
 }
 
 // CreateTransactionUnblockV2Huma creates a v2 transaction with the unblock action: it delegates
 // to createTransactionV2 with pending=false and the constant.UNBLOCK Operation.Type override,
 // mirroring the block action's contract with the opposing override label.
 func (handler *TransactionHandler) CreateTransactionUnblockV2Huma(ctx context.Context, in *CreateTransactionV2InputHuma) (*CreateTransactionOutputHuma, error) {
-	return handler.createTransactionV2(ctx, in.OrganizationID, in.LedgerID, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.UNBLOCK)
+	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, constant.UNBLOCK)
 }

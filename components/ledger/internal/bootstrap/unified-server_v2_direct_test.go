@@ -22,8 +22,9 @@ import (
 )
 
 // directOpV2Path is the GROUP-RELATIVE op path the v2 `direct` operation registers
-// under (the /v2 prefix rides the OpenAPI servers entry, so it is absent here).
-const directOpV2Path = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/direct"
+// under (the /v2 prefix rides the OpenAPI servers entry, so it is absent here). It names
+// no organization and no ledger: a v2 create is scoped by its request body.
+const directOpV2Path = "/transactions/direct"
 
 // newV2DirectServer builds a unified server whose /v2 contract mounts ONLY the
 // `direct` transaction op via the production seam httpin.RegisterTransactionV2RoutesToApp,
@@ -82,7 +83,7 @@ func TestNewUnifiedServer_V2DirectRouteRequiresAuth(t *testing.T) {
 	// dialed: a missing token short-circuits with 401 first).
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
 
-	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
+	const concretePath = "/v2/transactions/direct"
 
 	req, err := http.NewRequest(http.MethodPost, concretePath, nil)
 	require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestNewUnifiedServer_V2DirectRouteRequiresAuth(t *testing.T) {
 // TestNewUnifiedServer_V2DirectRouteReachesRealHandler proves the mounted route→terminal
 // composition end-to-end: an AUTHENTICATED (auth disabled) POST to the CONCRETE /v2
 // direct path traverses the full Fiber middleware chain (auth passthrough + tenant
-// post-auth + ParseUUIDPathParameters) and dispatches to the REAL handler, which decodes
+// post-auth + the body-size guard) and dispatches to the REAL handler, which decodes
 // the flat v2 body. An empty `{}` body is missing the required asset/amount/from/to
 // fields, so http.DecodeAndValidate rejects it with the canonical 400 RFC 9457
 // problem+json (never a panic, never the removed 501 stub). This exercises the seam the
@@ -111,7 +112,7 @@ func TestNewUnifiedServer_V2DirectRouteReachesRealHandler(t *testing.T) {
 
 	server := newV2DirectServer(t, &middleware.AuthClient{Enabled: false})
 
-	const concretePath = "/v2/organizations/00000000-0000-0000-0000-000000000001/ledgers/00000000-0000-0000-0000-000000000002/transactions/direct"
+	const concretePath = "/v2/transactions/direct"
 
 	// Empty body + Content-Type: Huma's request parse succeeds (RawBody), dispatch
 	// reaches the real handler, and DecodeAndValidate rejects the missing required
