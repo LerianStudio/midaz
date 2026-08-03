@@ -60,6 +60,7 @@ func buildHumaOrganizationApp(t *testing.T, handler *OrganizationHandler, authOK
 
 	// problem.Install must run before any huma.Register (runtime + spec-gen).
 	libProblem.Install()
+	pkgHTTP.InstallHumaFrameworkErrors()
 
 	apiV1 := f.Group("/v1")
 
@@ -222,6 +223,43 @@ func TestHuma_CreateOrganization_MalformedBody_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
+	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
+}
+
+func TestHuma_CreateOrganization_EmptyBody_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// A zero-length body is rejected by Huma's request-body precondition BEFORE
+	// SkipValidateBody is honoured, so DecodeAndValidate never runs and the
+	// rejection carries no business code of its own. InstallHumaFrameworkErrors
+	// maps it onto the same 0094 envelope the malformed-body case above gets,
+	// which is what the pre-Huma Fiber path answered. Service never reached.
+	//
+	// This test is the canary for the humaEmptyBodyMessage string coupling: it
+	// drives a real Fiber+Huma request, so a Huma upgrade that reworded the
+	// precondition message fails here rather than silently in production.
+	handler := &OrganizationHandler{Command: &command.UseCase{OrganizationRepo: organization.NewMockRepository(ctrl)}}
+
+	app := buildHumaOrganizationApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/organizations", bytes.NewReader([]byte("")))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "empty body stays 400 — no 500, no native 422")
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "empty-body code is 0094, not absent")
+	assert.Equal(t, "Unmarshalling error", got["title"])
 	assert.Equal(t, float64(http.StatusBadRequest), got["status"])
 }
 
