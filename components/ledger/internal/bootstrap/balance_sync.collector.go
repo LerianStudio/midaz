@@ -120,7 +120,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 				continue
 			}
 
-			if waitOrDone(ctx, c.pollInterval, c.logger) {
+			if waitOrDone(ctx, c.pollInterval) {
 				return
 			}
 
@@ -156,13 +156,6 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	c.buffer = append(c.buffer, keys...)
 	bufLen := len(c.buffer)
 	c.mu.Unlock()
-
-	c.logger.Log(
-		ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
-		libLog.Int("fetched", len(keys)),
-		libLog.Int("buffer", bufLen),
-		libLog.Int("batch_size", c.batchSize),
-	)
 
 	// Start the flush timeout window when the first keys arrive in an empty buffer.
 	// The timer is NOT reset on subsequent fetches — otherwise a steady trickle of
@@ -220,14 +213,12 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 // via waitForNext until either new keys arrive or shutdown is requested.
 // Returns true if shutdown was requested during the wait.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode, waiting for new keys")
 	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
 		return true // shutdown requested
 	}
 
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: woke up from idle, resuming polling")
 	timer.Reset(c.flushTimeout)
 
 	return false

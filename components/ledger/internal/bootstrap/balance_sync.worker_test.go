@@ -178,7 +178,7 @@ func TestWaitOrDone(t *testing.T) {
 				cancel()
 			}
 
-			result := waitOrDone(ctx, tt.duration, newTestLogger())
+			result := waitOrDone(ctx, tt.duration)
 
 			assert.Equal(t, tt.expectedResult, result)
 		})
