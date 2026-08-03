@@ -11720,7 +11720,7 @@ components:
             - array
             - 'null'
         from:
-          type: string
+          $ref: '#/components/schemas/V2AccountInput'
         metadata:
           additionalProperties: {}
           type: object
@@ -11741,10 +11741,30 @@ components:
             - array
             - 'null'
         to:
-          type: string
+          $ref: '#/components/schemas/V2AccountInput'
       required:
         - asset
         - amount
+      type: object
+    V2AccountInput:
+      additionalProperties: false
+      properties:
+        alias:
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+      required:
+        - alias
+        - organizationId
+        - ledgerId
       type: object
     V2LegInput:
       additionalProperties: false
@@ -11753,11 +11773,21 @@ components:
         leg: `amount` for an explicit value, or `share` for a percentage of the
         transaction total. A leg carrying both, or neither, is rejected.
       properties:
-        account:
+        alias:
           type: string
         amount:
           type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        organizationId:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
@@ -11765,7 +11795,9 @@ components:
         share:
           $ref: '#/components/schemas/V2ShareInput'
       required:
-        - account
+        - alias
+        - organizationId
+        - ledgerId
       type: object
     V2ShareInput:
       additionalProperties: false
